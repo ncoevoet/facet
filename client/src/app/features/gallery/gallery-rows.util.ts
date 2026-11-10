@@ -52,6 +52,8 @@ export function aspectOf(photo: Photo): number {
 /** Minimum grid columns enforced off desktop so a narrow viewport never
  * degrades to one photo per screen (comparable gallery apps default to 3-4). */
 export const MOBILE_MIN_COLUMNS = 3;
+/** Filename/date/rating details need a wider cell than image-only browsing. */
+export const MOBILE_DETAILS_MIN_COLUMNS = 2;
 
 /**
  * Smallest card the thumbnail slider may ask for on a touch device.
@@ -65,22 +67,32 @@ export const MOBILE_MIN_COLUMNS = 3;
  */
 export const MOBILE_MIN_CARD_WIDTH_PX = 72;
 
+/** One bounded metadata row per photo; height follows the rendered root rem. */
+export function buildListRows(photos: Photo[], width: number, height: number, gap: number): GalleryRow[] {
+  if (width <= 0 || height <= 0) return [];
+  return photos.map((photo, index) => ({ photos: [photo], widths: [width], height,
+    offset: index * (height + gap), startIndex: index }));
+}
+
+/** Mirrors PhotoCard's 24rem switch between stacked and single-line metadata. */
+export function metadataRowHeight(width: number, rem: number): number {
+  return Math.ceil(rem * (width < 24 * rem ? 9 : 6));
+}
+
 /** Columns the CSS `repeat(auto-fill, minmax(cardMinW, 1fr))` grid produces,
  * floored to MOBILE_MIN_COLUMNS when isDesktop is false. */
-export function gridColumnCount(width: number, cardMinW: number, gap: number, isDesktop = true): number {
-  if (width <= 0) return isDesktop ? 1 : MOBILE_MIN_COLUMNS;
+export function gridColumnCount(width: number, cardMinW: number, gap: number, isDesktop = true, mobileMinimum = MOBILE_MIN_COLUMNS): number {
+  if (width <= 0) return isDesktop ? 1 : mobileMinimum;
   const cols = Math.max(1, Math.floor((width + gap) / (cardMinW + gap)));
-  return isDesktop ? cols : Math.max(MOBILE_MIN_COLUMNS, cols);
+  return isDesktop ? cols : Math.max(mobileMinimum, cols);
 }
 
 /**
  * Row-chunk the photos the way the CSS grid lays them out.
  *
  * With hideDetails (the default) cards are aspect-square, so heights are
- * exact. With the natural tile fit the row instead keeps the tallest original
- * ratio — still exact, and each card's own height is returned in `heights`
- * so it hugs its photo rather than the row height. With details shown, the height is an estimate refined by the
- * tallest image in the row plus DETAILS_ESTIMATE_PX.
+ * exact. Natural tiles use original ratios and return individual card heights.
+ * With details shown, cards use a 4:3 frame plus the details estimate.
  */
 export function buildGridRows(
   photos: Photo[],
@@ -92,7 +104,7 @@ export function buildGridRows(
   tileFit: 'square' | 'natural' = 'square',
 ): GalleryRow[] {
   if (!photos.length || width <= 0) return [];
-  const cols = gridColumnCount(width, cardMinW, gap, isDesktop);
+  const cols = gridColumnCount(width, cardMinW, gap, isDesktop, hideDetails ? MOBILE_MIN_COLUMNS : MOBILE_DETAILS_MIN_COLUMNS);
   const cellW = (width - (cols - 1) * gap) / cols;
 
   const rows: GalleryRow[] = [];
@@ -100,14 +112,15 @@ export function buildGridRows(
   for (let start = 0; start < photos.length; start += cols) {
     const rowPhotos = photos.slice(start, start + cols);
     let height: number;
-    if (cols === 1) {
-      height = Math.round(cellW / aspectOf(rowPhotos[0]))
-        + (hideDetails ? 0 : DETAILS_ESTIMATE_PX);
-    } else if (hideDetails && tileFit === 'square') {
+    if (!hideDetails) {
+      height = Math.round(cellW / (4 / 3)) + DETAILS_ESTIMATE_PX;
+    } else if (cols === 1) {
+      height = Math.round(cellW / aspectOf(rowPhotos[0]));
+    } else if (tileFit === 'square') {
       height = Math.round(cellW);
     } else {
       const maxImgH = Math.max(...rowPhotos.map(p => cellW / aspectOf(p)));
-      height = Math.round(maxImgH) + (hideDetails ? 0 : DETAILS_ESTIMATE_PX);
+      height = Math.round(maxImgH);
     }
     const widths = rowPhotos.map(() => Math.floor(cellW));
     const heights = hideDetails && tileFit === 'natural'

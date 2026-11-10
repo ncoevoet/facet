@@ -555,6 +555,10 @@ jobs:
         # npm install and costs nothing.
         run: node client/scripts/check-icon-button-labels.mjs
       - run: node --test client/scripts/check-icon-button-labels.test.mjs
+      - name: Icon names exist in the shipped font
+        # An unknown ligature name renders as raw text, not an error. Stdlib-only.
+        run: node client/scripts/check-icon-ligatures.mjs
+      - run: node --test client/scripts/check-icon-ligatures.test.mjs
       - run: npm ci --no-audit --no-fund
         working-directory: client
       - run: npx ng lint

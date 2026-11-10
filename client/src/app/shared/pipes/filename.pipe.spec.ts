@@ -17,4 +17,12 @@ describe('FilenamePipe', () => {
     expect(paths.map(path => pipe.transform(path))).toEqual(['same.jpg', 'same.jpg']);
     expect(paths).toEqual(['/first/same.jpg', '/second/same.jpg']);
   });
+  it('retains distinguishing suffixes without splitting Unicode code points', () => {
+    const name = '📷'.repeat(50) + '_final_v3_EXPORT_for_print_A2.jpg';
+    const compact = pipe.transform(name, 64);
+    expect(Array.from(compact)).toHaveLength(64);
+    expect(compact).toContain('…');
+    expect(compact.endsWith('final_v3_EXPORT_for_print_A2.jpg')).toBe(true);
+    expect(compact).not.toContain('\uFFFD');
+  });
 });

@@ -2,6 +2,7 @@ import type { Mock, MockedFunction } from 'vitest';
 import { TestBed } from '@angular/core/testing';
 import {
   HttpBackend,
+  HttpContext,
   HttpRequest,
   HttpHandlerFn,
   HttpErrorResponse,
@@ -9,6 +10,7 @@ import {
 import { EMPTY, throwError } from 'rxjs';
 import { MatSnackBar } from '@angular/material/snack-bar';
 import { errorInterceptor } from './error.interceptor';
+import { HANDLE_SERVER_ERROR_LOCALLY } from '../utils/http-error-context';
 import { AuthService } from '../services/auth.service';
 import { I18nService } from '../services/i18n.service';
 
@@ -260,6 +262,25 @@ describe('errorInterceptor', () => {
           },
         });
       }));
+  });
+
+  it('keeps crash reporting but skips the 5xx toast for a locally handled request', () => {
+    const req = new HttpRequest('GET', '/api/albums', { context: new HttpContext().set(HANDLE_SERVER_ERROR_LOCALLY, true) });
+    const failure = new HttpErrorResponse({ status: 500, url: '/api/albums' });
+    next.mockReturnValue(throwError(() => failure));
+    const seen: unknown[] = [];
+    runInterceptor(req).subscribe({ error: error => seen.push(error) });
+    expect(seen).toEqual([failure]);
+    expect(snackBarMock.open).not.toHaveBeenCalled();
+    expect(backendMock.handle).toHaveBeenCalledOnce();
+    expect(backendMock.handle.mock.calls[0][0].url).toBe('/api/client-errors');
+  });
+
+  it('still logs out for 401 on a locally handled request', () => {
+    const req = new HttpRequest('GET', '/api/albums', { context: new HttpContext().set(HANDLE_SERVER_ERROR_LOCALLY, true) });
+    next.mockReturnValue(throwError(() => new HttpErrorResponse({ status: 401, url: req.url })));
+    runInterceptor(req).subscribe({ error: () => {} });
+    expect(authMock.logout).toHaveBeenCalledOnce();
   });
 
   it('shows snackbar on 500 server error', () =>

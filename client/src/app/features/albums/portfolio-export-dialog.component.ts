@@ -34,13 +34,13 @@ export interface PortfolioExportDialogData {
   template: `
     <h2 mat-dialog-title>{{ I18N.portfolio.title | translate }}</h2>
     <mat-dialog-content class="!pt-2 min-w-[22rem] max-w-[32rem]">
-      <p class="text-sm opacity-70 mb-3">{{ I18N.portfolio.description | translate }}</p>
+      <p class="text-sm text-[var(--mat-sys-on-surface-variant)] mb-3">{{ I18N.portfolio.description | translate }}</p>
 
-      <label for="pfTitle" class="block text-xs opacity-60 mb-1">{{ I18N.portfolio.gallery_title | translate }}</label>
+      <label for="pfTitle" class="block text-xs text-[var(--mat-sys-on-surface-variant)] mb-1">{{ I18N.portfolio.gallery_title | translate }}</label>
       <input id="pfTitle" type="text" [value]="title()" (input)="onTitleInput($event)"
              class="w-full text-sm rounded border border-[var(--mat-sys-outline-variant)] bg-transparent px-2 py-1.5 mb-3" />
 
-      <label for="pfTarget" class="block text-xs opacity-60 mb-1">{{ I18N.portfolio.target_dir | translate }}</label>
+      <label for="pfTarget" class="block text-xs text-[var(--mat-sys-on-surface-variant)] mb-1">{{ I18N.portfolio.target_dir | translate }}</label>
       <input id="pfTarget" type="text" [value]="targetDir()" (input)="onTargetInput($event)"
              class="w-full text-sm font-mono rounded border border-[var(--mat-sys-outline-variant)] bg-transparent px-2 py-1.5 mb-3"
              placeholder="/path/to/folder" />
@@ -51,7 +51,7 @@ export interface PortfolioExportDialogData {
       </mat-checkbox>
     </mat-dialog-content>
     <mat-dialog-actions align="end">
-      <button mat-button mat-dialog-close>{{ I18N.portfolio.cancel | translate }}</button>
+      <button mat-button mat-dialog-close class="max-sm:!min-h-11">{{ I18N.portfolio.cancel | translate }}</button>
       <button mat-flat-button color="primary" [disabled]="busy() || !targetDir()"
               (click)="exportPortfolio()">
         @if (busy()) { <mat-spinner diameter="16" class="!inline-block !align-middle !mr-1" [attr.aria-label]="I18N.ui.labels.loading | translate" /> }

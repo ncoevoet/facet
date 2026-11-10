@@ -181,10 +181,13 @@ _register_builtins()
 
 def fetch_decisive_pairs(conn):
     """(pairs, n_ties): decisive ``(a_path, b_path, winner)`` rows and the tie count."""
-    pairs = [(r[0], r[1], r[2]) for r in conn.execute(
-        "SELECT photo_a_path, photo_b_path, winner FROM comparisons WHERE winner IN ('a', 'b')")]
-    n_ties = conn.execute("SELECT COUNT(*) FROM comparisons WHERE winner = 'tie'").fetchone()[0]
-    return pairs, n_ties
+    from comparison.training_scope import distinct_photo_sql, read_snapshot
+    with read_snapshot(conn):
+        distinct = distinct_photo_sql(conn, 'c.photo_a_path', 'c.photo_b_path')
+        pairs = [(r[0], r[1], r[2]) for r in conn.execute(
+            f"SELECT photo_a_path, photo_b_path, winner FROM comparisons c WHERE winner IN ('a', 'b') AND {distinct}")]
+        n_ties = conn.execute(f"SELECT COUNT(*) FROM comparisons c WHERE winner = 'tie' AND {distinct}").fetchone()[0]
+        return pairs, n_ties
 
 
 def _chunks(items, size=500):

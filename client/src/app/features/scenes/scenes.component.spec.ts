@@ -84,3 +84,53 @@ describe('ScenesComponent load more', () => {
     expect(lastPage()).toBe(2);
   });
 });
+
+describe('ScenesComponent layout', () => {
+  async function render() {
+    const scene = (id: number) => ({
+      scene_id: id, start: '2026-01-01T10:00:00', end: '2026-01-01T10:05:00', count: 1, best_path: '/a.jpg',
+      photos: [{ path: '/a.jpg', filename: 'a.jpg', aggregate: 7, date_taken: null }],
+    });
+    TestBed.configureTestingModule({
+      providers: [
+        { provide: ApiService, useValue: { get: vi.fn(() => of({ scenes: [scene(1), scene(2)], total: 2, page: 1, per_page: 20, total_pages: 1 })) } },
+        { provide: MatSnackBar, useValue: { open: vi.fn() } },
+        { provide: I18nService, useValue: { t: vi.fn((key: string) => key), translations: () => ({}) } },
+        { provide: ActivatedRoute, useValue: { snapshot: { queryParamMap: { get: () => null } } } },
+        { provide: Router, useValue: { navigate: vi.fn() } },
+        { provide: AlbumService, useValue: { listNonSmart: () => of([]) } },
+        { provide: AuthService, useValue: { isEdition: vi.fn(() => false) } },
+        { provide: GalleryStore, useValue: { config: () => null } },
+      ],
+    });
+    const fixture = TestBed.createComponent(ScenesComponent);
+    fixture.detectChanges();
+    await fixture.whenStable();
+    fixture.detectChanges();
+    return fixture.nativeElement as HTMLElement;
+  }
+
+  it('insets its content 16px (px-4) like the other pages, not centred in a padded column', async () => {
+    const content = (await render()).querySelector('div.w-full') as HTMLElement;
+    expect(content.className).toContain('px-4');
+    expect(content.className).not.toContain('md:px-8');
+    expect(content.className).not.toContain('mx-auto');
+    expect(content.className).not.toContain('max-w-');
+  });
+
+  it('lays the scenes out as cards, two to a row from xl, three tiles per row inside', async () => {
+    const host = await render();
+    const grid = host.querySelector('[data-scene-grid]') as HTMLElement;
+    expect(grid.className).toContain('grid-cols-1');
+    expect(grid.className).toContain('xl:grid-cols-2');
+    expect(grid.querySelectorAll(':scope > mat-card').length).toBe(2);
+    expect(grid.querySelector('mat-card .grid')!.className).toContain('xl:grid-cols-3');
+  });
+
+  it('wraps the header row and keeps the title for assistive tech only', async () => {
+    const host = await render();
+    const heading = host.querySelector('h1') as HTMLElement;
+    expect(heading.classList.contains('sr-only')).toBe(true);
+    expect(heading.parentElement!.classList.contains('flex-wrap')).toBe(true);
+  });
+});

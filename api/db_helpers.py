@@ -271,7 +271,6 @@ def trigger_auto_retrain(db_path, user_id, added=1, conn=None):
         logger.debug("Auto-retrain trigger skipped", exc_info=True)
 
 
-@organization_capture.grouped
 def record_culling_decision(conn, keep_paths, reject_paths, sequence_members,
                             user_id=None, group_type='burst', commit=True, record=True):
     """Persist keepers, record ranker training pairs, commit, nudge retrain.
@@ -291,6 +290,10 @@ def record_culling_decision(conn, keep_paths, reject_paths, sequence_members,
     mixed group, so a scene holding a panorama plus ordinary frames wrote
     "pan tile 3 beat pan tile 5" pairs while looking guarded.
 
+    Logical photos train through their chosen primary only. Missing-primary,
+    sequence and contradictory alias identities do not produce training pairs;
+    their review decisions remain independent from this derived training signal.
+
     ``commit=False`` is for exactly that sweep: it batches many groups into one
     transaction and fires ONE ``trigger_auto_retrain`` for the whole run, so
     committing per group would publish a half-finished sweep and nudging per
@@ -304,19 +307,25 @@ def record_culling_decision(conn, keep_paths, reject_paths, sequence_members,
 
     Returns the number of comparison rows inserted.
     """
-    set_photos_kept(conn, keep_paths, user_id, agent=not record)
-    if not record:
-        if commit:
-            conn.commit()
-        return 0
-    pairable_keep = [p for p in keep_paths if p not in sequence_members]
-    pairable_reject = [p for p in reject_paths if p not in sequence_members]
-    added = record_culling_pairs(
-        conn, pairable_keep, pairable_reject, user_id=user_id, group_type=group_type,
-    )
+    keep_paths, reject_paths = list(keep_paths or ()), list(reject_paths or ())
+    sequence_members = set(sequence_members or ())
+    with organization_capture.action(conn, user_id):
+        pairable_keep, pairable_reject = [], []
+        if record and keep_paths and reject_paths:
+            from api.logical_culling import training_paths
+            if not conn.in_transaction:
+                conn.execute('BEGIN IMMEDIATE')
+            pairable_keep, pairable_reject = training_paths(conn, keep_paths, reject_paths, user_id, sequence_members)
+        set_photos_kept(conn, keep_paths, user_id, agent=not record)
+        added = 0
+        if record:
+            added = record_culling_pairs(
+                conn, pairable_keep, pairable_reject, user_id=user_id, group_type=group_type,
+            )
     if commit:
         conn.commit()
-        trigger_auto_retrain(DEFAULT_DB_PATH, user_id, added, conn=conn)
+        if record:
+            trigger_auto_retrain(DEFAULT_DB_PATH, user_id, added, conn=conn)
     return added
 
 
@@ -460,6 +469,11 @@ HIDDEN_PANORAMA_SQL = (
 
 
 DATE_FILTER_EXPR = "DATE(REPLACE(SUBSTR(date_taken,1,10),':','-'))"
+
+
+# Shared by missing-date gallery queries and the complementary timeline scope.
+# Do not treat malformed nonempty metadata as an absent capture date.
+CAPTURE_DATE_MISSING_SQL = "(date_taken IS NULL OR TRIM(date_taken, char(9) || char(10) || char(13) || ' ') = '')"
 
 
 def build_date_range_clauses(date_from, date_to):
@@ -827,6 +841,58 @@ def _manual_tag_match_key(tag):
 _art_tags_cache = None
 
 
+# Match Python str.strip, as used by db.tags.iter_tag_pairs, on legacy CSV tokens.
+_TAG_QUERY_WHITESPACE = ''.join(chr(code) for code in (
+    *range(9, 14), *range(28, 33), 0x85, 0xa0, 0x1680,
+    *range(0x2000, 0x200b), 0x2028, 0x2029, 0x202f, 0x205f, 0x3000,
+))
+
+
+def _add_tag_groups(where_clauses, sql_params, value, conn=None, include_manual=True):
+    """Literal groups; index rows or exact legacy tokens, never LIKE substrings."""
+    if value == '':
+        return
+    from tag_query import tag_query_groups
+    try:
+        groups = tag_query_groups(value)
+    except (ValueError, TypeError):
+        # Saved smart rules can reach this builder without GalleryParams.
+        where_clauses.append('0=1')
+        return
+    if not any(groups.values()):
+        return
+    use_lookup = is_photo_tags_available(conn)
+    use_manual = include_manual and is_manual_tags_available(conn)
+    legacy = """EXISTS (
+        WITH RECURSIVE tag_parts(tag, rest) AS (
+            SELECT '', COALESCE(photos.tags, '') || ','
+            UNION ALL
+            SELECT TRIM(SUBSTR(rest, 1, INSTR(rest, ',') - 1), ?),
+                   SUBSTR(rest, INSTR(rest, ',') + 1)
+            FROM tag_parts WHERE rest != ''
+        ) SELECT 1 FROM tag_parts WHERE tag != '' AND tag = ?
+    )"""
+    for group, names in groups.items():
+        alternatives = []
+        for name in names:
+            if use_lookup:
+                match = ("(EXISTS (SELECT 1 FROM photo_tags t WHERE t.photo_path=photos.path AND t.tag=?)"
+                         " OR (NOT EXISTS (SELECT 1 FROM photo_tags t WHERE t.photo_path=photos.path) AND " + legacy + "))")
+                values = [name, _TAG_QUERY_WHITESPACE, name]
+            else:
+                match, values = legacy, [_TAG_QUERY_WHITESPACE, name]
+            if use_manual:
+                match = "(" + match + " OR EXISTS (SELECT 1 FROM photo_manual_tags m WHERE m.photo_path=photos.path AND m.tag=?))"
+                values.append(_manual_tag_match_key(name))
+            if group == 'any':
+                alternatives.append(match)
+            else:
+                where_clauses.append(("NOT " if group == 'none' else "") + match)
+            sql_params.extend(values)
+        if alternatives:
+            where_clauses.append("(" + " OR ".join(alternatives) + ")")
+
+
 def _add_tag_filter(where_clauses, sql_params, tag=None, require_tags=None, exclude_tags=None, exclude_art_tags=None, conn=None, include_manual=True):
     """Build tag-related WHERE clauses using photo_tags table when available.
 
@@ -999,7 +1065,7 @@ async def get_cached_count_async(conn, where_str, sql_params, from_clause="photo
 
 
 async def get_cached_hidden_aggregates_async(conn, where_str, sql_params, from_clause="photos", *,
-                                             stack_owner=None, token=None):
+                                             stack_owner=None, token=None, logical=False):
     """Cached blink/burst/duplicate/bracket aggregates over the no-hide set.
 
     The gallery builds its hidden_summary from a full-table aggregate (~100ms on a
@@ -1014,7 +1080,11 @@ async def get_cached_hidden_aggregates_async(conn, where_str, sql_params, from_c
     aggregate_params = list(sql_params)
     if stack_owner is not None:
         from api.stack_gallery import membership_clause
-        auto_exclusion = f' AND NOT ({membership_clause()})'
+        membership = membership_clause()
+        if logical:
+            from api.logical_collection import membership as logical_membership
+            membership = logical_membership('SELECT photo_path FROM photo_stack_members WHERE owner=?').sql
+        auto_exclusion = f' AND NOT ({membership})'
         aggregate_params = [stack_owner, stack_owner, *sql_params]
     cache_key = await asyncio.to_thread(
         _count_cache_key, "hs:", from_clause, where_str + auto_exclusion, aggregate_params, token)
@@ -1086,7 +1156,7 @@ def sanitize_float_values(data):
     return data
 
 
-def build_photo_select_columns(conn, user_id=None, include_manual_tags=True):
+def build_photo_select_columns(conn, user_id=None, include_manual_tags=True, *, logical=False):
     """Build the SELECT column list for photo queries.
 
     ``include_manual_tags=False`` leaves the manual-tags subquery out entirely
@@ -1097,7 +1167,8 @@ def build_photo_select_columns(conn, user_id=None, include_manual_tags=True):
     column expressions ready to join into a SELECT clause.
     """
     existing_cols = get_existing_columns(conn)
-    pref_cols = get_preference_columns(user_id)
+    pref_cols = ({field: f'photos.{field}' for field in ('star_rating', 'is_favorite', 'is_rejected', 'is_kept')}
+                 if logical else get_preference_columns(user_id))
     pref_col_names = {'star_rating', 'is_favorite', 'is_rejected', 'is_kept'}
 
     # Skip caption_translated when translation is disabled (target_language empty or "en")
@@ -1814,6 +1885,19 @@ def clear_label_origin_for_scope(conn, user_id, from_clause, where_str, scope_pa
         [_label_scope(user_id), *scope_params])
 
 
+def _logical_culling_decision(conn, paths, user_id, agent, rejected):
+    # Acquire write authority before checking membership: grouping cannot race
+    # the physical fallback. The caller still owns commit/rollback.
+    if not conn.in_transaction:
+        conn.execute('BEGIN IMMEDIATE')
+    grouped = any(select_in_chunks(conn,
+        'SELECT 1 FROM logical_asset_members WHERE photo_path IN ({placeholders})', list(paths)))
+    if not grouped:
+        return None
+    from api.logical_batch import culling_decision
+    return culling_decision(conn, paths, user_id, agent, rejected)
+
+
 def set_photos_rejected(conn, paths, user_id, agent=False):
     """Mark photos as rejected, honoring multi-user per-user preferences and visibility.
 
@@ -1824,8 +1908,12 @@ def set_photos_rejected(conn, paths, user_id, agent=False):
     toggle in ``api/routers/faces.py``. Returns the number of photos affected. ``agent`` says an
     assistant made the call, which :func:`record_label_origin` records for the taste model.
     """
+    paths = list(paths or ())
     if not paths:
         return 0
+    logical_count = _logical_culling_decision(conn, paths, user_id, agent, True)
+    if logical_count is not None:
+        return logical_count
     vis_sql, vis_params = get_visibility_clause(user_id)
     placeholders = ','.join('?' * len(paths))
     visible = [r[0] for r in conn.execute(
@@ -1857,8 +1945,12 @@ def set_photos_kept(conn, paths, user_id, agent=False):
     Records the label origin for an assistant's call, or for a person's only on a photo that was
     rejected (the write changes its labels); other human keeps just stay theirs.
     """
+    paths = list(paths or ())
     if not paths:
         return 0
+    logical_count = _logical_culling_decision(conn, paths, user_id, agent, False)
+    if logical_count is not None:
+        return logical_count
     vis_sql, vis_params = get_visibility_clause(user_id)
     visible = [row[0] for row in select_in_chunks(
         conn, f"SELECT path FROM photos WHERE path IN ({{placeholders}}) AND {vis_sql}",

@@ -11,6 +11,7 @@ derived data and get rebuilt from the current labels on every run.
 
 import logging
 import random
+import json
 
 from db import get_connection
 
@@ -87,13 +88,18 @@ def generate_rating_pairs(conn, user_id=None, max_pairs=DEFAULT_MAX_PAIRS,
 
     usage = {}
     pairs = []
+    seen_pairs = set()
 
     def _try_add(winner, loser, category):
+        key = tuple(sorted((winner, loser)))
+        if winner == loser or key in seen_pairs:
+            return True
         if len(pairs) >= max_pairs:
             return False
         if usage.get(winner, 0) >= per_photo_cap or usage.get(loser, 0) >= per_photo_cap:
             return True
         pairs.append((winner, loser, category))
+        seen_pairs.add(key)
         usage[winner] = usage.get(winner, 0) + 1
         usage[loser] = usage.get(loser, 0) + 1
         return True
@@ -105,19 +111,43 @@ def generate_rating_pairs(conn, user_id=None, max_pairs=DEFAULT_MAX_PAIRS,
                  if r['star_rating'] and not r['is_rejected']]
 
         # Rule 1: favorite > rejected
+        reject_head = 0
         for fav in favorites:
-            for rej in rejected:
+            for index in range(reject_head, len(rejected)):
+                if usage.get(fav, 0) >= per_photo_cap:
+                    break
+                rej = rejected[index]
+                if usage.get(rej, 0) >= per_photo_cap:
+                    if index == reject_head:
+                        reject_head += 1
+                    continue
                 if not _try_add(fav, rej, category):
                     return pairs
+                if usage.get(rej, 0) >= per_photo_cap and index == reject_head:
+                    reject_head += 1
 
         # Rule 2: clear star gaps
         rated_sorted = sorted(rated, key=lambda x: -x[1])
-        for i, (high_path, high_stars) in enumerate(rated_sorted):
-            for low_path, low_stars in rated_sorted[i + 1:]:
+        buckets = {}
+        for path, stars in rated_sorted:
+            if usage.get(path, 0) < per_photo_cap:
+                buckets.setdefault(stars, []).append(path)
+        heads = dict.fromkeys(buckets, 0)
+        for high_path, high_stars in rated_sorted:
+            if usage.get(high_path, 0) >= per_photo_cap:
+                continue
+            for low_stars, candidates in buckets.items():
                 if high_stars - low_stars < MIN_STAR_GAP:
                     continue
-                if not _try_add(high_path, low_path, category):
-                    return pairs
+                index = heads[low_stars]
+                while index < len(candidates) and usage.get(high_path, 0) < per_photo_cap:
+                    low_path = candidates[index]
+                    if usage.get(low_path, 0) < per_photo_cap:
+                        if not _try_add(high_path, low_path, category):
+                            return pairs
+                    if usage.get(low_path, 0) >= per_photo_cap and index == heads[low_stars]:
+                        heads[low_stars] += 1
+                    index += 1
 
         # Rule 3: favorite > random unlabeled same-category photo
         if favorites:
@@ -141,26 +171,43 @@ def generate_rating_pairs(conn, user_id=None, max_pairs=DEFAULT_MAX_PAIRS,
 def sync_label_comparisons(db_path, user_id=None, max_pairs=DEFAULT_MAX_PAIRS):
     """Rebuild source='rating' comparisons from current labels.
 
-    Deletes previous synthetic rows first so retracted ratings disappear,
-    then inserts the regenerated set with INSERT OR IGNORE - explicit votes
-    and culling pairs on the same photo pair always take precedence.
+    Replaces only this owner's synthetic rows so retracted ratings disappear.
+    Explicit votes and culling pairs in that scope take precedence, including
+    the NULL owner where SQLite's UNIQUE constraint does not deduplicate.
 
     Returns:
         Number of comparison rows inserted
     """
     with get_connection(db_path) as conn:
+        conn.execute('BEGIN IMMEDIATE')
         pairs = generate_rating_pairs(conn, user_id=user_id, max_pairs=max_pairs)
-        conn.execute("DELETE FROM comparisons WHERE source = 'rating'")
+        candidates = {}
+        for winner, loser, category in pairs:
+            if winner == loser:
+                continue
+            a, b = sorted((winner, loser))
+            # Generation rules run strongest first. Keep the first signal for
+            # a pair instead of counting the same evidence several times.
+            candidates.setdefault((a, b), (winner, category))
+        protected = set()
+        if candidates:
+            protected = {tuple(row) for row in conn.execute(
+                "SELECT c.photo_a_path,c.photo_b_path FROM comparisons c JOIN json_each(?) candidate "
+                "ON c.photo_a_path=json_extract(candidate.value,'$[0]') "
+                "AND c.photo_b_path=json_extract(candidate.value,'$[1]') "
+                "WHERE c.user_id IS ? AND COALESCE(c.source,'vote') <> 'rating'",
+                (json.dumps(list(candidates)), user_id))}
+        conn.execute("DELETE FROM comparisons WHERE source = 'rating' AND user_id IS ?", (user_id,))
         before = conn.total_changes
         conn.executemany(
             """INSERT OR IGNORE INTO comparisons
                (photo_a_path, photo_b_path, winner, category, session_id, user_id, source)
                VALUES (?, ?, ?, ?, ?, ?, 'rating')""",
             [
-                (*sorted((winner, loser)),
-                 'a' if sorted((winner, loser))[0] == winner else 'b',
+                (a, b,
+                 'a' if a == winner else 'b',
                  category, SESSION_ID, user_id)
-                for winner, loser, category in pairs
+                for (a, b), (winner, category) in candidates.items() if (a, b) not in protected
             ],
         )
         inserted = conn.total_changes - before

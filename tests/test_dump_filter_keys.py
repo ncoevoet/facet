@@ -1,4 +1,4 @@
-"""The committed gallery-filters.generated.json must match gallery_filter_keys()."""
+"""Committed gallery filter keys and limits must match the server contract."""
 
 import importlib.util
 import json
@@ -36,3 +36,9 @@ def test_render_is_sorted_with_trailing_newline():
     assert rendered.endswith("\n")
     keys = json.loads(rendered)
     assert keys == sorted(keys)
+
+
+def test_changed_person_limit_makes_check_fail(monkeypatch):
+    module = _load()
+    monkeypatch.setattr(module, "PERSON_FILTER_LIMIT", module.PERSON_FILTER_LIMIT + 1)
+    assert module.main(["--check"]) == 1

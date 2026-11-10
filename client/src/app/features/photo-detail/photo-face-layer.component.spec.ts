@@ -107,11 +107,11 @@ describe('PhotoFaceLayerComponent', () => {
     expect(['x', 'y', 'width', 'height'].map((a) => Math.round(Number(rects[0].getAttribute(a))))).toEqual([100, 100, 200, 200]);
   });
 
-  it('labels a named face with its name and an unnamed one as unknown', async () => {
+  it('labels a named face with its name and an unnamed one as unassigned', async () => {
     await render();
     const labels = [...fixture.nativeElement.querySelectorAll('text')].map((t) => (t as SVGTextElement).textContent?.trim());
     expect(labels[0]).toBe('Valerie');
-    expect(labels[1]).toBe('photo_faces.unknown');
+    expect(labels[1]).toBe('photo_faces.unassigned_face');
   });
 
   it('puts the label inside a box that touches the top edge', async () => {
@@ -157,6 +157,19 @@ describe('PhotoFaceLayerComponent', () => {
     await fixture.whenStable();
     expect(mockApi.post).toHaveBeenCalledWith('/person/5/avatar', { face_id: 1 });
     expect(mockStore.reloadPersonOptions).toHaveBeenCalled();
+  });
+
+  it('marks a manual face (negative face_index) as not automatic, so Ignore detection is not offered', async () => {
+    await render([
+      ...ROWS,
+      { id: 4, face_index: -1, person_id: null, person_name: null, box: [0.7, 0.1, 0.8, 0.3] },
+      { id: 5, face_index: -2, person_id: 9, person_name: 'Manual', box: [0.1, 0.7, 0.2, 0.9] },
+    ]);
+    expect(component.faces().map(face => [face.id, face.automatic])).toEqual([[1, true], [2, true], [4, false], [5, false]]);
+    menuFor(2);
+    expect(openSpy.mock.calls.at(-1)![0].face).toEqual({ id: 4, automatic: false });
+    expect(component.faceOf(9)).toEqual({ id: 5, automatic: false });
+    expect(component.faceOf(5)).toEqual({ id: 1, automatic: true });
   });
 
   it('draws nothing without the photo dimensions', async () => {
@@ -356,12 +369,12 @@ describe('PhotoFaceLayerComponent', () => {
       expect(menuFace()?.id).toBe(1);
     });
 
-    it('each face is a focusable button named after its person, or unknown', async () => {
+    it('each face is a focusable button named after its person, or unassigned', async () => {
       await render();
       expect(fixture.nativeElement.querySelector('svg').getAttribute('aria-hidden')).toBeNull();
       expect(group(0).getAttribute('tabindex')).toBe('0');
       expect(group(0).getAttribute('aria-label')).toBe('Valerie');
-      expect(group(1).getAttribute('aria-label')).toBe('photo_faces.unknown');
+      expect(group(1).getAttribute('aria-label')).toBe('photo_faces.unassigned_face');
     });
 
     it('Enter and Space open the face menu', async () => {

@@ -253,6 +253,16 @@ _COMPANION_RAW_TTL = 300  # 5 minutes
 _COMPANION_RAW_MAX = 2048
 
 
+def companion_raw_known_missing(disk_path: str) -> bool:
+    """Read only a warm negative hint, without probing or following any entry."""
+    from utils.image_loading import RAW_EXTENSIONS
+
+    photo = Path(disk_path)
+    entry = _companion_raw_cache.get((photo.stem, str(photo.parent)))
+    return (photo.suffix.lower() not in RAW_EXTENSIONS and entry is not None
+            and entry[1] is None and time.monotonic() - entry[0] < _COMPANION_RAW_TTL)
+
+
 def _find_companion_raw_cached(stem: str, parent_dir: str, raw_extensions: Collection[str]) -> str | None:
     import time
     key = (stem, parent_dir)

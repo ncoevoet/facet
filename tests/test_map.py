@@ -14,20 +14,12 @@ import pytest
 from fastapi.testclient import TestClient
 
 from api import create_app
-
-
-_MAP_SCHEMA = """
-    CREATE TABLE photos (
-        path TEXT PRIMARY KEY, filename TEXT, date_taken TEXT,
-        gps_latitude REAL, gps_longitude REAL,
-        aggregate REAL, category TEXT, is_rejected INTEGER DEFAULT 0
-    );
-"""
+from db.schema import init_database
 
 
 def _make_map_db(path, photos):
+    init_database(path)
     conn = sqlite3.connect(path)
-    conn.executescript(_MAP_SCHEMA)
     for p in photos:
         cols = list(p.keys())
         placeholders = ", ".join("?" for _ in cols)
@@ -193,6 +185,7 @@ class TestPhotosMapCount:
 
         assert resp.status_code == 200
         assert resp.json()["count"] == 42
+        assert resp.json()["bounds"] == [40.0, -73.0, 40.41, -73.0]
 
     def test_returns_zero_when_no_gps_photos(self, client, tmp_path):
         db = str(tmp_path / "empty.db")
@@ -206,3 +199,36 @@ class TestPhotosMapCount:
 
         assert resp.status_code == 200
         assert resp.json()["count"] == 0
+
+
+def test_map_initial_extent_excludes_hidden_and_invalid_coordinates(edition_client, seed_photos_prefix, monkeypatch):
+    from api.config import _FULL_CONFIG
+
+    prefix = '/map-initial-extent/'
+    seed_photos_prefix(prefix, [
+        {'path': prefix + 'allowed/a.jpg', 'filename': 'a.jpg', 'gps_latitude': 38.5, 'gps_longitude': 68.8},
+        {'path': prefix + 'allowed/b.jpg', 'filename': 'b.jpg', 'gps_latitude': 43.2, 'gps_longitude': 76.9},
+        {'path': prefix + 'hidden.jpg', 'filename': 'hidden.jpg', 'gps_latitude': -40, 'gps_longitude': -120},
+        {'path': prefix + 'allowed/invalid.jpg', 'filename': 'invalid.jpg', 'gps_latitude': 999, 'gps_longitude': 50},
+    ])
+    monkeypatch.setattr('api.db_helpers.is_multi_user_enabled', lambda: True)
+    monkeypatch.setitem(_FULL_CONFIG, 'users', {'test': {'directories': [prefix + 'allowed']}})
+    response = edition_client.get('/api/photos/map/count')
+    assert response.status_code == 200, response.text
+    assert response.json() == {'count': 2, 'bounds': [38.5, 68.8, 43.2, 76.9]}
+
+
+def test_cluster_representative_stays_inside_its_exact_viewport(client, tmp_path):
+    db_path = str(tmp_path / 'cluster-viewport.db')
+    _make_map_db(db_path, [
+        {'path': '/inside.jpg', 'filename': 'inside.jpg', 'gps_latitude': 48.0, 'gps_longitude': 2.0, 'aggregate': 1},
+        {'path': '/outside.jpg', 'filename': 'outside.jpg', 'gps_latitude': 48.1, 'gps_longitude': 2.1, 'aggregate': 10},
+    ])
+    with mock.patch('api.routers.map.get_async_db', _async_conn_factory(db_path)), \
+         mock.patch('api.routers.map.get_existing_columns', return_value=_GPS_COLS), \
+         mock.patch('api.routers.map.get_visibility_clause', side_effect=_fake_vis):
+        result = client.get('/api/photos/map', params={'bounds': '47.99,1.99,48.05,2.05', 'zoom': 3})
+    assert result.status_code == 200, result.text
+    assert len(result.json()['clusters']) == 1
+    assert result.json()['clusters'][0]['count'] == 1
+    assert result.json()['clusters'][0]['representative_path'] == '/inside.jpg'

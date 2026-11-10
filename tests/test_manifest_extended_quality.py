@@ -113,7 +113,7 @@ def test_older_schema_omits_unsupported_scores_without_fabricated_nulls(
         # triggers otherwise reference photos while it is temporarily absent.
         triggers = conn.execute(
             "SELECT name FROM sqlite_master WHERE type='trigger' "
-            "AND (name GLOB 'organization_*' OR name GLOB 'metadata_review_*')"
+            "AND (name GLOB 'organization_*' OR name GLOB 'metadata_review_*' OR name GLOB 'logical_*')"
         ).fetchall()
         for (name,) in triggers:
             conn.execute('DROP TRIGGER "' + name.replace('"', '""') + '"')

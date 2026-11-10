@@ -22,6 +22,10 @@ export type ComparisonStats = components['schemas']['ComparisonStatsResponse'];
 
 export type DownloadOption = components['schemas']['DownloadOption'];
 
+export type PhotoProvenance = components['schemas']['PhotoProvenance'];
+
+export type RelatedFilesResponse = components['schemas']['RelatedFilesResponse'];
+
 export type LightroomImportResponse = components['schemas']['LightroomImportResponse'];
 
 export type LightroomManifest = components['schemas']['LightroomManifest'];

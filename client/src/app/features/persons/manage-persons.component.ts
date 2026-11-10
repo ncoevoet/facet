@@ -1,6 +1,9 @@
-import { Component, inject, signal, computed, OnInit, effect, untracked, DestroyRef, viewChild, TemplateRef, ChangeDetectionStrategy } from '@angular/core';
+import { FaceReviewQueueComponent } from './face-review-queue.component';
+import { FaceUpdateControlComponent } from './face-update-control.component';
+import { afterNextRender, Component, inject, Injector, signal, computed, OnInit, effect, untracked, DestroyRef, viewChild, TemplateRef, ChangeDetectionStrategy } from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { FormsModule } from '@angular/forms';
-import { ActivatedRoute, Router, RouterLink } from '@angular/router';
+import { ActivatedRoute, NavigationEnd, Router, RouterLink } from '@angular/router';
 import { NgTemplateOutlet } from '@angular/common';
 import { MatTabsModule } from '@angular/material/tabs';
 import { MatButtonModule } from '@angular/material/button';
@@ -43,6 +46,7 @@ import { registerPageContext } from '../../core/agent/page-context.service';
 import { UserActivityJournal, activityName } from '../../core/agent/user-activity-journal.service';
 import { GalleryStore } from '../gallery/gallery.store';
 import { I18N, i18nKeys } from '../../core/i18n/keys';
+import { COMPACT_PAGE_TABS, TabLabelComponent } from '../../shared/components/tab-label/tab-label.component';
 
 interface PersonsResponse {
   persons: Person[];
@@ -90,7 +94,7 @@ export interface SplitPersonResult {
               </div>
             }
             <span class="text-sm truncate w-full text-center">{{ person.name || (I18N.persons.unnamed | translate) }}</span>
-            <span class="text-xs opacity-60">{{ I18N.persons.face_count | translate:{ count: person.face_count } }}</span>
+            <span class="text-xs text-[var(--mat-sys-on-surface-variant)]">{{ I18N.persons.face_count | translate:{ count: person.face_count } }}</span>
           </button>
         }
       </div>
@@ -170,7 +174,7 @@ export class NewPersonDialogComponent {
           <mat-spinner diameter="32" [attr.aria-label]="I18N.ui.labels.loading | translate" />
         </div>
       } @else if (faces().length === 0) {
-        <p class="text-sm opacity-60 text-center py-8">{{ I18N.persons.no_faces | translate }}</p>
+        <p class="text-sm text-[var(--mat-sys-on-surface-variant)] text-center py-8">{{ I18N.persons.no_faces | translate }}</p>
       } @else {
         <div class="flex flex-wrap gap-2 justify-center">
           @for (face of faces(); track face.id; let i = $index) {
@@ -250,14 +254,15 @@ export class PersonFacesDialogComponent implements OnInit {
 }
 
 /** The /persons tabs, as written in ``?tab=``. */
-export type PersonsTab = 'named' | 'naming';
+const PERSONS_TABS = ['named', 'naming', 'matches', 'unassigned'] as const;
+export type PersonsTab = typeof PERSONS_TABS[number];
 /** Orders the Needs naming tab offers; a name sort means nothing on unnamed persons. */
 export type NamingSort = 'faces' | 'recent';
 
 @Component({
   selector: 'app-manage-persons',
   imports: [
-    MatButtonModule,
+    FaceReviewQueueComponent, FaceUpdateControlComponent, MatButtonModule,
     MatIconModule,
     MatDialogModule,
     MatFormFieldModule,
@@ -272,12 +277,14 @@ export type NamingSort = 'faces' | 'recent';
     RouterLink,
     MatTabsModule,
     NgTemplateOutlet,
+    TabLabelComponent,
   ],
   changeDetection: ChangeDetectionStrategy.Eager,
   template: `
+    <h1 class="sr-only">{{ I18N.nav.persons | translate }}</h1>
     <ng-template #personsToolbar>
       @if (namingTabActive()) {
-        <mat-form-field class="!hidden lg:!inline-flex w-44 ml-2" subscriptSizing="dynamic">
+        <mat-form-field class="!hidden lg:!inline-flex w-44" subscriptSizing="dynamic">
           <mat-label>{{ I18N.gallery.sort | translate }}</mat-label>
           <mat-select data-naming-sort [value]="namingSort()" (selectionChange)="namingSort.set($event.value)">
             <mat-option value="faces">{{ I18N.persons.sort_faces | translate }}</mat-option>
@@ -295,7 +302,7 @@ export type NamingSort = 'faces' | 'recent';
           <mat-icon>{{ namingSortDirection() === 'desc' ? 'arrow_downward' : 'arrow_upward' }}</mat-icon>
         </button>
       } @else {
-        <mat-form-field class="!hidden lg:!inline-flex w-52 ml-2" subscriptSizing="dynamic">
+        <mat-form-field class="!hidden lg:!inline-flex w-52" subscriptSizing="dynamic">
           <mat-label>{{ I18N.persons.search_placeholder | translate }}</mat-label>
           <input matInput [value]="personsFilters.search()" (input)="personsFilters.search.set($any($event.target).value)" />
           <mat-icon matPrefix class="opacity-60">search</mat-icon>
@@ -323,8 +330,9 @@ export type NamingSort = 'faces' | 'recent';
         </button>
       }
       @if (auth.isEdition()) {
-        <button mat-icon-button class="!hidden lg:!inline-flex" [matTooltip]="I18N.manage_persons.new_person | translate" [attr.aria-label]="I18N.manage_persons.new_person | translate" (click)="personsFilters.createRequested.set(personsFilters.createRequested() + 1)">
+        <button mat-flat-button class="!hidden lg:!inline-flex ml-auto" (click)="personsFilters.createRequested.set(personsFilters.createRequested() + 1)">
           <mat-icon>person_add</mat-icon>
+          {{ I18N.manage_persons.new_person | translate }}
         </button>
         @if (store.config()?.features?.show_merge_suggestions) {
           <a mat-icon-button class="!hidden lg:!inline-flex" routerLink="/merge-suggestions" [matTooltip]="I18N.persons.merge_suggestions | translate" [attr.aria-label]="I18N.persons.merge_suggestions | translate">
@@ -343,6 +351,8 @@ export type NamingSort = 'faces' | 'recent';
           <mat-icon>{{ personsFilters.showHidden() ? 'visibility' : 'visibility_off' }}</mat-icon>
         </button>
       }
+      <!-- Far right of the page-actions bar; its panel floats under the trigger (panelMode overlay). -->
+      <app-face-update-control class="shrink-0" panelMode="overlay" (reviewRequested)="reviewUpdatedFaces()" />
     </ng-template>
 
     <ng-template #namedPane>
@@ -378,7 +388,7 @@ export type NamingSort = 'faces' | 'recent';
 
       <!-- Empty state -->
       @if (!loading() && persons().length === 0) {
-        <div class="text-center py-16 opacity-50 max-w-md mx-auto">
+        <div class="text-center py-16 text-[var(--mat-sys-on-surface-variant)] max-w-md mx-auto">
           <mat-icon class="!text-5xl !w-12 !h-12 mb-4">people</mat-icon>
           <p>{{ I18N.persons.no_persons | translate }}</p>
           <p class="text-sm mt-3 opacity-80">{{ I18N.persons.empty_hint | translate }}</p>
@@ -416,9 +426,17 @@ export type NamingSort = 'faces' | 'recent';
               }
             </div>
             @if (ignored().length < ignoredTotal()) {
-              <div class="flex items-center justify-center gap-3 px-4 pb-4 text-sm">
-                <span class="opacity-70">{{ I18N.persons.ignored_shown_of | translate:{ shown: ignored().length, total: ignoredTotal() } }}</span>
-                <button mat-button [disabled]="ignoredLoading()" (click)="loadMoreIgnored()">{{ I18N.persons.load_more | translate }}</button>
+              <div data-ignored-more class="flex flex-col items-center gap-3 px-4 pb-4 text-sm">
+                <span class="text-[var(--mat-sys-on-surface-variant)]">{{ I18N.persons.ignored_shown_of | translate:{ shown: ignored().length, total: ignoredTotal() } }}</span>
+                <!-- The sentinel exists only between reads, so it re-fires once a page lands; a failure stops it until Retry. -->
+                @if (ignoredError()) {
+                  <p role="alert" class="m-0">{{ I18N.persons.ignored_more_error | translate }}</p>
+                  <button mat-button data-ignored-retry (click)="loadMoreIgnored()">{{ I18N.gallery.load_error.retry | translate }}</button>
+                } @else if (ignoredLoading()) {
+                  <mat-spinner diameter="36" [attr.aria-label]="I18N.ui.labels.loading | translate" />
+                } @else {
+                  <div appInfiniteScroll data-ignored-sentinel class="h-px w-full" (scrollReached)="loadMoreIgnored()"></div>
+                }
               </div>
             }
           }
@@ -429,11 +447,15 @@ export type NamingSort = 'faces' | 'recent';
 
     <div class="px-4 pt-4 pb-4">
       @if (auth.isEdition()) {
-        <mat-tab-group mat-stretch-tabs="false" mat-align-tabs="start" animationDuration="0ms"
-                       [selectedIndex]="tab() === 'naming' ? 1 : 0" (selectedIndexChange)="selectTab($event === 1 ? 'naming' : 'named')">
+        <!-- Update faces: lg+ it lives in the page-actions bar (#personsToolbar). Below lg, and on the review tabs where
+             the bar is cleared, it is a right-aligned row above the tabs, so a long translated label never covers a tab. -->
+        <div class="relative">
+        <app-face-update-control class="ml-auto mb-2 block w-fit empty:hidden" [class]="faceUpdateInPageClass()" panelMode="overlay" (reviewRequested)="reviewUpdatedFaces()" />
+        <mat-tab-group [class]="compactTabs" mat-stretch-tabs="false" mat-align-tabs="start" animationDuration="0ms"
+                       [selectedIndex]="tabIndex()" (selectedIndexChange)="selectTabIndex($event)">
           <mat-tab>
             <ng-template mat-tab-label>
-              <span data-tab="named">{{ I18N.manage_persons.named | translate }} ({{ total() }})</span>
+              <app-tab-label data-tab="named" icon="group" [label]="(I18N.manage_persons.named | translate) + ' (' + total() + ')'" />
             </ng-template>
             <div class="pt-4">
               <ng-container [ngTemplateOutlet]="namedPane" />
@@ -441,7 +463,7 @@ export type NamingSort = 'faces' | 'recent';
           </mat-tab>
           <mat-tab>
             <ng-template mat-tab-label>
-              <span data-tab="naming" [matTooltip]="I18N.manage_persons.needs_naming_help | translate">{{ I18N.manage_persons.needs_naming | translate }} ({{ needsNaming().length }})</span>
+              <app-tab-label data-tab="naming" icon="badge" [label]="(I18N.manage_persons.needs_naming | translate) + ' (' + needsNaming().length + ')'" [hint]="I18N.manage_persons.needs_naming_help | translate" />
             </ng-template>
             <div class="pt-4">
               @if (needsNamingSorted().length > 0) {
@@ -461,21 +483,31 @@ export type NamingSort = 'faces' | 'recent';
                   }
                 </div>
               } @else {
-                <div data-needs-naming-empty class="text-center py-16 opacity-60 max-w-md mx-auto">
+                <div data-needs-naming-empty class="text-center py-16 text-[var(--mat-sys-on-surface-variant)] max-w-md mx-auto">
                   <mat-icon class="!text-5xl !w-12 !h-12 mb-4">how_to_reg</mat-icon>
                   <p>{{ I18N.manage_persons.needs_naming_empty | translate }}</p>
                 </div>
               }
             </div>
           </mat-tab>
+          <mat-tab>
+            <ng-template mat-tab-label><app-tab-label data-tab="matches" icon="how_to_reg" [label]="I18N.persons.review_queue.matches | translate" /></ng-template>
+            @if (tab() === 'matches') { <app-face-review-queue mode="matches" /> }
+          </mat-tab>
+          <mat-tab>
+            <ng-template mat-tab-label><app-tab-label data-tab="unassigned" icon="person_off" [label]="I18N.persons.review_queue.unassigned | translate" /></ng-template>
+            @if (tab() === 'unassigned') { <app-face-review-queue mode="unassigned" /> }
+          </mat-tab>
         </mat-tab-group>
+        </div>
       } @else {
+        <app-face-update-control class="lg:hidden" (reviewRequested)="reviewUpdatedFaces()" />
         <ng-container [ngTemplateOutlet]="namedPane" />
       }
     </div>
 
-    <!-- Selection action bar (sticky bottom) -->
-    @if (auth.isEdition() && selectedIds().size > 0) {
+    <!-- Selection action bar (sticky bottom). The review tabs show their own selection bar, so a persons selection kept from Named waits there. -->
+    @if (auth.isEdition() && selectedIds().size > 0 && (tab() === 'named' || tab() === 'naming')) {
       <div class="fixed bottom-0 left-0 right-0 z-50 flex flex-col lg:flex-row items-center justify-center gap-2 lg:gap-3 px-4 lg:px-6 py-2 lg:py-3 max-lg:pb-[max(0.5rem,env(safe-area-inset-bottom))] bg-[var(--mat-sys-surface-container)] border-t border-[var(--mat-sys-outline-variant)] shadow-lg">
         <span class="text-sm font-medium">{{ I18N.gallery.selection.count | translate:{ count: selectedIds().size } }}</span>
         <div class="flex items-center gap-2">
@@ -498,6 +530,7 @@ export type NamingSort = 'faces' | 'recent';
 })
 export class ManagePersonsComponent implements OnInit {
   protected readonly I18N = i18nKeys();
+  protected readonly compactTabs = COMPACT_PAGE_TABS;
   readonly auth = inject(AuthService);
   protected readonly store = inject(GalleryStore);
   private readonly api = inject(ApiService);
@@ -506,6 +539,16 @@ export class ManagePersonsComponent implements OnInit {
   private readonly pageHelp = inject(PageHelpService);
   private readonly headerSlot = inject(HeaderSlotService);
   private readonly router = inject(Router);
+  private readonly route = inject(ActivatedRoute);
+  private tabNavigation = 0;
+  private readonly destroyRef = inject(DestroyRef);
+  private readonly injector = inject(Injector);
+  private personsLoadGeneration = 0;
+  // Status publishes credential changes; unchanged refreshes should not reload the grid.
+  private readonly personsSession = computed(() => {
+    this.auth.status();
+    return JSON.stringify([this.auth.identity(), this.auth.token, this.auth.isEdition()]);
+  });
   protected readonly personsFilters = inject(PersonsFiltersService);
   private dialog = inject(MatDialog);
   private snackBar = inject(MatSnackBar);
@@ -513,6 +556,25 @@ export class ManagePersonsComponent implements OnInit {
   private readonly faceBoxes = inject(PersonFaceBoxesService);
   private readonly hide = inject(PersonHideService);
   private readonly personsToolbar = viewChild<TemplateRef<unknown>>('personsToolbar');
+  private readonly reviewQueue = viewChild(FaceReviewQueueComponent);
+  /** The review tabs carry their own page-level controls, so the edition user's bar is cleared there. */
+  private readonly toolbarInBar = computed(() => !(this.auth.isEdition() && (this.tab() === 'matches' || this.tab() === 'unassigned')));
+  /** Update faces in the tab row: hidden at lg+ only while the page-actions bar shows it. */
+  protected readonly faceUpdateInPageClass = computed(() => this.toolbarInBar() ? 'lg:hidden' : '');
+
+  protected reviewUpdatedFaces(): void {
+    if (!this.auth.isEdition() || this.router.currentNavigation()) return;
+    const owner = this.auth.identity(), token = this.auth.token, focused = document.activeElement;
+    if (this.tab() === 'matches') this.reviewQueue()?.reload();
+    void this.selectTab('matches').then(completed => {
+      if (!completed || this.destroyRef.destroyed) return;
+      afterNextRender(() => {
+        if (!this.destroyRef.destroyed && owner === this.auth.identity() && token === this.auth.token && this.auth.isEdition()
+          && this.tab() === 'matches' && this.router.url.split('?')[0] === '/persons' && !this.router.currentNavigation()
+          && (document.activeElement === focused || document.activeElement === document.body)) this.reviewQueue()?.focus();
+      }, { injector: this.injector });
+    });
+  }
 
   readonly persons = signal<Person[]>([]);
   readonly total = signal(0);
@@ -536,15 +598,17 @@ export class ManagePersonsComponent implements OnInit {
   readonly namingTabActive = computed(() => this.auth.isEdition() && this.tab() === 'naming');
 
   /** The selected tab, mirrored in ``?tab=``; Named unless the URL asks for Needs naming. */
-  readonly tab = signal<PersonsTab>(
-    inject(ActivatedRoute).snapshot.queryParamMap.get('tab') === 'naming' ? 'naming' : 'named');
+  readonly tab = signal<PersonsTab>(PERSONS_TABS.find(tab => tab === this.route.snapshot.queryParamMap.get('tab')) ?? 'named');
+  protected readonly tabIndex = computed(() => PERSONS_TABS.indexOf(this.tab()));
+  protected selectTabIndex(index: number): void { const tab = PERSONS_TABS[index]; if (tab) this.selectTab(tab); }
   /** Hidden persons, shown in the Ignored section (collapsed by default). */
   readonly ignored = signal<Person[]>([]);
   /** Every hidden person, from the response; the section loads them a page at a time. */
   readonly ignoredTotal = signal(0);
   readonly ignoredLoading = signal(false);
+  /** A next page of the Ignored section failed; scrolling stops loading until Retry. */
+  readonly ignoredError = signal(false);
   readonly ignoredExpanded = signal(false);
-  private ignoredPage = 1;
   private readonly ignoredPerPage = 200;
 
   private page = 1;
@@ -554,11 +618,18 @@ export class ManagePersonsComponent implements OnInit {
   readonly hasMore = computed(() => this.persons().length < this.total());
 
   constructor() {
+    this.router.events.pipe(takeUntilDestroyed()).subscribe(event => {
+      if (!(event instanceof NavigationEnd)) return;
+      const url = this.router.parseUrl(event.urlAfterRedirects);
+      const segments = url.root.children['primary']?.segments;
+      if (segments?.length === 1 && segments[0].path === 'persons') { this.tabNavigation++; this.tab.set(PERSONS_TABS.find(tab => tab === url.queryParams['tab']) ?? 'named'); }
+    });
     registerPageContext('persons', () => ({
       search: this.personsFilters.search(),
       sort: this.personsFilters.sort(),
       sort_direction: this.personsFilters.sortDirection(),
       show_hidden: this.personsFilters.showHidden(),
+      tab: this.auth.isEdition() ? this.tab() : 'named',
     }));
     // The assistant's `list_persons show=true` sends the search every time: the page takes exactly that query.
     onPageQuery('/persons', ['search'], query => {
@@ -577,7 +648,7 @@ export class ManagePersonsComponent implements OnInit {
     });
     effect(() => {
       const t = this.personsToolbar();
-      if (t) this.headerSlot.set(t);
+      if (t) { if (this.toolbarInBar()) this.headerSlot.set(t); else this.headerSlot.clear(t); }
     });
     effect(() => {
       this.personsFilters.sort();
@@ -586,7 +657,7 @@ export class ManagePersonsComponent implements OnInit {
       this.personsFilters.showHidden();
       // Locking or unlocking edition shows or hides Needs naming, which decides
       // whether the grid lists unnamed persons too.
-      this.auth.isEdition();
+      this.personsSession();
       if (this.initialized) {
         untracked(() => this.loadPersons(true));
       }
@@ -617,10 +688,13 @@ export class ManagePersonsComponent implements OnInit {
   }
 
   /** Switch tabs and keep the choice in the URL, so a reload or Back returns to it. */
-  selectTab(tab: PersonsTab): void {
-    if (tab === this.tab()) return;
+  selectTab(tab: PersonsTab): Promise<boolean> {
+    if (tab === this.tab()) return Promise.resolve(true);
+    const previous = this.tab(), navigation = ++this.tabNavigation;
     this.tab.set(tab);
-    void this.router.navigate([], { queryParams: { tab }, queryParamsHandling: 'merge', replaceUrl: true });
+    return this.router.navigate([], { queryParams: { tab }, queryParamsHandling: 'merge', replaceUrl: true })
+      .then(completed => { if (!completed && this.tabNavigation === navigation && this.tab() === tab) this.tab.set(previous); return completed; })
+      .catch(() => { if (this.tabNavigation === navigation && this.tab() === tab) this.tab.set(previous); return false; });
   }
 
   onPersonsSortChange(sort: string): void {
@@ -634,30 +708,33 @@ export class ManagePersonsComponent implements OnInit {
   /** The Ignored section's first page; read-only users never see the section, so it is not asked for. */
   async loadIgnored(): Promise<void> {
     if (!this.auth.isEdition()) return;
-    this.ignoredPage = 1;
     await this.fetchIgnored(false);
   }
 
   async loadMoreIgnored(): Promise<void> {
     if (this.ignoredLoading() || this.ignored().length >= this.ignoredTotal()) return;
-    this.ignoredPage++;
     await this.fetchIgnored(true);
   }
 
   private async fetchIgnored(append: boolean): Promise<void> {
-    this.ignoredLoading.set(true);
+    this.ignoredLoading.set(true); this.ignoredError.set(false);
     try {
+      // Read from the row after the loaded ones rather than by page number: un-hides,
+      // deletes and ignores patch the loaded rows in place, which shifts the pages.
       const res = await firstValueFrom(
         this.api.get<PersonsResponse>('/persons', {
-          hidden_only: true, page: this.ignoredPage, per_page: this.ignoredPerPage, sort: 'count_desc',
+          hidden_only: true, offset: append ? this.ignored().length : 0, per_page: this.ignoredPerPage, sort: 'count_desc',
         }),
       );
       const page = res.persons ?? [];
-      this.ignored.update((list) => (append ? [...list, ...page.filter((p) => !list.some((q) => q.id === p.id))] : page));
-      this.ignoredTotal.set(res.total ?? page.length);
+      const added = append ? page.filter((p) => !this.ignored().some((q) => q.id === p.id)) : page;
+      this.ignored.update((list) => (append ? [...list, ...added] : page));
+      // A change made elsewhere can still shift the rows, so a page bringing nothing new
+      // ends the list instead of re-arming the scroll sentinel forever.
+      this.ignoredTotal.set(append && !added.length ? this.ignored().length : res.total ?? page.length);
     } catch {
-      // silent: the section just won't render
-      if (append) this.ignoredPage--;
+      // A first page fails silently: the section just won't render.
+      if (append) this.ignoredError.set(true);
     } finally {
       this.ignoredLoading.set(false);
     }
@@ -786,9 +863,15 @@ export class ManagePersonsComponent implements OnInit {
   }
 
   async loadPersons(reset: boolean): Promise<void> {
+    if (this.destroyRef.destroyed) return;
+    const generation = ++this.personsLoadGeneration;
+    const owner = this.auth.identity(), token = this.auth.token;
+    const current = () => !this.destroyRef.destroyed && generation === this.personsLoadGeneration
+      && owner === this.auth.identity() && token === this.auth.token;
     if (reset) {
       this.page = 1;
       this.persons.set([]);
+      this.total.set(0);
     }
     this.loading.set(true);
 
@@ -807,6 +890,7 @@ export class ManagePersonsComponent implements OnInit {
         }),
       );
 
+      if (!current()) return;
       if (reset) {
         this.persons.set(res.persons);
       } else {
@@ -814,9 +898,10 @@ export class ManagePersonsComponent implements OnInit {
       }
       this.total.set(res.total);
     } catch {
-      this.snackBar.open(this.i18n.t(I18N.persons.error_loading), '', { duration: 3000 });
+      if (current()) this.snackBar.open(this.i18n.t(I18N.persons.error_loading), '', { duration: 3000 });
     } finally {
-      this.loading.set(false);
+      // An invalidated latest read still owns its spinner, but never a newer read's.
+      if (!this.destroyRef.destroyed && generation === this.personsLoadGeneration) this.loading.set(false);
     }
   }
 
@@ -996,13 +1081,14 @@ export class ManagePersonsComponent implements OnInit {
 
   /**
    * Put a newly ignored person into the loaded Ignored rows at its ``count_desc``
-   * place. When it sorts past the last loaded row while more remain, only the total
-   * grows: the next page will bring it.
+   * place, ties broken by id as the server orders them, so the loaded rows stay the
+   * server's first rows. When it sorts past the last loaded row while more remain,
+   * only the total grows: the next page will bring it.
    */
   private addIgnored(person: Person): void {
     if (this.ignored().some((p) => p.id === person.id)) return;
     const list = this.ignored();
-    const at = list.findIndex((p) => p.face_count < person.face_count);
+    const at = list.findIndex((p) => p.face_count < person.face_count || (p.face_count === person.face_count && p.id > person.id));
     const complete = list.length >= this.ignoredTotal();
     this.ignoredTotal.update((t) => t + 1);
     if (at === -1 && !complete) return;

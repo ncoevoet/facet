@@ -1,3 +1,4 @@
+import { randomUuid } from '../../shared/utils/random-uuid';
 import { HttpErrorResponse } from '@angular/common/http';
 import { Component, inject, signal, computed, DestroyRef, OnInit } from '@angular/core';
 import { FormsModule } from '@angular/forms';
@@ -54,6 +55,9 @@ export function dragBox(start: [number, number], end: [number, number]): FaceBox
         <p role="status">{{ I18N.manual_faces.unavailable | translate }}</p>
       }
 
+      @if (overlappingPersonBox()) {
+        <p role="status">{{ I18N.manual_faces.same_person_overlap | translate }}</p>
+      }
       @if (error()) {
         <p role="alert">{{ error() | translate }}</p>
       }
@@ -223,6 +227,18 @@ export class ManualFaceDialogComponent implements OnInit {
     this.I18N.manual_faces.right,
     this.I18N.manual_faces.bottom,
   ];
+  readonly overlappingPersonBox = computed(() => {
+    const personId = this.person()?.person_id;
+    if (personId == null) return false;
+    const [left, top, right, bottom] = this.bbox();
+    if (right <= left || bottom <= top) return false;
+    return this.regions().some(region => {
+      if (region.id === this.editingId() || region.person_id !== personId || region.source_changed) return false;
+      const [x1, y1, x2, y2] = region.bbox;
+      return Math.min(right, x2) > Math.max(left, x1) && Math.min(bottom, y2) > Math.max(top, y1);
+    });
+  });
+
   readonly valid = computed(() => {
     const f = this.frame(),
       b = this.bbox(),
@@ -337,18 +353,23 @@ export class ManualFaceDialogComponent implements OnInit {
     }
   }
 
+  private isCurrentEditor(): boolean {
+    return !this.destroyRef.destroyed && this.auth.identity() === this.owner;
+  }
+
   async removeObject(object: PhotoObject): Promise<void> {
-    if (this.saving()) return;
+    if (this.saving() || !this.isCurrentEditor()) return;
     this.saving.set(true);
     this.error.set('');
     try {
       await firstValueFrom(this.api.delete('/photo/objects/' + object.id));
+      if (this.auth.identity() !== this.owner) return;
       if (!this.destroyRef.destroyed) this.objects.update((list) => list.filter((o) => o.id !== object.id));
       this.data.onObjectsChanged?.();
     } catch {
-      if (!this.destroyRef.destroyed) this.error.set(this.I18N.errors.action_failed);
+      if (this.isCurrentEditor()) this.error.set(this.I18N.errors.action_failed);
     } finally {
-      if (!this.destroyRef.destroyed) this.saving.set(false);
+      if (this.isCurrentEditor()) this.saving.set(false);
     }
   }
 
@@ -479,7 +500,7 @@ export class ManualFaceDialogComponent implements OnInit {
     // A refreshed token still represents the same create intent after a lost response.
     const signature = JSON.stringify({ path: body.path, bbox: body.bbox, ...this.person()! });
     if (!this.attempt || this.attempt.signature !== signature)
-      this.attempt = { signature, clientId: crypto.randomUUID() };
+      this.attempt = { signature, clientId: randomUuid() };
     const request =
       id === null
         ? this.api.post<ManualFaceRegion>('/photo/manual-faces', {
@@ -524,7 +545,7 @@ export class ManualFaceDialogComponent implements OnInit {
     }
   }
   async remove(region: ManualFaceRegion): Promise<void> {
-    if (this.saving() || this.loading()) return;
+    if (this.saving() || this.loading() || !this.isCurrentEditor()) return;
     this.saving.set(true);
     this.error.set('');
     try {
@@ -533,6 +554,7 @@ export class ManualFaceDialogComponent implements OnInit {
           '/photo/manual-faces/' + region.id + '?path=' + encodeURIComponent(this.data.path),
         ),
       );
+      if (this.auth.identity() !== this.owner) return;
       if (!this.destroyRef.destroyed) {
         this.regions.update((list) => list.filter((row) => row.id !== region.id));
         if (this.editingId() === region.id) this.newRegion();
@@ -540,9 +562,9 @@ export class ManualFaceDialogComponent implements OnInit {
 
       await this.refreshMembership();
     } catch {
-      if (!this.destroyRef.destroyed) this.error.set(this.I18N.errors.action_failed);
+      if (this.isCurrentEditor()) this.error.set(this.I18N.errors.action_failed);
     } finally {
-      if (!this.destroyRef.destroyed) this.saving.set(false);
+      if (this.isCurrentEditor()) this.saving.set(false);
     }
   }
 }

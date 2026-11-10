@@ -1,3 +1,5 @@
+import { sharedAssetPhoto, type SharedAsset } from '../../shared/utils/shared-album-media';
+import { HttpContext } from '@angular/common/http';
 import { Injectable, inject } from '@angular/core';
 import { Observable, map } from 'rxjs';
 import { ApiService } from './api.service';
@@ -14,7 +16,7 @@ export interface Album {
   is_shared: boolean;
   smart_filter_json: string | null;
   scoring_context: string | null;
-  photo_count: number;
+  photo_count: number | null;
   created_at: string;
   updated_at: string;
 }
@@ -46,12 +48,14 @@ export interface AlbumPhotosResponse {
   has_more: boolean;
 }
 
+type SharedAlbum = Omit<Album, 'cover_photo_path' | 'first_photo_path' | 'smart_filter_json'> & { cover_asset_id: string | null };
+
 @Injectable({ providedIn: 'root' })
 export class AlbumService {
   private api = inject(ApiService);
 
-  list(params?: Record<string, string | number>): Observable<{ albums: Album[]; total: number; has_more: boolean }> {
-    return this.api.get('/albums', params);
+  list(params?: Record<string, string | number>, context?: HttpContext): Observable<{ albums: Album[]; total: number; has_more: boolean }> {
+    return this.api.get('/albums', params, context);
   }
 
   /** Manual (non-smart) albums only — the set used by the scope pickers. */
@@ -102,10 +106,10 @@ export class AlbumService {
     return this.api.delete(`/albums/${albumId}/share`);
   }
 
-  getShared(albumId: number, token: string): Observable<{ album: Album; photos: Photo[]; total: number }> {
+  getShared(albumId: number, token: string): Observable<{ album: SharedAlbum; photos: Photo[]; total: number }> {
     return this.api
-      .get<{ album: Album; photos: Photo[]; total: number }>(`/shared/album/${albumId}`, { token })
-      .pipe(map(res => ({ ...res, photos: normalisePhotoFlagsAll(res.photos ?? []) })));
+      .get<{ album: SharedAlbum; photos: SharedAsset[]; total: number }>(`/shared/album/${albumId}`, { token })
+      .pipe(map(res => ({ ...res, photos: normalisePhotoFlagsAll((res.photos ?? []).map(sharedAssetPhoto)) })));
   }
 
   /** Set the album's scoring context; materializes it onto member photos (last-write-wins). */

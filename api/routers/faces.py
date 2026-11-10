@@ -107,6 +107,8 @@ class BatchPhotoRequest(BaseModel):
 class BatchUpdateResponse(BaseModel):
     success: bool
     count: int
+    logical_asset_ids: list[str] | None = None
+    logical_member_paths: list[str] | None = Field(default=None, description='Fully authorized logical member paths already covered by this request; later chunks may omit them.')
 
 
 class BatchReviewResponse(BatchUpdateResponse):
@@ -578,7 +580,15 @@ def api_set_rating(
     """Set star rating (0-5) for a photo."""
     with get_db() as conn:
         try:
+            conn.execute('BEGIN IMMEDIATE')
             _require_writable_photo(conn, user, body.photo_path)
+            from api.logical_reviews import apply_path
+            logical_result = apply_path(conn, body.photo_path, user, 'rating', body.rating)
+            if logical_result is not None:
+                conn.commit()
+                _stats_cache.clear()
+                _invalidate_culling_groups_cache()
+                return logical_result
             history_before = organization_capture.begin(conn, user.user_id, 'review', [body.photo_path])
             before = snapshot_labels(conn, user.is_agent_request, user.user_id, [body.photo_path])
             if user.user_id and is_multi_user_enabled():
@@ -613,7 +623,15 @@ def api_toggle_favorite(
     """Toggle favorite flag for a photo."""
     with get_db() as conn:
         try:
+            conn.execute('BEGIN IMMEDIATE')
             _require_writable_photo(conn, user, body.photo_path)
+            from api.logical_reviews import apply_path
+            logical_result = apply_path(conn, body.photo_path, user, 'favorite')
+            if logical_result is not None:
+                conn.commit()
+                _stats_cache.clear()
+                _invalidate_culling_groups_cache()
+                return logical_result
             history_before = organization_capture.begin(conn, user.user_id, 'review', [body.photo_path])
             before = snapshot_labels(conn, user.is_agent_request, user.user_id, [body.photo_path])
             if user.user_id and is_multi_user_enabled():
@@ -669,7 +687,15 @@ def api_toggle_rejected(
     """Toggle rejected flag for a photo."""
     with get_db() as conn:
         try:
+            conn.execute('BEGIN IMMEDIATE')
             _require_writable_photo(conn, user, body.photo_path)
+            from api.logical_reviews import apply_path
+            logical_result = apply_path(conn, body.photo_path, user, 'reject')
+            if logical_result is not None:
+                conn.commit()
+                _stats_cache.clear()
+                _invalidate_culling_groups_cache()
+                return logical_result
             history_before = organization_capture.begin(conn, user.user_id, 'review', [body.photo_path])
             before = snapshot_labels(conn, user.is_agent_request, user.user_id, [body.photo_path])
             if user.user_id and is_multi_user_enabled():
@@ -852,7 +878,7 @@ def _write_paths(conn, paths: list, user: CurrentUser, sql: BatchWriteSql) -> in
 
 @retry_on_locked()
 def _batch_update(body: BatchPhotoRequest, user: CurrentUser, sql: BatchWriteSql,
-                  *, review_rejected: Optional[int] = None) -> dict:
+                  *, review_rejected: Optional[int] = None, logical_patch=None) -> dict:
     """Execute a batch update on photos with transaction and cache invalidation.
 
     Which statement of :class:`BatchWriteSql` runs is decided here; the two
@@ -873,6 +899,13 @@ def _batch_update(body: BatchPhotoRequest, user: CurrentUser, sql: BatchWriteSql
     with get_db() as conn:
         try:
             conn.execute('BEGIN IMMEDIATE')
+            if logical_patch is not None and conn.execute('SELECT 1 FROM logical_assets LIMIT 1').fetchone():
+                from api.logical_batch import apply as apply_logical_batch
+                result = apply_logical_batch(conn, body, user, sql, logical_patch, review_rejected)
+                conn.commit()
+                _stats_cache.clear()
+                _invalidate_culling_groups_cache()
+                return result
             history_paths = _filter_scope_paths(conn, body, user) if body.filters is not None else _writable_photo_paths(conn, user, [p for p in body.photo_paths or () if p not in set(body.exclude or ())])
             history_before = organization_capture.begin(conn, user.user_id, 'review', history_paths)
             if body.filters is not None:
@@ -953,7 +986,7 @@ def api_batch_favorite(
             "UPDATE photos SET is_favorite = 1, is_rejected = 0 "
             "WHERE path IN (SELECT photos.path FROM {scope})"
         ),
-    ))
+    ), logical_patch={'is_favorite': 1})
 
 
 @router.post("/api/photos/batch_review", response_model=BatchReviewResponse, response_model_exclude_none=True)
@@ -985,7 +1018,7 @@ def api_batch_review(
             "UPDATE photos SET is_kept = ?, is_rejected = ? "
             "WHERE path IN (SELECT photos.path FROM {scope})"
         ),
-    ), review_rejected=0)
+    ), review_rejected=0, logical_patch={'is_kept': kept, 'is_rejected': 0})
 
 
 @router.post("/api/photos/batch_reject")
@@ -1012,7 +1045,7 @@ def api_batch_reject(
             f"UPDATE photos SET {REJECT_SET} "
             "WHERE path IN (SELECT photos.path FROM {scope})"
         ),
-    ))
+    ), logical_patch={'is_rejected': 1, 'is_kept': 0, 'star_rating': 0, 'is_favorite': 0})
 
 
 @router.post("/api/photos/batch_rating")
@@ -1040,4 +1073,4 @@ def api_batch_rating(
             "UPDATE photos SET star_rating = ? "
             "WHERE path IN (SELECT photos.path FROM {scope})"
         ),
-    ))
+    ), logical_patch={'star_rating': body.rating})

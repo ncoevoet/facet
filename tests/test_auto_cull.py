@@ -371,7 +371,7 @@ class TestSimilarGroups:
     def test_similar_apply_marks_reviewed_and_records_pairs(self, edition_client):
         conn = _db()
         similar = [{'paths': ['/g1a.jpg', '/g1b.jpg', '/g1c.jpg'],
-                    'best_path': '/g1a.jpg', 'count': 3}]
+                    'best_path': '/g1a.jpg', 'count': 3, 'threshold': 0.85}]
         with mock.patch(
             "api.routers.burst_culling.compute_similarity_groups", return_value=similar,
         ):
@@ -409,7 +409,7 @@ class TestCrossGroupOverlap:
     def test_overlapping_photo_is_never_both_kept_and_rejected(self, edition_client):
         conn = _db(photos=self._PHOTOS)
         similar = [{'paths': ['/a.jpg', '/z.jpg', '/w.jpg'],
-                    'best_path': '/z.jpg', 'count': 3}]
+                    'best_path': '/z.jpg', 'count': 3, 'threshold': 0.85}]
         with mock.patch(
             "api.routers.burst_culling.compute_similarity_groups", return_value=similar,
         ):
@@ -456,7 +456,7 @@ class TestLargeSimilarGroup:
                   for i in range(25)]
         conn = _db(photos=photos)
         all_paths = [p[0] for p in photos]
-        similar = [{'paths': all_paths, 'best_path': '/p00.jpg', 'count': len(all_paths)}]
+        similar = [{'paths': all_paths, 'best_path': '/p00.jpg', 'count': len(all_paths), 'threshold': 0.85}]
         with mock.patch(
             "api.routers.burst_culling.compute_similarity_groups", return_value=similar,
         ):

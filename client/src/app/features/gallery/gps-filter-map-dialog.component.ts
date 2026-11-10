@@ -28,7 +28,7 @@ export interface GpsFilterData {
     <mat-dialog-content class="!p-0">
       <div #mapContainer class="w-full" style="height:350px"></div>
       <div class="flex items-center gap-3 px-4 py-3">
-        <span class="text-sm opacity-70 shrink-0">{{ I18N.gallery.gps_radius | translate }}:</span>
+        <span class="text-sm text-[var(--mat-sys-on-surface-variant)] shrink-0">{{ I18N.gallery.gps_radius | translate }}:</span>
         <mat-slider class="flex-1" [min]="1" [max]="100" [step]="1">
           <input matSliderThumb [value]="radiusKm()" (valueChange)="onRadiusChange($event)" [attr.aria-label]="I18N.gallery.gps_radius | translate" />
         </mat-slider>

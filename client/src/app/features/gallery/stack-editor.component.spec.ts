@@ -51,7 +51,7 @@ describe('StackDialog HTTP workflow', () => {
   }
   afterEach(() => { http.verify({ ignoreCancelled: true }); TestBed.resetTestingModule(); });
 
-  it('renders compact filenames with full-path tooltips, accessible names and unchanged thumbnail identities', async () => {
+  it('renders compact accessible filenames with full-path tooltips and unchanged thumbnail identities', async () => {
     create();
     const paths = ['/a/very/long/directory/same.jpg', '/another/long/directory/same.jpg'];
     const fixture = TestBed.createComponent(StackEditorComponent); fixture.detectChanges();
@@ -60,7 +60,7 @@ describe('StackDialog HTTP workflow', () => {
     const labels = [...(fixture.nativeElement as HTMLElement).querySelectorAll<HTMLElement>('[data-stack-filename]')];
     expect(labels.map(label => label.textContent?.trim())).toEqual(['same.jpg', 'same.jpg']);
     expect(labels.map(label => label.title)).toEqual(paths);
-    expect(labels.map(label => label.getAttribute('aria-label'))).toEqual(paths);
+    expect(labels.map(label => label.getAttribute('aria-label'))).toEqual(['same.jpg', 'same.jpg']);
     const images = [...(fixture.nativeElement as HTMLElement).querySelectorAll<HTMLImageElement>('[data-stack-tile] img')];
     expect(images.map(image => new URL(image.src).searchParams.get('path'))).toEqual(paths);
     expect(labels.every(label => label.classList.contains('truncate'))).toBe(true);
@@ -287,7 +287,7 @@ describe('StackDialog HTTP workflow', () => {
     const photo = { path: '/a.jpg' };
     http.expectOne(request => request.url === '/api/photo').flush(photo); await opening;
     expect(TestBed.inject(GalleryStore).showPaths).not.toHaveBeenCalled();
-    expect(TestBed.inject(Router).navigate).toHaveBeenCalledWith(['/photo'], { queryParams: { path: '/a.jpg' }, state: { photo, photoSession: privateImageSessionKey() }, replaceUrl: false });
+    expect(TestBed.inject(Router).navigate).toHaveBeenCalledWith(['/photo'], { queryParams: { path: '/a.jpg' }, state: { photo, photoSession: privateImageSessionKey(), photoBack: true }, replaceUrl: false });
   });
   it('opens a newly added draft member without saving or changing gallery scope', async () => {
     create(); await load(); await addSelected();
@@ -295,7 +295,7 @@ describe('StackDialog HTTP workflow', () => {
     const photo = { path: '/c.jpg' };
     http.expectOne(request => request.url === '/api/photo').flush(photo); await opening;
     expect(TestBed.inject(GalleryStore).showPaths).not.toHaveBeenCalled();
-    expect(TestBed.inject(Router).navigate).toHaveBeenCalledWith(['/photo'], { queryParams: { path: '/c.jpg' }, state: { photo, photoSession: privateImageSessionKey() }, replaceUrl: false });
+    expect(TestBed.inject(Router).navigate).toHaveBeenCalledWith(['/photo'], { queryParams: { path: '/c.jpg' }, state: { photo, photoSession: privateImageSessionKey(), photoBack: true }, replaceUrl: false });
     http.expectNone(request => request.method === 'PUT');
   });
   it('does not open a member outside an existing exact pinned list', async () => {

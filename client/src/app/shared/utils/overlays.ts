@@ -12,3 +12,12 @@ export function closeOverlayDirectives(
   for (const menu of menus) menu.closeMenu();
   for (const select of selects) select.close();
 }
+
+/** Let Escape reach the enclosing view when the disclosure is already closed. */
+export function closeDetailsOnEscape(event: Event, details: HTMLDetailsElement, summary: HTMLElement): void {
+  if (!details.open) return;
+  details.open = false;
+  summary.focus();
+  event.preventDefault();
+  event.stopPropagation();
+}

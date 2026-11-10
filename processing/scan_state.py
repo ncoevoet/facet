@@ -9,12 +9,24 @@ and retryable, interrupted runs are recorded, and --resume / --retry-failed /
 
 import json
 import logging
+import os
+import re
 import threading
 import time
 
 from db import get_connection
 
 logger = logging.getLogger("facet.scan_state")
+VIEWER_JOB_ID_ENV = 'FACET_SCAN_JOB_ID'
+JOB_PHASES = frozenset({'scoring', 'bursts', 'sequences', 'tagging', 'moments', 'junk', 'vec', 'done'})
+
+
+def viewer_job_id():
+    """An internal correlation ID, never permission to signal a process."""
+    value = os.environ.get(VIEWER_JOB_ID_ENV)
+    if value is not None and not re.fullmatch('[0-9a-f]{32}', value):
+        raise ValueError('Invalid viewer scan job identity')
+    return value
 
 
 class ScanRun:
@@ -34,13 +46,14 @@ class ScanRun:
         self._last_flush = 0.0
 
     @classmethod
-    def start(cls, db_path, mode, args_dict, total_files):
+    def start(cls, db_path, mode, args_dict, total_files, job_id=None):
         """Insert a new running scan_runs row and return its ScanRun."""
         with get_connection(db_path, row_factory=False) as conn:
             cursor = conn.execute(
-                "INSERT INTO scan_runs (mode, args_json, total_files, heartbeat_at) "
-                "VALUES (?, ?, ?, datetime('now'))",
-                (mode, json.dumps(args_dict), total_files),
+                "INSERT INTO scan_runs (mode, args_json, total_files, heartbeat_at, "
+                "viewer_job_id, job_status, job_phase) "
+                "VALUES (?, ?, ?, datetime('now'), ?, 'running', 'scoring')",
+                (mode, json.dumps(args_dict), total_files, job_id),
             )
             conn.commit()
             run_id = cursor.lastrowid
@@ -94,11 +107,21 @@ class ScanRun:
                 )
                 conn.commit()
         except Exception as e:
+            # Re-queue the drained failures ahead of newer ones so a later flush
+            # retries them; a lost heartbeat is simply overwritten by the next.
+            with self._lock:
+                self._pending_failures[:0] = failures
             logger.warning("Scan bookkeeping flush failed: %s", e)
 
     def finish(self, status='completed'):
-        """Flush buffers and close the run with the given status."""
+        """Close the run, returning whether all bookkeeping was persisted."""
         self._maybe_flush(force=True)
+        # Failure records still pending after the final flush are lost, and a
+        # captured retry must not then erase its source receipts.
+        with self._lock:
+            persisted = not self._pending_failures
+        if status == 'completed' and not persisted:
+            status = 'failed'
         try:
             with get_connection(self.db_path, row_factory=False) as conn:
                 conn.execute(
@@ -108,7 +131,68 @@ class ScanRun:
                 conn.commit()
         except Exception as e:
             logger.warning("Could not close scan run #%d: %s", self.run_id, e)
+            return False
         logger.info("Scan run #%d finished: %s", self.run_id, status)
+        return persisted
+
+    def job_phase(self, phase):
+        """Persist one phase transition; the lifecycle suppresses repeats."""
+        if phase not in JOB_PHASES:
+            raise ValueError('Unknown scan job phase')
+        try:
+            with get_connection(self.db_path, row_factory=False) as conn:
+                cursor = conn.execute('UPDATE scan_runs SET job_phase=? WHERE id=?', (phase, self.run_id))
+                if cursor.rowcount != 1:
+                    raise RuntimeError('Scan run record disappeared')
+                conn.commit()
+            return True
+        except Exception as exc:
+            logger.warning('Could not persist scan job phase: %s', exc)
+            return False
+
+    def finish_job(self, status):
+        """Terminal pipeline outcome, separate from scoring's finish timestamp."""
+        if status not in ('completed', 'interrupted', 'failed'):
+            raise ValueError('Unknown scan job outcome')
+        try:
+            with get_connection(self.db_path, row_factory=False) as conn:
+                cursor = conn.execute(
+                    "UPDATE scan_runs SET job_status=?, job_finished_at=datetime('now') WHERE id=?",
+                    (status, self.run_id),
+                )
+                if cursor.rowcount != 1:
+                    raise RuntimeError('Scan run record disappeared')
+                conn.commit()
+            return True
+        except Exception as exc:
+            logger.warning('Could not persist scan job outcome: %s', exc)
+            return False
+
+
+class ScanJobLifecycle:
+    """Explicit enclosing scan lifetime; no global/thread-local active run."""
+
+    def __init__(self):
+        self.run = None
+        self.phase = 'scoring'
+        self.phase_recorded = True
+
+    def attach(self, run):
+        self.run = run
+
+    def progress(self, phase):
+        if phase != self.phase and self.run is not None:
+            self.phase = phase
+            self.phase_recorded = self.run.job_phase(phase)
+
+    def finish(self, status):
+        if self.run is None:
+            return True  # No scoring run was created; do not invent a receipt.
+        # A missed transition is superseded by the next one; retry the phase the
+        # job ends on, but only the terminal outcome write decides the result.
+        if not self.phase_recorded:
+            self.phase_recorded = self.run.job_phase(self.phase)
+        return self.run.finish_job(status)
 
 
 def get_last_resumable_run(db_path, stale_seconds=120):

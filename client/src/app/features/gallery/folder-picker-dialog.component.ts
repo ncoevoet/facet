@@ -54,7 +54,7 @@ export interface FolderPickerData {
 
       <div class="flex items-center gap-2 rounded-lg bg-[var(--mat-sys-surface-container-high)] px-3 py-2">
         <mat-icon class="!text-base !w-5 !h-5 !leading-5 opacity-60">filter_alt</mat-icon>
-        <span class="text-xs opacity-70">{{ 'gallery.use_this_folder' | translate }}</span>
+        <span class="text-xs text-[var(--mat-sys-on-surface-variant)]">{{ 'gallery.use_this_folder' | translate }}</span>
         <span class="text-sm font-medium truncate">
           @if (prefix()) {
             {{ currentName() }}
@@ -81,14 +81,14 @@ export interface FolderPickerData {
         </div>
       } @else if (loadError()) {
         <div class="flex flex-col items-center gap-2 px-1 py-6">
-          <p class="text-xs opacity-70 text-center">{{ 'folders.load_error.message' | translate }}</p>
+          <p class="text-xs text-[var(--mat-sys-on-surface-variant)] text-center">{{ 'folders.load_error.message' | translate }}</p>
           <button mat-stroked-button (click)="retry()">
             <mat-icon class="!text-base !w-4 !h-4 !leading-4 mr-1">refresh</mat-icon>
             {{ 'gallery.load_error.retry' | translate }}
           </button>
         </div>
       } @else if (!filteredChildren().length) {
-        <p class="text-xs opacity-50 px-1 py-6 text-center">{{ 'folders.empty' | translate }}</p>
+        <p class="text-xs text-[var(--mat-sys-on-surface-variant)] px-1 py-6 text-center">{{ 'folders.empty' | translate }}</p>
       } @else {
         <div class="flex flex-col gap-1 max-h-[360px] overflow-y-auto">
           @for (folder of filteredChildren(); track folder.path) {
@@ -98,7 +98,7 @@ export interface FolderPickerData {
             >
               <mat-icon class="!text-base !w-5 !h-5 !leading-5 opacity-60 shrink-0">folder</mat-icon>
               <span class="text-sm truncate flex-1">{{ folder.name }}</span>
-              <span class="text-xs opacity-60 shrink-0">{{ folder.photo_count | number }}</span>
+              <span class="text-xs text-[var(--mat-sys-on-surface-variant)] shrink-0">{{ folder.photo_count | number }}</span>
               <mat-icon class="!text-base !w-4 !h-4 !leading-4 opacity-40 shrink-0">chevron_right</mat-icon>
             </button>
           }

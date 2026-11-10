@@ -1,3 +1,5 @@
+import type { components } from '../../core/api/schema';
+
 /** "A better shot exists in this group" hint from the learned keeper head. */
 export interface KeeperHint {
   has_better: boolean;
@@ -6,6 +8,10 @@ export interface KeeperHint {
 }
 
 export interface Photo {
+  /** Account-scoped logical review snapshot; omitted on public/restricted views. */
+  logical_review?: components['schemas']['LogicalReviewState'] | null;
+  /** Explicit receipt for this stored scan; absent means no known reason. */
+  assessment_states?: { face_quality_iqa?: 'not_applicable' } | null;
   preview_revision?: string | null;
   path: string;
   /** The original this photo was made from, when it is a recorded AI edit. */
@@ -242,6 +248,7 @@ export function hasExifFields(p: Photo): boolean {
  */
 export function normalisePhotoFlags<T extends Partial<Photo>>(photo: T): T {
   const out: Record<string, unknown> = { ...photo };
+  if (photo.logical_review) Object.assign(out, photo.logical_review.values);
   for (const field of PHOTO_FLAG_FIELDS) {
     const value = out[field];
     if (value !== null && value !== undefined) {

@@ -278,7 +278,7 @@ Write tools are in the same `/mcp` list as the read tools. Each goes through the
 | `unstack_photos` | `edition` | Dissolve a stack; originals stay intact |  |
 | `undo_photo_stack` | `edition` | Undo an available stack entry only; later changes refuse |  |
 | `import_ai_edit` | `edition` | Bring an AI edit of a photo into the library beside it, sent as bytes: `image_data` (base64) or `source_file` (a file in `ai_edits.drop_dir`, read and left in place); Facet writes its own copy and never deletes a file; `tool` must be configured; not idempotent, each call adds a revision; `note` (what changed) is appended to the original's caption as the edit's caption, `AI: <note>`; the call waits up to 3 minutes for the edit's scan and answers `ready` with its caption and page | 1 file |
-| `create_album` | `edition` | Create an album (not idempotent: twice makes two albums): empty, or from `filters` / `target: "view"` as a smart album that follows those filters, or from `paths` / `target: "selection"` as a fixed album filled in the same call (`added`, `skipped`). Smart albums show the viewer's own hide toggles and read 0 photos in `list_albums`. `filters` that hold no effective filter (`{}`, or only display toggles set to off) are refused as `invalid_input`: omit `filters` for an empty album | |
+| `create_album` | `edition` | Create an album (not idempotent: twice makes two albums): empty, or from `filters` / `target: "view"` as a smart album that follows those filters, or from `paths` / `target: "selection"` as a fixed album filled in the same call (`added`, `skipped`). Smart albums show the viewer's own hide toggles and have a `null` photo count in `list_albums` (their members are a live filter, never stored). `filters` that hold no effective filter (`{}`, or only display toggles set to off) are refused as `invalid_input`: omit `filters` for an empty album | |
 | `album_add_photos` | `edition` | Add photos to an album (already present ones are ignored) | 1000 paths |
 | `album_remove_photos` | `edition` | Remove photos from an album; the photos are untouched | 1000 paths |
 | `assign_faces` | `edition` | Move faces to a person; faces another person owns are left alone unless `allow_reassign` is set, and the result lists what was skipped | 50 face ids |
@@ -399,7 +399,7 @@ The darkroom tools mirror the `/culling` page. All of them need the `edition` le
 
 | Tool | What it does |
 |------|--------------|
-| `list_culling_groups` | List groups (`burst`, `similar`, `scene`, `bracket`, `panorama`, `hdr_panorama`) with their photos and scores, sortable and scoped by album or date window |
+| `list_culling_groups` | List groups (`burst`, `similar`, `lookalike`, `scene`, `bracket`, `panorama`, `hdr_panorama`) with their photos and scores, sortable and scoped by album or date window |
 | `culling_profiles` | The genre-aware culling presets and the default one |
 | `suggest_culling_profile` | Name the preset that fits an album or a capture-time window |
 | `keeper_hints` | Per-photo "a better shot exists in this burst" hints for up to 100 paths (empty when no keeper head is trained) |

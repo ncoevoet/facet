@@ -11,6 +11,9 @@ const ALBUM_PATH = 'album/:albumId';
 export const GALLERY_PATHS: readonly string[] = ['', ALBUM_PATH];
 export const PHOTO_PATH = 'photo';
 const STACK_EDITOR_PATH = 'stacks/edit';
+export const PHOTO_COMPARE_PATH = 'photo-compare';
+/** Transient NavigationExtras.info, never persisted into browser history. */
+export const GALLERY_REVISIT = Symbol('gallery-revisit');
 
 const isGallery = (route: ActivatedRouteSnapshot) => GALLERY_PATHS.includes(route.routeConfig?.path ?? '-');
 
@@ -27,15 +30,28 @@ export class GalleryReuseStrategy extends BaseRouteReuseStrategy implements OnDe
 
   // The gallery reads its album id once on init, so another album needs a fresh instance.
   override shouldReuseRoute(future: ActivatedRouteSnapshot, curr: ActivatedRouteSnapshot): boolean {
+    const navigation = this.router.currentNavigation();
+    if (isGallery(future) && isGallery(curr) && (navigation?.extras.info === GALLERY_REVISIT
+      || (navigation?.trigger === 'popstate' && this.keyOf(future) !== this.keyOf(curr)))) {
+      // A retrieved handle can still alias the active gallery. The router owns
+      // its destruction on this explicit fresh visit; do not destroy it twice.
+      this.kept = null;
+      return false;
+    }
     if (future.routeConfig === curr.routeConfig && future.routeConfig?.path === ALBUM_PATH
       && future.paramMap.get('albumId') !== curr.paramMap.get('albumId')) return false;
+    if (future.routeConfig === curr.routeConfig
+      && ['shared/album/:albumId', 'shared/album/:albumId/photo'].includes(future.routeConfig?.path ?? '')
+      && (future.paramMap.get('albumId') !== curr.paramMap.get('albumId')
+        || future.queryParamMap.get('token') !== curr.queryParamMap.get('token')
+        || future.queryParamMap.get('asset_id') !== curr.queryParamMap.get('asset_id'))) return false;
     return super.shouldReuseRoute(future, curr);
   }
 
   override shouldDetach(route: ActivatedRouteSnapshot): boolean {
     const next = this.router.currentNavigation()?.finalUrl;
     const segments = next?.root.children['primary']?.segments.map(segment => segment.path) ?? [];
-    return isGallery(route) && (segments[0] === PHOTO_PATH || segments.join('/') === STACK_EDITOR_PATH);
+    return isGallery(route) && (segments[0] === PHOTO_PATH || [STACK_EDITOR_PATH, PHOTO_COMPARE_PATH].includes(segments.join('/')));
   }
 
   override store(route: ActivatedRouteSnapshot, handle: DetachedRouteHandle | null): void {
@@ -51,7 +67,7 @@ export class GalleryReuseStrategy extends BaseRouteReuseStrategy implements OnDe
     if (!this.kept) return false;
     if (isGallery(route) && this.isBackToKept(route)) return true;
     // Activation asks about the photo immediately after storing the gallery.
-    if (![PHOTO_PATH, STACK_EDITOR_PATH].includes(route.routeConfig?.path ?? '')) this.drop();
+    if (![PHOTO_PATH, STACK_EDITOR_PATH, PHOTO_COMPARE_PATH].includes(route.routeConfig?.path ?? '')) this.drop();
     return false;
   }
 
@@ -62,7 +78,7 @@ export class GalleryReuseStrategy extends BaseRouteReuseStrategy implements OnDe
   private isBackToKept(route: ActivatedRouteSnapshot): boolean {
     const navigation = this.router.currentNavigation();
     const previous = navigation?.previousNavigation?.finalUrl?.root.children['primary']?.segments.map(segment => segment.path).join('/');
-    return (navigation?.trigger === 'popstate' || previous === STACK_EDITOR_PATH)
+    return (navigation?.trigger === 'popstate' || [STACK_EDITOR_PATH, PHOTO_COMPARE_PATH].includes(previous ?? ''))
       && this.keyOf(route) === this.kept?.key;
   }
 

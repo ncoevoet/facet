@@ -289,7 +289,7 @@ Escanea esas fotos (`python facet.py /mnt/photos`) y saldrán de la lista en la 
 
 ## Diagnóstico en el visor
 
-Abre **Diagnóstico de Immich** desde el menú de usuario. Requiere acceso de superadministrador en modo multiusuario, y acceso de edición (o edición local de confianza) en modo individual.
+Abre **Diagnóstico de Immich** desde el submenú **Tareas y diagnóstico** del menú de usuario. Requiere acceso de superadministrador en modo multiusuario, y acceso de edición (o edición local de confianza) en modo individual.
 
 - No se lee nada de Immich hasta que haces clic en **Probar conexión**. La prueba lee la versión del servidor y el acceso a la cuenta, y no escribe nada.
 - La cobertura de rutas comprueba como máximo 200 fotos indexadas. No confirma que cada una coincida con un recurso de Immich.

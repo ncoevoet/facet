@@ -103,6 +103,7 @@ class CullPlanRequest(BaseModel):
     profile: Optional[str] = None
     trim_brackets: bool = False
     highlights_album: str = ''
+    decision_policy: Literal['preserve', 'replace'] = 'preserve'
     keep_paths: list[str] = Field(default_factory=list, max_length=1000)
     remove_paths: list[str] = Field(default_factory=list, max_length=1000)
 
@@ -186,6 +187,7 @@ class AutoCullPreviewItem(BaseModel):
     keep_paths: list[str]
     reject_paths: list[str]
     best_path: str
+    existing_labels_count: int = 0
     kind: Optional[str] = None
     group_reason: Optional[AutoCullGroupReason] = None
     reasons: dict[str, AutoCullCullReason] = {}
@@ -194,6 +196,15 @@ class AutoCullPreviewItem(BaseModel):
 class AutoCullEffectiveOverrides(BaseModel):
     keep: int
     remove: int
+
+
+class AutoCullExistingLabels(BaseModel):
+    path: str
+    star_rating: int
+    is_favorite: bool
+    is_rejected: bool
+    is_kept: bool
+    proposed: Literal['keep', 'reject', 'unchanged']
 
 
 class AutoCullResponse(BaseModel):
@@ -207,6 +218,11 @@ class AutoCullResponse(BaseModel):
     preview: list[AutoCullPreviewItem]
     next_cursor: Optional[int] = None
     plan_digest: str
+    decision_state_digest: str
+    existing_labels: list[AutoCullExistingLabels] = []
+    existing_labels_count: int = 0
+    existing_labels_truncated: bool = False
+    preserved_labels_count: int = 0
     ignored_overrides: list[str] = []
     skipped_user_changed: list[str] = []
     skipped_user_changed_count: int = 0
@@ -289,6 +305,45 @@ class PossibleFacesResponse(BaseModel):
         description="Rows actually scored against the centroid (after the embedding-dimension check).")
     candidates: int = Field(
         description="Index count of faces in scope that the caller can see, before the embedding-dimension check.")
+
+
+class FaceReviewSuggestion(BaseModel):
+    person_id: int
+    name: str
+    similarity: float = Field(description="Cosine similarity, not an identity probability.")
+
+
+class FaceReviewItem(BaseModel):
+    face_id: int
+    photo_path: str
+    identity_token: str = Field(description="Opaque face geometry/embedding precondition for captured assignment.")
+    suggestions: list[FaceReviewSuggestion]
+    embedding_state: Literal['ready', 'unavailable', 'incompatible']
+
+
+class FaceReviewResponse(BaseModel):
+    faces: list[FaceReviewItem]
+    total_unassigned: int = Field(description="All visible faces without any person assignment, not unnamed clusters.")
+    next_after_id: int | None
+    model: str
+    compared_people: int
+    suggestions_requested: bool
+
+
+class FaceReviewFeedbackRequest(BaseModel):
+    face_id: int = Field(ge=1, le=9007199254740991)
+    person_id: int = Field(ge=1, le=9007199254740991)
+    identity_token: str = Field(pattern=r'^[a-f0-9]{64}$')
+    expected_person_name: str = Field(min_length=1, max_length=1000)
+
+
+class FaceReviewUndoRequest(FaceReviewFeedbackRequest):
+    receipt_id: str = Field(pattern=r'^[a-f0-9]{32}$')
+
+
+class FaceReviewFeedbackResponse(BaseModel):
+    receipt_id: str
+    rejected: bool
 
 
 class PhotoFace(BaseModel):

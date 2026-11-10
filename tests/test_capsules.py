@@ -89,6 +89,23 @@ class TestListCapsules:
         assert body["capsules"][0]["id"] == "gen1"
 
 
+class TestStartupCacheFallback:
+    """The startup pass runs anonymously; a user without their own cache may borrow its result."""
+
+    def test_empty_startup_result_is_not_borrowed(self):
+        from api.routers.capsules import _get_cached_capsules
+        cache = {(None, "", ""): {"data": [], "ts": time.time()}}
+        with mock.patch(f"{_ROUTER_MODULE}._capsule_cache", cache):
+            assert _get_cached_capsules("alice") == (None, False)
+
+    def test_populated_startup_result_is_borrowed(self):
+        from api.routers.capsules import _get_cached_capsules
+        capsules = [_make_capsule("c1")]
+        cache = {(None, "", ""): {"data": capsules, "ts": time.time()}}
+        with mock.patch(f"{_ROUTER_MODULE}._capsule_cache", cache):
+            assert _get_cached_capsules("alice") == (capsules, True)
+
+
 class TestCapsulePhotos:
     """Tests for GET /api/capsules/{capsule_id}/photos."""
 

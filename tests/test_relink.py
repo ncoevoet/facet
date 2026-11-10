@@ -85,6 +85,10 @@ def test_all_current_associations_survive_and_manual_marks_require_review(librar
                      "VALUES (7,?,-1,X'',1,'stable-uuid',?,40,30,3,1,2,9,10)", (old, source))
         conn.execute('INSERT INTO photo_tags VALUES (?,?)', (old, 'ai-tag'))
         conn.execute("INSERT INTO photo_manual_tags(photo_path,tag,source,created_by) VALUES (?, 'manual','user','alice')", (old,))
+        from db.keyword_hierarchy import assign_path, remove_assignment
+        hierarchy, _ = assign_path(conn, old, ['Animals', 'Cat'], source='xmp', imported_path='ANIMALS|Cat')
+        removed_keyword, _ = assign_path(conn, old, ['Old', 'Keyword'])
+        remove_assignment(conn, old, removed_keyword)
         conn.execute("INSERT INTO comparisons(photo_a_path,photo_b_path,winner,user_id) VALUES (?,?,'a','alice')", (old, other))
         conn.execute('INSERT INTO learned_scores(photo_path,learned_score) VALUES (?,7)', (old,))
         conn.execute("INSERT INTO iqa_declined VALUES (?,'model','scan-stamp')", (old,))
@@ -131,6 +135,10 @@ def test_all_current_associations_survive_and_manual_marks_require_review(librar
         assert conn.execute('SELECT representative_face_id FROM persons WHERE id=3').fetchone()[0] == 7
         assert conn.execute('SELECT override_group_key FROM photo_sequence_overrides').fetchone()[0] == old
         assert conn.execute('SELECT path FROM scan_failures').fetchone()[0] == old  # historical location
+        from db.keyword_hierarchy import photo_hierarchies
+        assert photo_hierarchies(conn, new) == [
+            {'node_id': hierarchy, 'segments': ['Animals', 'Cat'], 'source': 'xmp', 'exported_path': 'ANIMALS|Cat'}]
+        assert conn.execute('SELECT path_key FROM keyword_assignment_deletions WHERE photo_path=?', (new,)).fetchone()[0] == '["old","keyword"]'
         assert old in json.loads(conn.execute("SELECT value FROM stats_cache WHERE key='immich_synced_paths:global'").fetchone()[0])
         assert conn.execute("SELECT value FROM stats_cache WHERE key='auto_retrain_pending:alice'").fetchone()[0] == '9'
         assert conn.execute("SELECT 1 FROM stats_cache WHERE key='count_all'").fetchone() is None
@@ -769,7 +777,7 @@ def test_composite_or_non_path_photo_foreign_key_is_refused(library, foreign_key
 def test_unregistered_path_column_referencing_photos_is_refused(library, monkeypatch):
     db, _, _, _ = library
     # scan_failures.path is a historical location, registered only by this set.
-    monkeypatch.setattr(relink, '_NON_ASSET_PATHS', {('photos', 'path'), ('photos_fts', 'path')})
+    monkeypatch.setattr(relink, '_NON_ASSET_PATHS', relink._NON_ASSET_PATHS - {('scan_failures', 'path')})
     before = _photo_rows(db)
     with pytest.raises(ValueError, match=r'Unregistered path dependency: scan_failures\.path'):
         preview(library)
@@ -1004,3 +1012,68 @@ def test_cli_refuses_arguments_that_belong_to_the_other_mode(library, tmp_path, 
     assert refusal.value.code == 1
     assert f'Relink refused: {message}' in capsys.readouterr().err
     assert _photo_rows(db) == before
+
+
+def test_logical_asset_membership_and_primary_follow_relink(library):
+    from db import logical_assets as assets
+
+    db, old, new, _ = library
+    raw = str(Path(old).with_suffix('.CR2'))
+    with sqlite3.connect(db) as conn:
+        conn.execute('INSERT INTO photos(path,filename) VALUES (?,?)', (raw, 'a.CR2'))
+        key = assets.create(conn, [old, raw], old, visibility_sql='1=1')
+    plan = preview(library)
+    bytes_before = Path(new).read_bytes()
+    apply(library, plan)
+    with sqlite3.connect(db) as conn:
+        assert conn.execute('SELECT id,primary_path,revision FROM logical_assets').fetchall() == [(key, new, 2)]
+        assert conn.execute('SELECT photo_path FROM logical_asset_members ORDER BY position').fetchall() == [(new,), (raw,)]
+        assert conn.execute('PRAGMA foreign_key_check').fetchall() == []
+    assert Path(new).read_bytes() == bytes_before
+
+
+def test_primary_change_after_relink_preview_refuses_stale_apply(library):
+    from db import logical_assets as assets
+
+    db, old, new, _ = library
+    raw = str(Path(old).with_suffix('.CR2'))
+    with sqlite3.connect(db) as conn:
+        conn.execute('INSERT INTO photos(path,filename) VALUES (?,?)', (raw, 'a.CR2'))
+        key = assets.create(conn, [old, raw], old, visibility_sql='1=1')
+    plan = preview(library)
+    with sqlite3.connect(db) as conn:
+        conn.execute('BEGIN')
+        assets.set_primary(conn, key, raw, 1, visibility_sql='1=1')
+    with pytest.raises(ValueError):
+        apply(library, plan)
+    with sqlite3.connect(db) as conn:
+        assert conn.execute('SELECT primary_path,revision FROM logical_assets WHERE id=?', (key,)).fetchone() == (raw, 2)
+        assert conn.execute('SELECT path FROM photos WHERE path=?', (old,)).fetchone() == (old,)
+
+
+def test_logical_review_source_and_private_review_follow_relink_without_file_edits(library):
+    from db import logical_assets as assets, logical_review as review
+
+    db, old, new, _ = library
+    raw = str(Path(old).with_suffix('.CR2'))
+    labels = {old: {'star_rating': 5, 'is_kept': 1, 'is_rejected': 0, 'is_favorite': 0},
+              raw: {'star_rating': 2, 'is_kept': 0, 'is_rejected': 0, 'is_favorite': 0}}
+    with sqlite3.connect(db) as conn:
+        conn.execute('INSERT INTO photos(path,filename,star_rating) VALUES (?,?,2)', (raw, 'a.CR2'))
+        key = assets.create(conn, [old, raw], old, visibility_sql='1=1')
+        review.seed(conn, key, old, 1, visibility_sql='1=1')
+        current = review.read(conn, key, 'alice', labels)
+        review.set_fields(conn, key, 'alice', 1, current['revision'], {'star_rating': 3}, origin='user',
+                          visibility_sql='1=1', file_labels=labels, input_token=current['input_token'])
+    plan = preview(library)
+    before = Path(new).read_bytes()
+    apply(library, plan)
+    with sqlite3.connect(db) as conn:
+        conn.execute('BEGIN')
+        moved_labels = {new: labels[old], raw: labels[raw]}
+        current = review.read(conn, key, 'alice', moved_labels)
+        assert current['source_path'] == new
+        assert current['values']['star_rating'] == 3 and current['origins']['star_rating'] == 'user'
+        assert current['revision'] == 1
+        assert conn.execute('SELECT star_rating FROM photos WHERE path=?', (new,)).fetchone()[0] == 5
+    assert Path(new).read_bytes() == before

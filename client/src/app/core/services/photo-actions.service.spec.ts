@@ -4,6 +4,7 @@ import { of, Subject } from 'rxjs';
 import { MatDialog } from '@angular/material/dialog';
 import { MatSnackBar } from '@angular/material/snack-bar';
 import { I18nService } from './i18n.service';
+import { ApiService } from './api.service';
 import { GalleryStore } from '../../features/gallery/gallery.store';
 import { PhotoActionsService } from './photo-actions.service';
 import { AuthService } from './auth.service';
@@ -16,7 +17,7 @@ describe('PhotoActionsService', () => {
   let mockDialog: { open: Mock; openDialogs: unknown[] };
   let mockSnackBar: { open: Mock };
   let mockI18n: { t: Mock };
-  let mockStore: { config: Mock; persons: Mock; assignFace: Mock; createPerson: Mock; refreshPaths: Mock };
+  let mockStore: { removePhotos?: Mock; config: Mock; persons: Mock; assignFace: Mock; createPerson: Mock; refreshPaths: Mock };
 
   // Every entry point here reaches its dialog through a dynamic `import()`, so the
   // first test to touch one pays for loading that lazy chunk inside its own
@@ -51,7 +52,7 @@ describe('PhotoActionsService', () => {
     TestBed.configureTestingModule({
       providers: [
         provideRouter([]),
-        { provide: AuthService, useValue: { identity: () => '1|test', isEdition: () => true } },
+        { provide: AuthService, useValue: { identity: () => '1|test', isEdition: () => true, status: () => 'status', token: 't' } },
         PhotoActionsService,
         { provide: MatDialog, useValue: mockDialog },
         { provide: MatSnackBar, useValue: mockSnackBar },
@@ -60,6 +61,33 @@ describe('PhotoActionsService', () => {
       ],
     });
     service = TestBed.inject(PhotoActionsService);
+  });
+
+  describe('removeFromCatalog count wording', () => {
+    const run = async (paths: string[]) => {
+      mockStore.removePhotos = vi.fn();
+      mockDialog.open.mockReturnValue({ afterClosed: () => of(true) });
+      vi.spyOn(TestBed.inject(ApiService), 'post').mockReturnValue(of({ removed_catalog: paths }) as never);
+      await service.removeFromCatalog(paths);
+      return { confirm: mockI18n.t.mock.calls.find(call => String(call[0]).includes('remove_catalog.confirm'))?.[0],
+        result: mockI18n.t.mock.calls.find(call => String(call[0]).includes('remove_catalog.result'))?.[0] };
+    };
+
+    it('uses the singular keys for one photo', async () => {
+      expect(await run(['/a.jpg'])).toEqual({ confirm: 'photo_detail.remove_catalog.confirm', result: 'photo_detail.remove_catalog.result' });
+    });
+
+    it('uses the plural keys for several photos', async () => {
+      expect(await run(['/a.jpg', '/b.jpg'])).toEqual({ confirm: 'photo_detail.remove_catalog.confirm_plural', result: 'photo_detail.remove_catalog.result_plural' });
+    });
+
+    it('uses the plural result key when nothing was removed', async () => {
+      mockStore.removePhotos = vi.fn();
+      mockDialog.open.mockReturnValue({ afterClosed: () => of(true) });
+      vi.spyOn(TestBed.inject(ApiService), 'post').mockReturnValue(of({ removed_catalog: [] }) as never);
+      await service.removeFromCatalog(['/a.jpg']);
+      expect(mockI18n.t.mock.calls.some(call => call[0] === 'photo_detail.remove_catalog.result_plural')).toBe(true);
+    });
   });
 
   describe('refreshPhotos', () => {

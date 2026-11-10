@@ -2,14 +2,16 @@ import type { Mock } from 'vitest';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { Component, signal, ChangeDetectionStrategy } from '@angular/core';
 import { Router } from '@angular/router';
-import { of } from 'rxjs';
-import { PhotoTooltipComponent, CategoryLabelPipe } from './photo-tooltip.component';
+import { of, Subject } from 'rxjs';
+import { PhotoTooltipComponent } from './photo-tooltip.component';
+import { CategoryLabelPipe } from '../../shared/pipes/category-label.pipe';
 import { ApiService } from '../../core/services/api.service';
 import { I18nService } from '../../core/services/i18n.service';
 import type { Photo, PhotoSet } from '../../shared/models/photo.model';
 import { GalleryStore } from './gallery.store';
 import { MetricsTabState } from '../../core/services/metrics-tab-state.service';
 import { makePhoto, makePhotoFull } from '../../../testing/photo.fixture';
+import { OverlayContainer } from '@angular/cdk/overlay';
 
 /* eslint-disable @angular-eslint/component-selector */
 @Component({
@@ -17,7 +19,8 @@ import { makePhoto, makePhotoFull } from '../../../testing/photo.fixture';
   imports: [PhotoTooltipComponent],
   changeDetection: ChangeDetectionStrategy.Eager,
   template: `<app-photo-tooltip [photo]="photo()" [x]="x()" [y]="y()" [flipped]="flipped()"
-                                 [pinned]="pinned()" [docked]="docked()" [personLinks]="personLinks()" />`,
+                                 [pinned]="pinned()" [docked]="docked()" [personLinks]="personLinks()"
+                                 [explainable]="explainable()" (explain)="explained = explained + 1" />`,
 })
 class TestHostComponent {
   photo = signal<Photo | null>(null);
@@ -27,9 +30,33 @@ class TestHostComponent {
   pinned = signal(false);
   docked = signal(false);
   personLinks = signal(true);
+  explainable = signal(false);
+  explained = 0;
 }
 
 describe('PhotoTooltipComponent', () => {
+  it('keeps hover tags noninteractive and offers the same literal scope actions when docked', async () => {
+    fixture.componentInstance.photo.set(makePhoto({ tags_list: ['coast,ridge'], manual_tags: ['夜景'] }));
+    fixture.detectChanges();
+    expect(fixture.nativeElement.querySelector('[data-testid="tooltip-tag"]')).toBeNull();
+    fixture.componentInstance.docked.set(true);
+    fixture.detectChanges();
+    const tooltip = fixture.debugElement.children[0].componentInstance as PhotoTooltipComponent;
+    const emitted: unknown[] = [];
+    tooltip.tagSelected.subscribe(event => emitted.push(event));
+    const buttons = fixture.nativeElement.querySelectorAll('[data-testid="tooltip-tag"]');
+    expect(buttons.length).toBe(2);
+    buttons[1].click(); fixture.detectChanges(); await fixture.whenStable(); fixture.detectChanges();
+    const overlay = TestBed.inject(OverlayContainer).getContainerElement();
+    const library = [...overlay.querySelectorAll<HTMLButtonElement>('button')].find(button => button.textContent?.includes('photo_detail.tag_search_library'))!;
+    library.click();
+    expect(emitted).toEqual([{ tag: '夜景', scope: 'library' }]);
+    buttons[0].click(); fixture.detectChanges(); await fixture.whenStable();
+    expect(overlay.querySelector('[role="menu"]')).not.toBeNull();
+    fixture.componentInstance.photo.set(makePhoto({ path: '/new.jpg', tags_list: [] }));
+    fixture.detectChanges(); await fixture.whenStable(); fixture.detectChanges();
+    expect(overlay.querySelector('[role="menu"]')).toBeNull();
+  });
   // The open metric tab is remembered across tests otherwise.
   afterEach(() => localStorage.removeItem('facet_photo_detail_tab'));
 
@@ -39,7 +66,7 @@ describe('PhotoTooltipComponent', () => {
     config: signal<{ populated_scores?: string[] } | null>(null),
     metricRangesByColumn: signal({}),
   };
-  const mockRouter = { navigate: vi.fn(() => Promise.resolve(true)) };
+  const mockRouter = { events: new Subject(), navigate: vi.fn(() => Promise.resolve(true)) };
 
   beforeEach(async () => {
     mockStore.config.set(null);
@@ -82,6 +109,36 @@ describe('PhotoTooltipComponent', () => {
     fixture.componentInstance.photo.set(makePhoto());
     fixture.detectChanges();
     expect(fixture.nativeElement.querySelectorAll('app-extended-quality [data-testid$="-row"]').length).toBe(0);
+  });
+
+  it('lets a docked portrait preview take the rail width, capping only very tall photos', () => {
+    const photo = makePhotoFull({ image_width: 2000, image_height: 3000 });
+    renderDocked(photo, 'quality');
+    const preview = fixture.nativeElement.querySelector(`img[alt="${photo.filename}"]`) as HTMLImageElement;
+    expect([...preview.classList]).toEqual(expect.arrayContaining(['w-full', 'h-auto', 'object-contain', 'max-h-[75dvh]']));
+    expect([...preview.classList]).not.toContain('w-auto');
+    expect([...preview.classList]).not.toContain('max-h-[32dvh]');
+    fixture.componentInstance.docked.set(false);
+    fixture.detectChanges();
+    expect([...(fixture.nativeElement.querySelector(`img[alt="${photo.filename}"]`) as HTMLImageElement).classList])
+      .toEqual(expect.arrayContaining(['w-auto', 'max-h-[40vh]']));
+  });
+
+  it('formats camera-local dates and keeps a single labeled assessment in the docked inspector', () => {
+    renderDocked(makePhotoFull({ date_taken: '2026:10:29 10:12:00', aggregate: 0 }), 'quality');
+    expect(fixture.nativeElement.querySelector('[data-capture-date]').textContent).toBe('29/10/2026 10:12');
+    expect(fixture.nativeElement.querySelectorAll('app-photo-assessment')).toHaveLength(1);
+    expect(fixture.nativeElement.querySelector('app-photo-assessment').textContent).toContain('photo_detail.assessment.score');
+    expect(fixture.nativeElement.querySelector('app-photo-assessment').textContent).toContain('0.0');
+  });
+
+  it('puts the opt-in explain button on the docked assessment and re-emits its click', () => {
+    renderDocked(makePhotoFull({ aggregate: 6 }), 'quality');
+    expect(fixture.nativeElement.querySelector('[data-explain-score]')).toBeNull();
+    fixture.componentInstance.explainable.set(true);
+    fixture.detectChanges();
+    fixture.nativeElement.querySelector('app-photo-assessment [data-explain-score]').click();
+    expect(fixture.componentInstance.explained).toBe(1);
   });
 
   it('creates the host', () => {
@@ -347,7 +404,7 @@ describe('PhotoTooltipComponent', () => {
       fixture.detectChanges();
       const text = fixture.nativeElement.textContent as string;
       for (const key of ['tooltip.aesthetic', 'tooltip.composition', 'tooltip.exposure']) expect(text).toContain(key);
-      expect(text).not.toContain('tooltip.tech_sharpness');
+      expect(fixture.nativeElement.querySelector('[data-floating-key-scores]').textContent).not.toContain('tooltip.tech_sharpness');
       expect(text).toContain('Canon EOS R6');
       expect(text).toContain('ISO 640');
       expect(fixture.nativeElement.querySelector('app-histogram')).toBeNull();
@@ -402,7 +459,7 @@ describe('PhotoTooltipComponent', () => {
         persons: [{ id: 1, name: 'Alice' }],
       }));
       fixture.detectChanges();
-      expect(fixture.nativeElement.querySelector('button')).toBeNull();
+      expect(fixture.nativeElement.querySelector('img[src*="person"]')?.closest('button')).toBeNull();
       const avatar = fixture.nativeElement.querySelector('img[class*="rounded-full"]');
       expect(avatar).not.toBeNull();
       expect(avatar.className).toContain('w-6');
@@ -794,7 +851,7 @@ describe('PhotoTooltipComponent', () => {
       const img = setFixture.nativeElement.querySelector('img[src*="a.jpg"]') as HTMLElement;
       (img.closest('button') as HTMLButtonElement).click();
 
-      expect(mockRouter.navigate).toHaveBeenCalledWith(['/photo'], { queryParams: { path: '/photos/a.jpg' } });
+      expect(mockRouter.navigate).toHaveBeenCalledWith(['/photo'], { queryParams: { path: '/photos/a.jpg' }, state: { photoOrigin: 'in-app' } });
     });
 
     it('rings the current frame among its siblings', () => {
@@ -816,7 +873,7 @@ describe('PhotoTooltipComponent', () => {
     // --- clickable, per-surface-sized person avatars --------------------------
 
     function personButton(): HTMLButtonElement | null {
-      return setFixture.nativeElement.querySelector('button[aria-label]');
+      return setFixture.nativeElement.querySelector('img[src*="person"]')?.closest('button') ?? null;
     }
 
     it('renders person avatars as clickable 44px buttons in the docked panel', () => {

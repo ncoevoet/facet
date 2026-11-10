@@ -16,26 +16,7 @@ describe('ExportService background sidecars', () => {
   });
   afterEach(() => http.verify());
 
-  it('starts path-scoped exports with overwrite only after explicit subscription', () => {
-    const request = service.startSidecarJob({ paths: ['/a.jpg'] }, true);
-    http.expectNone('/api/export/sidecar_jobs');
-    let status: SidecarJobStatus | undefined;
-    request.subscribe(job => status = job);
-    const start = http.expectOne('/api/export/sidecar_jobs');
-    expect(start.request.method).toBe('POST');
-    expect(start.request.body).toEqual({ paths: ['/a.jpg'], overwrite: true });
-    start.flush(JOB, { status: 202, statusText: 'Accepted' });
-    expect(status).toEqual(JOB);
-  });
-
-  it('sends view/album filters and exclusions without materializing paths', () => {
-    service.startSidecarJob({ filters: { album_id: '7', camera: 'Canon' }, exclude: ['/skip.jpg'] }).subscribe();
-    const start = http.expectOne('/api/export/sidecar_jobs');
-    expect(start.request.body).toEqual({ filters: { album_id: '7', camera: 'Canon' }, exclude: ['/skip.jpg'], overwrite: false });
-    start.flush(JOB);
-  });
-
-  it('keeps status and recent reads separate from explicit cancel and retry mutations', () => {
+  it('keeps status and recent reads separate from explicit cancel and retry previews', () => {
     service.recentSidecarJobs().subscribe();
     const recent = http.expectOne('/api/export/sidecar_jobs');
     expect(recent.request.method).toBe('GET'); recent.flush([JOB]);
@@ -45,15 +26,9 @@ describe('ExportService background sidecars', () => {
     service.cancelSidecarJob('a/b').subscribe();
     const cancel = http.expectOne('/api/export/sidecar_jobs/a%2Fb/cancel');
     expect(cancel.request.method).toBe('POST'); cancel.flush({ ...JOB, cancel_requested: true });
-    service.retrySidecarJob('a/b').subscribe();
-    const retry = http.expectOne('/api/export/sidecar_jobs/a%2Fb/retry');
+    service.previewRetry('a/b').subscribe();
+    const retry = http.expectOne('/api/export/sidecar_jobs/a%2Fb/preview');
     expect(retry.request.method).toBe('POST'); retry.flush({ ...JOB, id: 'retry' }, { status: 202, statusText: 'Accepted' });
   });
 
-  it('retains the existing album copy/symlink request shape', () => {
-    service.exportAlbum(7, 'copy', '/target', true).subscribe();
-    const copy = http.expectOne('/api/albums/7/export');
-    expect(copy.request.body).toEqual({ mode: 'copy', target_dir: '/target', overwrite: true });
-    copy.flush({ ok: true, mode: 'copy', copied: 1, skipped: 0, errors: 0 });
-  });
 });

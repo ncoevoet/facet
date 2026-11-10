@@ -35,6 +35,9 @@ export const DEFAULT_CARD_ACTIONS: CardActionsConfig = {
 
 export const CARD_ACTION_IDS: readonly CardActionId[] = DEFAULT_CARD_ACTIONS.order;
 
+/** Actions a card only ever shows to an unlocked edition, so a viewer is never offered them. */
+export const EDITION_CARD_ACTIONS: readonly CardActionId[] = ['embed', 'assign_face'];
+
 /** Which icon and label key each action's button carries. */
 export const CARD_ACTION_META: Record<CardActionId, { icon: string; labelKey: string }> = {
   similar: { icon: 'image_search', labelKey: 'similar.find_similar' },

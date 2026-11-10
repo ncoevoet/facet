@@ -17,7 +17,7 @@ describe('CaptureDateDialogComponent', () => {
   const status = signal({ user_id: 'alice', edition_authenticated: true });
   const router = { url: '/', events };
   const dialog = { close: vi.fn(), disableClose: false, beforeClosed: () => closed };
-  function create(data: CaptureDateDialogData = { paths: ['/a'], count: 1, manuallySet: true }) {
+  function create(data: CaptureDateDialogData = { paths: ['/a'], count: 1, manuallySet: true, reference: { path: '/a', date: '2024:01:01 00:00:00' } }) {
     vi.clearAllMocks();
     status.set({ user_id: 'alice', edition_authenticated: true });
     router.url = '/';
@@ -74,6 +74,44 @@ describe('CaptureDateDialogComponent', () => {
     expect(api.delete).toHaveBeenCalledWith('/photo/capture_date?path=%2Fa');
     expect(store.patchPhoto).toHaveBeenCalledWith('/a', { date_taken: null, date_manually_set: 0 });
     expect(store.refreshPaths).toHaveBeenCalledWith(null);
+  });
+  it('opens in Exact mode for one undated photo and posts set_date, never offset_seconds', async () => {
+    const c = create({ paths: ['/a'], count: 1, reference: null });
+    expect(c.mode()).toBe('exact');
+    expect(c.valid()).toBe(false);
+    await c.preview();
+    expect(api.post).not.toHaveBeenCalled();
+    c.setExact('2024-05-06T07:08');
+    expect(c.valid()).toBe(true);
+    api.post.mockReturnValue(of({ ...preview, samples: [{ path: '/a', old_date: null, new_date: '2024:05:06 07:08:00' }] }));
+    await c.preview();
+    expect(api.post).toHaveBeenLastCalledWith('/photos/capture_date/preview', { photo_paths: ['/a'], exclude: [], set_date: '2024-05-06T07:08:00' });
+    await c.apply();
+    expect(api.post).toHaveBeenLastCalledWith('/photos/capture_date/apply', { photo_paths: ['/a'], exclude: [], set_date: '2024-05-06T07:08:00', preview_token: 'token' });
+    expect(store.patchPhoto).toHaveBeenCalledWith('/a', { date_taken: '2024:05:06 07:08:00', date_manually_set: 1 });
+  });
+  it('rejects an impossible absolute date', () => {
+    const c = create({ paths: ['/a'], count: 1, reference: null });
+    c.setExact('2024-04-31T07:08');
+    expect(c.valid()).toBe(false);
+  });
+  it('opens in Shift for several photos without a reference, and Exact there is an absolute set', async () => {
+    const c = create({ paths: ['/a', '/b'], count: 2, reference: null });
+    expect(c.mode()).toBe('shift');
+    c.setMode('exact');
+    c.setExact('2024-05-06T07:08:09');
+    await c.preview();
+    expect(api.post).toHaveBeenLastCalledWith('/photos/capture_date/preview', { photo_paths: ['/a', '/b'], exclude: [], set_date: '2024-05-06T07:08:09' });
+    c.setMode('shift');
+    expect(c.valid()).toBe(true);
+  });
+  it('keeps Exact as an offset when a dated reference exists', async () => {
+    const c = create();
+    expect(c.mode()).toBe('shift');
+    c.setMode('exact');
+    c.setExact('2024-01-01T00:00:30');
+    await c.preview();
+    expect(api.post).toHaveBeenLastCalledWith('/photos/capture_date/preview', { photo_paths: ['/a'], exclude: [], offset_seconds: 30 });
   });
   it('rejects more than 1000 targets instead of chunking an atomic edit', async () => {
     const c = create({ paths: ['/a'], count: 1001, manuallySet: false });

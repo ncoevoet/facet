@@ -24,7 +24,7 @@ export const SORT_ICONS: Readonly<Record<string, string>> = {
   exposure_score: 'exposure',
   mean_luminance: 'brightness_6',
   histogram_spread: 'bar_chart',
-  dynamic_range_stops: 'tonality',
+  dynamic_range_stops: 'hdr_strong',
   comp_score: 'grid_on',
   power_point_score: 'grid_3x3',
   leading_lines_score: 'timeline',
@@ -34,10 +34,47 @@ export const SORT_ICONS: Readonly<Record<string, string>> = {
   subject_prominence: 'photo_size_select_large',
   subject_placement: 'control_camera',
   bg_separation: 'blur_on',
+  form_symmetry: 'flip',
+  form_balance: 'balance',
+  form_edge_entropy: 'texture',
+  form_fractal: 'hub',
+  color_harmony: 'color_lens',
+  topiq_score: 'high_quality',
+  face_confidence: 'verified_user',
+  aesthetic_iaa: 'brush',
+  face_quality_iqa: 'face_retouching_natural',
+  liqe_score: 'visibility',
   narrative_moment_confidence: 'auto_stories',
   f_stop: 'camera',
   focal_length: 'zoom_in',
   shutter_speed: 'shutter_speed',
+};
+
+/** Icons for the /stats selects' keys that the gallery sort has no column for. */
+export const STATS_ICONS: Readonly<Record<string, string>> = {
+  count: 'numbers',
+  iso: 'iso',
+  usage_timeline: 'show_chart',
+  camera_model: 'photo_camera',
+  lens_model: 'lens',
+  date_month: 'calendar_month',
+  date_year: 'calendar_today',
+  category: 'category',
+  line: 'show_chart',
+  area: 'area_chart',
+  bar: 'bar_chart',
+  horizontalBar: 'align_horizontal_left',
+};
+
+/** A /stats metric key and the gallery sort column it measures, so both show the same icon. */
+export const STATS_OPTION_ALIASES: Readonly<Record<string, string>> = {
+  avg_score: 'aggregate',
+  avg_aesthetic: 'aesthetic',
+  avg_sharpness: 'tech_sharpness',
+  avg_contrast: 'contrast_score',
+  avg_f_stop: 'f_stop',
+  avg_focal_length: 'focal_length',
+  avg_iso: 'iso',
 };
 
 const MODEL_LABELS: Readonly<Record<string, string>> = {
@@ -62,9 +99,11 @@ export interface SortOptionIcon {
 
 @Pipe({ name: 'sortOptionIcon', standalone: true, pure: true })
 export class SortOptionIconPipe implements PipeTransform {
-  transform(column: string): SortOptionIcon {
+  transform(option: string): SortOptionIcon {
+    const column = Object.hasOwn(STATS_OPTION_ALIASES, option) ? STATS_OPTION_ALIASES[option] : option;
     if (Object.hasOwn(MODEL_LABELS, column)) return { text: MODEL_LABELS[column], classes: MODEL_LABEL_CLASSES };
-    if (!Object.hasOwn(SORT_ICONS, column)) return { text: 'sort', classes: '' };
-    return { text: SORT_ICONS[column], classes: MARK_TONE.transform(column) };
+    if (Object.hasOwn(SORT_ICONS, column)) return { text: SORT_ICONS[column], classes: MARK_TONE.transform(column) };
+    if (Object.hasOwn(STATS_ICONS, column)) return { text: STATS_ICONS[column], classes: '' };
+    return { text: 'sort', classes: '' };
   }
 }

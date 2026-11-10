@@ -84,11 +84,11 @@ export type SameNameMergeResult =
             }
             <img [src]="tile.id | personThumbnailUrl" alt="" class="w-16 h-16 rounded-full object-cover bg-[var(--mat-sys-surface-container-high)]" />
             <span class="text-sm font-medium truncate w-full">{{ tile.name }}</span>
-            <span class="text-xs opacity-70">
+            <span class="text-xs text-[var(--mat-sys-on-surface-variant)]">
               {{ (tile.face_count === 1 ? I18N.person_selector.face_count_one : I18N.person_selector.face_count) | translate:{ count: tile.face_count } }}
             </span>
             @if (tile.current) {
-              <span class="text-xs opacity-70">{{ I18N.persons.same_name_this_group | translate }}</span>
+              <span class="text-xs text-[var(--mat-sys-on-surface-variant)]">{{ I18N.persons.same_name_this_group | translate }}</span>
             }
             @if (tile.kept) {
               <span class="mt-1 px-2 py-0.5 rounded-full text-xs font-semibold bg-[var(--mat-sys-primary)] text-[var(--mat-sys-on-primary)]">

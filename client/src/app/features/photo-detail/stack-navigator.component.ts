@@ -10,13 +10,14 @@ import { AssistantChangesService } from '../../core/agent/assistant-changes.serv
 import { PhotoStack, PhotoStackService } from '../../core/services/photo-stack.service';
 import { i18nKeys } from '../../core/i18n/keys';
 import { ThumbnailUrlPipe } from '../../shared/pipes/thumbnail-url.pipe';
+import { FilenamePipe } from '../../shared/pipes/filename.pipe';
 import { TranslatePipe } from '../../shared/pipes/translate.pipe';
 import { GalleryStore } from '../gallery/gallery.store';
 
 /** Read-only navigation: membership comes exclusively from the authorized endpoint. */
 @Component({
   selector: 'app-stack-navigator',
-  imports: [MatButtonModule, MatIconModule, ThumbnailUrlPipe, TranslatePipe],
+  imports: [MatButtonModule, MatIconModule, ThumbnailUrlPipe, TranslatePipe, FilenamePipe],
   changeDetection: ChangeDetectionStrategy.OnPush,
   host: { class: 'block shrink-0 min-w-0', '[style.min-height.px]': 'reservedHeight()' },
   template: `
@@ -27,26 +28,26 @@ import { GalleryStore } from '../gallery/gallery.store';
       </div>
     }
     @if (visibleStack(); as group) {
-      <nav data-stack-navigator [attr.aria-label]="I18N.stacks.title | translate" class="border-b border-[var(--mat-sys-outline-variant)] px-2 py-1 min-w-0">
-        <div class="flex items-center gap-1 flex-wrap">
-          <span class="text-sm font-medium">{{ I18N.stacks.title | translate }}</span>
-          <button mat-icon-button data-stack-prev (click)="step(-1)" [disabled]="position() <= 0"
+      <nav data-stack-navigator [attr.aria-label]="I18N.stacks.title | translate" class="flex items-center gap-2 border-b border-[var(--mat-sys-outline-variant)] px-2 py-1 min-w-0">
+        <div class="flex shrink-0 items-center gap-1">
+          <span class="inline-flex items-center gap-1 text-sm font-medium"><mat-icon aria-hidden="true" class="sm:!hidden !w-5 !h-5 !text-xl">layers</mat-icon><span class="hidden sm:inline">{{ I18N.stacks.title | translate }}</span></span>
+          <button mat-icon-button class="!h-11 !w-11 !min-w-11" data-stack-prev (click)="step(-1)" [disabled]="position() <= 0"
             [attr.aria-label]="I18N.stacks.previous | translate"><mat-icon>chevron_left</mat-icon></button>
-          <span data-stack-position role="status" class="text-sm">{{ I18N.stacks.browse_position | translate:{ position: position() + 1, count: members().length } }}</span>
-          <button mat-icon-button data-stack-next (click)="step(1)" [disabled]="position() >= members().length - 1"
+          <span data-stack-position role="status" class="whitespace-nowrap text-sm"><span class="sr-only sm:not-sr-only">{{ I18N.stacks.browse_position | translate:{ position: position() + 1, count: members().length } }}</span><span aria-hidden="true" class="sm:hidden">{{ position() + 1 }}/{{ members().length }}</span></span>
+          <button mat-icon-button class="!h-11 !w-11 !min-w-11" data-stack-next (click)="step(1)" [disabled]="position() >= members().length - 1"
             [attr.aria-label]="I18N.stacks.next | translate"><mat-icon>chevron_right</mat-icon></button>
           @if (auth.isEdition() && group.editable) {
-            <button mat-button data-stack-manage (click)="manage()">{{ I18N.stacks.manage | translate }}</button>
+            <button mat-button data-stack-manage class="!min-w-11 !h-11 !px-2" [attr.aria-label]="I18N.stacks.manage | translate" [title]="I18N.stacks.manage | translate" (click)="manage()"><mat-icon class="max-sm:!hidden" aria-hidden="true">edit</mat-icon><span class="hidden sm:inline">{{ I18N.stacks.manage | translate }}</span><span class="sm:hidden">{{ I18N.stacks.manage_short | translate }}</span></button>
           }
         </div>
-        <div class="flex gap-2 overflow-x-auto py-1">
+        <div class="flex flex-1 min-w-0 gap-2 overflow-x-auto">
           @for (member of members(); track member.path) {
             <button #thumbnail data-stack-thumbnail class="shrink-0 rounded overflow-hidden cursor-pointer focus-visible:outline-2 border-2 border-transparent"
-              [class.border-[var(--mat-sys-primary)]]="member.path === path()"
+              [class.!border-[var(--mat-sys-primary)]]="member.path === path()"
               [attr.aria-current]="member.path === path() ? 'true' : null"
-              [attr.aria-label]="I18N.stacks.open_member | translate:{ path: member.path }"
+              [attr.aria-label]="I18N.stacks.open_member_at_position | translate:{ path: (member.path | filename), position: $index + 1, count: members().length }" [title]="member.path | filename"
               (click)="openMember(member.path)">
-              <img [src]="member.path | thumbnailUrl:96:member.preview_revision" alt="" loading="lazy" decoding="async" class="w-14 h-12 object-cover" />
+              <img [src]="member.path | thumbnailUrl:96:member.preview_revision" alt="" loading="lazy" decoding="async" class="w-10 h-10 object-cover" />
             </button>
           }
         </div>
@@ -176,13 +177,14 @@ export class StackNavigatorComponent {
     this.memberOpened.emit(path);
   }
 
-  /** True also at a boundary: arrows never escape an active stack, nor a pending lookup of a stacked photo. A failed lookup or an unstacked photo leaves them to the gallery. */
+  /** Pending membership owns stacked-photo arrows; resolved boundaries leave them to the collection. */
   step(delta: number): boolean {
     if (this.navigating || this.owner !== this.auth.identity()) return true;
     if (this.loading()) return this.stacked();
     if (this.error() || !this.stack() || this.position() < 0) return false;
     const next = this.members()[this.position() + delta];
-    if (next) this.openMember(next.path);
+    if (!next) return false;
+    this.openMember(next.path);
     return true;
   }
 

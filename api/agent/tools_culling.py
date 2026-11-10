@@ -13,6 +13,8 @@ frame it names.
 """
 
 from dataclasses import dataclass
+import hashlib
+import json
 from typing import Annotated, Any, Literal, Optional
 
 from mcp.server.mcpserver import Context, MCPServer
@@ -43,7 +45,8 @@ CULLING_ROUTES: dict[str, RouteSpec] = {
 # Every darkroom route is edition-gated upstream; the tools carry the same floor.
 CULLING_LEVEL = "edition"
 
-GroupType = Literal["burst", "similar", "scene", "bracket", "panorama", "hdr_panorama"]
+GroupType = Literal["burst", "similar", "lookalike", "scene", "bracket", "panorama", "hdr_panorama"]
+GroupBy = Literal["all", "burst", "similar", "lookalike", "scene", "bracket", "panorama", "hdr_panorama"]
 KEEP_WHOLE_TYPES = ("bracket", "panorama", "hdr_panorama")
 GROUP_PHOTO_LIMIT = 12
 GROUP_PHOTO_KEYS = ("path", "filename", "date_taken", "aggregate", "aesthetic", "tech_sharpness",
@@ -76,10 +79,15 @@ MAX_REMEMBERED = 64
 class _Preview:
     """What a dry run issued a ``confirm`` for: the plan digest it was computed from, until ``expires``."""
     digest: str
+    state_digest: str
     expires: float
     knobs: Optional[dict] = None
     tab_pin: Optional[str] = None
     tab_id: Optional[str] = None
+
+
+def _confirmation_digest(digest: str, state_digest: str) -> str:
+    return hashlib.sha256(json.dumps([digest, state_digest], separators=(',', ':')).encode('utf-8')).hexdigest()
 
 
 _previews: dict[tuple, _Preview] = {}
@@ -198,6 +206,7 @@ def _fit_groups(rows: list[dict], budget: int) -> list[dict]:
 
 
 PLAN_CHANGED = "The plan changed since it was previewed"
+DECISIONS_CHANGED = "Decisions changed since the preview"
 def _confirm_digest(groups: list[ConfirmGroup]) -> str:
     tagged = [f"{g.type}:{g.group_id}:{side}:{path}" for g in groups
               for side, paths in (("all", g.paths), ("keep", g.keep_paths)) for path in paths]
@@ -242,8 +251,7 @@ def register_culling_tools(server: MCPServer, app: Any, registry: TabRegistry,
 
     async def list_culling_groups(
         ctx: Context,
-        group_by: Literal["all", "burst", "similar", "scene", "bracket", "panorama",
-                          "hdr_panorama"] = "all",
+        group_by: GroupBy = "all",
         page: Annotated[int, Field(ge=1)] = 1,
         per_page: Annotated[int, Field(ge=1, le=50)] = 20,
         sort: Literal["easiest", "redundant", "best", "recent", "needs_comparisons",
@@ -316,6 +324,7 @@ def register_culling_tools(server: MCPServer, app: Any, registry: TabRegistry,
         min_keep_per_group: Annotated[Optional[int], Field(ge=1)] = None,
         profile: Optional[str] = None,
         trim_brackets: bool = False,
+        decision_policy: Annotated[Literal['preserve', 'replace'], Field(description='Preserve existing ratings, favorites, keep and reject decisions, or replace them when reconsidering photos.')] = 'preserve',
         highlights_album: Annotated[str, Field(max_length=200)] = "",
         dry_run: bool = True,
         confirm: Optional[str] = None,
@@ -336,6 +345,9 @@ def register_culling_tools(server: MCPServer, app: Any, registry: TabRegistry,
                 return err("invalid_input", "plan_digest is required when cursor > 0: pass the "
                            "`plan_digest` of the cursor-0 page, so every page comes from the same plan")
             memory = None if dry_run or not confirm else _recall((owner, confirm))
+            if not dry_run and memory is None:
+                return err("confirmation_required", "The original preview is no longer available. "
+                           "Preview again and use its new confirmation; nothing was written.")
             knobs = None
             use_strictness, use_profile = strictness, profile
             if strictness is None and profile is None:
@@ -348,7 +360,8 @@ def register_culling_tools(server: MCPServer, app: Any, registry: TabRegistry,
             options = {"group_by": group_by, "album_id": album_id, "date_from": since,
                        "date_to": until, "strictness": use_strictness,
                        "min_keep_per_group": min_keep_per_group, "profile": use_profile,
-                       "trim_brackets": trim_brackets, "highlights_album": highlights_album,
+                       "trim_brackets": trim_brackets, "decision_policy": decision_policy,
+                       "highlights_album": highlights_album,
                        "keep_paths": keep_paths or [], "remove_paths": remove_paths or []}
             page_call = {**options, "dry_run": True, "cursor": cursor if dry_run else 0}
             if dry_run and plan_digest:
@@ -356,7 +369,7 @@ def register_culling_tools(server: MCPServer, app: Any, registry: TabRegistry,
             if memory is not None:
                 return await apply_preview(grant, memory, options, confirm, timeout, resolved, settings, tab_id)
             preview = await client.call(grant, "culling.auto", json=page_call, timeout=timeout)
-            if not preview["ok"] and PLAN_CHANGED in preview.get("message", ""):
+            if not preview["ok"] and any(reason in preview.get("message", "") for reason in (PLAN_CHANGED, DECISIONS_CHANGED)):
                 return err("confirmation_required",
                            "The plan changed since the first page; nothing was written. Restart the "
                            "preview from cursor 0 (without plan_digest) and use its new `confirm`")
@@ -376,15 +389,9 @@ def register_culling_tools(server: MCPServer, app: Any, registry: TabRegistry,
                             pin = await _tab_plan_digest(resolved, settings, tab_id, timeout)
                         shown_tab = (result.get("shown_in_tab") or {}).get("tab_id") or tab_id
                         _remember((owner, result["confirm"]),
-                                  _Preview(digest, limits.now() + nonce.TTL_SECONDS, knobs, pin, shown_tab))
+                                  _Preview(digest, result["data"]["decision_state_digest"], limits.now() + nonce.TTL_SECONDS, knobs, pin, shown_tab))
                 return result
-            digest = (preview["data"] or {}).get("plan_digest")
-            if not digest or not _left_to_reject(preview["data"] or {}) \
-                    or not nonce.check(grant.nonce_owner, "auto_cull", digest, confirm):
-                return err("confirmation_required",
-                           "Preview with dry_run=true first and pass its `confirm` value, with the "
-                           "same overrides; the plan must be unchanged since that preview")
-            return await send_apply(grant, options, digest, timeout)
+
         return await run_tool(ctx, "auto_cull", handler, write=not dry_run)
 
     async def _tab_plan_digest(resolved, settings, tab_id: Optional[str], timeout: float) -> Optional[str]:
@@ -420,12 +427,12 @@ def register_culling_tools(server: MCPServer, app: Any, registry: TabRegistry,
             knobs["strictness"] = strictness
         return knobs or None
 
-    async def send_apply(grant, options: dict, digest: str, timeout: float) -> dict:
+    async def send_apply(grant, options: dict, digest: str, state_digest: str, timeout: float) -> dict:
         applied = await client.call(
-            grant, "culling.auto", json={**options, "dry_run": False, "expected_digest": digest},
+            grant, "culling.auto", json={**options, "dry_run": False, "expected_digest": digest, "expected_state_digest": state_digest},
             timeout=timeout)
         if not applied["ok"]:
-            if PLAN_CHANGED in applied.get("message", ""):
+            if any(reason in applied.get("message", "") for reason in (PLAN_CHANGED, DECISIONS_CHANGED)):
                 return err("confirmation_required", applied["message"])
             return applied
         body = applied["data"] or {}
@@ -448,11 +455,11 @@ def register_culling_tools(server: MCPServer, app: Any, registry: TabRegistry,
                 return err("confirmation_required",
                            "the plan on the user's /culling page changed since your preview: it was re-planned "
                            "or replaced. Read ui_get_context and preview again")
-        if not nonce.check(grant.nonce_owner, "auto_cull", memory.digest, confirm):
+        if not nonce.check(grant.nonce_owner, "auto_cull", _confirmation_digest(memory.digest, memory.state_digest), confirm):
             return err("confirmation_required",
                        "Preview with dry_run=true first and pass its `confirm` value, with the "
                        "same overrides; the plan must be unchanged since that preview")
-        return await send_apply(grant, options, memory.digest, timeout)
+        return await send_apply(grant, options, memory.digest, memory.state_digest, timeout)
 
     async def _show_plan(data: dict, options: dict, page_cursor: int, resolved, settings, tab_id: Optional[str],
                          timeout: float) -> dict:
@@ -482,6 +489,8 @@ def register_culling_tools(server: MCPServer, app: Any, registry: TabRegistry,
         if not upstream["ok"]:
             return upstream
         body = upstream["data"] or {}
+        if not body.get("plan_digest") or not body.get("decision_state_digest"):
+            return err("upstream_error", "The preview has no decision-state digest; no confirmation was issued.")
         data = {**body, "rows": list(body.get("preview", []))}
         data.pop("preview", None)
         data.pop("effective_overrides", None)
@@ -504,7 +513,7 @@ def register_culling_tools(server: MCPServer, app: Any, registry: TabRegistry,
             extra["confirm"] = "x" * CONFIRM_WIDTH
         _fit_page(data, extra, settings)
         if issues:
-            extra["confirm"] = nonce.issue(grant.nonce_owner, "auto_cull", body["plan_digest"])
+            extra["confirm"] = nonce.issue(grant.nonce_owner, "auto_cull", _confirmation_digest(body["plan_digest"], body["decision_state_digest"]))
         return ok(data, **extra)
 
     async def confirm_culling_groups(
@@ -543,7 +552,7 @@ def register_culling_tools(server: MCPServer, app: Any, registry: TabRegistry,
         return await run_tool(ctx, "confirm_culling_groups", handler, write=True)
 
     add(list_culling_groups, "list_culling_groups",
-        "List the darkroom's culling groups (burst, similar, scene, bracket, panorama, "
+        "List the darkroom's culling groups (burst, similar, lookalike, scene, bracket, panorama, "
         "hdr_panorama), each with its photos and scores. A group is identified by the PAIR "
         "(type, group_id); bracket/panorama/hdr_panorama sets are kept whole by design, never "
         "culled frame by frame. The list takes no `show`: the /culling page cannot apply this query." + SEE_GROUP)

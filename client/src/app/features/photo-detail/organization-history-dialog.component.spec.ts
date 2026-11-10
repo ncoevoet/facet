@@ -8,7 +8,7 @@ import { AuthService } from '../../core/services/auth.service';
 import { GalleryStore } from '../gallery/gallery.store';
 import { OrganizationHistoryDialogComponent } from './organization-history-dialog.component';
 
-const entry = { id: 1, kind: 'gps' as const, created_at: '2026-10-24', part: 1, parts: 2, reverted: false, changes: [{ path: '/a', before: [1, 2, 0], after: [3, 4, 1], revision: 4 }] };
+const entry = { id: 1, kind: 'gps' as const, created_at: '2026-10-24', part: 1, parts: 2, reverted: false, superseded: false, changes: [{ path: '/a', before: [1, 2, 0], after: [3, 4, 1], revision: 4 }] };
 describe('Organization history', () => {
   const api = { get: vi.fn(), post: vi.fn() };
   const store = { refreshPaths: vi.fn() };

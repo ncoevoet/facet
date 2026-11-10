@@ -16,7 +16,9 @@ const translations = { capture_date: { title: 'Correct capture date',
   mode_shift: 'Shift by', mode_exact: 'Set exact time', mode: 'Correction mode', direction: 'Direction', earlier: 'Earlier', later: 'Later',
   days: 'Days', hours: 'Hours', minutes: 'Minutes', seconds: 'Seconds', unit_d: 'd', unit_h: 'h', unit_min: 'min', unit_s: 's',
   quick: 'Quick adjust', summary_earlier: '{amount} earlier', summary_later: '{amount} later',
-  exact_label: 'Correct date and time of the reference photo', reference: 'Reference photo:' },
+  exact_label: 'Correct date and time of the reference photo', reference: 'Reference photo:',
+  exact_label_set: 'Capture date and time', invalid_set: 'Enter a valid date and time.', summary_set: 'Set to {amount}' },
+  gallery: { no_capture_date: 'No capture date' },
   ui: { buttons: { cancel: 'Cancel' } } };
 const preview = { changed: 1, skipped: 2, samples: [
   { path: '/photo.jpg', old_date: '2024:01:01 00:00:00', new_date: '2023:12:31 23:58:30' },
@@ -200,10 +202,28 @@ describe('Capture-date dialog rendered controls and HTTP', () => {
     expect((await flushPreview({ ...preview, changed: 0, samples: [] })).request.body.offset_seconds).toBe(31622400);
   });
 
-  it('offers no exact-time mode without a dated reference photo', async () => {
+  it('offers an absolute exact-time mode without a dated reference photo, opening in Shift for several photos', async () => {
     await create({ paths: ['/a.jpg', '/b.jpg'], count: 2, reference: null }); await flushPreview();
-    expect(root.querySelector('[data-mode]')).toBeNull();
+    expect(root.querySelector('[data-mode="shift"]')?.getAttribute('aria-pressed')).toBe('true');
     expect(root.querySelector('[data-reference]')).toBeNull();
+    (root.querySelector('[data-mode="exact"]') as HTMLButtonElement).click(); await settle();
+    expect(root.querySelector('label')?.textContent).toContain('Capture date and time');
+    await type(root.querySelector('input[data-exact]') as HTMLInputElement, '2024-05-06T07:08:09');
+    expect((await flushPreview()).request.body).toEqual({ photo_paths: ['/a.jpg', '/b.jpg'], exclude: [], set_date: '2024-05-06T07:08:09' });
+  });
+
+  it('opens one undated photo in Exact, sends set_date and labels the missing old date', async () => {
+    await create({ paths: ['/photo.jpg'], count: 1, reference: null });
+    expect(root.querySelector('[data-mode="exact"]')?.getAttribute('aria-pressed')).toBe('true');
+    expect(root.querySelector('#capture-date-offset-error')?.textContent).toContain('Enter a valid date and time.');
+    await noPreview();
+    await type(root.querySelector('input[data-exact]') as HTMLInputElement, '2024-05-06T07:08:09');
+    expect(root.querySelector('[data-summary]')?.textContent?.trim()).toBe('Set to 2024:05:06 07:08:09');
+    const request = await flushPreview({ changed: 1, skipped: 0, preview_token: 't',
+      samples: [{ path: '/photo.jpg', old_date: null, new_date: '2024:05:06 07:08:09' }] });
+    expect(request.request.body).toEqual({ photo_paths: ['/photo.jpg'], exclude: [], set_date: '2024-05-06T07:08:09' });
+    const cells = [...root.querySelectorAll('tbody td')].map(td => td.textContent?.trim());
+    expect(cells).toEqual(['/photo.jpg', 'No capture date', '2024:05:06 07:08:09']);
   });
 
   it.each([['a space', '2024-01-01 00:00:00'], ['a T', '2024-01-01T00:00:00']])(
@@ -218,9 +238,10 @@ describe('Capture-date dialog rendered controls and HTTP', () => {
     ['an impossible day', '2024:04:31 00:00:00'], ['an impossible hour', '2024:01:01 24:00:00'],
     ['trailing text', '2024:01:01 00:00:00+02:00'], ['a date-only value', '2024-01-01'],
   ])('treats a reference date with %s as undated, as the server skips it', async (_, date) => {
-    await create({ ...single, reference: { path: '/photo.jpg', date } }); await flushPreview();
-    expect(root.querySelector('[data-mode]')).toBeNull();
+    await create({ ...single, reference: { path: '/photo.jpg', date } });
+    expect(root.querySelector('[data-mode="exact"]')?.getAttribute('aria-pressed')).toBe('true');
     expect(root.querySelector('[data-reference]')).toBeNull();
+    await noPreview();
   });
 
   it('renders preview failure and retries through its Preview button without publishing edits', async () => {

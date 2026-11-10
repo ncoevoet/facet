@@ -1,7 +1,7 @@
 import type { Mock } from 'vitest';
 import { TestBed } from '@angular/core/testing';
 import { ActivatedRoute, Router, provideRouter } from '@angular/router';
-import { Component } from '@angular/core';
+import { Component, signal } from '@angular/core';
 import { MatSnackBar } from '@angular/material/snack-bar';
 import { HttpBackend, HttpErrorResponse, HttpRequest, HttpResponse } from '@angular/common/http';
 import { Subject, of, throwError } from 'rxjs';
@@ -91,7 +91,7 @@ describe('UI tool registry and handlers', () => {
         { provide: ApiService, useValue: { get: apiGet, post: vi.fn(() => of({})) } },
         { provide: Router, useValue: router },
         { provide: ActivatedRoute, useValue: { snapshot: { queryParams: {} } } },
-        { provide: AuthService, useValue: { identity: () => '0|', isEdition: () => edition, isMultiUser: () => multiUser, isAuthenticated: () => true } },
+        { provide: AuthService, useValue: { status: signal({ authenticated: true, multi_user: false, edition_enabled: true, edition_authenticated: false, edition_password_required: false, login_password_required: false, user_id: null, user_role: 'admin', features: {}, download_profiles: [] }), identity: () => '0|', isEdition: () => edition, isMultiUser: () => multiUser, isAuthenticated: () => true } },
         // The real GalleryStore subscribes to assistant write batches; none arrive here.
         { provide: AssistantChangesService, useValue: { batch$: assistantBatches } },
         { provide: AlbumService, useValue: { list: vi.fn(() => of({ albums: [] })), update: vi.fn(() => of({})) } },
@@ -137,6 +137,28 @@ describe('UI tool registry and handlers', () => {
   });
 
   describe('registry', () => {
+    it('presents a filter proposal without navigation, selection or gallery mutation', async () => {
+      const present = vi.fn(async () => ({ proposal_id: 1, status: 'awaiting_user', applied: false }));
+      viewActions.register('gallery_filter_proposal', present);
+      const before = store.filters(); const selected = store.selectedPaths();
+      const result = await run('ui_set_gallery_filters', { patch: { date_from: '2024-03-01', tag: 'Birds' },
+        proposal: { source_query: 'birds last spring except videos', unrepresented: ['except videos'] } });
+      expect(result).toEqual({ ok: true, data: { proposal_id: 1, status: 'awaiting_user', applied: false } });
+      expect(present).toHaveBeenCalledOnce();
+      const args = present.mock.calls[0] as unknown as [Record<string, unknown>];
+      expect(args[0]['patch']).toEqual({ date_from: '2024-03-01', tag: 'Birds' });
+      expect(typeof args[0]['normalize']).toBe('function');
+      expect(store.filters()).toBe(before); expect(store.selectedPaths()).toBe(selected);
+      expect(apiGet).not.toHaveBeenCalled(); expect(navigate).not.toHaveBeenCalled();
+    });
+
+    it('refuses an incomplete interpretation and an unavailable proposal surface without applying', async () => {
+      const before = store.filters();
+      expect(await run('ui_set_gallery_filters', { patch: { tag: 'Birds' }, proposal: { source_query: 'birds' } })).toMatchObject({ ok: false, error: 'invalid_input' });
+      expect(await run('ui_set_gallery_filters', { patch: { tag: 'Birds' }, proposal: { source_query: 'birds', unrepresented: [] } })).toMatchObject({ ok: false, error: 'no_active_view' });
+      expect(store.filters()).toBe(before); expect(apiGet).not.toHaveBeenCalled(); expect(navigate).not.toHaveBeenCalled();
+    });
+
     it('has a handler for every contract entry and a contract entry for every handler', () => {
       const handlers = createUiToolHandlers({
         gallery: store, router: router as unknown as Router,
@@ -495,7 +517,7 @@ describe('UI tool registry and handlers', () => {
           { provide: HttpBackend, useValue: { handle } },
           { provide: Router, useValue: router },
           { provide: ActivatedRoute, useValue: { snapshot: { queryParams: {} } } },
-          { provide: AuthService, useValue: { token: 'tok', identity: () => '0|', isEdition: () => false, isMultiUser: () => false, isAuthenticated: () => true, revalidate } },
+          { provide: AuthService, useValue: { status: signal(null), token: 'tok', identity: () => '0|', isEdition: () => false, isMultiUser: () => false, isAuthenticated: () => true, revalidate } },
           { provide: AssistantChangesService, useValue: { batch$: assistantBatches } },
           { provide: AlbumService, useValue: { list: vi.fn(() => of({ albums: [] })) } },
           { provide: ApiService, useValue: { get: apiGet, post: vi.fn(() => of({})) } },
@@ -616,6 +638,37 @@ describe('UI tool registry and handlers', () => {
   });
 
   describe('ui_set_gallery_filters', () => {
+    it('applies measurement policies read-only, rejects an invalid patch atomically and clears only the policy', async () => {
+      const raw = '{"min_sharpness":"include_missing"}';
+      expect(await run('ui_set_gallery_filters', { patch: { score_presence: raw, camera: 'Camera' } })).toMatchObject({ ok: true });
+      expect(store.filters()).toMatchObject({ score_presence: raw, camera: 'Camera' });
+      await expect(direct()['ui_set_gallery_filters']({ patch: { camera: 'Retarget', score_presence: '{"min_star_rating":"missing_only"}' } })).rejects.toMatchObject({ code: 'invalid_input' });
+      expect(store.filters()).toMatchObject({ score_presence: raw, camera: 'Camera' });
+      expect(await run('ui_set_gallery_filters', { patch: { score_presence: null } })).toMatchObject({ ok: true });
+      expect(store.filters()).toMatchObject({ score_presence: '', camera: 'Camera' });
+    });
+
+    it('applies literal tag groups read-only, refuses malformed rules and clears only that field', async () => {
+      const raw = '{"any":["coast,ridge","夜景"],"none":["OR"]}';
+      expect(await run('ui_set_gallery_filters', { patch: { tag_groups: raw, camera: 'Camera' } })).toMatchObject({ ok: true });
+      expect(store.filters()).toMatchObject({ tag_groups: raw, camera: 'Camera' });
+      expect(await run('ui_set_gallery_filters', { patch: { tag_groups: '{"all":true}' } })).toMatchObject({ ok: false, error: 'invalid_input' });
+      await expect(direct()['ui_set_gallery_filters']({ patch: { tag_groups: '{"any":["a"],"any":["b"]}' } })).rejects.toMatchObject({ code: 'invalid_input' });
+      expect(store.filters().tag_groups).toBe(raw);
+      expect(await run('ui_set_gallery_filters', { patch: { tag_groups: null } })).toMatchObject({ ok: true });
+      expect(store.filters()).toMatchObject({ tag_groups: '', camera: 'Camera' });
+    });
+
+    it('applies ANY-person groups read-only and clears their mode canonically through the agent contract', async () => {
+      expect(await run('ui_set_gallery_filters', { patch: { person: '1,2', person_match: 'any' } })).toMatchObject({ ok: true });
+      expect(store.filters()).toMatchObject({ person_id: '1,2', person_match: 'any' });
+      expect(await run('ui_set_gallery_filters', { patch: { person_match: null } })).toMatchObject({ ok: true });
+      expect(store.filters()).toMatchObject({ person_id: '1,2', person_match: 'all' });
+      expect(await run('ui_set_gallery_filters', { patch: { person_match: 'unknown' } })).toMatchObject({ ok: false, error: 'invalid_input' });
+      await expect(direct()['ui_set_gallery_filters']({ patch: { person_match: 'unknown' } })).rejects.toMatchObject({ code: 'invalid_input' });
+      expect(store.filters().person_match).toBe('all');
+    });
+
     it('writes the store filters and syncs the URL', async () => {
       const result = await run('ui_set_gallery_filters', { patch: { min_aesthetic: '7' } });
       expect(result).toMatchObject({ ok: true });
@@ -849,7 +902,7 @@ describe('UI tool registry and handlers', () => {
   describe('ui_open_photo', () => {
     it('navigates to /photo?path=', async () => {
       await run('ui_open_photo', { path: '/x/y.jpg' });
-      expect(navigate).toHaveBeenCalledWith(['/photo'], { queryParams: { path: '/x/y.jpg' }, onSameUrlNavigation: 'reload' });
+      expect(navigate).toHaveBeenCalledWith(['/photo'], { queryParams: { path: '/x/y.jpg' }, onSameUrlNavigation: 'reload', state: { photoOrigin: 'in-app' } });
     });
 
     it('reports a refused navigation as navigation_refused, not not_found', async () => {
@@ -1087,6 +1140,8 @@ describe('UI tool registry and handlers', () => {
           { user_activity: { items: { kind: string; seq: number }[]; until: number; truncated: boolean } }).user_activity;
 
       it('preserves manual Keep and Reset review values through ui_get_context', async () => {
+        edition = true;
+        TestBed.inject(AuthService).status.update(status => status ? { ...status, edition_authenticated: true } : status);
         await store.loadPhotos();
         await store.batchReview(['/a.jpg'], 'kept', false);
         await store.batchReview(['/a.jpg'], 'undecided', false);
