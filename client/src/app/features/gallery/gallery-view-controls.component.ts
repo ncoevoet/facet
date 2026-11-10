@@ -2,6 +2,7 @@ import { NgTemplateOutlet } from '@angular/common';
 import { afterNextRender, ChangeDetectionStrategy, Component, computed, DestroyRef, inject, input, output, signal, TemplateRef, viewChild, viewChildren } from '@angular/core';
 import { trackPendingNavigation } from '../../shared/utils/navigation-settled';
 import { MatBadgeModule } from '@angular/material/badge';
+import { MatCheckboxChange, MatCheckboxModule } from '@angular/material/checkbox';
 import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
 import { MatMenuModule, MatMenuTrigger } from '@angular/material/menu';
@@ -25,16 +26,13 @@ const sortOptionLabelKey = (column: string): string => `sort_options.${column}`;
 @Component({
   selector: 'app-gallery-view-controls',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [NgTemplateOutlet, MatBadgeModule, MatButtonModule, MatRippleModule, MatIconModule, MatMenuModule, MatTooltipModule, TranslatePipe, SortOptionIconPipe, SortGroupKeyPipe, SortGroupIconPipe],
+  imports: [NgTemplateOutlet, MatBadgeModule, MatCheckboxModule, MatButtonModule, MatRippleModule, MatIconModule, MatMenuModule, MatTooltipModule, TranslatePipe, SortOptionIconPipe, SortGroupKeyPipe, SortGroupIconPipe],
   host: { class: 'flex flex-wrap items-center gap-1' },
   template: `
     <ng-template #displayControls>
     @if (auth.isEdition() && store.config()?.features?.show_rating_controls) {
-      <label class="inline-flex min-h-11 cursor-pointer items-center gap-2 px-2 text-xs" [matTooltip]="I18N.gallery.review_navigation.help | translate">
-        <input type="checkbox" data-review-advance [checked]="reviewNavigation.enabled()"
-               (change)="setReviewAdvance($event)" />
-        {{ I18N.gallery.review_navigation.advance | translate }}
-      </label>
+      <mat-checkbox data-review-advance [checked]="reviewNavigation.enabled()" [matTooltip]="I18N.gallery.review_navigation.help | translate"
+                    (change)="setReviewAdvance($event)">{{ I18N.gallery.review_navigation.advance | translate }}</mat-checkbox>
     }
     @if (!portDisplay()) { <ng-container [ngTemplateOutlet]="layoutControls" [ngTemplateOutletContext]="{ $implicit: secondaryLayouts }" /> }
     @if (portDisplay()) {
@@ -274,10 +272,9 @@ export class GalleryViewControlsComponent {
   protected readonly auth = inject(AuthService);
   protected readonly reviewNavigation = inject(GalleryReviewNavigationService);
   protected readonly tileFits = TILE_FITS;
-  protected setReviewAdvance(event: Event): void {
-    const input = event.target as HTMLInputElement;
-    if (this.canAct()) this.reviewNavigation.setEnabled(input.checked);
-    input.checked = this.reviewNavigation.enabled();
+  protected setReviewAdvance(event: MatCheckboxChange): void {
+    if (this.canAct()) this.reviewNavigation.setEnabled(event.checked);
+    event.source.checked = this.reviewNavigation.enabled();
   }
   constructor() {
     afterNextRender(() => { this.railCapable.setup(); this.tooltipCapable.setup(); this.hoverCapable.setup(); });

@@ -1010,17 +1010,13 @@ type RatingOption = 'any' | '1' | '2' | '3' | '4' | '5' | 'zero';
              the user's memory. Edition-only: nobody else can make one. -->
         @if (auth.isEdition()) {
           <span class="text-xs uppercase text-[var(--mat-sys-on-surface-variant)] mt-2">{{ I18N.gallery.sidebar.review.edition | translate }}</span>
-          <button type="button" mat-stroked-button class="!min-w-0 !h-8 !text-xs !justify-start" data-toggle="manual_faces_need_review"
-            [class.!bg-[var(--mat-sys-primary-container)]]="store.filters().manual_faces_need_review"
-            [attr.aria-pressed]="store.filters().manual_faces_need_review"
+          <mat-checkbox data-toggle="manual_faces_need_review" [checked]="store.filters().manual_faces_need_review"
             [appHelpTip]="I18N.gallery.sidebar.refine_help.manual_faces_need_review | translate"
-            (click)="store.updateFilter('manual_faces_need_review', !store.filters().manual_faces_need_review)">
-            {{ I18N.gallery.manual_faces_need_review | translate }}
-          </button>
+            (change)="store.updateFilter('manual_faces_need_review', $event.checked)">{{ I18N.gallery.manual_faces_need_review | translate }}</mat-checkbox>
           @if (store.filters().manual_faces_need_review) {
             <p class="text-xs text-gray-500 dark:text-gray-400">{{ I18N.gallery.manual_faces_review_hint | translate }}</p>
           }
-          <mat-form-field subscriptSizing="dynamic" class="w-full">
+          <mat-form-field appearance="outline" subscriptSizing="dynamic" class="w-full">
             <mat-label>{{ I18N.gallery.sequence_override.label | translate }}</mat-label>
             <mat-select [value]="store.filters().sequence_override"
                         [appHelpTip]="I18N.gallery.sidebar.refine_help.sequence_override | translate"

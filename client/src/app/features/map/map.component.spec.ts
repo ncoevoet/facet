@@ -4,6 +4,7 @@ import { of, throwError, Subject } from 'rxjs';
 import { ApiService } from '../../core/services/api.service';
 import { I18nService } from '../../core/services/i18n.service';
 import { PageContextService } from '../../core/agent/page-context.service';
+import { MapFiltersService } from './map-filters.service';
 
 // Mock Leaflet before importing the component. vi.doMock + dynamic import is
 // used instead of vi.mock because the unit-test builder wraps spec modules,
@@ -384,5 +385,46 @@ describe('MapComponent', () => {
       component.map = null;
       expect(() => component.ngOnDestroy()).not.toThrow();
     });
+  });
+});
+
+describe('MapComponent dates control', () => {
+  let MapComponent: typeof import('./map.component').MapComponent;
+  beforeAll(async () => {
+    ({ MapComponent } = await import('./map.component'));
+  }, 20000);
+  beforeEach(() => {
+    resetLeafletMock();
+    TestBed.configureTestingModule({
+      providers: [
+        { provide: ApiService, useValue: { get: vi.fn(() => of({ clusters: [], photos: [] })), thumbnailUrl: vi.fn(() => '') } },
+        { provide: I18nService, useValue: { t: (k: string) => k, translations: () => ({}), locale: () => 'en' } },
+      ],
+    });
+  });
+
+  it('opens the dates in a control popover above the Leaflet panes, not a details element', async () => {
+    const fixture = TestBed.createComponent(MapComponent);
+    fixture.detectChanges();
+    const root = fixture.nativeElement as HTMLElement;
+    expect(root.querySelector('details')).toBeNull();
+    const wrapper = root.querySelector<HTMLElement>('[data-map-dates]')!;
+    expect(wrapper.classList.contains('z-[1001]')).toBe(true);
+    expect(getComputedStyle(wrapper).position === 'absolute' || wrapper.classList.contains('absolute')).toBe(true);
+    const trigger = wrapper.querySelector<HTMLButtonElement>('app-control-popover button')!;
+    expect(trigger.querySelector('mat-icon')!.textContent!.trim()).toBe('date_range');
+    trigger.click(); fixture.detectChanges();
+    expect(document.querySelector('app-date-range-filter mat-form-field')).not.toBeNull();
+    fixture.destroy();
+  });
+
+  it('marks the trigger when a date is set', () => {
+    const fixture = TestBed.createComponent(MapComponent);
+    fixture.detectChanges();
+    const root = fixture.nativeElement as HTMLElement;
+    expect(root.querySelector('[data-map-dates-dot]')).toBeNull();
+    TestBed.inject(MapFiltersService).dateFrom.set('2024-01-01'); fixture.detectChanges();
+    expect(root.querySelector('[data-map-dates-dot]')).not.toBeNull();
+    fixture.destroy();
   });
 });

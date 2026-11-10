@@ -9,14 +9,13 @@ import { DateRangeFilterComponent } from './date-range-filter.component';
   changeDetection: ChangeDetectionStrategy.Eager,
   template: `
     <app-date-range-filter
-      [from]="from()" [to]="to()" [compact]="compact()" [fromClass]="fromClass()" [toClass]="toClass()"
+      [from]="from()" [to]="to()" [fromClass]="fromClass()" [toClass]="toClass()"
       (fromChange)="lastFrom = $event" (toChange)="lastTo = $event" />
   `,
 })
 class HostComponent {
   from = signal('2024-01-01');
   to = signal('2024-12-31');
-  compact = signal(false);
   fromClass = signal('w-44');
   toClass = signal('');
   lastFrom = '';
@@ -69,10 +68,15 @@ describe('DateRangeFilterComponent', () => {
     expect(fixture.componentInstance.lastTo).toBe('2025-07-15');
   });
 
-  it('honors compact input widths and falls back to the from width', () => {
-    fixture.componentInstance.compact.set(true); fixture.componentInstance.fromClass.set('w-40'); fixture.detectChanges();
-    expect(dateInputs().every(input => input.classList.contains('w-40'))).toBe(true);
+  it('sizes both Material fields from fromClass and falls back to it for the to field', () => {
+    const fields = () => Array.from(fixture.nativeElement.querySelectorAll('mat-form-field')) as HTMLElement[];
+    fixture.componentInstance.fromClass.set('w-40'); fixture.detectChanges();
+    expect(fields().every(field => field.classList.contains('w-40'))).toBe(true);
     fixture.componentInstance.toClass.set('w-36'); fixture.detectChanges();
-    expect(dateInputs()[1].classList.contains('w-36')).toBe(true);
+    expect(fields()[1].classList.contains('w-36')).toBe(true);
+  });
+
+  it('has no compact native-input branch', () => {
+    expect('compact' in fixture.debugElement.children[0].componentInstance).toBe(false);
   });
 });

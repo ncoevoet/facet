@@ -1435,6 +1435,7 @@ describe('GalleryFilterSidebarComponent', () => {
       }
       const select = fixture.debugElement.queryAll(By.directive(MatSelect)).filter(d => section.contains(d.nativeElement));
       expect(select.map(d => d.injector.get(MatTooltip).message)).toEqual(['gallery.sidebar.refine_help.sequence_override']);
+      expect(select[0].nativeElement.closest('mat-form-field').classList.contains('mat-form-field-appearance-outline')).toBe(true);
     });
 
     const ratingButton = () => fixture.nativeElement.querySelector('button[data-row="rating"]') as HTMLButtonElement;
@@ -1526,10 +1527,11 @@ describe('GalleryFilterSidebarComponent', () => {
       const auth = TestBed.inject(AuthService);
       vi.mocked(auth.isEdition).mockReturnValue(edition);
       showTab('review');
-      const control = fixture.nativeElement.querySelector('[data-toggle="manual_faces_need_review"]') as HTMLButtonElement | null;
+      const control = fixture.nativeElement.querySelector('[data-toggle="manual_faces_need_review"]') as HTMLElement | null;
       expect(!!control).toBe(edition);
       if (control) {
-        control.click();
+        expect(control.tagName).toBe('MAT-CHECKBOX');
+        (control.querySelector('input') as HTMLInputElement).click();
         expect(mockStore['updateFilter']).toHaveBeenCalledWith('manual_faces_need_review', true);
       }
     });

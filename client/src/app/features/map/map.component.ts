@@ -13,6 +13,7 @@ import { PageHelpService } from '../../core/services/page-help.service';
 import { MapFiltersService } from './map-filters.service';
 import { registerPageContext } from '../../core/agent/page-context.service';
 import { DateRangeFilterComponent } from '../../shared/components/date-range-filter/date-range-filter.component';
+import { ControlPopoverComponent } from '../../shared/components/control-popover/control-popover.component';
 import { TranslatePipe } from '../../shared/pipes/translate.pipe';
 import * as L from 'leaflet';
 import { createLeafletMap } from '../../shared/leaflet';
@@ -46,22 +47,23 @@ interface MapResponse {
 @Component({
   selector: 'app-map',
   standalone: true,
-  imports: [MatIconModule, MatButtonModule, MatProgressSpinnerModule, DateRangeFilterComponent, TranslatePipe],
+  imports: [MatIconModule, MatButtonModule, MatProgressSpinnerModule, DateRangeFilterComponent, ControlPopoverComponent, TranslatePipe],
   template: `
     <h1 class="sr-only">{{ I18N.map.title | translate }}</h1>
     <div class="relative h-full">
-      <details class="absolute right-3 top-3 z-[1001] rounded bg-[var(--mat-sys-surface-container)] text-sm shadow-md" data-map-dates>
-        <summary class="flex min-h-10 cursor-pointer list-none items-center gap-2 rounded px-3 focus-visible:outline-2">
-          <mat-icon aria-hidden="true" class="!h-5 !w-5 !text-xl">date_range</mat-icon>
-          {{ I18N.gallery.sidebar.date | translate }}
-          @if (mapFilters.dateFrom() || mapFilters.dateTo()) { <span class="font-semibold">{{ (mapFilters.dateFrom() ? 1 : 0) + (mapFilters.dateTo() ? 1 : 0) }}</span> }
-        </summary>
-        <div class="flex flex-col gap-2 border-t border-[var(--mat-sys-outline-variant)] p-3">
-          <app-date-range-filter [compact]="true" [from]="mapFilters.dateFrom()" [to]="mapFilters.dateTo()"
-            fromLabel="map.date_from" toLabel="map.date_to" fromClass="w-36"
+      <div class="absolute right-3 top-3 z-[1001] rounded bg-[var(--mat-sys-surface-container)] shadow-md" data-map-dates>
+        <app-control-popover icon="date_range" [label]="I18N.gallery.sidebar.date | translate" [content]="datesPanel" />
+        @if (mapFilters.dateFrom() || mapFilters.dateTo()) {
+          <span data-map-dates-dot aria-hidden="true" class="pointer-events-none absolute right-1.5 top-1.5 h-2 w-2 rounded-full bg-[var(--mat-sys-primary)]"></span>
+        }
+      </div>
+      <ng-template #datesPanel>
+        <div class="flex flex-col gap-2">
+          <app-date-range-filter [from]="mapFilters.dateFrom()" [to]="mapFilters.dateTo()"
+            fromLabel="map.date_from" toLabel="map.date_to" fromClass="w-full" toClass="w-full"
             (fromChange)="mapFilters.dateFrom.set($event)" (toChange)="mapFilters.dateTo.set($event)" />
         </div>
-      </details>
+      </ng-template>
       @if (loading()) {
         <div class="pointer-events-none absolute inset-0 flex items-center justify-center z-[1000] bg-black/20">
           <mat-spinner diameter="40" [attr.aria-label]="I18N.ui.labels.loading | translate" />

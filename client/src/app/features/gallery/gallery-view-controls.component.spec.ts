@@ -127,7 +127,10 @@ describe('GalleryViewControlsComponent', () => {
       const { fixture, root, store, edition } = render({ features: { show_rating_controls: true } });
       expect(root.querySelector('[data-review-advance]')).toBeNull();
       edition.set(true); fixture.detectChanges();
-      const checkbox = root.querySelector<HTMLInputElement>('[data-review-advance]')!;
+      const host = root.querySelector('[data-review-advance]')!;
+      expect(host.tagName).toBe('MAT-CHECKBOX');
+      expect(host.closest('label')).toBeNull();
+      const checkbox = host.querySelector<HTMLInputElement>('input')!;
       expect(checkbox.checked).toBe(false);
       checkbox.click(); fixture.detectChanges();
       expect(TestBed.inject(GalleryReviewNavigationService).enabled()).toBe(true);
