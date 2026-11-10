@@ -91,8 +91,10 @@ const GEAR_METRIC_OPTIONS = [
                       [aria-label]="'stats.gear_metric_label' | translate">
             <mat-select-trigger>
               @let selectedIcon = selectedMetric() | sortOptionIcon;
-              <mat-icon aria-hidden="true" class="!w-8 text-center align-middle" [class]="selectedIcon.classes">{{ selectedIcon.text }}</mat-icon>
-              {{ 'stats.gear_metrics.' + selectedMetric() | translate }}
+              <span class="inline-flex max-w-full items-center align-top">
+                <mat-icon aria-hidden="true" class="!w-8 shrink-0 text-center" [class]="selectedIcon.classes">{{ selectedIcon.text }}</mat-icon>
+                <span class="truncate">{{ 'stats.gear_metrics.' + selectedMetric() | translate }}</span>
+              </span>
             </mat-select-trigger>
             @for (opt of metricOptions; track opt.key) {
               @let optionIcon = opt.key | sortOptionIcon;

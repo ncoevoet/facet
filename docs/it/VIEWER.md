@@ -1180,7 +1180,7 @@ La pagina Statistiche (`/stats`) ha 5 schede. Il riepilogo mostra i conteggi di 
 | **Impostazioni di scatto** | Distribuzioni di ISO, diaframma, lunghezza focale, tempo di posa |
 | **Cronologia** | Foto nel tempo |
 | **Categorie** | Analisi delle categorie, gestione dei pesi e correlazioni dei punteggi |
-| **Correlazioni** | Grafici di correlazione personalizzati X/Y tra metriche con raggruppamento. La scheda si apre sui punteggi per anno, e i grafici suggeriti (rumore per ISO e fotocamera, punteggio per categoria, punteggio per lunghezza focale) compilano il modulo e disegnano il grafico con un clic. Finché non modifichi il modulo, un cambio di filtro ridisegna il grafico; dopo una modifica lo fa **Carica correlazioni** |
+| **Correlazioni** | Grafici di correlazione personalizzati X/Y tra metriche con raggruppamento. La scheda si apre sui punteggi per anno, e i grafici suggeriti (rumore per ISO e fotocamera, punteggio per categoria, punteggio per lunghezza focale) compilano il modulo e disegnano il grafico con un clic. Finché non modifichi il modulo, un cambio di filtro ridisegna il grafico; dopo una modifica lo fa il pulsante di aggiornamento **Carica correlazioni** |
 
 ### Scheda Categorie
 

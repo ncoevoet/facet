@@ -257,8 +257,10 @@ interface ScoreBin {
                         <mat-select [ngModel]="categoryMetric()" (ngModelChange)="categoryMetric.set($event)">
                           <mat-select-trigger>
                             @let metricIcon = categoryMetric() | sortOptionIcon;
-                            <mat-icon aria-hidden="true" class="!w-8 text-center align-middle" [class]="metricIcon.classes">{{ metricIcon.text }}</mat-icon>
-                            {{ 'stats.category_metrics.' + categoryMetric() | translate }}
+                            <span class="inline-flex max-w-full items-center align-top">
+                              <mat-icon aria-hidden="true" class="!w-8 shrink-0 text-center" [class]="metricIcon.classes">{{ metricIcon.text }}</mat-icon>
+                              <span class="truncate">{{ 'stats.category_metrics.' + categoryMetric() | translate }}</span>
+                            </span>
                           </mat-select-trigger>
                           @for (opt of categoryMetricOptions; track opt.key) {
                             @let optionIcon = opt.key | sortOptionIcon;

@@ -114,8 +114,10 @@ export function allocateSeriesSlots(keys: string[], previous: Record<string, num
               <mat-select [ngModel]="corrXAxis()" (ngModelChange)="edit(corrXAxis, $event)">
                 <mat-select-trigger>
                   @let xAxisIcon = corrXAxis() | sortOptionIcon;
-                  <mat-icon aria-hidden="true" class="!w-8 text-center" [class]="xAxisIcon.classes">{{ xAxisIcon.text }}</mat-icon>
-                  {{ 'stats.correlations.dimensions.' + corrXAxis() | translate }}
+                  <span class="inline-flex max-w-full items-center align-top">
+                    <mat-icon aria-hidden="true" class="!w-8 shrink-0 text-center" [class]="xAxisIcon.classes">{{ xAxisIcon.text }}</mat-icon>
+                    <span class="truncate">{{ 'stats.correlations.dimensions.' + corrXAxis() | translate }}</span>
+                  </span>
                 </mat-select-trigger>
                 @for (dim of corrDimensions; track dim.key) {
                   @let xOptionIcon = dim.key | sortOptionIcon;
@@ -132,8 +134,10 @@ export function allocateSeriesSlots(keys: string[], previous: Record<string, num
                 <mat-select-trigger>
                   @if (corrGroupBy()) {
                     @let groupIcon = corrGroupBy() | sortOptionIcon;
-                    <mat-icon aria-hidden="true" class="!w-8 text-center" [class]="groupIcon.classes">{{ groupIcon.text }}</mat-icon>
-                    {{ 'stats.correlations.dimensions.' + corrGroupBy() | translate }}
+                    <span class="inline-flex max-w-full items-center align-top">
+                      <mat-icon aria-hidden="true" class="!w-8 shrink-0 text-center" [class]="groupIcon.classes">{{ groupIcon.text }}</mat-icon>
+                      <span class="truncate">{{ 'stats.correlations.dimensions.' + corrGroupBy() | translate }}</span>
+                    </span>
                   } @else {
                     {{ I18N.stats.correlations.none | translate }}
                   }
@@ -149,9 +153,9 @@ export function allocateSeriesSlots(keys: string[], previous: Record<string, num
               </mat-select>
             </mat-form-field>
           </div>
-          <!-- Controls: row 2 — Metrics + Chart Type + button -->
-          <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 items-end gap-3 mb-4">
-            <mat-form-field subscriptSizing="dynamic">
+          <!-- Controls: row 2 — Metrics take the free width; Chart Type, then the Load icon button -->
+          <div class="flex flex-wrap items-center gap-3 mb-4">
+            <mat-form-field class="w-full sm:w-auto sm:min-w-0 sm:flex-1" subscriptSizing="dynamic">
               <mat-label>{{ I18N.stats.correlations.y_metrics | translate }}</mat-label>
               <mat-select multiple [ngModel]="corrYMetrics()" (ngModelChange)="edit(corrYMetrics, $event)">
                 @for (m of corrMetricOptions; track m.key) {
@@ -163,13 +167,15 @@ export function allocateSeriesSlots(keys: string[], previous: Record<string, num
                 }
               </mat-select>
             </mat-form-field>
-            <mat-form-field subscriptSizing="dynamic">
+            <mat-form-field class="min-w-0 flex-1 sm:w-60 sm:flex-none" subscriptSizing="dynamic">
               <mat-label>{{ I18N.stats.correlations.chart_type | translate }}</mat-label>
               <mat-select [ngModel]="corrChartType()" (ngModelChange)="setChartType($event)">
                 <mat-select-trigger>
                   @let chartTypeIcon = corrChartType() | sortOptionIcon;
-                  <mat-icon aria-hidden="true" class="!w-8 text-center" [class]="chartTypeIcon.classes">{{ chartTypeIcon.text }}</mat-icon>
-                  {{ 'stats.correlations.chart_types.' + corrChartType() | translate }}
+                  <span class="inline-flex max-w-full items-center align-top">
+                    <mat-icon aria-hidden="true" class="!w-8 shrink-0 text-center" [class]="chartTypeIcon.classes">{{ chartTypeIcon.text }}</mat-icon>
+                    <span class="truncate">{{ 'stats.correlations.chart_types.' + corrChartType() | translate }}</span>
+                  </span>
                 </mat-select-trigger>
                 @for (ct of corrChartTypes; track ct.key) {
                   @let chartOptionIcon = ct.key | sortOptionIcon;
@@ -180,12 +186,11 @@ export function allocateSeriesSlots(keys: string[], previous: Record<string, num
                 }
               </mat-select>
             </mat-form-field>
-            <div class="flex items-end">
-              <button mat-stroked-button class="w-full" [disabled]="correlationLoading() || corrYMetrics().length === 0" (click)="loadCorrelation()">
-                <mat-icon>refresh</mat-icon>
-                {{ I18N.stats.load_correlations | translate }}
-              </button>
-            </div>
+            <button mat-icon-button data-load-correlations class="shrink-0" [disabled]="correlationLoading() || corrYMetrics().length === 0"
+              [matTooltip]="I18N.stats.load_correlations | translate" [attr.aria-label]="I18N.stats.load_correlations | translate"
+              (click)="loadCorrelation()">
+              <mat-icon>refresh</mat-icon>
+            </button>
           </div>
           @if (corrYMetrics().length === 0) {
             <div class="text-sm text-[var(--mat-sys-on-surface-variant)] mb-4">{{ I18N.stats.correlations.select_metric | translate }}</div>

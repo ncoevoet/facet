@@ -1178,7 +1178,7 @@ A página Estatísticas (`/stats`) tem 5 abas. O resumo mostra as contagens de f
 | **Configurações de Captura** | Distribuições de ISO, abertura, distância focal, velocidade do obturador |
 | **Linha do Tempo** | Fotos ao longo do tempo |
 | **Categorias** | Análises por categoria, gerenciamento de pesos e correlações de pontuação |
-| **Correlações** | Gráficos de correlação X/Y de métricas personalizados, com agrupamento. A aba abre com as pontuações por ano, e os gráficos sugeridos (ruído por ISO e câmera, pontuação por categoria, pontuação por distância focal) preenchem o formulário e desenham o gráfico com um clique. Enquanto você não editar o formulário, uma mudança de filtro redesenha o gráfico; depois de uma edição, quem faz isso é **Carregar Correlações** |
+| **Correlações** | Gráficos de correlação X/Y de métricas personalizados, com agrupamento. A aba abre com as pontuações por ano, e os gráficos sugeridos (ruído por ISO e câmera, pontuação por categoria, pontuação por distância focal) preenchem o formulário e desenham o gráfico com um clique. Enquanto você não editar o formulário, uma mudança de filtro redesenha o gráfico; depois de uma edição, quem faz isso é o botão de atualizar **Carregar Correlações** |
 
 ### Aba Categorias
 

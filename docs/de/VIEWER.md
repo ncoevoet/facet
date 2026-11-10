@@ -1181,7 +1181,7 @@ Die Statistikseite (`/stats`) hat 5 Tabs. Die Übersicht zeigt die Anzahl der Fo
 | **Aufnahmeeinstellungen** | Verteilungen von ISO, Blende, Brennweite und Verschlusszeit |
 | **Zeitleiste** | Fotos im Zeitverlauf |
 | **Kategorien** | Kategorieanalysen, Gewichtsverwaltung und Wertungskorrelationen |
-| **Korrelationen** | Eigene X/Y-Metrikkorrelationsdiagramme mit Gruppierung. Der Tab öffnet mit den Bewertungen nach Jahr, und vorgeschlagene Diagramme (Rauschen nach ISO je Kamera, Bewertung nach Kategorie, Bewertung nach Brennweite) füllen das Formular und zeichnen mit einem Klick. Solange Sie das Formular nicht ändern, zeichnet eine Filteränderung das Diagramm neu; nach einer Änderung übernimmt das **Korrelationen laden** |
+| **Korrelationen** | Eigene X/Y-Metrikkorrelationsdiagramme mit Gruppierung. Der Tab öffnet mit den Bewertungen nach Jahr, und vorgeschlagene Diagramme (Rauschen nach ISO je Kamera, Bewertung nach Kategorie, Bewertung nach Brennweite) füllen das Formular und zeichnen mit einem Klick. Solange Sie das Formular nicht ändern, zeichnet eine Filteränderung das Diagramm neu; nach einer Änderung übernimmt das die Aktualisieren-Schaltfläche **Korrelationen laden** |
 
 ### Tab „Kategorien“
 

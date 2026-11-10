@@ -97,6 +97,36 @@ describe('StatsCorrelationsTabComponent', () => {
     fixture.destroy();
   });
 
+  it('loads from an icon button and centres each select icon on its label', async () => {
+    TestBed.resetTestingModule();
+    TestBed.configureTestingModule({
+      imports: [StatsCorrelationsTabComponent],
+      providers: [
+        { provide: ApiService, useValue: { get: vi.fn(() => of({})) } },
+        { provide: AuthService, useValue: { status: signal({ authenticated: true }), identity: signal('owner'), isAuthenticated: signal(true), token: 'token' } },
+        { provide: I18nService, useValue: { t: (key: string) => key, translations: signal({}), locale: signal('en') } },
+        { provide: StatsFiltersService, useValue: { filterCategory: signal(''), dateFrom: signal(''), dateTo: signal('') } },
+      ],
+    });
+    const fixture = TestBed.createComponent(StatsCorrelationsTabComponent);
+    fixture.componentRef.setInput('active', false);
+    fixture.detectChanges();
+    await fixture.whenStable();
+    fixture.detectChanges();
+    const root = fixture.nativeElement as HTMLElement;
+    const load = root.querySelector<HTMLButtonElement>('button[data-load-correlations]')!;
+    expect(load.hasAttribute('mat-icon-button')).toBe(true);
+    expect(load.getAttribute('aria-label')).toBe('stats.load_correlations');
+    expect(load.textContent!.trim()).toBe('refresh');
+    const icons = Array.from(root.querySelectorAll('mat-select-trigger mat-icon'));
+    expect(icons).toHaveLength(2);
+    for (const icon of icons) {
+      expect(icon.parentElement!.classList).toContain('items-center');
+      expect(icon.nextElementSibling!.classList).toContain('truncate');
+    }
+    fixture.destroy();
+  });
+
   it('redraws a suggested chart when the stats filters change', () => {
     TestBed.tick();
     TestBed.inject(StatsFiltersService).dateFrom.set('2024-01-01');

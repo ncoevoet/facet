@@ -62,8 +62,10 @@ import { HANDLE_SERVER_ERROR_LOCALLY } from '../../core/utils/http-error-context
         <mat-select [value]="albumsFilters.typeFilter()" (selectionChange)="albumsFilters.typeFilter.set($event.value)">
           <mat-select-trigger>
             @let currentType = albumsFilters.typeFilter() | albumTypeIcon;
-            <mat-icon aria-hidden="true" class="!mr-2 align-middle" [class]="currentType.classes">{{ currentType.text }}</mat-icon>
-            <span>{{ typeLabels[albumsFilters.typeFilter()] | translate }}</span>
+            <span class="inline-flex max-w-full items-center align-top">
+              <mat-icon aria-hidden="true" class="!mr-2 shrink-0" [class]="currentType.classes">{{ currentType.text }}</mat-icon>
+              <span class="truncate">{{ typeLabels[albumsFilters.typeFilter()] | translate }}</span>
+            </span>
           </mat-select-trigger>
           @let allIcon = '' | albumTypeIcon;
           @let manualIcon = 'manual' | albumTypeIcon;

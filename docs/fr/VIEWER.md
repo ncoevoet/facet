@@ -1180,7 +1180,7 @@ La page Stats (`/stats`) a 5 onglets. Le résumé affiche le nombre de photos, d
 | **Paramètres de prise de vue** | Distributions d'ISO, d'ouverture, de focale, de vitesse d'obturation |
 | **Chronologie** | Photos dans le temps |
 | **Catégories** | Analyses par catégorie, gestion des poids et corrélations de scores |
-| **Corrélations** | Graphiques de corrélation X/Y personnalisés avec regroupement. L’onglet s’ouvre sur les scores par année, et des graphiques suggérés (bruit selon l’ISO par appareil, score par catégorie, score par focale) remplissent le formulaire et s’affichent en un clic. Tant que vous ne modifiez pas le formulaire, un changement de filtre redessine le graphique ; après une modification, c’est **Charger les corrélations** qui le fait |
+| **Corrélations** | Graphiques de corrélation X/Y personnalisés avec regroupement. L’onglet s’ouvre sur les scores par année, et des graphiques suggérés (bruit selon l’ISO par appareil, score par catégorie, score par focale) remplissent le formulaire et s’affichent en un clic. Tant que vous ne modifiez pas le formulaire, un changement de filtre redessine le graphique ; après une modification, c’est le bouton d’actualisation **Charger les corrélations** qui le fait |
 
 ### Onglet Catégories
 
