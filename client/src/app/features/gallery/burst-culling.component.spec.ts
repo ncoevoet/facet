@@ -23,6 +23,7 @@ import { CullDialogComponent } from './cull-dialog.component';
 import { AssistantChangesService, AssistantChangeBatch } from '../../core/agent/assistant-changes.service';
 import { SyncedZoomComponent, LoadedSources, SHARP_PRELOAD_DEBOUNCE_MS } from './synced-zoom.component';
 import { ThumbnailUrlPipe } from '../../shared/pipes/thumbnail-url.pipe';
+import { LoupeDirective } from '../../shared/directives/loupe.directive';
 import { SwipeDecisionDirective, SWIPE_SETTLE_MS } from '../../shared/directives/swipe-decision.directive';
 
 let changes$ = new Subject<AssistantChangeBatch>();
@@ -3481,6 +3482,94 @@ describe('BurstCullingComponent', () => {
       cull.toggleSelection('/a.jpg', cull.groups()[0]);
       fixture.detectChanges();
       expect(fixture.nativeElement.querySelectorAll('[data-testid="plan-differs-dot"]').length).toBe(1);
+    });
+
+    describe('tiles and bottom chrome (UX survey H4)', () => {
+      const photosOf = (n: number) => Array.from({ length: n }, (_, i) => `/t${i}.jpg`);
+      const mountGroup = async (n: number) => {
+        response = planOf([planGroup(9, 'burst', photosOf(n), ['/t0.jpg'], 1)]);
+        plan.setPin(pin);
+        return mount();
+      };
+      const row = (fixture: ComponentFixture<BurstCullingComponent>) =>
+        (fixture.nativeElement.querySelector('[data-pidx]') as HTMLElement).parentElement as HTMLElement;
+      const bar = (fixture: ComponentFixture<BurstCullingComponent>) =>
+        fixture.nativeElement.querySelector('[data-culling-bar]') as HTMLElement;
+
+      it('lays a group of four or fewer frames in one non-scrolling row of equal-width tiles, stacked below sm', async () => {
+        const fixture = await mountGroup(2);
+        expect(row(fixture).classList).toContain('flex');
+        expect(row(fixture).classList).toContain('max-sm:flex-col');
+        expect(row(fixture).classList).not.toContain('overflow-x-auto');
+        expect(row(fixture).classList).not.toContain('w-fit');
+        const tile = fixture.nativeElement.querySelector('[data-pidx]') as HTMLElement;
+        expect(tile.classList).toContain('min-w-0');
+        expect(tile.classList).toContain('sm:flex-1');
+        expect(tile.classList).toContain('sm:basis-0');
+      });
+
+      it('lays a group of more than four frames in a wrapping auto-fill grid', async () => {
+        const fixture = await mountGroup(5);
+        expect(row(fixture).classList).toContain('grid');
+        expect(row(fixture).classList).toContain('sm:grid-cols-[repeat(auto-fill,minmax(14rem,1fr))]');
+        expect(row(fixture).classList).toContain('max-sm:grid-cols-1');
+        expect(row(fixture).classList).not.toContain('overflow-x-auto');
+      });
+
+      it('sizes the image by the tile width, contains it, and tells the loupe to contain too', async () => {
+        const fixture = await mountGroup(2);
+        const img = fixture.nativeElement.querySelector('[data-pidx] img') as HTMLImageElement;
+        for (const cls of ['w-full', 'h-auto', 'object-contain']) expect(img.classList, cls).toContain(cls);
+        expect(img.classList).not.toContain('object-cover');
+        expect(img.classList).not.toContain('h-72');
+        expect(img.className).toMatch(/sm:max-h-\[/);
+        const loupe = fixture.debugElement.query(By.directive(LoupeDirective)).injector.get(LoupeDirective);
+        expect(loupe.loupeFit()).toBe('contain');
+      });
+
+      it('puts Confirm all in the fixed bar as a full-width button and drops the separate footer', async () => {
+        const fixture = await mountGroup(2);
+        const confirm = [...bar(fixture).querySelectorAll('button')].find(b => b.textContent?.includes('culling.confirm_all'))!;
+        expect(confirm.classList).toContain('max-lg:basis-full');
+        expect(confirm.classList).not.toContain('!hidden');
+        const all = [...fixture.nativeElement.querySelectorAll('button')].filter(b => (b as HTMLElement).textContent?.includes('culling.confirm_all'));
+        expect(all).toHaveLength(1);
+        expect(fixture.nativeElement.querySelector('.max-lg\\:mb-20')).toBeNull();
+      });
+
+      it('docks the bar on the shared row token and wraps its controls instead of scrolling them', async () => {
+        const fixture = await mountGroup(2);
+        expect(bar(fixture).classList).toContain('max-lg:min-h-14');
+        expect(bar(fixture).classList).not.toContain('max-lg:px-3');
+        expect(bar(fixture).classList).not.toContain('max-lg:py-2');
+        const controls = bar(fixture).firstElementChild as HTMLElement;
+        expect(controls.classList).toContain('flex-wrap');
+        expect(controls.classList).toContain('lg:flex-nowrap');
+        expect(controls.classList).not.toContain('overflow-x-auto');
+        expect(controls.className).not.toContain('mask-image');
+      });
+
+      it('binds the content bottom padding to the measured bar height', async () => {
+        let notify: ResizeObserverCallback = () => undefined;
+        vi.stubGlobal('ResizeObserver', class {
+          constructor(cb: ResizeObserverCallback) { notify = cb; }
+          observe() {}
+          unobserve() {}
+          disconnect() {}
+        });
+        try {
+          const fixture = await mountGroup(2);
+          const target = bar(fixture);
+          notify([{ target, borderBoxSize: [{ blockSize: 131, inlineSize: 390 }] } as unknown as ResizeObserverEntry], {} as ResizeObserver);
+          fixture.detectChanges();
+          const scroll = fixture.nativeElement.querySelector('[data-culling-scroll]') as HTMLElement;
+          expect(scroll.style.getPropertyValue('--cull-bar-h')).toBe('131px');
+          expect(scroll.className).toContain('max-lg:pb-[calc(var(--cull-bar-h)+1rem)]');
+          expect(scroll.classList).not.toContain('max-lg:pb-24');
+        } finally {
+          vi.unstubAllGlobals();
+        }
+      });
     });
 
     describe('assistant suggestion badges', () => {

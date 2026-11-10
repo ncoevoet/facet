@@ -1,4 +1,4 @@
-import { Component, ElementRef, Injector, afterNextRender, inject, signal, effect, viewChild, TemplateRef, OnInit, OnDestroy, HostListener, ChangeDetectionStrategy, untracked } from '@angular/core';
+import { Component, ElementRef, computed, Injector, afterNextRender, inject, signal, effect, viewChild, TemplateRef, OnInit, OnDestroy, HostListener, ChangeDetectionStrategy, untracked } from '@angular/core';
 import { NgTemplateOutlet } from '@angular/common';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { NavigationCancel, NavigationEnd, NavigationError, NavigationSkipped, NavigationStart, Router } from '@angular/router';
@@ -30,8 +30,11 @@ import { UserActivityJournal } from '../../core/agent/user-activity-journal.serv
 import { chunkPhotoPaths, type PhotosResponse } from '../gallery/gallery.store';
 import { normalisePhotoFlagsAll, type Photo } from '../../shared/models/photo.model';
 import { onPageQuery } from '../../shared/utils/page-query';
+import { MOBILE_DOCKED_BAR_ROW } from '../../shared/utils/mobile-bar';
 
 const ANY_KIND = 'any';
+
+const DETECT_JUNK_COMMAND = 'python facet.py --detect-junk';
 
 interface QueueView {
   generation: number;
@@ -69,12 +72,13 @@ interface QueueView {
       <ng-container [ngTemplateOutlet]="junkToolbar" />
     </div>
     <ng-template #junkToolbar>
-      <div class="flex items-center gap-2 md:gap-3
+      <div data-junk-bar [class]="barRow"
+           class="flex lg:items-center lg:gap-3
                   max-lg:fixed max-lg:bottom-0 max-lg:left-0 max-lg:right-0 max-lg:z-40
-                  max-lg:flex-wrap max-lg:px-3 max-lg:py-2
+                  max-lg:flex-wrap
                   max-lg:bg-[var(--mat-sys-surface-container)] max-lg:border-t max-lg:border-[var(--mat-sys-outline-variant)]
                   max-lg:shadow-lg">
-        <button mat-stroked-button data-junk-kind-menu class="!h-11 !min-w-0 shrink-0" [matMenuTriggerFor]="kindMenu" [disabled]="bulkBusy() || loading()"
+        <button mat-stroked-button data-junk-kind-menu class="!h-11 !min-w-0 shrink-0" [matMenuTriggerFor]="kindMenu" [disabled]="bulkBusy() || loading() || (total() === 0 && activeKind() === ANY_KIND)"
                 [class.!text-[var(--mat-sys-primary)]]="activeKind() !== ANY_KIND"
                 [matTooltip]="activeKind() === ANY_KIND ? (I18N.junk.all_kinds | translate) : (activeKind() | junkKindLabel)"
                 [attr.aria-label]="activeKind() === ANY_KIND ? (I18N.junk.all_kinds | translate) : (activeKind() | junkKindLabel)">
@@ -101,14 +105,15 @@ interface QueueView {
           }
         </mat-menu>
         <div class="flex items-center gap-2 md:gap-3 ml-auto max-lg:contents">
-          <button mat-icon-button class="!h-11 !w-11 shrink-0" (click)="loupeActive.set(!loupeActive())"
-                  [class.!text-[var(--mat-sys-primary)]]="loupeActive()"
-                  [attr.aria-pressed]="loupeActive()"
+          <button mat-icon-button data-junk-loupe-toggle class="!h-11 !w-11 shrink-0" (click)="loupeActive.set(!loupeActive())"
+                  [disabled]="photos().length === 0"
+                  [class.!text-[var(--mat-sys-primary)]]="loupeOn()"
+                  [attr.aria-pressed]="loupeOn()"
                   [matTooltip]="I18N.scenes.loupe_hint | translate"
                   [attr.aria-label]="I18N.scenes.loupe | translate">
-            <mat-icon>{{ loupeActive() ? 'zoom_in' : 'search' }}</mat-icon>
+            <mat-icon>{{ loupeOn() ? 'zoom_in' : 'search' }}</mat-icon>
           </button>
-          @if (loupeActive()) {
+          @if (loupeOn()) {
             <div class="flex items-center gap-2 max-lg:order-last max-lg:basis-full">
             <span class="whitespace-nowrap text-xs">{{ I18N.gallery.compare.inspection.magnification | translate }} {{ loupeZoom() }}×</span>
             <mat-slider data-junk-loupe-slider class="!w-28 !min-w-0 max-lg:flex-1 max-lg:!mx-0" [min]="2" [max]="8" [step]="1" [discrete]="true">
@@ -134,7 +139,7 @@ interface QueueView {
       </div>
     </ng-template>
 
-    <div #junkContent class="px-4 pt-3 w-full max-lg:pb-32" [class.max-lg:!pb-48]="loupeActive()">
+    <div #junkContent class="px-4 pt-3 w-full max-lg:pb-32" [class.max-lg:!pb-48]="loupeOn()">
       <h1 data-junk-heading tabindex="-1" class="sr-only">{{ I18N.nav.junk_sweep | translate }}</h1>
       <p class="mb-3 text-sm text-[var(--mat-sys-on-surface-variant)]">{{ I18N.junk.reject_explanation | translate }}</p>
       @if (loading() && photos().length === 0) {
@@ -142,7 +147,13 @@ interface QueueView {
       } @else if (photos().length === 0 && !loadFailed()) {
         <!-- A kind filter with no hits is not "no junk in the library": point
              back to All kinds instead of telling the user to rescan. -->
-        <div class="text-[var(--mat-sys-on-surface-variant)] py-10 text-center whitespace-pre-line">{{ (activeKind() === ANY_KIND ? I18N.junk.empty : I18N.junk.empty_kind) | translate }}</div>
+        <div data-junk-empty class="flex flex-col items-center gap-2 py-10 text-center text-[var(--mat-sys-on-surface-variant)]">
+          <mat-icon class="!h-10 !w-10 !text-[40px]" aria-hidden="true">{{ ANY_KIND | junkKindIcon }}</mat-icon>
+          <div class="whitespace-pre-line">{{ (activeKind() === ANY_KIND ? I18N.junk.empty : I18N.junk.empty_kind) | translate }}</div>
+          @if (activeKind() === ANY_KIND) {
+            <p data-junk-empty-command class="text-xs">{{ I18N.junk.empty_command_hint | translate:{ command: DETECT_JUNK_COMMAND } }}</p>
+          }
+        </div>
       } @else {
         <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
           @for (photo of photos(); track photo.path) {
@@ -151,7 +162,7 @@ interface QueueView {
               <div class="relative aspect-[4/3]">
                 <img [src]="photo.path | thumbnailUrl:320:photo.preview_revision"
                      [appLoupe]="photo.path | imageUrl:true:photo.preview_revision"
-                     [loupeActive]="loupeActive()"
+                     [loupeActive]="loupeOn()"
                      [loupeZoom]="loupeZoom()"
                      class="w-full h-full object-cover"
                      [alt]="photo.filename" loading="lazy" />
@@ -290,6 +301,10 @@ export class JunkSweepComponent implements OnInit, OnDestroy {
   private readonly loupe = createLoupeState();
   protected readonly loupeActive = this.loupe.loupeActive;
   protected readonly loupeZoom = this.loupe.loupeZoom;
+  /** The loupe state only counts while there is a tile to magnify. */
+  protected readonly loupeOn = computed(() => this.loupeActive() && this.photos().length > 0);
+  protected readonly barRow = MOBILE_DOCKED_BAR_ROW;
+  protected readonly DETECT_JUNK_COMMAND = DETECT_JUNK_COMMAND;
 
   protected readonly loadFailed = signal(false);
   protected readonly bulkBusy = signal(false);
@@ -358,7 +373,7 @@ export class JunkSweepComponent implements OnInit, OnDestroy {
 
   @HostListener('document:keydown.z', ['$event'])
   protected onZoomToggle(event: Event): void {
-    if (!(event instanceof KeyboardEvent) || isPageShortcutBlocked(event) || isImeOrRepeat(event)) return;
+    if (!(event instanceof KeyboardEvent) || isPageShortcutBlocked(event) || isImeOrRepeat(event) || this.photos().length === 0) return;
     this.loupe.toggle(event);
   }
 

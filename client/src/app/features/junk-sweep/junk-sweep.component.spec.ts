@@ -392,6 +392,67 @@ describe('JunkSweepComponent', () => {
       expect(component.activeKind()).toBe('meme');
       expect(emptyMessages(host)).toEqual(['junk.empty_kind']);
     });
+
+    it('renders the empty state as an icon, the reworded message and the command sentence as secondary code', async () => {
+      const { host } = await render(emptyPage);
+      const hint = host.querySelector('[data-junk-empty-command]') as HTMLElement;
+      expect(hint.textContent).toContain('junk.empty_command_hint');
+      expect(hint.textContent).toContain('python facet.py --detect-junk');
+      expect(hint.className).toContain('text-xs');
+      expect(host.querySelector('[data-junk-empty] mat-icon')).not.toBeNull();
+    });
+
+    it('shows no command sentence when a kind filter comes up empty', async () => {
+      const { fixture, host } = await render(emptyPage);
+      await TestBed.inject(Router).navigateByUrl('/junk?kind=meme');
+      await vi.waitFor(() => expect(photosCalls()).toBe(2), { timeout: 4000 });
+      await fixture.whenStable();
+      fixture.detectChanges();
+      expect(host.querySelector('[data-junk-empty-command]')).toBeNull();
+    });
+
+    it('disables the kind menu and the loupe at zero photos under All kinds', async () => {
+      const { host } = await render(emptyPage);
+      expect(host.querySelector<HTMLButtonElement>('[data-junk-kind-menu]')!.disabled).toBe(true);
+      expect(host.querySelector<HTMLButtonElement>('[data-junk-loupe-toggle]')!.disabled).toBe(true);
+    });
+
+    it('keeps the kind menu enabled when an active kind filter is empty', async () => {
+      const { fixture, host } = await render(emptyPage);
+      await TestBed.inject(Router).navigateByUrl('/junk?kind=meme');
+      await vi.waitFor(() => expect(photosCalls()).toBe(2), { timeout: 4000 });
+      await fixture.whenStable();
+      fixture.detectChanges();
+      expect(host.querySelector<HTMLButtonElement>('[data-junk-kind-menu]')!.disabled).toBe(false);
+    });
+
+    it('enables the kind menu and the loupe when photos are listed', async () => {
+      const { host } = await render();
+      expect(host.querySelector<HTMLButtonElement>('[data-junk-kind-menu]')!.disabled).toBe(false);
+      expect(host.querySelector<HTMLButtonElement>('[data-junk-loupe-toggle]')!.disabled).toBe(false);
+    });
+
+    it('ignores the Z key while no photo is listed', async () => {
+      await render(emptyPage);
+      document.dispatchEvent(new KeyboardEvent('keydown', { key: 'z', bubbles: true }));
+      expect(component.loupeActive()).toBe(false);
+    });
+
+    it('does not hand an active loupe to the tiles while empty', async () => {
+      const { fixture, host } = await render(emptyPage);
+      component.loupeActive.set(true);
+      fixture.detectChanges();
+      expect(host.querySelector('[data-junk-loupe-slider]')).toBeNull();
+    });
+
+    it('docks the toolbar on the shared bottom-bar row token, not its own padding', async () => {
+      const { host } = await render();
+      const bar = host.querySelector('[data-junk-bar]') as HTMLElement;
+      expect(bar.className).toContain('max-lg:min-h-14');
+      expect(bar.className).toContain('max-lg:px-2');
+      expect(bar.className).not.toContain('max-lg:px-3');
+      expect(bar.className).not.toContain('max-lg:py-2');
+    });
   });
 });
 

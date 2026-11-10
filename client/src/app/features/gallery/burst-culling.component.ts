@@ -36,6 +36,7 @@ import { HeaderSlotService } from '../../core/services/header-slot.service';
 import { InfiniteScrollDirective } from '../../shared/directives/infinite-scroll.directive';
 import { isControlActivation, isTypingContext } from '../../shared/utils/keyboard';
 import { toIsoDateString } from '../../shared/utils/date-format';
+import { MOBILE_DOCKED_BAR_ROW } from '../../shared/utils/mobile-bar';
 import { CULL_DATE_PRESETS, presetRange, type CullDatePresetId } from './culling-date-range';
 import { isBracketLadderRejection } from '../../shared/utils/sequence-ladder';
 import { createLoupeState } from '../../shared/utils/loupe-state';
@@ -228,9 +229,9 @@ interface SceneSummary {
             <button class="max-sm:!min-h-11 pointer-coarse:!min-h-11" mat-button (click)="cull.resetForReload()">{{ I18N.stacks.suggestions_reload | translate }}</button>
           </div>
         } @else {
-        <div class="flex items-center gap-3 md:gap-4 min-w-0 max-lg:flex-wrap
+        <div #cullBar data-culling-bar [class]="barRow"
+             class="flex lg:items-center lg:gap-4 min-w-0 max-lg:flex-wrap
                     max-lg:fixed max-lg:bottom-0 max-lg:left-0 max-lg:right-0 max-lg:z-40
-                    max-lg:px-3 max-lg:py-2
                     max-lg:bg-[var(--mat-sys-surface-container)] max-lg:border-t max-lg:border-[var(--mat-sys-outline-variant)]
                     max-lg:shadow-lg safe-area-pb">
           <!-- Secondary controls scroll; the actions after this row stay pinned, so no
@@ -239,8 +240,8 @@ interface SceneSummary {
                py-1.5 / pr-1.5 leave room for the icon buttons' 48px touch targets: they
                overhang the 36px buttons, and in a scrolling row that overhang alone
                produced a scrollbar on a header with plenty of free width.
-               On small screens the right edge fades so a clipped control reads as "scrolls". -->
-          <div class="flex flex-nowrap items-center gap-3 md:gap-4 min-w-0 flex-1 max-lg:min-w-11 overflow-x-auto py-1.5 pr-1.5 max-lg:pr-6 max-lg:[mask-image:linear-gradient(to_right,#000_calc(100%-1.5rem),transparent)]">
+               Below lg the controls wrap inside the fixed bar instead of scrolling. -->
+          <div class="flex flex-wrap lg:flex-nowrap items-center max-lg:gap-1 lg:gap-4 min-w-0 flex-1 max-lg:min-w-11 lg:overflow-x-auto lg:py-1.5 lg:pr-1.5">
             @if (scoped()) {
               <button class="max-sm:!w-11 max-sm:!h-11 pointer-coarse:!w-11 pointer-coarse:!h-11" mat-icon-button (click)="exitScope()"
                       [matTooltip]="I18N.culling.exit_scene | translate"
@@ -493,7 +494,7 @@ interface SceneSummary {
             </button>
           }
           @if (!stacksMode() && unconfirmedCount() > 0) {
-            <button mat-flat-button (click)="confirmAllRemaining()" [disabled]="cull.confirming() || cull.replanning()" class="!hidden lg:!inline-flex !rounded-md shrink-0">
+            <button mat-flat-button (click)="confirmAllRemaining()" [disabled]="cull.confirming() || cull.replanning()" class="!rounded-md shrink-0 max-lg:basis-full max-lg:order-last max-lg:!h-11">
               <mat-icon>done_all</mat-icon>
               {{ I18N.culling.confirm_all | translate }} ({{ unconfirmedCount() }})
             </button>
@@ -553,7 +554,8 @@ interface SceneSummary {
       }
 
       <!-- Scrollable group list; the header above stays fixed -->
-      <div class="flex-1 min-h-0 overflow-y-auto -mx-2 px-2 md:-mx-3 md:px-3 pb-4 max-lg:pb-24" data-culling-scroll>
+      <div class="flex-1 min-h-0 overflow-y-auto -mx-2 px-2 md:-mx-3 md:px-3 pb-4 max-lg:pb-[calc(var(--cull-bar-h)+1rem)]" data-culling-scroll
+           [style.--cull-bar-h]="barHeight() + 'px'">
       <!-- Content -->
       @if (cull.loading()) {
         <!-- Skeleton groups instead of a bare spinner: the first load of a
@@ -655,11 +657,12 @@ interface SceneSummary {
                    wide group still caps at the row and scrolls — auto margins
                    never clip the leading tile the way justify-center does
                    with overflow. -->
-              <div class="flex gap-2 md:gap-3 overflow-x-auto px-2 py-3 items-center mx-auto w-fit max-w-full transition-opacity duration-300 [&::-webkit-scrollbar]:h-2.5 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-[var(--mat-sys-outline-variant)] [&::-webkit-scrollbar-track]:bg-transparent"
+              <div class="px-2 py-3 transition-opacity duration-300"
+                   [class]="group.photos.length > 4 ? 'grid max-sm:grid-cols-1 sm:grid-cols-[repeat(auto-fill,minmax(14rem,1fr))] gap-2 md:gap-3' : 'flex max-sm:flex-col gap-2 md:gap-3'"
                    [class.pointer-events-none]="(group | isConfirmed:cull.confirmedGroups())"
                    [class.opacity-40]="(group | isConfirmed:cull.confirmedGroups())">
                 @for (photo of group.photos; track photo.path; let pIdx = $index) {
-                  <div #tile class="group/photo relative inline-block cursor-pointer rounded-lg overflow-hidden border-2 transition-colors flex-shrink-0"
+                  <div #tile class="group/photo relative block cursor-pointer rounded-lg overflow-hidden border-2 transition-colors min-w-0 sm:flex-1 sm:basis-0"
                        [attr.data-pidx]="pIdx"
                        [ngClass]="i === selectedGroupIndex() && pIdx === selectedPhotoIndex()
                          ? 'ring-4 ring-[var(--mat-sys-primary)] ring-offset-2 ring-offset-[var(--mat-sys-surface-container-high)]'
@@ -685,7 +688,8 @@ interface SceneSummary {
                          [appLoupe]="photo.path | imageUrl:true:photo.preview_revision"
                          [loupeActive]="loupeActive()"
                          [loupeZoom]="loupeZoom()"
-                         class="block h-72 md:h-96 w-auto object-cover" [alt]="photo.filename" loading="lazy" />
+                         loupeFit="contain"
+                         class="block w-full h-auto min-h-32 object-contain max-sm:max-h-[60dvh] sm:max-h-[min(24rem,calc(100dvh-20rem))]" [alt]="photo.filename" loading="lazy" />
                     @if (!stacksMode()) {
                       @if (photo.path === group.best_path) {
                         <div class="absolute top-2 left-2 px-2 py-0.5 rounded bg-green-700 text-white text-xs font-bold">
@@ -931,18 +935,6 @@ interface SceneSummary {
         </div>
       }
       </div>
-
-      <!-- Sticky footer (small screens only): on lg+ the action moves into the top toolbar.
-           On small screens the toolbar is fixed to the viewport bottom, so this bar clears
-           its height (max-lg:mb-16) to avoid stacking under the fixed icon bar. -->
-      @if (!stacksMode() && unconfirmedCount() > 0) {
-        <div class="lg:!hidden shrink-0 flex justify-center py-1.5 max-lg:mb-20 border-t border-[var(--mat-sys-outline-variant)] bg-[var(--mat-sys-surface)]" [class.max-lg:!mb-36]="loupeActive()">
-          <button mat-flat-button (click)="confirmAllRemaining()" [disabled]="cull.confirming() || cull.replanning()" class="!px-6 !rounded-md !h-9 max-sm:!h-11 pointer-coarse:!h-11">
-            <mat-icon>done_all</mat-icon>
-            {{ I18N.culling.confirm_all | translate }} ({{ unconfirmedCount() }})
-          </button>
-        </div>
-      }
     </div>
 
     <!-- Lightbox overlay -->
@@ -2051,6 +2043,10 @@ export class BurstCullingComponent implements OnDestroy {
    *  stranded behind the modal overlay near the destructive "Reject" button. */
   private readonly autoCullDialog = viewChild<ElementRef<HTMLElement>>('autoCullDialog');
   private readonly cullToolbar = viewChild<TemplateRef<unknown>>('cullToolbar');
+  private readonly cullBar = viewChild<ElementRef<HTMLElement>>('cullBar');
+  protected readonly barRow = MOBILE_DOCKED_BAR_ROW;
+  /** Height of the fixed bottom bar, which wraps to a variable number of rows; the list pads by it. */
+  protected readonly barHeight = signal(0);
 
   /** The single-view zoom pane, so the Z key runs the pane's own focus-aware
    *  zoom math (which needs the pane rect) rather than a second copy of it. */
@@ -2423,6 +2419,16 @@ export class BurstCullingComponent implements OnDestroy {
     // the modal (not stranded on the tiles behind it) next to a destructive action.
     effect(() => {
       if (this.cull.autoCullPreview()) this.autoCullDialog()?.nativeElement.focus();
+    });
+    effect(onCleanup => {
+      const bar = this.cullBar()?.nativeElement;
+      if (!bar || typeof ResizeObserver === 'undefined') { untracked(() => this.barHeight.set(0)); return; }
+      const observer = new ResizeObserver(entries => {
+        const entry = entries[entries.length - 1];
+        this.barHeight.set(Math.ceil(entry?.borderBoxSize?.[0]?.blockSize ?? bar.getBoundingClientRect().height));
+      });
+      observer.observe(bar);
+      onCleanup(() => observer.disconnect());
     });
     // Project the toolbar into the global header on lg+ (the page renders it in
     // its own bottom bar on small screens — see the #cullToolbar template).
