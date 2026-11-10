@@ -1098,6 +1098,8 @@ A página Estatísticas (`/stats`) tem 5 abas. Os seletores de **categoria** e d
 | **Categorias** | Análises por categoria, gerenciamento de pesos e correlações de pontuação |
 | **Correlações** | Gráficos de correlação X/Y de métricas personalizados, com agrupamento |
 
+Em **Correlações**, alterar uma opção da consulta limpa o resultado anterior; pressione **Carregar Correlações** para buscar a nova seleção antes de exportar o CSV. O gráfico e o CSV descrevem a mesma seleção carregada. Alterar o estilo ou o tema do gráfico mantém essa seleção.
+
 ### Aba Categorias
 
 Quatro subabas:
