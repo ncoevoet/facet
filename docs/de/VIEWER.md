@@ -1241,7 +1241,7 @@ Einzeltasten-Kürzel sind inaktiv, solange der Fokus in einem Textfeld, Menü od
 | `1`–`5` | Das fokussierte Foto mit 1–5 Sternen bewerten (Bearbeitungsmodus) |
 | `K` | Das fokussierte Foto behalten (Bearbeitungsmodus) |
 | `F` | Das fokussierte Foto favorisieren / Favorit aufheben (Bearbeitungsmodus) |
-| `X` oder `0` | Das fokussierte Foto ablehnen / Ablehnung aufheben (Bearbeitungsmodus). Auf einer Karte in einer Auswahl von zwei oder mehr Fotos wird stattdessen die ganze Auswahl abgelehnt, mit **Rückgängig** |
+| `X` oder `0` | Das fokussierte Foto ablehnen / Ablehnung aufheben (Bearbeitungsmodus). Auf einer Karte in einer Auswahl von zwei oder mehr Fotos wird stattdessen die ganze Auswahl abgelehnt, mit [Rückgängig](#rückgängig), wenn alle Fotos geladen sind und es höchstens 500 sind |
 | `/` | Die Sammlungssuche fokussieren; auf schmalen Bildschirmen zuerst einblenden |
 | `S` | Den Stapel-Editor für die ausdrückliche Auswahl öffnen (Bearbeitungsmodus; umbelegbar, kann unbelegt bleiben) |
 | `Strg+Umschalt+S` / `Cmd+Umschalt+S` | Die ausdrückliche, ungestapelte Auswahl sofort in Auswahlreihenfolge stapeln, das erste Foto als Titelbild (Bearbeitungsmodus; vorhandene Stapelmitglieder öffnen den Editor) |

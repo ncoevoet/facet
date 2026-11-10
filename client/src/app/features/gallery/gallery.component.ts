@@ -57,7 +57,7 @@ import { isImeOrRepeat, isPageShortcutBlocked, isShortcutContextBlocked, isTypin
 import { KeyboardMappingService } from '../../core/services/keyboard-mapping.service';
 import { GALLERY_REVISIT, PHOTO_PATH } from '../../core/gallery-reuse.strategy';
 import { SequenceKindIconPipe } from '../../shared/pipes/sequence-kind.pipe';
-import { IsSelectedPipe } from '../../shared/pipes/selection.pipe';
+import { IsSelectedPipe, isPathSelected } from '../../shared/pipes/selection.pipe';
 import { PhotoSetKindIconPipe, PhotoSetKindLabelPipe } from '../../shared/pipes/photo-set-kind.pipe';
 import { AuthService } from '../../core/services/auth.service';
 import { StalenessGuardFactory } from '../../core/services/staleness-guard.service';
@@ -3475,7 +3475,11 @@ export class GalleryComponent implements OnInit, OnDestroy {
       // (with Undo), the same rule the context menu uses to offer its bulk items.
       if (this.inMultiSelection(photo.path)) {
         event.preventDefault();
-        if (!this.keyboardDecisionPending) void this.selectionActions.batchReject();
+        // One batch at a time: a second press while the first saves would snapshot
+        // the already-rejected state, and its Undo would then restore nothing.
+        if (this.keyboardDecisionPending) return;
+        this.keyboardDecisionPending = true;
+        void this.selectionActions.batchReject().finally(() => { this.keyboardDecisionPending = false; });
         return;
       }
       write = () => this.store.toggleRejected(photo.path);
@@ -3519,8 +3523,7 @@ export class GalleryComponent implements OnInit, OnDestroy {
 
   /** True when `path` is selected and the selection holds more than one photo. */
   private inMultiSelection(path: string): boolean {
-    if (this.selectionCount() < 2) return false;
-    return this.viewScoped() ? !this.excludedPaths().has(path) : this.selectedPaths().has(path);
+    return this.selectionCount() >= 2 && isPathSelected(path, this.viewScoped(), this.selectedPaths(), this.excludedPaths());
   }
 
   private focusAfterDecision(photos: Photo[], index: number): void {
