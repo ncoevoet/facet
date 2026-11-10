@@ -401,11 +401,12 @@ def test_invalid_full_export_fails_foreign_key_validation_before_publication(tmp
 
 
 @pytest.mark.skipif(os.name == 'nt', reason='POSIX permission bits')
-def test_published_databases_take_the_umask_mode_of_any_new_file(tmp_path):
+def test_published_databases_take_the_mode_sqlite_gives_a_new_database(tmp_path):
+    # SQLite creates files 0644 & ~umask, as a direct connect to the output did.
     source, output, replaced = tmp_path / 'source.db', tmp_path / 'viewer.db', tmp_path / 'replaced.db'
     _library(source)
     replaced.write_bytes(b'not a database')
-    previous = os.umask(0o022)
+    previous = os.umask(0o002)
     try:
         maintenance.export_viewer_db(str(source), str(output), verbose=False)
         maintenance.export_viewer_db(str(source), str(replaced), force=True, verbose=False)
@@ -416,13 +417,44 @@ def test_published_databases_take_the_umask_mode_of_any_new_file(tmp_path):
         assert stat.S_IMODE(published.stat().st_mode) == 0o644, published
 
 
-def test_force_export_replaces_a_file_that_is_not_a_database(tmp_path):
+@pytest.mark.parametrize('content', ['not_sqlite', 'header_then_garbage', 'truncated_database'])
+def test_force_export_replaces_a_file_sqlite_cannot_open(tmp_path, content):
     source, output = tmp_path / 'source.db', tmp_path / 'viewer.db'
     _library(source)
-    output.write_bytes(b'not a database' * 100)
+    if content == 'not_sqlite':
+        output.write_bytes(b'not a database' * 100)
+    elif content == 'header_then_garbage':
+        output.write_bytes(b'SQLite format 3\x00' + os.urandom(8192))
+    else:
+        _library(output, 'old')
+        output.write_bytes(output.read_bytes()[:3000])
     maintenance.export_viewer_db(str(source), str(output), force=True, verbose=False)
     assert _caption(output) == 'source'
     assert not list(tmp_path.glob('.viewer.db.export-*'))
+
+
+def test_force_export_keeps_an_output_another_connection_has_locked(tmp_path, monkeypatch):
+    source, output = tmp_path / 'source.db', tmp_path / 'viewer.db'
+    _library(source)
+    _library(output, 'old')
+    connect = sqlite3.connect
+    monkeypatch.setattr(maintenance.sqlite3, 'connect', lambda *a, **kw: connect(*a, **(kw | {'timeout': 0.1})))
+    with closing(connect(output, isolation_level=None)) as holder:
+        holder.execute('BEGIN EXCLUSIVE')
+        with pytest.raises(sqlite3.OperationalError, match='locked'):
+            maintenance.export_viewer_db(str(source), str(output), force=True, verbose=False)
+        holder.execute('ROLLBACK')
+    assert _caption(output) == 'old'
+
+
+def test_export_cleanup_failure_neither_hides_nor_causes_an_error(tmp_path, monkeypatch, caplog):
+    source, output = tmp_path / 'source.db', tmp_path / 'viewer.db'
+    _library(source)
+    monkeypatch.setattr(maintenance.shutil, 'rmtree', lambda path, ignore_errors=False: None)
+    with caplog.at_level('WARNING', logger='facet.db_maintenance'):
+        maintenance.export_viewer_db(str(source), str(output), verbose=False)
+    assert _caption(output) == 'source'
+    assert 'Could not remove temporary directory' in caplog.text
 
 
 def test_incremental_downsizes_new_thumbnails_before_reserving_the_viewer_writer(tmp_path, monkeypatch):
@@ -445,20 +477,48 @@ def test_incremental_downsizes_new_thumbnails_before_reserving_the_viewer_writer
     assert _exported_thumbnail(output, '/new.jpg').size == (320, 240)
 
 
+def test_incremental_prepares_thumbnails_only_up_to_the_temp_cap(tmp_path, monkeypatch):
+    source, output = tmp_path / 'source.db', tmp_path / 'viewer.db'
+    _library(source)
+    maintenance.export_viewer_db(str(source), str(output), verbose=False)
+    _add_photo(source, '/a.jpg', _jpeg('blue'))
+    _add_photo(source, '/b.jpg', _jpeg('green'))
+    monkeypatch.setattr(maintenance, '_PREPARED_THUMBNAIL_CAP', 1)
+    monkeypatch.setattr(maintenance, '_EXPORT_BATCH_SIZE', 1)
+    resize = Image.Image.thumbnail
+    viewer_writes = []
+
+    def resize_while_the_viewer_writes(image, *args, **kwargs):
+        try:
+            with closing(sqlite3.connect(output, timeout=0)) as viewer, viewer:
+                viewer.execute("UPDATE photos SET star_rating=4 WHERE path='/photo.jpg'")
+            viewer_writes.append('committed')
+        except sqlite3.OperationalError:
+            viewer_writes.append('locked')
+        return resize(image, *args, **kwargs)
+
+    monkeypatch.setattr(Image.Image, 'thumbnail', resize_while_the_viewer_writes)
+    maintenance.export_viewer_db(str(source), str(output), verbose=False)
+    # The first is prepared before the writer is reserved; the cap leaves the
+    # second to be downsized under the lock.
+    assert viewer_writes == ['committed', 'locked']
+    assert _exported_thumbnail(output, '/b.jpg').size == (320, 240)
+
+
 def test_incremental_ignores_prepared_thumbnails_the_source_no_longer_holds(tmp_path, monkeypatch):
     source, output = tmp_path / 'source.db', tmp_path / 'viewer.db'
     _library(source)
     maintenance.export_viewer_db(str(source), str(output), verbose=False)
     _add_photo(source, '/changed.jpg', _jpeg('blue'))
-    check = maintenance._check_viewer_integrity
+    check = maintenance._check_export_space
 
-    def change_source_after_preparation(conn):
+    def change_source_after_preparation(*args):
         with closing(sqlite3.connect(source)) as writer, writer:
             writer.execute("UPDATE photos SET thumbnail=? WHERE path='/changed.jpg'", (_jpeg('red'),))
         _add_photo(source, '/later.jpg', _jpeg('green'))
-        return check(conn)
+        return check(*args)
 
-    monkeypatch.setattr(maintenance, '_check_viewer_integrity', change_source_after_preparation)
+    monkeypatch.setattr(maintenance, '_check_export_space', change_source_after_preparation)
     maintenance.export_viewer_db(str(source), str(output), verbose=False)
     red, green, blue = _exported_thumbnail(output, '/changed.jpg').getpixel((160, 120))
     assert red > 200 and blue < 60
@@ -532,9 +592,12 @@ def test_incremental_refuses_a_viewer_database_that_fails_its_integrity_check(tm
 
     monkeypatch.setattr(maintenance.sqlite3, 'connect',
                         lambda *a, **kw: connect(*a, **(kw | {'factory': CorruptViewer})))
+    prepared = []
+    monkeypatch.setattr(maintenance, '_prepare_new_thumbnails', lambda *args: prepared.append(args) or 0)
     with pytest.raises(sqlite3.DatabaseError, match='Viewer export validation failed'):
         maintenance.export_viewer_db(str(source), str(output), verbose=False)
     monkeypatch.undo()
+    assert not prepared, 'the integrity check must refuse before any thumbnail work'
     assert _photo_paths(output) == {'/photo.jpg'}
 
 
