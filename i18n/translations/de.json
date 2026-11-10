@@ -730,6 +730,13 @@
         "horizontalBar": "Horizontale Balken",
         "radar": "Radar",
         "scatter": "Streuung"
+      },
+      "presets": {
+        "label": "Vorgeschlagene Diagramme",
+        "scores_by_year": "Bewertungen nach Jahr",
+        "noise_vs_iso": "Rauschen nach ISO je Kamera",
+        "score_by_category": "Bewertung nach Kategorie",
+        "score_by_focal_length": "Bewertung nach Brennweite"
       }
     },
     "axes": {

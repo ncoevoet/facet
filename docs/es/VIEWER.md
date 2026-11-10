@@ -1181,7 +1181,7 @@ La página Estadísticas (`/stats`) tiene 5 pestañas. El resumen muestra los re
 | **Ajustes de disparo** | Distribuciones de ISO, apertura, distancia focal y velocidad de obturación |
 | **Línea de tiempo** | Fotos a lo largo del tiempo |
 | **Categorías** | Análisis de categorías, gestión de pesos y correlaciones de puntuación |
-| **Correlaciones** | Gráficos de correlación X/Y personalizados entre métricas, con agrupación |
+| **Correlaciones** | Gráficos de correlación X/Y personalizados entre métricas, con agrupación. La pestaña se abre con las puntuaciones por año, y los gráficos sugeridos (ruido según ISO por cámara, puntuación por categoría, puntuación por distancia focal) rellenan el formulario y dibujan el gráfico con un clic. Mientras no edites el formulario, un cambio de filtro vuelve a dibujar el gráfico; después de una edición, lo hace **Cargar correlaciones** |
 
 ### Pestaña Categorías
 

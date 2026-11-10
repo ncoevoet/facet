@@ -5,7 +5,7 @@ import { ApiService } from '../../core/services/api.service';
 import { AuthService } from '../../core/services/auth.service';
 import { I18nService } from '../../core/services/i18n.service';
 import { StatsFiltersService } from './stats-filters.service';
-import { allocateSeriesSlots, correlationSeries, StatsCorrelationsTabComponent } from './stats-correlations-tab.component';
+import { allocateSeriesSlots, CORRELATION_PRESETS, correlationSeries, StatsCorrelationsTabComponent } from './stats-correlations-tab.component';
 import { buildCorrelationCsvRecords } from './stats-correlations-csv';
 
 describe('StatsCorrelationsTabComponent', () => {
@@ -28,6 +28,81 @@ describe('StatsCorrelationsTabComponent', () => {
 
   it('should create', () => {
     expect(component).toBeTruthy();
+  });
+
+  const preset = (id: string) => CORRELATION_PRESETS.find(entry => entry.id === id)!;
+  const lastParams = () => vi.mocked(TestBed.inject(ApiService).get).mock.lastCall?.[1];
+
+  it('draws the default Scores by year chart without a click', async () => {
+    const get = vi.mocked(TestBed.inject(ApiService).get);
+    get.mockReturnValueOnce(of({ labels: ['2024'], metrics: { aggregate: [5.6], aesthetic: [4.5] }, x_axis: 'date_year', group_by: '' }));
+    TestBed.tick();
+    expect(get).toHaveBeenCalledTimes(1);
+    expect(get.mock.calls[0][0]).toBe('/stats/correlations');
+    expect(get.mock.calls[0][1]).toEqual({ x: 'date_year', y: 'aggregate,aesthetic', min_samples: '3' });
+    await Promise.resolve();
+    expect(component.currentData()?.labels).toEqual(['2024']);
+  });
+
+  it('fills the form from a preset and loads its chart', () => {
+    TestBed.tick();
+    component.applyPreset(preset('noise_vs_iso'));
+    TestBed.tick();
+    expect(lastParams()).toEqual({ x: 'iso', y: 'noise_sigma', group_by: 'camera_model', min_samples: '3' });
+    expect(component.corrChartType()).toBe('line');
+    expect(component.activePreset()).toBe('noise_vs_iso');
+    component.applyPreset(preset('score_by_category'));
+    TestBed.tick();
+    expect(lastParams()).toEqual({ x: 'category', y: 'aggregate,aesthetic', min_samples: '3' });
+    expect(component.corrChartType()).toBe('horizontalBar');
+    expect(vi.mocked(TestBed.inject(ApiService).get)).toHaveBeenCalledTimes(3);
+  });
+
+  it('waits for Load after a form edit, and a preset resumes loading', async () => {
+    const get = vi.mocked(TestBed.inject(ApiService).get);
+    TestBed.tick();
+    component.edit(component.corrXAxis, 'iso');
+    TestBed.tick();
+    expect(get).toHaveBeenCalledTimes(1);
+    expect(component.activePreset()).toBeNull();
+    component.edit(component.corrXAxis, 'date_year');
+    TestBed.tick();
+    expect(component.activePreset()).toBe('scores_by_year');
+    component.applyPreset(preset('scores_by_year'));
+    expect(get).toHaveBeenCalledTimes(2);
+    expect(lastParams()).toEqual({ x: 'date_year', y: 'aggregate,aesthetic', min_samples: '3' });
+  });
+
+  it('queries nothing while the stats page shows another tab, and loads when the tab is shown', () => {
+    TestBed.resetTestingModule();
+    const get = vi.fn(() => of({}));
+    TestBed.configureTestingModule({
+      imports: [StatsCorrelationsTabComponent],
+      providers: [
+        { provide: ApiService, useValue: { get } },
+        { provide: AuthService, useValue: { status: signal({ authenticated: true }), identity: signal('owner'), isAuthenticated: signal(true), token: 'token' } },
+        { provide: I18nService, useValue: { t: (key: string) => key, translations: signal({}), locale: signal('en') } },
+        { provide: StatsFiltersService, useValue: { filterCategory: signal(''), dateFrom: signal(''), dateTo: signal('') } },
+      ],
+    });
+    const fixture = TestBed.createComponent(StatsCorrelationsTabComponent);
+    fixture.componentRef.setInput('active', false);
+    fixture.detectChanges();
+    TestBed.inject(StatsFiltersService).dateFrom.set('2024-01-01');
+    fixture.detectChanges();
+    expect(get).not.toHaveBeenCalled();
+    fixture.componentRef.setInput('active', true);
+    fixture.detectChanges();
+    expect(get).toHaveBeenCalledTimes(1);
+    fixture.destroy();
+  });
+
+  it('redraws a suggested chart when the stats filters change', () => {
+    TestBed.tick();
+    TestBed.inject(StatsFiltersService).dateFrom.set('2024-01-01');
+    TestBed.tick();
+    expect(vi.mocked(TestBed.inject(ApiService).get)).toHaveBeenCalledTimes(2);
+    expect(lastParams()).toEqual({ x: 'date_year', y: 'aggregate,aesthetic', min_samples: '3', date_from: '2024-01-01' });
   });
 
   it('does not show or export data for settings changed while a request is pending', async () => {

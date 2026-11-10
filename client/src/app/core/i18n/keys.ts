@@ -770,6 +770,13 @@ export const I18N = {
         radar: "stats.correlations.chart_types.radar",
         scatter: "stats.correlations.chart_types.scatter",
       },
+      presets: {
+        label: "stats.correlations.presets.label",
+        scores_by_year: "stats.correlations.presets.scores_by_year",
+        noise_vs_iso: "stats.correlations.presets.noise_vs_iso",
+        score_by_category: "stats.correlations.presets.score_by_category",
+        score_by_focal_length: "stats.correlations.presets.score_by_focal_length",
+      },
     },
     axes: {
       count: "stats.axes.count",

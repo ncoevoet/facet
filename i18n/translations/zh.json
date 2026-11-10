@@ -730,6 +730,13 @@
         "horizontalBar": "条形图",
         "radar": "雷达图",
         "scatter": "散点图"
+      },
+      "presets": {
+        "label": "推荐图表",
+        "scores_by_year": "按年份的评分",
+        "noise_vs_iso": "按相机的噪点与 ISO",
+        "score_by_category": "按类别的评分",
+        "score_by_focal_length": "按焦距的评分"
       }
     },
     "axes": {

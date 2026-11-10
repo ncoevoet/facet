@@ -755,6 +755,13 @@
         "horizontalBar": "Horizontal Bar",
         "radar": "Radar",
         "scatter": "Scatter"
+      },
+      "presets": {
+        "label": "Suggested charts",
+        "scores_by_year": "Scores by year",
+        "noise_vs_iso": "Noise vs ISO by camera",
+        "score_by_category": "Score by category",
+        "score_by_focal_length": "Score by focal length"
       }
     },
     "axes": {

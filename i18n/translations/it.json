@@ -730,6 +730,13 @@
         "horizontalBar": "Barre orizzontali",
         "radar": "Radar",
         "scatter": "Dispersione"
+      },
+      "presets": {
+        "label": "Grafici suggeriti",
+        "scores_by_year": "Punteggi per anno",
+        "noise_vs_iso": "Rumore per ISO e fotocamera",
+        "score_by_category": "Punteggio per categoria",
+        "score_by_focal_length": "Punteggio per lunghezza focale"
       }
     },
     "axes": {

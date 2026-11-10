@@ -730,6 +730,13 @@
         "horizontalBar": "Barra Horizontal",
         "radar": "Radar",
         "scatter": "Dispersão"
+      },
+      "presets": {
+        "label": "Gráficos sugeridos",
+        "scores_by_year": "Pontuações por ano",
+        "noise_vs_iso": "Ruído por ISO e câmera",
+        "score_by_category": "Pontuação por categoria",
+        "score_by_focal_length": "Pontuação por distância focal"
       }
     },
     "axes": {

@@ -456,7 +456,7 @@ interface ScoreBin {
               <mat-icon class="!hidden sm:!inline-block sm:mr-2" aria-hidden="true">insights</mat-icon>
               <span class="block whitespace-nowrap text-center text-[11px] sm:text-sm">{{ I18N.stats.tabs.correlations | translate }}</span>
             </ng-template>
-            <app-stats-correlations-tab />
+            <app-stats-correlations-tab [active]="selectedTab() === correlationsTab" />
           </mat-tab>
         </mat-tab-group>
       }
@@ -506,6 +506,8 @@ export class StatsComponent {
   protected readonly categoryMetricCanvas = viewChild<ElementRef<HTMLCanvasElement>>('categoryMetricCanvas');
 
   protected readonly selectedTab = signal(0);
+  /** Index of the Correlations tab, the last one: it queries only while shown. */
+  protected readonly correlationsTab = 3;
 
   // Filter controls (shared with app header via StatsFiltersService)
   protected get dateFrom() { return this.statsFilters.dateFrom; }

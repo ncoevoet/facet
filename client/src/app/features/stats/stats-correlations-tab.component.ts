@@ -1,4 +1,4 @@
-import { Component, inject, signal, computed, viewChild, ElementRef, effect, DestroyRef, Injector, afterNextRender, ChangeDetectionStrategy } from '@angular/core';
+import { Component, inject, signal, computed, viewChild, ElementRef, effect, DestroyRef, Injector, afterNextRender, ChangeDetectionStrategy, untracked, WritableSignal, input } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { MatCardModule } from '@angular/material/card';
 import { MatButtonModule } from '@angular/material/button';
@@ -35,6 +35,18 @@ export function correlationSeries(data: CorrelationApiResponse, metrics: string[
   }
   return Object.entries(data.metrics ?? {}).map(([metric, values], metricIndex) => ({ label: metricLabel(metric), values, groupIndex: metricIndex, metricIndex }));
 }
+
+/** A suggested chart: the form values it fills in. The first one is the tab's default. */
+export interface CorrelationPreset { id: string; x: string; y: readonly string[]; groupBy: string; chart: string }
+
+export const CORRELATION_PRESETS: readonly CorrelationPreset[] = [
+  { id: 'scores_by_year', x: 'date_year', y: ['aggregate', 'aesthetic'], groupBy: '', chart: 'line' },
+  { id: 'noise_vs_iso', x: 'iso', y: ['noise_sigma'], groupBy: 'camera_model', chart: 'line' },
+  { id: 'score_by_category', x: 'category', y: ['aggregate', 'aesthetic'], groupBy: '', chart: 'horizontalBar' },
+  { id: 'score_by_focal_length', x: 'focal_length', y: ['aggregate', 'aesthetic'], groupBy: '', chart: 'bar' },
+];
+const [DEFAULT_PRESET] = CORRELATION_PRESETS;
+const sameList = (a: readonly string[], b: readonly string[]): boolean => a.length === b.length && a.every((value, index) => value === b[index]);
 
 const LINE_POINT_STYLES: PointStyle[] = ['circle', 'triangle', 'rect', 'rectRot', 'crossRot', 'star'];
 
@@ -83,11 +95,23 @@ export function allocateSeriesSlots(keys: string[], previous: Record<string, num
           </button>
         </mat-card-header>
         <mat-card-content class="!pt-4">
+          <div role="group" aria-labelledby="correlation-presets-label" class="mb-4 flex flex-wrap items-center gap-2">
+            <span id="correlation-presets-label" class="text-sm text-[var(--mat-sys-on-surface-variant)]">{{ I18N.stats.correlations.presets.label | translate }}</span>
+            @for (preset of presets; track preset.id) {
+              @let presetIcon = preset.x | sortOptionIcon;
+              <button type="button" mat-stroked-button data-correlation-preset class="pointer-coarse:!min-h-11"
+                [class.!bg-[var(--mat-sys-secondary-container)]]="activePreset() === preset.id"
+                [attr.aria-pressed]="activePreset() === preset.id" (click)="applyPreset(preset)">
+                <mat-icon aria-hidden="true" [class]="presetIcon.classes">{{ presetIcon.text }}</mat-icon>
+                {{ 'stats.correlations.presets.' + preset.id | translate }}
+              </button>
+            }
+          </div>
           <!-- Controls: row 1 — X Axis + Group By -->
           <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-3">
             <mat-form-field subscriptSizing="dynamic">
               <mat-label>{{ I18N.stats.correlations.x_axis | translate }}</mat-label>
-              <mat-select [ngModel]="corrXAxis()" (ngModelChange)="corrXAxis.set($event)">
+              <mat-select [ngModel]="corrXAxis()" (ngModelChange)="edit(corrXAxis, $event)">
                 <mat-select-trigger>
                   @let xAxisIcon = corrXAxis() | sortOptionIcon;
                   <mat-icon aria-hidden="true" class="!w-8 text-center" [class]="xAxisIcon.classes">{{ xAxisIcon.text }}</mat-icon>
@@ -104,7 +128,7 @@ export function allocateSeriesSlots(keys: string[], previous: Record<string, num
             </mat-form-field>
             <mat-form-field subscriptSizing="dynamic">
               <mat-label>{{ I18N.stats.correlations.group_by | translate }}</mat-label>
-              <mat-select [ngModel]="corrGroupBy()" (ngModelChange)="corrGroupBy.set($event)">
+              <mat-select [ngModel]="corrGroupBy()" (ngModelChange)="edit(corrGroupBy, $event)">
                 <mat-select-trigger>
                   @if (corrGroupBy()) {
                     @let groupIcon = corrGroupBy() | sortOptionIcon;
@@ -129,7 +153,7 @@ export function allocateSeriesSlots(keys: string[], previous: Record<string, num
           <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 items-end gap-3 mb-4">
             <mat-form-field subscriptSizing="dynamic">
               <mat-label>{{ I18N.stats.correlations.y_metrics | translate }}</mat-label>
-              <mat-select multiple [ngModel]="corrYMetrics()" (ngModelChange)="corrYMetrics.set($event)">
+              <mat-select multiple [ngModel]="corrYMetrics()" (ngModelChange)="edit(corrYMetrics, $event)">
                 @for (m of corrMetricOptions; track m.key) {
                   @let metricIcon = m.key | sortOptionIcon;
                   <mat-option [value]="m.key">
@@ -241,10 +265,18 @@ export class StatsCorrelationsTabComponent {
   readonly correlationRetry = viewChild('correlationRetry', { read: ElementRef<HTMLButtonElement> });
   readonly correlationHeading = viewChild('correlationHeading', { read: ElementRef<HTMLElement> });
 
-  readonly corrXAxis = signal('date_year');
-  readonly corrYMetrics = signal<string[]>(['aggregate', 'aesthetic']);
-  readonly corrGroupBy = signal('');
-  readonly corrChartType = signal('line');
+  readonly presets = CORRELATION_PRESETS;
+  readonly corrXAxis = signal(DEFAULT_PRESET.x);
+  readonly corrYMetrics = signal<string[]>([...DEFAULT_PRESET.y], { equal: sameList });
+  readonly corrGroupBy = signal(DEFAULT_PRESET.groupBy);
+  readonly corrChartType = signal(DEFAULT_PRESET.chart);
+  /** The preset the form currently matches, so its chip shows as selected. */
+  readonly activePreset = computed(() => CORRELATION_PRESETS.find(preset => preset.x === this.corrXAxis() && preset.groupBy === this.corrGroupBy()
+    && preset.chart === this.corrChartType() && sameList(preset.y, this.corrYMetrics()))?.id ?? null);
+  /** Until the user edits the form, a settings or filter change redraws the chart by itself. */
+  private autoLoad = true;
+  /** False while the stats page shows another tab, so a hidden chart is not queried. */
+  readonly active = input(true);
   readonly corrMinSamples = 3;
   readonly corrData = signal<CorrelationApiResponse | null>(null);
   readonly seriesLimit = 8;
@@ -338,6 +370,12 @@ export class StatsCorrelationsTabComponent {
       this.correlationLoading.set(false);
       this.correlationFailed.set(false);
       this.correlationRetrying.set(false);
+      if (this.autoLoad && untracked(this.active)) untracked(() => void this.loadCorrelation());
+    });
+    effect(() => {
+      if (this.active()) untracked(() => {
+        if (this.autoLoad && !this.currentData() && !this.correlationLoading() && !this.correlationFailed()) void this.loadCorrelation();
+      });
     });
     effect(() => {
       const data = this.currentData();
@@ -358,6 +396,24 @@ export class StatsCorrelationsTabComponent {
     if (this.statsFilters.dateTo()) params['date_to'] = this.statsFilters.dateTo();
     if (this.statsFilters.filterCategory()) params['category'] = this.statsFilters.filterCategory();
     return params;
+  }
+
+  /** A form edit: the chart waits for Load, as the user may change several fields first. */
+  edit<T>(field: WritableSignal<T>, value: T): void {
+    this.autoLoad = false;
+    field.set(value);
+  }
+
+  /** Fill the form from a suggested chart and draw it. */
+  applyPreset(preset: CorrelationPreset): void {
+    const key = this.requestKey();
+    this.autoLoad = true;
+    this.corrXAxis.set(preset.x);
+    this.corrYMetrics.set([...preset.y]);
+    this.corrGroupBy.set(preset.groupBy);
+    this.setChartType(preset.chart);
+    // Unchanged settings do not rerun the reset effect, so load here when nothing is shown yet.
+    if (key === this.requestKey() && !this.currentData() && !this.correlationLoading()) void this.loadCorrelation();
   }
 
   retryCorrelation(): void {

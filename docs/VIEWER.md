@@ -1181,7 +1181,7 @@ The Stats page (`/stats`) has 5 tabs. Its overview shows photo, person and face 
 | **Shooting Settings** | ISO, aperture, focal length, shutter speed distributions |
 | **Timeline** | Photos over time |
 | **Categories** | Category analytics, weight management, and score correlations |
-| **Correlations** | Custom X/Y metric correlation charts with grouping |
+| **Correlations** | Custom X/Y metric correlation charts with grouping. Opens on scores by year, and suggested charts (noise vs ISO by camera, score by category, score by focal length) fill in the form and draw in one click. Until you edit the form, a filter change redraws the chart; after an edit, **Load Correlations** does |
 
 ### Categories Tab
 
