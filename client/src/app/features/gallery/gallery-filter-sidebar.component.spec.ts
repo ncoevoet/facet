@@ -12,7 +12,7 @@ import { By } from '@angular/platform-browser';
 import { OverlayContainer } from '@angular/cdk/overlay';
 import { GalleryStore } from './gallery.store';
 import {
-  ADVANCED_SECTION_ORDER, BROWSE_PANELS, GalleryFilterSidebarComponent, SECTION_ORDER, SidebarTabId, TAB_ICONS, TAB_IDS,
+  GalleryFilterSidebarComponent, SECTION_ORDER, SidebarTabId, TAB_ICONS, TAB_IDS,
   SEGMENT_PATCHES, TAB_SECTIONS, UNIT_PANEL, loadActiveTab,
 } from './gallery-filter-sidebar.component';
 import { DEFAULT_FILTERS, GalleryFilters, activeFilterUnits, countActiveFilters } from './gallery-filters.util';
@@ -488,27 +488,21 @@ describe('GalleryFilterSidebarComponent', () => {
       expect(new Set(panels).size).toBe(panels.length);
     });
 
-    it('covers every metric section, every browse panel and every hand-written panel', () => {
+    it('covers every metric section and every hand-written panel', () => {
       const panels = allPanels();
       for (const key of SECTION_ORDER) expect(panels, key).toContain(key);
-      for (const key of BROWSE_PANELS) expect(TAB_SECTIONS.browse).toContain(key);
-      expect(panels).toEqual(expect.arrayContaining(['refine', 'color_quality', 'view', 'score_presence']));
-      expect(panels).toHaveLength(SECTION_ORDER.length + BROWSE_PANELS.length + 4);
+      const handWritten = ['semantic', 'persons', 'date', 'content', 'albums', 'location', 'folder', 'equipment', 'refine', 'color_quality', 'view', 'score_presence'];
+      expect(panels).toEqual(expect.arrayContaining(handWritten));
+      expect(panels).toHaveLength(SECTION_ORDER.length + handWritten.length);
     });
 
-    it('splits the metric sections between Quality (image quality) and Subject (what is in the frame)', () => {
-      expect(TAB_SECTIONS.quality).toEqual([
-        'score_presence', 'gallery.sidebar.quality', 'color_quality', 'gallery.sidebar.extended_quality',
-        'gallery.sidebar.technical', 'gallery.sidebar.exposure_range',
-      ]);
-      expect(TAB_SECTIONS.subject).toEqual([
-        'gallery.sidebar.face', 'gallery.sidebar.composition', 'gallery.sidebar.saliency', 'gallery.sidebar.moments',
-      ]);
-      expect(TAB_IDS).toEqual(['browse', 'review', 'quality', 'subject', 'display']);
-      for (const key of ADVANCED_SECTION_ORDER) {
-        expect([...TAB_SECTIONS.quality, ...TAB_SECTIONS.subject]).toContain(key);
-      }
-      expect(TAB_SECTIONS.browse).toContain('equipment');
+    it('splits the panels into Find, Source, Quality, Technical and Subject, each listed in render order', () => {
+      expect(TAB_IDS).toEqual(['find', 'source', 'review', 'quality', 'technical', 'subject', 'display']);
+      expect(TAB_SECTIONS.find).toEqual(['semantic', 'content', 'persons', 'gallery.sidebar.moments']);
+      expect(TAB_SECTIONS.source).toEqual(['date', 'location', 'folder', 'albums', 'equipment']);
+      expect(TAB_SECTIONS.quality).toEqual(['gallery.sidebar.quality', 'gallery.sidebar.extended_quality', 'score_presence']);
+      expect(TAB_SECTIONS.technical).toEqual(['gallery.sidebar.technical', 'gallery.sidebar.exposure_range', 'color_quality']);
+      expect(TAB_SECTIONS.subject).toEqual(['gallery.sidebar.face', 'gallery.sidebar.composition', 'gallery.sidebar.saliency']);
       expect(TAB_SECTIONS.review).toEqual(['refine', 'gallery.sidebar.ratings']);
     });
 
@@ -517,15 +511,15 @@ describe('GalleryFilterSidebarComponent', () => {
       for (const [unit, panel] of Object.entries(UNIT_PANEL)) expect(panels.has(panel), unit).toBe(true);
     });
 
-    it('gives each tab one of the four icons', () => {
-      expect(TAB_IDS.map(id => TAB_ICONS[id])).toEqual(['travel_explore', 'rule', 'high_quality', 'center_focus_strong', 'display_settings']);
+    it('gives each tab its own icon', () => {
+      expect(TAB_IDS.map(id => TAB_ICONS[id])).toEqual(['travel_explore', 'photo_library', 'rule', 'high_quality', 'tune', 'center_focus_strong', 'display_settings']);
     });
   });
 
   describe('tabs: active tab persistence', () => {
-    it('defaults to browse', () => {
-      expect(component.activeTab()).toBe('browse');
-      expect(loadActiveTab()).toBe('browse');
+    it('defaults to find', () => {
+      expect(component.activeTab()).toBe('find');
+      expect(loadActiveTab()).toBe('find');
     });
 
     it('round-trips the selected tab through localStorage by id', () => {
@@ -547,11 +541,13 @@ describe('GalleryFilterSidebarComponent', () => {
       expect(TestBed.inject(GalleryFilterSidebarComponent).activeTab()).toBe('subject');
     });
 
-    it('falls back to browse for an id no tab has, including the retired metrics tab', () => {
+    it('falls back to find for an id no tab has, including the retired metrics and browse tabs', () => {
       localStorage.setItem('facet_sidebar_tab', 'gone');
-      expect(loadActiveTab()).toBe('browse');
+      expect(loadActiveTab()).toBe('find');
       localStorage.setItem('facet_sidebar_tab', 'metrics');
-      expect(loadActiveTab()).toBe('browse');
+      expect(loadActiveTab()).toBe('find');
+      localStorage.setItem('facet_sidebar_tab', 'browse');
+      expect(loadActiveTab()).toBe('find');
     });
 
     it('forgets a half-typed person search when the tab changes', () => {
@@ -592,9 +588,11 @@ describe('GalleryFilterSidebarComponent', () => {
       for (const id of TAB_IDS) {
         expect(tabs[id], id).toBe(TAB_SECTIONS[id].reduce((sum, panel) => sum + panels[panel], 0));
       }
-      expect(tabs.browse).toBe(6);
+      expect(tabs.find).toBe(2);
+      expect(tabs.source).toBe(4);
       expect(tabs.review).toBe(2);
-      expect(tabs.quality).toBe(3);
+      expect(tabs.quality).toBe(2);
+      expect(tabs.technical).toBe(1);
       expect(tabs.subject).toBe(2);
       expect(tabs.display).toBe(0);
     });
@@ -602,7 +600,7 @@ describe('GalleryFilterSidebarComponent', () => {
     it('adds the fixed-area controls (filename search, similar-to) to the header only', () => {
       setFilters({ camera: 'Sony', search: 'IMG', similar_to: '/a.jpg' });
       expect(component.fixedAreaCount()).toBe(2);
-      expect(component.tabActiveCounts().browse).toBe(1);
+      expect(component.tabActiveCounts().source).toBe(1);
       expect(component.totalActiveCount()).toBe(3);
     });
 
@@ -638,9 +636,11 @@ describe('GalleryFilterSidebarComponent', () => {
     let fixture: ComponentFixture<GalleryFilterSidebarComponent>;
     let store: Record<string, any>;
     const messages: Record<string, string> = {
-      'gallery.sidebar.tabs.browse': 'Browse',
+      'gallery.sidebar.tabs.find': 'Find',
+      'gallery.sidebar.tabs.source': 'Source',
       'gallery.sidebar.tabs.review': 'Review',
       'gallery.sidebar.tabs.quality': 'Quality',
+      'gallery.sidebar.tabs.technical': 'Technical',
       'gallery.sidebar.tabs.subject': 'Subject',
       'gallery.sidebar.tabs.display': 'Display',
       'gallery.sidebar.tabs.active_count': '{label}, {count} active',
@@ -731,7 +731,7 @@ describe('GalleryFilterSidebarComponent', () => {
       expect(help.open).toBe(false);
       help.querySelector('summary')!.click();
       expect(help.open).toBe(true);
-      component.selectTab('browse'); settle();
+      component.selectTab('find'); settle();
       expect(fixture.nativeElement.querySelectorAll('[data-metric="score_range"]')).toHaveLength(1);
       store['filters'].update((f: object) => ({ ...f, min_score: '6' })); settle();
       pin().focus(); pin().click(); settle();
@@ -776,7 +776,7 @@ describe('GalleryFilterSidebarComponent', () => {
       component = fixture.componentInstance;
       store['persons'].set([{ id: 1, name: 'Alice', face_count: 2 }, { id: 2, name: 'Bob', face_count: 2 }]);
       store['filters'].update((f: object) => ({ ...f, person_id: '1,2', person_match: 'all' }));
-      component.selectTab('browse'); component.onSectionToggle('persons', true); settle();
+      component.selectTab('find'); component.onSectionToggle('persons', true); settle();
       const root = fixture.nativeElement as HTMLElement;
       const personInput = root.querySelector<HTMLInputElement>('input[role="combobox"]')!;
       const personLabel = root.querySelector<HTMLLabelElement>(`label[for="${personInput.id}"]`);
@@ -813,7 +813,7 @@ describe('GalleryFilterSidebarComponent', () => {
     it('exposes selected hue and layout states to assistive technology', () => {
       component = fixture.componentInstance;
       store['hueBuckets'].set([{ value: 'red', count: 2 }, { value: 'blue', count: 3 }]);
-      component.selectTab('quality'); component.onSectionToggle('color_quality', true); settle();
+      component.selectTab('technical'); component.onSectionToggle('color_quality', true); settle();
       const root = fixture.nativeElement as HTMLElement;
       const hues = () => Array.from(root.querySelectorAll<HTMLButtonElement>('[aria-label="gallery.hue"] button'));
       expect(hues().map(button => button.getAttribute('aria-pressed'))).toEqual(['false', 'false']);
@@ -839,7 +839,7 @@ describe('GalleryFilterSidebarComponent', () => {
       component = fixture.componentInstance;
       const ids = Array.from({ length: 200 }, (_, i) => String(i + 1));
       store['filters'].update((f: object) => ({ ...f, person_id: ids.join(','), person_match: 'any' }));
-      component.selectTab('browse'); component.onSectionToggle('persons', true); settle();
+      component.selectTab('find'); component.onSectionToggle('persons', true); settle();
       expect(fixture.nativeElement.querySelector('#person-filter-limit')).not.toBeNull();
       component.onSidebarPersonSelected({ option: { value: 201 } } as any);
       expect(store['updateFilter']).not.toHaveBeenCalled();
@@ -847,44 +847,44 @@ describe('GalleryFilterSidebarComponent', () => {
     });
 
     describe('tab bar', () => {
-      it('exposes a labelled tablist of five tabs with exactly the active one selected', () => {
+      it('exposes a labelled tablist of seven tabs with exactly the active one selected', () => {
         const nav = (fixture.nativeElement as HTMLElement).querySelector('nav[mat-tab-nav-bar]')!;
         expect(nav.getAttribute('aria-label')).toBe('gallery.sidebar.tabs.aria_label');
         expect(nav.getAttribute('role')).toBe('tablist');
         const tabs = Array.from(nav.querySelectorAll('[role="tab"]'));
-        expect(tabs).toHaveLength(5);
-        expect(tabs.map(t => t.getAttribute('aria-selected'))).toEqual(['true', 'false', 'false', 'false', 'false']);
+        expect(tabs).toHaveLength(7);
+        expect(tabs.map(t => t.getAttribute('aria-selected'))).toEqual(['true', 'false', 'false', 'false', 'false', 'false', 'false']);
         expect((fixture.nativeElement as HTMLElement).querySelector('[role="tabpanel"]')).toBeTruthy();
       });
 
       it('moves the selection when a tab is clicked and stores it', () => {
         links()[1].click();
         settle();
-        expect(fixture.componentInstance.activeTab()).toBe('review');
-        expect(localStorage.getItem('facet_sidebar_tab')).toBe('review');
-        expect(links().map(t => t.getAttribute('aria-selected'))).toEqual(['false', 'true', 'false', 'false', 'false']);
+        expect(fixture.componentInstance.activeTab()).toBe('source');
+        expect(localStorage.getItem('facet_sidebar_tab')).toBe('source');
+        expect(links().map(t => t.getAttribute('aria-selected'))).toEqual(['false', 'true', 'false', 'false', 'false', 'false', 'false']);
       });
 
       it('shows named tabs with icons, matching tooltips and accessible labels', () => {
         const items = links();
         expect(items.map(l => l.querySelector('mat-icon')!.textContent!.trim()))
-          .toEqual(['travel_explore', 'rule', 'high_quality', 'center_focus_strong', 'display_settings']);
+          .toEqual(['travel_explore', 'photo_library', 'rule', 'high_quality', 'tune', 'center_focus_strong', 'display_settings']);
+        const names = ['Find', 'Source', 'Review', 'Quality', 'Technical', 'Subject', 'Display'];
         const tooltips = fixture.debugElement.queryAll(By.css('[mat-tab-link]')).map(d => d.injector.get(MatTooltip).message);
-        expect(tooltips).toEqual(['Browse', 'Review', 'Quality', 'Subject', 'Display']);
-        expect(items.map(l => l.getAttribute('aria-label'))).toEqual(['Browse', 'Review', 'Quality', 'Subject', 'Display']);
-        expect(items.map(link => link.querySelector('[data-filter-tab-label]')!.textContent!.trim()))
-          .toEqual(['Browse', 'Review', 'Quality', 'Subject', 'Display']);
+        expect(tooltips).toEqual(names);
+        expect(items.map(l => l.getAttribute('aria-label'))).toEqual(names);
+        expect(items.map(link => link.querySelector('[data-filter-tab-label]')!.textContent!.trim())).toEqual(names);
       });
 
       it('names a tab with its active count and puts the count on the icon as a corner badge', () => {
         setFilters({ camera: 'Sony', lens: 'FE' });
-        const browse = links()[0];
-        expect(browse.getAttribute('aria-label')).toBe('Browse, 2 active');
-        const badge = browse.querySelector('[data-filter-tab-count]')!;
+        const source = links()[1];
+        expect(source.getAttribute('aria-label')).toBe('Source, 2 active');
+        const badge = source.querySelector('[data-filter-tab-count]')!;
         expect(badge.textContent!.trim()).toBe('2');
         expect(badge.getAttribute('aria-hidden')).toBe('true');
-        expect(links()[1].getAttribute('aria-label')).toBe('Review');
-        expect(links()[1].querySelector('[data-filter-tab-count]')).toBeNull();
+        expect(links()[0].getAttribute('aria-label')).toBe('Find');
+        expect(links()[0].querySelector('[data-filter-tab-count]')).toBeNull();
       });
 
       it('hides the tab bar while a filter query is typed', () => {
@@ -897,7 +897,7 @@ describe('GalleryFilterSidebarComponent', () => {
         const host = fixture.nativeElement as HTMLElement;
         const quality = ADDITIONAL_FILTERS.find(d => TAB_SECTIONS.quality.includes(d.sectionKey))!;
         const subject = ADDITIONAL_FILTERS.find(d => TAB_SECTIONS.subject.includes(d.sectionKey))!;
-        fixture.componentInstance.selectTab('browse');
+        fixture.componentInstance.selectTab('find');
         settle();
         const stored = localStorage.getItem('facet_sidebar_tab');
         for (const def of [quality, subject]) {
@@ -913,8 +913,56 @@ describe('GalleryFilterSidebarComponent', () => {
         fixture.componentInstance.filterQuery.set('');
         settle();
         expect(host.querySelector('nav[mat-tab-nav-bar]')).toBeTruthy();
-        expect(fixture.componentInstance.activeTab()).toBe('browse');
+        expect(fixture.componentInstance.activeTab()).toBe('find');
         expect(localStorage.getItem('facet_sidebar_tab')).toBe(stored);
+      });
+    });
+
+    describe('active filters view', () => {
+      const host = () => fixture.nativeElement as HTMLElement;
+      const toggle = () => host().querySelector<HTMLButtonElement>('button[data-active-view]')!;
+      const panelTitles = () => Array.from(host().querySelectorAll('mat-panel-title'))
+        .map(t => Array.from(t.childNodes).filter(node => node.nodeType === Node.TEXT_NODE)
+          .map(node => node.textContent).join('').trim());
+
+      it('counts the active filters of the visible tabs on its toggle, beside Find a filter', () => {
+        expect(toggle().getAttribute('aria-pressed')).toBe('false');
+        expect(toggle().querySelector('[data-active-view-count]')).toBeNull();
+        expect(toggle().parentElement!.querySelector('#filter-finder-input')).not.toBeNull();
+        setFilters({ date_from: '2024-01-01', min_score: '5', min_face_quality: '4' });
+        expect(toggle().querySelector('[data-active-view-count]')!.textContent!.trim()).toBe('3');
+        fixture.componentRef.setInput('portSettings', true);
+        setFilters({ favorites_only: true });
+        expect(fixture.componentInstance.activeViewCount()).toBe(3);
+      });
+
+      it('shows each panel with an active filter, open and in tab order, without storing that it opened them', () => {
+        setFilters({ date_from: '2024-01-01', min_score: '5', min_face_quality: '4' });
+        const before = { ...fixture.componentInstance.sectionStates() };
+        toggle().click(); settle();
+        expect(toggle().getAttribute('aria-pressed')).toBe('true');
+        expect(panelTitles()).toEqual(['gallery.sidebar.date', 'gallery.sidebar.quality', 'gallery.sidebar.face']);
+        const panels = Array.from(host().querySelectorAll('mat-expansion-panel'));
+        expect(panels.every(panel => panel.classList.contains('mat-expanded'))).toBe(true);
+        expect(links().map(link => link.getAttribute('aria-selected'))).not.toContain('true');
+        fixture.componentInstance.onSectionToggle('gallery.sidebar.face', false);
+        expect(fixture.componentInstance.sectionStates()).toEqual(before);
+        expect(localStorage.getItem('facet_sidebar_tab')).toBeNull();
+      });
+
+      it('says when no filter is applied', () => {
+        toggle().click(); settle();
+        expect(host().querySelector('[data-active-view-empty]')!.textContent).toContain('gallery.sidebar.active_view.none');
+        expect(host().querySelector('mat-expansion-panel')).toBeNull();
+      });
+
+      it('leaves the view when a tab is chosen, the current one included', () => {
+        toggle().click(); settle();
+        links()[0].click(); settle();
+        expect(toggle().getAttribute('aria-pressed')).toBe('false');
+        expect(fixture.componentInstance.activeTab()).toBe('find');
+        expect(links()[0].getAttribute('aria-selected')).toBe('true');
+        expect(panelTitles()).toContain('gallery.sidebar.persons');
       });
     });
 
@@ -922,7 +970,7 @@ describe('GalleryFilterSidebarComponent', () => {
       const titles = () => Array.from((fixture.nativeElement as HTMLElement).querySelectorAll('mat-panel-title'))
         .map(t => t.textContent!.trim());
 
-      it.each(['quality', 'subject'] as const)('gives every %s metric row its own tooltip and slider description', tab => {
+      it.each(['quality', 'technical', 'subject'] as const)('gives every %s metric row its own tooltip and slider description', tab => {
         const help = I18N.gallery.sidebar.metric_help as Record<string, string>;
         for (const def of ADDITIONAL_FILTERS) expect(help[def.id], def.id).toBe(def.helpKey);
         let checked = 0;
@@ -943,7 +991,7 @@ describe('GalleryFilterSidebarComponent', () => {
           }
           checked++;
         }
-        if (tab === 'quality') {
+        if (tab === 'technical') {
           const labelTips = fixture.debugElement.queryAll(By.directive(MatTooltip))
             .filter(d => d.nativeElement.tagName === 'MAT-LABEL').map(d => d.injector.get(MatTooltip).message);
           expect(labelTips).toContain('gallery.sidebar.metric_help.quality_tier');
@@ -953,18 +1001,31 @@ describe('GalleryFilterSidebarComponent', () => {
       });
 
       it('renders only the active tab\'s panels', () => {
-        expect(titles().join('|')).toContain('gallery.sidebar.persons');
+        const joined = () => titles().join('|');
+        expect(joined()).toContain('gallery.sidebar.persons');
+        expect(joined()).toContain('gallery.sidebar.moments');
+        expect(joined()).not.toContain('gallery.sidebar.date');
+        fixture.componentInstance.selectTab('source');
+        settle();
+        expect(joined()).toContain('gallery.sidebar.date');
+        expect(joined()).not.toContain('gallery.sidebar.persons');
         fixture.componentInstance.selectTab('quality');
         settle();
-        expect(titles().join('|')).toContain('gallery.sidebar.color_quality');
-        expect(titles().join('|')).toContain('gallery.sidebar.technical');
-        expect(titles().join('|')).not.toContain('gallery.sidebar.face');
-        expect(titles().join('|')).not.toContain('gallery.sidebar.persons');
+        expect(joined()).toContain('gallery.sidebar.quality');
+        expect(joined()).toContain('gallery.measurements.title');
+        expect(joined()).not.toContain('gallery.sidebar.technical');
+        expect(joined()).not.toContain('gallery.sidebar.color_quality');
+        fixture.componentInstance.selectTab('technical');
+        settle();
+        expect(joined()).toContain('gallery.sidebar.technical');
+        expect(joined()).toContain('gallery.sidebar.exposure_range');
+        expect(joined()).toContain('gallery.sidebar.color_quality');
+        expect(joined()).not.toContain('gallery.measurements.title');
         fixture.componentInstance.selectTab('subject');
         settle();
-        expect(titles().join('|')).toContain('gallery.sidebar.face');
-        expect(titles().join('|')).toContain('gallery.sidebar.moments');
-        expect(titles().join('|')).not.toContain('gallery.sidebar.technical');
+        expect(joined()).toContain('gallery.sidebar.face');
+        expect(joined()).not.toContain('gallery.sidebar.moments');
+        expect(joined()).not.toContain('gallery.sidebar.technical');
         fixture.componentInstance.selectTab('display');
         settle();
         expect(titles()).toHaveLength(0);
@@ -1084,7 +1145,7 @@ describe('GalleryFilterSidebarComponent', () => {
     it('keeps literal tag rules reachable with empty catalogs and permits clearing invalid saved rules', () => {
       mockStore['types'] = signal([]); mockStore['tags'] = signal([]); mockStore['patterns'] = signal([]);
       TestBed.inject(GalleryStore).filters.update(filters => ({ ...filters, tag_groups: '{"any":false}' }));
-      showTab('browse');
+      showTab('find');
       const editor = (fixture.nativeElement as HTMLElement).querySelector('app-tag-groups');
       expect(editor).toBeTruthy();
       expect(editor!.querySelector('[role=alert]')!.textContent).toContain('gallery.tag_groups.invalid');
@@ -1096,7 +1157,7 @@ describe('GalleryFilterSidebarComponent', () => {
       const advanced = fixture.componentInstance.advancedFilterGroups();
       expect(advanced.length).toBeGreaterThan(0);
       for (const group of advanced) {
-        showTab(TAB_SECTIONS.quality.includes(group.sectionKey) ? 'quality' : 'subject');
+        showTab(TAB_IDS.find(id => TAB_SECTIONS[id].includes(group.sectionKey))!);
         const panels = Array.from((fixture.nativeElement as HTMLElement).querySelectorAll('mat-expansion-panel'));
         const panel = panels.find(el => el.querySelector('mat-panel-title')?.textContent?.includes(group.sectionKey));
         expect(panel, group.sectionKey).toBeDefined();
@@ -1376,7 +1437,7 @@ describe('GalleryFilterSidebarComponent', () => {
     });
 
     it('closes its select overlay when the gallery parks', () => {
-      showTab('quality');
+      showTab('technical');
       const select = fixture.debugElement.query(By.directive(MatSelect)).injector.get(MatSelect);
       select.open();
       fixture.detectChanges();
@@ -1387,6 +1448,7 @@ describe('GalleryFilterSidebarComponent', () => {
 
 
     it('offers missing capture date in the date panel and applies one atomic query change', () => {
+      showTab('source');
       const labels = Array.from(fixture.nativeElement.querySelectorAll('mat-checkbox')) as HTMLElement[];
       const control = labels.find(el => el.textContent?.includes('gallery.no_capture_date'))!;
       expect(control).toBeTruthy();
@@ -1396,6 +1458,7 @@ describe('GalleryFilterSidebarComponent', () => {
     });
 
     it('offers no geolocation without the map feature and forwards the checkbox', () => {
+      showTab('source');
       const labels = Array.from(fixture.nativeElement.querySelectorAll('mat-checkbox')) as HTMLElement[];
       const control = labels.find(el => el.textContent?.includes('gallery.no_geolocation'))!;
       expect(control).toBeTruthy();

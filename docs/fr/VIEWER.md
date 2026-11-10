@@ -6,7 +6,7 @@ La visionneuse est une application web FastAPI + Angular pour parcourir, filtrer
 
 Sur ordinateur (à partir de 1024 px), les destinations activées apparaissent directement dans la barre supérieure selon la place disponible. **Plus** apparaît uniquement lorsque certaines destinations ne tiennent pas et contient celles qui débordent. Le calcul tient compte du redimensionnement, des libellés traduits et des commandes du compte. Les actions contextuelles de la page se trouvent juste en dessous. La galerie possède son en-tête de collection avec la source, la recherche, le nombre, le tri et les filtres actifs supprimables. Sur les écrans plus étroits, le bouton de menu ouvre les mêmes destinations disponibles. Hors de la galerie, il affiche l’icône de la page courante, et le nom de la page remplace le nom Facet à côté.
 
-L’en-tête de collection reste visible pendant le défilement, avec recherche, sélection, tri et critères actifs. **Filtres** ouvre Parcourir, Qualité et Sujet ; son badge numérique compte les filtres actifs et son fond indique si le panneau est ouvert. **Tri** ouvre les décisions, la visibilité, les étoiles et les favoris. **Affichage** regroupe disposition, taille des vignettes, informations photo et diaporama. Chaque réglage a un seul point d’accès. Dans une collection étroite, le tri passe dans Affichage. L’aide s’ouvre dans des fenêtres ancrées sans déplacer la galerie.
+L’en-tête de collection reste visible pendant le défilement, avec recherche, sélection, tri et critères actifs. **Filtres** ouvre Recherche, Source, Qualité, Technique et Sujet ; son badge numérique compte les filtres actifs et son fond indique si le panneau est ouvert. **Tri** ouvre les décisions, la visibilité, les étoiles et les favoris. **Affichage** regroupe disposition, taille des vignettes, informations photo et diaporama. Chaque réglage a un seul point d’accès. Dans une collection étroite, le tri passe dans Affichage. L’aide s’ouvre dans des fenêtres ancrées sans déplacer la galerie.
 
 **Commandes de l’en-tête.** La recherche contient uniquement la requête textuelle. Le type de photo se trouve dans **Filtres**. **Tri** contient les piles suggérées et la conservation des meilleurs pourcentages ; **Affichage** permet de développer ou réduire les piles. En mode sélection, le bouton indique le nombre sélectionné et une icône de fermeture. Sur les petits téléphones, deux lignes compactes préservent la lisibilité du nom de la collection et des commandes.
 
@@ -153,19 +153,21 @@ La recherche textuelle de la galerie conserve les mots Unicode et traite la ponc
 
 ### Onglets de la barre latérale
 
-Le panneau de filtres a trois onglets : Parcourir, Qualité et Sujet. Tri et Affichage sont des fenêtres distinctes de la barre d’outils. Le dernier onglet est mémorisé (`facet_sidebar_tab`) ; un ancien onglet Tri ou Affichage ouvre Parcourir. Chaque section mémorise son état déplié. La disponibilité des mesures se trouve sous les métriques Qualité, avec une icône, un chevron et le nombre de règles actives.
+Le panneau de filtres a cinq onglets : Recherche, Source, Qualité, Technique et Sujet. Tri et Affichage sont des fenêtres distinctes de la barre d’outils. Le dernier onglet est mémorisé (`facet_sidebar_tab`) ; un ancien onglet Tri, Affichage ou Parcourir ouvre Recherche. Chaque section mémorise son état déplié. La disponibilité des mesures se trouve sous les métriques Qualité, avec une icône, un chevron et le nombre de règles actives.
 
 | Onglet | Sections |
 |--------|----------|
-| **Parcourir** | Recherche sémantique, Personnes, Plage de dates, Contenu, Albums, Localisation, Dossier, Équipement |
-| **Qualité** | Qualité, Couleur et qualité, Qualité étendue, Technique, Exposition & Plage (la qualité de l'image) |
-| **Sujet** | Métriques visage, Composition, Saillance du sujet, Moments (ce qui est dans le cadre) |
+| **Recherche** | Recherche sémantique, Contenu, Personnes, Moments (ce que l'on cherche) |
+| **Source** | Plage de dates, Localisation, Dossier, Albums, Équipement (où, quand et avec quoi) |
+| **Qualité** | Qualité, Qualité étendue, Disponibilité des mesures (la qualité de l'image) |
+| **Technique** | Technique, Exposition & Plage, Couleur et qualité (netteté, exposition, couleur et bruit) |
+| **Sujet** | Métriques visage, Composition, Saillance du sujet (ce qui est dans le cadre) |
 
-L'en-tête, **Rechercher un filtre**, l'avis d'album intelligent et la recherche par nom de fichier restent au-dessus des onglets sur chacun d'eux, donc `/` fonctionne depuis n'importe lequel. Saisir dans **Rechercher un filtre** masque les onglets et liste les curseurs correspondants de tous les onglets.
+L'en-tête, **Rechercher un filtre**, l'avis d'album intelligent et la recherche par nom de fichier restent au-dessus des onglets sur chacun d'eux, donc `/` fonctionne depuis n'importe lequel. Saisir dans **Rechercher un filtre** masque les onglets et liste les curseurs correspondants de tous les onglets. **Filtres actifs**, à côté, n'affiche que les sections ayant un filtre actif, de tous les onglets, dépliées et dans l'ordre des onglets ; son badge compte ces filtres, et choisir un onglet quitte cette vue. Sans filtre, il indique *Aucun filtre appliqué*.
 
 Le nombre à côté de **Filtres** inclut tous les critères actifs, même les métriques indisponibles. Une plage compte une fois. **Réinitialiser les filtres** apparaît près des critères de collection dès le premier critère actif ; le panneau ne le duplique pas. **X** ferme le panneau.
 
-Dans la fenêtre Tri, la décision et chaque série (par exemple Doublons) est une ligne affichant sa valeur actuelle (comme Masqués, Affichés ou Seulement ceux-ci) qui ouvre un menu de choix, chacun avec une explication d'une ligne. Une ligne laissée sur sa valeur par défaut ne compte pas dans le badge de l'onglet ni de l'en-tête. *Seulement* et *Masqués* s'excluent mutuellement. Tant qu'une décision est choisie, Rejetées est verrouillé, et son infobulle en donne la raison. Une ligne **Étoiles** ouvre un menu (Toutes, de 1★ et plus à 5★ et plus, 0 étoile). Dessous, les cases à cocher libellées **Favoris uniquement** et **Monochrome uniquement** ont des infobulles. Dans les onglets Qualité et Sujet, survoler le nom d'un réglage explique ce qui est noté et par quel modèle, et les contrôles de Tri ont aussi des infobulles.
+Dans la fenêtre Tri, la décision et chaque série (par exemple Doublons) est une ligne affichant sa valeur actuelle (comme Masqués, Affichés ou Seulement ceux-ci) qui ouvre un menu de choix, chacun avec une explication d'une ligne. Une ligne laissée sur sa valeur par défaut ne compte pas dans le badge de l'onglet ni de l'en-tête. *Seulement* et *Masqués* s'excluent mutuellement. Tant qu'une décision est choisie, Rejetées est verrouillé, et son infobulle en donne la raison. Une ligne **Étoiles** ouvre un menu (Toutes, de 1★ et plus à 5★ et plus, 0 étoile). Dessous, les cases à cocher libellées **Favoris uniquement** et **Monochrome uniquement** ont des infobulles. Dans les onglets Qualité, Technique et Sujet, survoler le nom d'un réglage explique ce qui est noté et par quel modèle, et les contrôles de Tri ont aussi des infobulles.
 
 ### Filtres principaux
 

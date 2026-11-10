@@ -6,7 +6,7 @@ The viewer is a FastAPI + Angular web app for browsing, filtering, culling and m
 
 On desktop (1024 px and wider), enabled destinations appear directly in the top bar as space allows. **More** appears only when destinations do not fit and contains the overflow. Resizing, translated labels and account controls are included in the fit calculation. Contextual page actions appear in a row below the destinations. The gallery owns its collection header, which shows the source, query, count, sort and removable active-filter chips. On narrower screens, the menu button opens the same available destinations. Outside the gallery it shows the current page's icon, and the page's name replaces the Facet name beside it.
 
-The sticky collection header keeps search, selection, sorting and active criteria available while scrolling. **Filters** opens Browse, Quality and Subject; its numeric badge counts active filters and its background shows whether the drawer is open. **Review** opens decision, visibility, rating and favorite controls. **Display** opens layout, thumbnail size, photo-information behavior and slideshow. Each setting has one entry point. On narrow collections, sorting moves into Display. Help opens in anchored popovers without shifting the gallery.
+The sticky collection header keeps search, selection, sorting and active criteria available while scrolling. **Filters** opens Find, Source, Quality, Technical and Subject; its numeric badge counts active filters and its background shows whether the drawer is open. **Review** opens decision, visibility, rating and favorite controls. **Display** opens layout, thumbnail size, photo-information behavior and slideshow. Each setting has one entry point. On narrow collections, sorting moves into Display. Help opens in anchored popovers without shifting the gallery.
 
 **Header controls.** Search contains only the text query. Photo type is in **Filters**. **Review** contains Suggested stacks and Keep top %; **Display** contains Expand/Collapse stacks. In selection mode, the Select button shows the selected count and a close icon. Narrow phones use two compact rows to keep the collection name and control labels readable.
 
@@ -153,19 +153,21 @@ Gallery text search keeps Unicode words and treats filename punctuation as word 
 
 ### Sidebar Tabs
 
-The filter drawer has three tabs: Browse, Quality and Subject. Review and Display are separate toolbar popovers. The drawer remembers its last tab (`facet_sidebar_tab`); a previously stored Review or Display tab opens Browse. Each filter section remembers whether it is expanded. Measurement availability sits below the Quality metrics, with an icon, chevron and active-policy count.
+The filter drawer has five tabs: Find, Source, Quality, Technical and Subject. Review and Display are separate toolbar popovers. The drawer remembers its last tab (`facet_sidebar_tab`); a previously stored Review, Display or Browse tab opens Find. Each filter section remembers whether it is expanded. Measurement availability sits below the Quality metrics, with an icon, chevron and active-policy count.
 
 | Tab | Sections |
 |-----|----------|
-| **Browse** | Semantic Search, Persons, Date Range, Content, Albums, Location, Folder, Equipment |
-| **Quality** | Quality, Color & Quality, Extended Quality, Technical, Exposure & Range (how good the image is) |
-| **Subject** | Face Metrics, Composition, Subject Saliency, Moments (what is in the frame) |
+| **Find** | Semantic Search, Content, Persons, Moments (what to look for) |
+| **Source** | Date Range, Location, Folder, Albums, Equipment (where, when and with what) |
+| **Quality** | Quality, Extended Quality, Measurement Availability (how good the image is) |
+| **Technical** | Technical, Exposure & Range, Color & Quality (sharpness, exposure, color and noise) |
+| **Subject** | Face Metrics, Composition, Subject Saliency (what is in the frame) |
 
-The header, **Find a filter**, the smart-album notice and the filename search stay above the tabs on every tab, so `/` works from any of them. Typing in **Find a filter** hides the tabs and lists the matching sliders from all of them.
+The header, **Find a filter**, the smart-album notice and the filename search stay above the tabs on every tab, so `/` works from any of them. Typing in **Find a filter** hides the tabs and lists the matching sliders from all of them. **Active filters**, beside it, shows only the sections with an active filter, from every tab, expanded and in tab order; its badge counts those filters, and choosing a tab leaves that view. With no filter set it reads *No filters applied*.
 
 The numeric count beside **Filters** includes every active criterion, including unavailable metrics. A range counts once. **Reset filters** appears beside the collection chips even for a single active criterion; the drawer does not duplicate it. **X** closes the drawer.
 
-In the Review popover, the decision and each set (for example Duplicates) is one row showing its current value (such as Hidden, Shown or Only these) that opens a menu of choices, each with a one-line explanation. A row left on its default value does not count toward the tab or header badge. *Only* and *Hidden* exclude each other. While a decision is chosen, Rejected is locked, and its tooltip says why. A **Star Rating** row opens a menu (Any, 1★ and up through 5★ and up, 0 stars). Below it, the labelled **Favorites Only** and **Monochrome Only** checkboxes have tooltips. On the Quality and Subject tabs, hovering a setting's name explains what is scored and by which model, and the Review controls have tooltips too.
+In the Review popover, the decision and each set (for example Duplicates) is one row showing its current value (such as Hidden, Shown or Only these) that opens a menu of choices, each with a one-line explanation. A row left on its default value does not count toward the tab or header badge. *Only* and *Hidden* exclude each other. While a decision is chosen, Rejected is locked, and its tooltip says why. A **Star Rating** row opens a menu (Any, 1★ and up through 5★ and up, 0 stars). Below it, the labelled **Favorites Only** and **Monochrome Only** checkboxes have tooltips. On the Quality, Technical and Subject tabs, hovering a setting's name explains what is scored and by which model, and the Review controls have tooltips too.
 
 ### Primary Filters
 

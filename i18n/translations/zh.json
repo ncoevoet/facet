@@ -1335,7 +1335,9 @@
       "color_quality": "色彩与画质",
       "moments": "拍摄时刻",
       "tabs": {
-        "browse": "浏览",
+        "find": "查找",
+        "source": "来源",
+        "technical": "技术",
         "review": "审阅",
         "quality": "画质",
         "subject": "主体",
@@ -1463,6 +1465,11 @@
         "add": "固定 {name} 控件",
         "remove": "取消固定 {name} 控件",
         "limit": "最多可固定 {max} 个控件。请先取消固定一个再添加。"
+      },
+      "active_view": {
+        "label": "已启用的筛选",
+        "show": "只显示所有标签页中正在使用的筛选",
+        "none": "未应用任何筛选"
       }
     },
     "semantic_search_info": "首次使用语义搜索时，会将特征向量载入内存。照片库较大时可能需要稍等。",

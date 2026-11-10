@@ -1335,7 +1335,9 @@
       "color_quality": "Cor e qualidade",
       "moments": "Momentos",
       "tabs": {
-        "browse": "Explorar",
+        "find": "Procurar",
+        "source": "Origem",
+        "technical": "Técnico",
         "review": "Revisão",
         "quality": "Qualidade",
         "subject": "Assunto",
@@ -1463,6 +1465,11 @@
         "add": "Fixar controlo {name}",
         "remove": "Desafixar controlo {name}",
         "limit": "Pode fixar até {max} controlos. Desafixe um para adicionar outro."
+      },
+      "active_view": {
+        "label": "Filtros ativos",
+        "show": "Mostra só os filtros em uso, de todas as abas",
+        "none": "Nenhum filtro aplicado"
       }
     },
     "semantic_search_info": "A busca semântica carrega os embeddings na RAM no primeiro uso. Isso pode levar um momento para bibliotecas grandes.",

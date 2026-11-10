@@ -1379,7 +1379,9 @@ export const I18N = {
       color_quality: "gallery.sidebar.color_quality",
       moments: "gallery.sidebar.moments",
       tabs: {
-        browse: "gallery.sidebar.tabs.browse",
+        find: "gallery.sidebar.tabs.find",
+        source: "gallery.sidebar.tabs.source",
+        technical: "gallery.sidebar.tabs.technical",
         review: "gallery.sidebar.tabs.review",
         quality: "gallery.sidebar.tabs.quality",
         subject: "gallery.sidebar.tabs.subject",
@@ -1503,6 +1505,11 @@ export const I18N = {
         add: "gallery.sidebar.pins.add",
         remove: "gallery.sidebar.pins.remove",
         limit: "gallery.sidebar.pins.limit",
+      },
+      active_view: {
+        label: "gallery.sidebar.active_view.label",
+        show: "gallery.sidebar.active_view.show",
+        none: "gallery.sidebar.active_view.none",
       },
     },
     semantic_search_info: "gallery.semantic_search_info",

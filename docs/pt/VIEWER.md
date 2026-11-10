@@ -6,7 +6,7 @@ O visualizador é uma aplicação web em FastAPI + Angular para navegar, filtrar
 
 No computador (a partir de 1024 px), os destinos ativados aparecem diretamente na barra superior enquanto houver espaço. **Mais** aparece apenas quando alguns destinos não cabem e contém os restantes. O cálculo considera o tamanho da janela, os rótulos traduzidos e os controlos da conta. As ações contextuais da página aparecem na linha abaixo. A galeria tem o seu próprio cabeçalho de coleção com origem, pesquisa, contagem, ordenação e filtros ativos removíveis. Em ecrãs mais estreitos, o botão de menu apresenta os mesmos destinos disponíveis. Fora da galeria mostra o ícone da página atual, e o nome da página substitui o nome Facet ao lado.
 
-O cabeçalho da coleção permanece visível ao deslocar, com pesquisa, seleção, ordenação e critérios ativos. **Filtros** abre Explorar, Qualidade e Assunto; o emblema numérico conta os filtros ativos e o fundo indica se está aberto. **Revisão** contém decisões, visibilidade, estrelas e favoritos. **Visualização** contém disposição, tamanho das miniaturas, informações e apresentação. Cada ajuste tem um único acesso. Em coleções estreitas, ordenar passa para Visualização. A ajuda abre em janelas ancoradas sem deslocar a galeria.
+O cabeçalho da coleção permanece visível ao deslocar, com pesquisa, seleção, ordenação e critérios ativos. **Filtros** abre Procurar, Origem, Qualidade, Técnico e Assunto; o emblema numérico conta os filtros ativos e o fundo indica se está aberto. **Revisão** contém decisões, visibilidade, estrelas e favoritos. **Visualização** contém disposição, tamanho das miniaturas, informações e apresentação. Cada ajuste tem um único acesso. Em coleções estreitas, ordenar passa para Visualização. A ajuda abre em janelas ancoradas sem deslocar a galeria.
 
 **Controles do cabeçalho.** A busca contém apenas a consulta de texto. O tipo de foto fica em **Filtros**. **Revisão** contém pilhas sugeridas e a seleção da melhor porcentagem; **Visualização** permite expandir ou recolher pilhas. No modo de seleção, o botão mostra a quantidade selecionada e um ícone para sair. Em celulares estreitos, duas linhas compactas mantêm legíveis o nome da coleção e os rótulos dos controles.
 
@@ -153,19 +153,21 @@ A pesquisa de texto da galeria preserva palavras Unicode e trata a pontuação d
 
 ### Abas da barra lateral
 
-O painel de filtros tem três abas: Explorar, Qualidade e Assunto. Revisão e Visualização são janelas separadas da barra. A última aba é guardada (`facet_sidebar_tab`); uma escolha antiga de Revisão ou Visualização abre Explorar. Cada seção lembra se está expandida. A disponibilidade das medições fica abaixo das métricas Qualidade, com ícone, seta e número de regras ativas.
+O painel de filtros tem cinco abas: Procurar, Origem, Qualidade, Técnico e Assunto. Revisão e Visualização são janelas separadas da barra. A última aba é guardada (`facet_sidebar_tab`); uma escolha antiga de Revisão, Visualização ou Explorar abre Procurar. Cada seção lembra se está expandida. A disponibilidade das medições fica abaixo das métricas Qualidade, com ícone, seta e número de regras ativas.
 
 | Aba | Seções |
 |-----|--------|
-| **Explorar** | Busca semântica, Pessoas, Período, Conteúdo, Álbuns, Localização, Pasta, Equipamento |
-| **Qualidade** | Qualidade, Cor e qualidade, Qualidade estendida, Técnico, Exposição e amplitude (quão boa é a imagem) |
-| **Assunto** | Métricas de rosto, Composição, Saliência do sujeito, Momentos (o que está no enquadramento) |
+| **Procurar** | Busca semântica, Conteúdo, Pessoas, Momentos (o que procurar) |
+| **Origem** | Período, Localização, Pasta, Álbuns, Equipamento (onde, quando e com quê) |
+| **Qualidade** | Qualidade, Qualidade estendida, Disponibilidade das medições (quão boa é a imagem) |
+| **Técnico** | Técnico, Exposição e amplitude, Cor e qualidade (nitidez, exposição, cor e ruído) |
+| **Assunto** | Métricas de rosto, Composição, Saliência do sujeito (o que está no enquadramento) |
 
-O cabeçalho, **Encontrar um filtro**, o aviso de álbum inteligente e a busca por nome de arquivo ficam acima das abas em todas elas, por isso `/` funciona a partir de qualquer uma. Digitar em **Encontrar um filtro** oculta as abas e lista os controles correspondentes de todas.
+O cabeçalho, **Encontrar um filtro**, o aviso de álbum inteligente e a busca por nome de arquivo ficam acima das abas em todas elas, por isso `/` funciona a partir de qualquer uma. Digitar em **Encontrar um filtro** oculta as abas e lista os controles correspondentes de todas. **Filtros ativos**, ao lado, mostra só as seções com um filtro ativo, de todas as abas, expandidas e na ordem das abas; o emblema conta esses filtros, e escolher uma aba sai dessa vista. Sem filtros indica *Nenhum filtro aplicado*.
 
 O número junto a **Filtros** inclui todos os critérios ativos, até métricas indisponíveis. Um intervalo conta uma vez. **Redefinir filtros** aparece junto aos critérios da coleção desde o primeiro critério ativo; o painel não o duplica. **X** fecha o painel.
 
-Na aba Revisão, a decisão e cada grupo (por exemplo Duplicatas) é uma linha que mostra o valor atual (como Ocultos, Mostrados ou Só estes) e abre um menu de opções, cada uma com uma explicação de uma linha. Uma linha deixada no valor padrão não conta no emblema da aba nem do cabeçalho. *Só* e *Ocultos* excluem-se mutuamente. Enquanto uma decisão está escolhida, Rejeitadas fica bloqueada, e a dica explica o motivo. Uma linha **Avaliação por estrelas** abre um menu (Todas, de 1★ ou mais a 5★ ou mais, 0 estrelas). Abaixo, as caixas de seleção rotuladas **Apenas favoritas** e **Apenas monocromáticas** têm dicas. Nas abas Qualidade e Assunto, passar o mouse sobre o nome de uma configuração explica o que é pontuado e por qual modelo, e os controles de Revisão também têm dicas.
+Na aba Revisão, a decisão e cada grupo (por exemplo Duplicatas) é uma linha que mostra o valor atual (como Ocultos, Mostrados ou Só estes) e abre um menu de opções, cada uma com uma explicação de uma linha. Uma linha deixada no valor padrão não conta no emblema da aba nem do cabeçalho. *Só* e *Ocultos* excluem-se mutuamente. Enquanto uma decisão está escolhida, Rejeitadas fica bloqueada, e a dica explica o motivo. Uma linha **Avaliação por estrelas** abre um menu (Todas, de 1★ ou mais a 5★ ou mais, 0 estrelas). Abaixo, as caixas de seleção rotuladas **Apenas favoritas** e **Apenas monocromáticas** têm dicas. Nas abas Qualidade, Técnico e Assunto, passar o mouse sobre o nome de uma configuração explica o que é pontuado e por qual modelo, e os controles de Revisão também têm dicas.
 
 ### Filtros Primários
 

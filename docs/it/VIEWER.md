@@ -6,7 +6,7 @@ La galleria è un'app web FastAPI + Angular per sfogliare, filtrare, selezionare
 
 Su desktop (da 1024 px), le destinazioni abilitate compaiono direttamente nella barra superiore finché c’è spazio. **Altro** appare solo quando alcune destinazioni non entrano e contiene quelle rimanenti. Il calcolo considera il ridimensionamento, le etichette tradotte e i controlli dell’account. Le azioni contestuali della pagina sono nella riga sottostante. La galleria ha una propria intestazione della raccolta con origine, ricerca, conteggio, ordinamento e filtri attivi rimovibili. Sugli schermi più stretti, il pulsante del menu offre le stesse destinazioni disponibili. Fuori dalla galleria mostra l’icona della pagina corrente, e il nome della pagina sostituisce accanto il nome Facet.
 
-L’intestazione della raccolta resta visibile durante lo scorrimento, con ricerca, selezione, ordinamento e criteri attivi. **Filtri** apre Sfoglia, Qualità e Soggetto; il badge numerico conta i filtri attivi e lo sfondo indica il pannello aperto. **Revisione** contiene decisioni, visibilità, stelle e preferiti. **Visualizzazione** contiene layout, dimensione miniature, informazioni e presentazione. Ogni impostazione ha un solo accesso. Nelle raccolte strette l’ordinamento passa in Visualizzazione. Gli aiuti si aprono in finestre ancorate senza spostare la galleria.
+L’intestazione della raccolta resta visibile durante lo scorrimento, con ricerca, selezione, ordinamento e criteri attivi. **Filtri** apre Trova, Origine, Qualità, Tecnica e Soggetto; il badge numerico conta i filtri attivi e lo sfondo indica il pannello aperto. **Revisione** contiene decisioni, visibilità, stelle e preferiti. **Visualizzazione** contiene layout, dimensione miniature, informazioni e presentazione. Ogni impostazione ha un solo accesso. Nelle raccolte strette l’ordinamento passa in Visualizzazione. Gli aiuti si aprono in finestre ancorate senza spostare la galleria.
 
 **Comandi dell’intestazione.** La ricerca contiene solo la query di testo. Il tipo di foto si trova in **Filtri**. **Revisione** contiene le pile suggerite e la selezione della percentuale migliore; **Visualizzazione** permette di espandere o comprimere le pile. In modalità selezione, il pulsante mostra il numero di foto selezionate e un’icona di chiusura. Sugli smartphone stretti, due righe compatte mantengono leggibili il nome della raccolta e le etichette dei comandi.
 
@@ -153,19 +153,21 @@ La ricerca testuale della galleria conserva le parole Unicode e tratta la punteg
 
 ### Schede della barra laterale
 
-Il pannello filtri ha tre schede: Sfoglia, Qualità e Soggetto. Revisione e Visualizzazione sono finestre separate della barra. L’ultima scheda viene ricordata (`facet_sidebar_tab`); una vecchia scelta Revisione o Visualizzazione apre Sfoglia. Ogni sezione ricorda se è espansa. La disponibilità delle misure sta sotto le metriche Qualità, con icona, freccia e conteggio delle regole attive.
+Il pannello filtri ha cinque schede: Trova, Origine, Qualità, Tecnica e Soggetto. Revisione e Visualizzazione sono finestre separate della barra. L’ultima scheda viene ricordata (`facet_sidebar_tab`); una vecchia scelta Revisione, Visualizzazione o Sfoglia apre Trova. Ogni sezione ricorda se è espansa. La disponibilità delle misure sta sotto le metriche Qualità, con icona, freccia e conteggio delle regole attive.
 
 | Scheda | Sezioni |
 |--------|---------|
-| **Sfoglia** | Ricerca semantica, Persone, Intervallo date, Contenuto, Album, Posizione, Cartella, Attrezzatura |
-| **Qualità** | Qualità, Colore e qualità, Qualità estesa, Tecnica, Esposizione & Gamma (quanto è buona l'immagine) |
-| **Soggetto** | Metriche volti, Composizione, Salienza del soggetto, Momenti (cosa c'è nell'inquadratura) |
+| **Trova** | Ricerca semantica, Contenuto, Persone, Momenti (cosa cercare) |
+| **Origine** | Intervallo date, Posizione, Cartella, Album, Attrezzatura (dove, quando e con cosa) |
+| **Qualità** | Qualità, Qualità estesa, Disponibilità delle misure (quanto è buona l'immagine) |
+| **Tecnica** | Tecnica, Esposizione & Gamma, Colore e qualità (nitidezza, esposizione, colore e rumore) |
+| **Soggetto** | Metriche volti, Composizione, Salienza del soggetto (cosa c'è nell'inquadratura) |
 
-L'intestazione, **Cerca un filtro**, l'avviso dell'album intelligente e la ricerca per nome file restano sopra le schede in ogni scheda, quindi `/` funziona da tutte. Digitare in **Cerca un filtro** nasconde le schede ed elenca i cursori corrispondenti di tutte.
+L'intestazione, **Cerca un filtro**, l'avviso dell'album intelligente e la ricerca per nome file restano sopra le schede in ogni scheda, quindi `/` funziona da tutte. Digitare in **Cerca un filtro** nasconde le schede ed elenca i cursori corrispondenti di tutte. **Filtri attivi**, accanto, mostra solo le sezioni con un filtro attivo, da tutte le schede, espanse e nell'ordine delle schede; il badge conta questi filtri, e scegliere una scheda esce da questa vista. Senza filtri mostra *Nessun filtro applicato*.
 
 Il numero accanto a **Filtri** comprende tutti i criteri attivi, anche metriche non disponibili. Un intervallo conta una volta. **Reimposta filtri** appare accanto ai criteri della raccolta già con un solo criterio; il pannello non lo duplica. **X** chiude il pannello.
 
-Nella scheda Revisione, la decisione e ogni gruppo (ad esempio Duplicati) è una riga che mostra il valore attuale (come Nascoste, Mostrate o Solo queste) e apre un menu di scelte, ciascuna con una spiegazione di una riga. Una riga lasciata sul valore predefinito non conta nel badge della scheda né dell'intestazione. *Solo* e *Nascoste* si escludono a vicenda. Finché è scelta una decisione, Scartate è bloccata e la sua descrizione ne spiega il motivo. Una riga **Valutazione a stelle** apre un menu (Tutte, da 1★ e oltre a 5★ e oltre, 0 stelle). Sotto, le caselle con etichetta **Solo preferite** e **Solo monocromatiche** hanno descrizioni al passaggio. Nelle schede Qualità e Soggetto, passare sul nome di un'impostazione spiega cosa viene valutato e da quale modello, e anche i controlli di Revisione hanno descrizioni al passaggio.
+Nella scheda Revisione, la decisione e ogni gruppo (ad esempio Duplicati) è una riga che mostra il valore attuale (come Nascoste, Mostrate o Solo queste) e apre un menu di scelte, ciascuna con una spiegazione di una riga. Una riga lasciata sul valore predefinito non conta nel badge della scheda né dell'intestazione. *Solo* e *Nascoste* si escludono a vicenda. Finché è scelta una decisione, Scartate è bloccata e la sua descrizione ne spiega il motivo. Una riga **Valutazione a stelle** apre un menu (Tutte, da 1★ e oltre a 5★ e oltre, 0 stelle). Sotto, le caselle con etichetta **Solo preferite** e **Solo monocromatiche** hanno descrizioni al passaggio. Nelle schede Qualità, Tecnica e Soggetto, passare sul nome di un'impostazione spiega cosa viene valutato e da quale modello, e anche i controlli di Revisione hanno descrizioni al passaggio.
 
 ### Filtri primari
 

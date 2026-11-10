@@ -1335,7 +1335,9 @@
       "color_quality": "Farbe & Qualität",
       "moments": "Momente",
       "tabs": {
-        "browse": "Durchsuchen",
+        "find": "Suchen",
+        "source": "Quelle",
+        "technical": "Technik",
         "review": "Prüfen",
         "quality": "Qualität",
         "subject": "Motiv",
@@ -1463,6 +1465,11 @@
         "add": "Steuerelement {name} anheften",
         "remove": "Steuerelement {name} lösen",
         "limit": "Sie können bis zu {max} Steuerelemente anheften. Lösen Sie eines, um ein anderes hinzuzufügen."
+      },
+      "active_view": {
+        "label": "Aktive Filter",
+        "show": "Zeigt nur die verwendeten Filter aus allen Tabs",
+        "none": "Keine Filter angewendet"
       }
     },
     "semantic_search_info": "Die semantische Suche lädt beim ersten Gebrauch Embeddings in den RAM. Bei großen Bibliotheken kann dies einen Moment dauern.",

@@ -1335,7 +1335,9 @@
       "color_quality": "Couleur et qualité",
       "moments": "Moments",
       "tabs": {
-        "browse": "Parcourir",
+        "find": "Recherche",
+        "source": "Source",
+        "technical": "Technique",
         "review": "Tri",
         "quality": "Qualité",
         "subject": "Sujet",
@@ -1463,6 +1465,11 @@
         "add": "Épingler la commande {name}",
         "remove": "Détacher la commande {name}",
         "limit": "Vous pouvez épingler jusqu’à {max} commandes. Détachez-en une pour en ajouter une autre."
+      },
+      "active_view": {
+        "label": "Filtres actifs",
+        "show": "N’affiche que les filtres utilisés, de tous les onglets",
+        "none": "Aucun filtre appliqué"
       }
     },
     "semantic_search_info": "La recherche sémantique charge les embeddings en mémoire au premier usage. Cela peut prendre un moment pour les grandes bibliothèques.",

@@ -90,31 +90,32 @@ export const SECTION_ICONS: Record<string, string> = {
   'gallery.sidebar.ratings': 'grade',
 };
 
-/** Panels that are not metric sections (those come from `SECTION_ORDER`). */
-export const BROWSE_PANELS = ['semantic', 'persons', 'date', 'content', 'albums', 'location', 'folder', 'equipment'] as const;
-
-export type SidebarTabId = 'browse' | 'review' | 'quality' | 'subject' | 'display';
+export type SidebarTabId = 'find' | 'source' | 'review' | 'quality' | 'technical' | 'subject' | 'display';
 
 /** Which panels each tab holds, in render order. Every panel is in exactly one tab. */
 export const TAB_SECTIONS: Record<SidebarTabId, readonly string[]> = {
-  browse: BROWSE_PANELS,
+  find: ['semantic', 'content', 'persons', 'gallery.sidebar.moments'],
+  source: ['date', 'location', 'folder', 'albums', 'equipment'],
   review: ['refine', 'gallery.sidebar.ratings'],
-  quality: ['score_presence', 'gallery.sidebar.quality', 'color_quality', 'gallery.sidebar.extended_quality', 'gallery.sidebar.technical', 'gallery.sidebar.exposure_range'],
-  subject: ['gallery.sidebar.face', 'gallery.sidebar.composition', 'gallery.sidebar.saliency', 'gallery.sidebar.moments'],
+  quality: ['gallery.sidebar.quality', 'gallery.sidebar.extended_quality', 'score_presence'],
+  technical: ['gallery.sidebar.technical', 'gallery.sidebar.exposure_range', 'color_quality'],
+  subject: ['gallery.sidebar.face', 'gallery.sidebar.composition', 'gallery.sidebar.saliency'],
   display: ['view'],
 };
 
 export const TAB_IDS = Object.keys(TAB_SECTIONS) as SidebarTabId[];
 
 export const TAB_ICONS: Record<SidebarTabId, string> = {
-  browse: 'travel_explore',
+  find: 'travel_explore',
+  source: 'photo_library',
   review: 'rule',
   quality: 'high_quality',
+  technical: 'tune',
   subject: 'center_focus_strong',
   display: 'display_settings',
 };
 
-const DEFAULT_TAB: SidebarTabId = 'browse';
+const DEFAULT_TAB: SidebarTabId = 'find';
 
 export type SegmentRowId = 'decision' | 'rejected' | 'bursts' | 'duplicates' | 'blinks' | 'brackets' | 'panoramas';
 
@@ -308,8 +309,9 @@ type RatingOption = 'any' | '1' | '2' | '3' | '4' | '5' | 'zero';
         </div>
       </details>
 
-      <!-- Find a filter -->
-      <div class="relative mb-2">
+      <!-- Find a filter, and the Active filters view toggle -->
+      <div class="mb-2 flex items-center gap-2">
+      <div class="relative min-w-0 flex-1">
         <label class="sr-only" for="filter-finder-input">{{ I18N.gallery.sidebar.find_filter | translate }}</label>
         <input #filterFinder id="filter-finder-input" [placeholder]="I18N.gallery.sidebar.find_filter | translate"
                type="text" role="searchbox" autocomplete="off"
@@ -322,11 +324,21 @@ type RatingOption = 'any' | '1' | '2' | '3' | '4' | '5' | 'zero';
           </button>
         }
       </div>
+        <button type="button" mat-stroked-button data-active-view class="shrink-0 !min-h-11 !px-3"
+                [class.!bg-[var(--mat-sys-secondary-container)]]="activeView()" [attr.aria-pressed]="activeView()"
+                [matTooltip]="I18N.gallery.sidebar.active_view.show | translate" (click)="toggleActiveView()">
+          <mat-icon aria-hidden="true">filter_list</mat-icon>
+          <span>{{ I18N.gallery.sidebar.active_view.label | translate }}</span>
+          @if (activeViewCount()) {
+            <span data-active-view-count class="ml-1 inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-[var(--mat-sys-primary)] px-1.5 text-xs leading-none text-[var(--mat-sys-on-primary)]">{{ activeViewCount() }}</span>
+          }
+        </button>
+      </div>
 
       @if (!filterQuery().trim()) {
         <nav mat-tab-nav-bar mat-stretch-tabs="true" animationDuration="0ms" [tabPanel]="tabPanel"
              [attr.aria-label]="I18N.gallery.sidebar.tabs.aria_label | translate"
-             class="[&_.mdc-tab]:!min-w-0 [&_.mdc-tab]:!px-2 [&_.mdc-tab--active_mat-icon]:!text-[var(--mat-sys-primary)]">
+             class="[&_.mdc-tab]:!min-w-0 [&_.mdc-tab]:!px-1 [&_.mdc-tab--active_mat-icon]:!text-[var(--mat-sys-primary)]">
           @for (tab of tabItems(); track tab.id) {
             <button type="button" mat-tab-link [active]="tab.active" (click)="selectTab(tab.id)"
                [matTooltip]="tab.labelKey | translate"
@@ -338,7 +350,7 @@ type RatingOption = 'any' | '1' | '2' | '3' | '4' | '5' | 'zero';
                   <span data-filter-tab-count aria-hidden="true" class="text-[0.625rem] rounded-full min-w-4 h-4 px-1 flex items-center justify-center bg-[var(--mat-sys-primary)] text-[var(--mat-sys-on-primary)] leading-none">{{ tab.count }}</span>
                 }
                 </span>
-                <span data-filter-tab-label class="max-w-12 truncate text-[11px] leading-4">{{ tab.labelKey | translate }}</span>
+                <span data-filter-tab-label class="max-w-14 truncate text-[11px] leading-4">{{ tab.labelKey | translate }}</span>
               </span>
             </button>
           }
@@ -379,14 +391,19 @@ type RatingOption = 'any' | '1' | '2' | '3' | '4' | '5' | 'zero';
           </div>
         }
       } @else {
-        @switch (effectiveTab()) {
-          @case ('browse') {
+        @if (activeView() && !shownPanels().length) {
+          <p data-active-view-empty class="text-xs text-[var(--mat-sys-on-surface-variant)] px-2 py-3">{{ I18N.gallery.sidebar.active_view.none | translate }}</p>
+        }
+        <!-- Each tab, and the Active filters view, lists its panels in TAB_SECTIONS order. -->
+        @for (panel of shownPanels(); track panel) {
+        @switch (panel) {
+          @case ('semantic') {
       <!-- Semantic Search (top of sidebar) -->
       @if (store.config()?.features?.show_semantic_search) {
-        <mat-expansion-panel class="!mb-1" [expanded]="sectionStates()['semantic'] === true"
+        <mat-expansion-panel class="!mb-1" [expanded]="activeView() || sectionStates()['semantic'] === true"
                              (opened)="onSectionToggle('semantic', true)"
                              (closed)="onSectionToggle('semantic', false)"
-                             [style.background-color]="sectionStates()['semantic'] === true ? 'var(--mat-sys-surface-container)' : null">
+                             [style.background-color]="activeView() || sectionStates()['semantic'] === true ? 'var(--mat-sys-surface-container)' : null">
           <mat-expansion-panel-header class="!px-2">
             <mat-panel-title class="flex items-center gap-2">
               <mat-icon class="!text-xl !w-5 !h-5 !leading-none opacity-80">image_search</mat-icon>
@@ -428,12 +445,13 @@ type RatingOption = 'any' | '1' | '2' | '3' | '4' | '5' | 'zero';
           </div>
         </mat-expansion-panel>
       }
-
+          }
+          @case ('persons') {
       <!-- Persons -->
-        <mat-expansion-panel class="!mb-1 mt-1" [expanded]="sectionStates()['persons'] !== false"
+        <mat-expansion-panel class="!mb-1 mt-1" [expanded]="activeView() || sectionStates()['persons'] !== false"
                              (opened)="onSectionToggle('persons', true)"
                              (closed)="onSectionToggle('persons', false)"
-                             [style.background-color]="sectionStates()['persons'] !== false ? 'var(--mat-sys-surface-container)' : null">
+                             [style.background-color]="activeView() || sectionStates()['persons'] !== false ? 'var(--mat-sys-surface-container)' : null">
           <mat-expansion-panel-header class="!px-2">
             <mat-panel-title class="flex items-center gap-2">
               <mat-icon class="!text-xl !w-5 !h-5 !leading-none opacity-80">people</mat-icon>
@@ -498,12 +516,13 @@ type RatingOption = 'any' | '1' | '2' | '3' | '4' | '5' | 'zero';
             }
           </div>
         </mat-expansion-panel>
-
+          }
+          @case ('date') {
       <!-- Date Range -->
-      <mat-expansion-panel class="!mb-1 mt-4" [expanded]="sectionStates()['date'] !== false"
+      <mat-expansion-panel class="!mb-1" [expanded]="activeView() || sectionStates()['date'] !== false"
                            (opened)="onSectionToggle('date', true)"
                            (closed)="onSectionToggle('date', false)"
-                           [style.background-color]="sectionStates()['date'] !== false ? 'var(--mat-sys-surface-container)' : null">
+                           [style.background-color]="activeView() || sectionStates()['date'] !== false ? 'var(--mat-sys-surface-container)' : null">
         <mat-expansion-panel-header class="!px-2">
           <mat-panel-title class="flex items-center gap-2">
             <mat-icon class="!text-xl !w-5 !h-5 !leading-none opacity-80">calendar_today</mat-icon>
@@ -532,12 +551,13 @@ type RatingOption = 'any' | '1' | '2' | '3' | '4' | '5' | 'zero';
           </mat-checkbox>
         </div>
       </mat-expansion-panel>
-
+          }
+          @case ('content') {
       <!-- Content -->
-        <mat-expansion-panel class="!mb-1" [expanded]="sectionStates()['content'] !== false"
+        <mat-expansion-panel class="!mb-1" [expanded]="activeView() || sectionStates()['content'] !== false"
                              (opened)="onSectionToggle('content', true)"
                              (closed)="onSectionToggle('content', false)"
-                             [style.background-color]="sectionStates()['content'] !== false ? 'var(--mat-sys-surface-container)' : null">
+                             [style.background-color]="activeView() || sectionStates()['content'] !== false ? 'var(--mat-sys-surface-container)' : null">
           <mat-expansion-panel-header class="!px-2">
             <mat-panel-title class="flex items-center gap-2">
               <mat-icon class="!text-xl !w-5 !h-5 !leading-none opacity-80">label</mat-icon>
@@ -586,13 +606,14 @@ type RatingOption = 'any' | '1' | '2' | '3' | '4' | '5' | 'zero';
             }
           </div>
         </mat-expansion-panel>
-
+          }
+          @case ('albums') {
       <!-- Albums -->
       @if (store.config()?.features?.show_albums && albums().length) {
-        <mat-expansion-panel class="!mb-1" [expanded]="sectionStates()['albums'] === true"
+        <mat-expansion-panel class="!mb-1" [expanded]="activeView() || sectionStates()['albums'] === true"
                              (opened)="onSectionToggle('albums', true)"
                              (closed)="onSectionToggle('albums', false)"
-                             [style.background-color]="sectionStates()['albums'] === true ? 'var(--mat-sys-surface-container)' : null">
+                             [style.background-color]="activeView() || sectionStates()['albums'] === true ? 'var(--mat-sys-surface-container)' : null">
           <mat-expansion-panel-header class="!px-2">
             <mat-panel-title class="flex items-center gap-2">
               <mat-icon class="!text-xl !w-5 !h-5 !leading-none opacity-80">photo_album</mat-icon>
@@ -612,12 +633,13 @@ type RatingOption = 'any' | '1' | '2' | '3' | '4' | '5' | 'zero';
           </div>
         </mat-expansion-panel>
       }
-
+          }
+          @case ('location') {
       <!-- Location filter -->
-      <mat-expansion-panel class="!mb-1" [expanded]="sectionStates()['location'] === true"
+      <mat-expansion-panel class="!mb-1" [expanded]="activeView() || sectionStates()['location'] === true"
                            (opened)="onSectionToggle('location', true)"
                            (closed)="onSectionToggle('location', false)"
-                           [style.background-color]="sectionStates()['location'] === true ? 'var(--mat-sys-surface-container)' : null">
+                           [style.background-color]="activeView() || sectionStates()['location'] === true ? 'var(--mat-sys-surface-container)' : null">
         <mat-expansion-panel-header class="!px-2">
           <mat-panel-title class="flex items-center gap-2">
             <mat-icon class="!text-xl !w-5 !h-5 !leading-none opacity-80">place</mat-icon>
@@ -653,13 +675,14 @@ type RatingOption = 'any' | '1' | '2' | '3' | '4' | '5' | 'zero';
           }
         </div>
       </mat-expansion-panel>
-
+          }
+          @case ('folder') {
       <!-- Folder filter -->
       @if (store.config()?.features?.show_folders || store.filters().path_prefix) {
-        <mat-expansion-panel class="!mb-1" [expanded]="sectionStates()['folder'] === true"
+        <mat-expansion-panel class="!mb-1" [expanded]="activeView() || sectionStates()['folder'] === true"
                              (opened)="onSectionToggle('folder', true)"
                              (closed)="onSectionToggle('folder', false)"
-                             [style.background-color]="sectionStates()['folder'] === true ? 'var(--mat-sys-surface-container)' : null">
+                             [style.background-color]="activeView() || sectionStates()['folder'] === true ? 'var(--mat-sys-surface-container)' : null">
           <mat-expansion-panel-header class="!px-2">
             <mat-panel-title class="flex items-center gap-2">
               <mat-icon class="!text-xl !w-5 !h-5 !leading-none opacity-80">folder</mat-icon>
@@ -691,13 +714,14 @@ type RatingOption = 'any' | '1' | '2' | '3' | '4' | '5' | 'zero';
           </div>
         </mat-expansion-panel>
       }
-
+          }
+          @case ('equipment') {
       <!-- Equipment -->
       @if (store.cameras().length || store.lenses().length) {
-        <mat-expansion-panel class="!mb-1" [expanded]="sectionStates()['equipment'] !== false"
+        <mat-expansion-panel class="!mb-1" [expanded]="activeView() || sectionStates()['equipment'] !== false"
                              (opened)="onSectionToggle('equipment', true)"
                              (closed)="onSectionToggle('equipment', false)"
-                             [style.background-color]="sectionStates()['equipment'] !== false ? 'var(--mat-sys-surface-container)' : null">
+                             [style.background-color]="activeView() || sectionStates()['equipment'] !== false ? 'var(--mat-sys-surface-container)' : null">
           <mat-expansion-panel-header class="!px-2">
             <mat-panel-title class="flex items-center gap-2">
               <mat-icon class="!text-xl !w-5 !h-5 !leading-none opacity-80">photo_camera</mat-icon>
@@ -734,18 +758,16 @@ type RatingOption = 'any' | '1' | '2' | '3' | '4' | '5' | 'zero';
         </mat-expansion-panel>
       }
           }
-          @case ('review') { <ng-container [ngTemplateOutlet]="reviewSettings" /> }
-          @case ('quality') {
-      @for (group of qualityGroups(); track group.sectionKey) {
-        <ng-container [ngTemplateOutlet]="metricPanel" [ngTemplateOutletContext]="{ $implicit: group }" />
-      }
-
+          @case ('refine') { <ng-container [ngTemplateOutlet]="reviewSettings" /> }
+          <!-- Ratings render inside the Review settings above. -->
+          @case ('gallery.sidebar.ratings') {}
+          @case ('color_quality') {
       <!-- Color & Quality tier -->
       @if (store.colorTemps().length || store.hueBuckets().length || qualityTiers.length) {
-        <mat-expansion-panel class="!mb-1" [expanded]="sectionStates()['color_quality'] === true"
+        <mat-expansion-panel class="!mb-1" [expanded]="activeView() || sectionStates()['color_quality'] === true"
                              (opened)="onSectionToggle('color_quality', true)"
                              (closed)="onSectionToggle('color_quality', false)"
-                             [style.background-color]="sectionStates()['color_quality'] === true ? 'var(--mat-sys-surface-container)' : null">
+                             [style.background-color]="activeView() || sectionStates()['color_quality'] === true ? 'var(--mat-sys-surface-container)' : null">
           <mat-expansion-panel-header class="!px-2">
             <mat-panel-title class="flex items-center gap-2">
               <mat-icon class="!text-xl !w-5 !h-5 !leading-none opacity-80">palette</mat-icon>
@@ -802,14 +824,12 @@ type RatingOption = 'any' | '1' | '2' | '3' | '4' | '5' | 'zero';
           </div>
         </mat-expansion-panel>
       }
-
-      @for (group of qualityAdvancedGroups(); track group.sectionKey) {
-        <ng-container [ngTemplateOutlet]="metricPanel" [ngTemplateOutletContext]="{ $implicit: group }" />
-      }
-      <mat-expansion-panel class="!mb-1" data-section="score_presence" [expanded]="sectionStates()['score_presence'] === true"
+          }
+          @case ('score_presence') {
+      <mat-expansion-panel class="!mb-1" data-section="score_presence" [expanded]="activeView() || sectionStates()['score_presence'] === true"
                            (opened)="onSectionToggle('score_presence', true)"
                            (closed)="onSectionToggle('score_presence', false)"
-                           [style.background-color]="sectionStates()['score_presence'] === true ? 'var(--mat-sys-surface-container)' : null">
+                           [style.background-color]="activeView() || sectionStates()['score_presence'] === true ? 'var(--mat-sys-surface-container)' : null">
         <mat-expansion-panel-header class="!px-2">
           <mat-panel-title class="flex items-center gap-2">
             <mat-icon class="!text-xl !w-5 !h-5 !leading-none opacity-80">fact_check</mat-icon>
@@ -822,20 +842,21 @@ type RatingOption = 'any' | '1' | '2' | '3' | '4' | '5' | 'zero';
         <app-score-presence [metrics]="scorePresenceMetrics" />
       </mat-expansion-panel>
           }
-          @case ('subject') {
-      @for (group of subjectGroups(); track group.sectionKey) {
-        <ng-container [ngTemplateOutlet]="metricPanel" [ngTemplateOutletContext]="{ $implicit: group }" />
-      }
+          @case ('view') { <ng-container [ngTemplateOutlet]="displayLayoutSettings" /><ng-container [ngTemplateOutlet]="displaySettings" /> }
+          @default {
+            @if (metricGroupsByKey()[panel]; as group) {
+              <ng-container [ngTemplateOutlet]="metricPanel" [ngTemplateOutletContext]="{ $implicit: group }" />
+            }
           }
-          @case ('display') { <ng-container [ngTemplateOutlet]="displayLayoutSettings" /><ng-container [ngTemplateOutlet]="displaySettings" /> }
+        }
         }
       }
 
       <ng-template #metricPanel let-group>
-        <mat-expansion-panel class="!mb-1" [expanded]="sectionStates()[group.sectionKey] === true"
+        <mat-expansion-panel class="!mb-1" [expanded]="activeView() || sectionStates()[group.sectionKey] === true"
                              (opened)="onSectionToggle(group.sectionKey, true)"
                              (closed)="onSectionToggle(group.sectionKey, false)"
-                             [style.background-color]="sectionStates()[group.sectionKey] === true ? 'var(--mat-sys-surface-container)' : null">
+                             [style.background-color]="activeView() || sectionStates()[group.sectionKey] === true ? 'var(--mat-sys-surface-container)' : null">
           <mat-expansion-panel-header class="!px-2">
             <mat-panel-title class="flex items-center gap-2">
               <mat-icon class="!text-xl !w-5 !h-5 !leading-none opacity-80" [class]="group.sectionKey | markTone">{{ sectionIcons[group.sectionKey] || 'tune' }}</mat-icon>
@@ -1052,7 +1073,7 @@ export class GalleryFilterSidebarComponent {
   readonly displaySettings = viewChild<TemplateRef<unknown>>('displaySettings');
   readonly displayLayoutSettings = viewChild<TemplateRef<unknown>>('displayLayoutSettings');
   readonly displayExtras = input<TemplateRef<unknown> | null>(null);
-  readonly effectiveTab = computed(() => this.portSettings() && ['review', 'display'].includes(this.activeTab()) ? 'browse' : this.activeTab());
+  readonly effectiveTab = computed(() => this.portSettings() && ['review', 'display'].includes(this.activeTab()) ? DEFAULT_TAB : this.activeTab());
   readonly layoutControls = input<TemplateRef<unknown> | null>(null);
   protected readonly scorePresenceMetrics = [
     ...ADDITIONAL_FILTERS.filter(def => SCORE_PRESENCE_KEYS.has(def.minKey)),
@@ -1088,7 +1109,8 @@ export class GalleryFilterSidebarComponent {
     if (!this.filterPins.toggle(def.id, this.pinnableIds())) return;
     if (wasPinned && !this.filterQuery().trim()) {
       const tab = TAB_IDS.find(id => TAB_SECTIONS[id].includes(def.sectionKey));
-      if (tab) this.selectTab(tab);
+      // In the Active filters view, a filter whose panel is shown there stays in the view.
+      if (tab && !(this.activeView() && this.activeViewPanels().includes(def.sectionKey))) this.selectTab(tab);
       this.onSectionToggle(def.sectionKey, true);
     }
     if (restoreFocus) afterNextRender(() => {
@@ -1283,8 +1305,8 @@ export class GalleryFilterSidebarComponent {
   readonly metricFilterGroups = computed(() => [...this.commonFilterGroups(), ...this.advancedFilterGroups()]);
   readonly noFilterMatches = computed(() => !!this.filterQuery().trim() && this.metricFilterGroups().length === 0);
 
-  readonly qualityAdvancedGroups = computed(() => this.advancedFilterGroups().filter(g => TAB_SECTIONS.quality.includes(g.sectionKey)));
-  readonly subjectGroups = computed(() => this.advancedFilterGroups().filter(g => TAB_SECTIONS.subject.includes(g.sectionKey)));
+  readonly metricGroupsByKey = computed((): Record<string, FilterGroup> =>
+    Object.fromEntries(this.metricFilterGroups().map(group => [group.sectionKey, group])));
   readonly zeroStars = computed(() => hasZeroStarFilter(this.store.filters()));
   protected readonly ratingOptions: { id: RatingOption; key: string; vars: Record<string, number> }[] = [
     { id: 'any', key: I18N.gallery.sidebar.review.rating_any, vars: {} },
@@ -1402,8 +1424,6 @@ export class GalleryFilterSidebarComponent {
     });
   }
 
-  readonly qualityGroups = computed(() => this.commonFilterGroups().filter(g => g.sectionKey === 'gallery.sidebar.quality'));
-
   /** Active controls per panel, from `UNIT_PANEL`; a range counts once. Hidden metrics never count. */
   readonly sectionActiveCounts = computed((): Record<string, number> => {
     const bySection = this.filtersBySection();
@@ -1432,15 +1452,37 @@ export class GalleryFilterSidebarComponent {
   /** The header badge and Reset: every active control, a hidden metric's included, so Reset can always clear it. */
   readonly totalActiveCount = computed(() => countActiveFilters(this.store.filters()));
 
-  readonly tabItems = computed(() => TAB_IDS.filter(id => !this.portSettings() || (id !== 'review' && id !== 'display')).map(id => ({
+  /** The tabs the drawer shows: Review and Display live in their own popovers when the gallery ports them. */
+  readonly visibleTabIds = computed(() => TAB_IDS.filter(id => !this.portSettings() || (id !== 'review' && id !== 'display')));
+
+  readonly tabItems = computed(() => this.visibleTabIds().map(id => ({
     id,
     icon: TAB_ICONS[id],
     labelKey: this.I18N.gallery.sidebar.tabs[id],
     count: this.tabActiveCounts()[id],
-    active: this.effectiveTab() === id,
+    active: !this.activeView() && this.effectiveTab() === id,
   })));
 
+  /** The Active filters view: every visible tab's panels that hold an active filter, in tab order, shown open. */
+  readonly activeView = signal(false);
+  readonly activeViewCount = computed(() => this.visibleTabIds().reduce((sum, id) => sum + this.tabActiveCounts()[id], 0));
+  readonly activeViewPanels = computed(() => {
+    const counts = this.sectionActiveCounts();
+    // The Review settings render as one block from their first panel id.
+    return this.visibleTabIds().flatMap(id => id === 'review'
+      ? (this.tabActiveCounts().review ? [TAB_SECTIONS.review[0]] : [])
+      : TAB_SECTIONS[id].filter(panel => counts[panel] > 0));
+  });
+  readonly shownPanels = computed(() => this.activeView() ? this.activeViewPanels() : TAB_SECTIONS[this.effectiveTab()]);
+
+  toggleActiveView(): void {
+    this.activeView.update(on => !on);
+    const el = this.scrollArea()?.nativeElement;
+    if (el) el.scrollTop = 0;
+  }
+
   selectTab(id: SidebarTabId): void {
+    this.activeView.set(false);
     if (id === this.activeTab()) return;
     this.activeTab.set(id);
     writeStored(SIDEBAR_TAB_KEY, id);
@@ -1450,6 +1492,8 @@ export class GalleryFilterSidebarComponent {
   }
 
   onSectionToggle(sectionId: string, isOpen: boolean): void {
+    // The Active filters view opens its panels itself; that is not the user's choice for the tabs.
+    if (this.activeView()) return;
     this.sectionStates.update(s => {
       const next = { ...s, [sectionId]: isOpen };
       saveSectionStates(next);

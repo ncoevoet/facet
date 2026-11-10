@@ -6,7 +6,7 @@ El visor es una aplicación web FastAPI + Angular para explorar, filtrar, descar
 
 En escritorio (desde 1024 px), los destinos habilitados aparecen directamente en la barra superior según el espacio disponible. **Más** aparece solo cuando algunos destinos no caben y contiene los restantes. Se tienen en cuenta el tamaño de la ventana, las etiquetas traducidas y los controles de cuenta. Las acciones contextuales de la página aparecen debajo. La galería tiene su propia cabecera de colección con origen, consulta, recuento, orden y filtros activos que se pueden quitar. En pantallas más estrechas, el botón de menú ofrece los mismos destinos disponibles. Fuera de la galería muestra el icono de la página actual, y el nombre de la página sustituye al nombre Facet a su lado.
 
-La cabecera de colección permanece visible al desplazarse, con búsqueda, selección, ordenación y criterios activos. **Filtros** abre Explorar, Calidad y Sujeto; su insignia numérica cuenta filtros activos y el fondo indica si está abierto. **Revisión** contiene decisiones, visibilidad, estrellas y favoritos. **Visualización** contiene diseño, tamaño de miniatura, información y presentación. Cada ajuste tiene un único acceso. En colecciones estrechas, ordenar pasa a Visualización. Las ayudas se abren en ventanas ancladas sin desplazar la galería.
+La cabecera de colección permanece visible al desplazarse, con búsqueda, selección, ordenación y criterios activos. **Filtros** abre Buscar, Origen, Calidad, Técnica y Sujeto; su insignia numérica cuenta filtros activos y el fondo indica si está abierto. **Revisión** contiene decisiones, visibilidad, estrellas y favoritos. **Visualización** contiene diseño, tamaño de miniatura, información y presentación. Cada ajuste tiene un único acceso. En colecciones estrechas, ordenar pasa a Visualización. Las ayudas se abren en ventanas ancladas sin desplazar la galería.
 
 **Controles de la cabecera.** La búsqueda solo contiene la consulta de texto. El tipo de foto está en **Filtros**. **Revisión** contiene las pilas sugeridas y la conservación del mejor porcentaje; **Visualización** permite expandir o contraer pilas. En modo de selección, el botón indica cuántas fotos hay seleccionadas y muestra un icono para salir. En teléfonos estrechos se usan dos filas compactas para mantener legibles el nombre de la colección y los controles.
 
@@ -153,19 +153,21 @@ La búsqueda de texto de la galería conserva las palabras Unicode y trata la pu
 
 ### Pestañas de la barra lateral
 
-El panel de filtros tiene tres pestañas: Explorar, Calidad y Sujeto. Revisión y Visualización son ventanas separadas de la barra. La última pestaña se recuerda (`facet_sidebar_tab`); una antigua selección Revisión o Visualización abre Explorar. Cada sección recuerda si está desplegada. La disponibilidad de mediciones queda debajo de las métricas Calidad, con icono, flecha y número de reglas activas.
+El panel de filtros tiene cinco pestañas: Buscar, Origen, Calidad, Técnica y Sujeto. Revisión y Visualización son ventanas separadas de la barra. La última pestaña se recuerda (`facet_sidebar_tab`); una antigua selección Revisión, Visualización o Explorar abre Buscar. Cada sección recuerda si está desplegada. La disponibilidad de mediciones queda debajo de las métricas Calidad, con icono, flecha y número de reglas activas.
 
 | Pestaña | Secciones |
 |---------|-----------|
-| **Explorar** | Búsqueda semántica, Personas, Rango de fechas, Contenido, Álbumes, Ubicación, Carpeta, Equipo |
-| **Calidad** | Calidad, Color y calidad, Calidad extendida, Técnica, Exposición & Rango (qué tan buena es la imagen) |
-| **Sujeto** | Métricas faciales, Composición, Saliencia del sujeto, Momentos (qué hay en el encuadre) |
+| **Buscar** | Búsqueda semántica, Contenido, Personas, Momentos (qué buscar) |
+| **Origen** | Rango de fechas, Ubicación, Carpeta, Álbumes, Equipo (dónde, cuándo y con qué) |
+| **Calidad** | Calidad, Calidad extendida, Disponibilidad de mediciones (qué tan buena es la imagen) |
+| **Técnica** | Técnica, Exposición & Rango, Color y calidad (nitidez, exposición, color y ruido) |
+| **Sujeto** | Métricas faciales, Composición, Saliencia del sujeto (qué hay en el encuadre) |
 
-La cabecera, **Buscar un filtro**, el aviso de álbum inteligente y la búsqueda por nombre de archivo permanecen sobre las pestañas en todas ellas, así que `/` funciona desde cualquiera. Escribir en **Buscar un filtro** oculta las pestañas y lista los controles coincidentes de todas.
+La cabecera, **Buscar un filtro**, el aviso de álbum inteligente y la búsqueda por nombre de archivo permanecen sobre las pestañas en todas ellas, así que `/` funciona desde cualquiera. Escribir en **Buscar un filtro** oculta las pestañas y lista los controles coincidentes de todas. **Filtros activos**, a su lado, muestra solo las secciones con un filtro activo, de todas las pestañas, desplegadas y en el orden de las pestañas; su insignia cuenta esos filtros, y elegir una pestaña sale de esa vista. Sin filtros indica *Ningún filtro aplicado*.
 
 El número junto a **Filtros** incluye todos los criterios activos, incluso métricas no disponibles. Un intervalo cuenta una vez. **Restablecer filtros** aparece junto a los criterios de colección desde el primer criterio activo; el panel no lo duplica. **X** cierra el panel.
 
-En la pestaña Revisión, la decisión y cada grupo (por ejemplo Duplicados) es una fila que muestra su valor actual (como Ocultos, Mostrados o Solo estos) y abre un menú de opciones, cada una con una explicación de una línea. Una fila que se deja en su valor por defecto no cuenta en la insignia de la pestaña ni de la cabecera. *Solo* y *Ocultos* se excluyen entre sí. Mientras hay una decisión elegida, Rechazadas queda bloqueada, y su información emergente explica por qué. Una fila **Valoración por estrellas** abre un menú (Todas, de 1★ o más a 5★ o más, 0 estrellas). Debajo, las casillas con etiqueta **Solo favoritas** y **Solo monocromo** tienen información emergente. En las pestañas Calidad y Sujeto, pasar el cursor sobre el nombre de un ajuste explica qué se puntúa y con qué modelo, y los controles de Revisión también tienen información emergente.
+En la pestaña Revisión, la decisión y cada grupo (por ejemplo Duplicados) es una fila que muestra su valor actual (como Ocultos, Mostrados o Solo estos) y abre un menú de opciones, cada una con una explicación de una línea. Una fila que se deja en su valor por defecto no cuenta en la insignia de la pestaña ni de la cabecera. *Solo* y *Ocultos* se excluyen entre sí. Mientras hay una decisión elegida, Rechazadas queda bloqueada, y su información emergente explica por qué. Una fila **Valoración por estrellas** abre un menú (Todas, de 1★ o más a 5★ o más, 0 estrellas). Debajo, las casillas con etiqueta **Solo favoritas** y **Solo monocromo** tienen información emergente. En las pestañas Calidad, Técnica y Sujeto, pasar el cursor sobre el nombre de un ajuste explica qué se puntúa y con qué modelo, y los controles de Revisión también tienen información emergente.
 
 ### Filtros principales
 

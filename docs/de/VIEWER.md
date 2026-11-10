@@ -6,7 +6,7 @@ Die Galerie ist eine Web-App aus FastAPI und Angular zum Durchsuchen, Filtern, A
 
 Auf dem Desktop (ab 1024 px) erscheinen aktivierte Ziele direkt in der oberen Leiste, soweit sie Platz haben. **Mehr** erscheint nur bei Platzmangel und enthält die übrigen Ziele. Fenstergröße, übersetzte Beschriftungen und Kontosteuerungen werden berücksichtigt. Kontextaktionen der aktuellen Seite stehen darunter. Die Galerie besitzt einen eigenen Sammlungskopf mit Quelle, Suchanfrage, Anzahl, Sortierung und entfernbaren Filterchips. Auf schmaleren Bildschirmen öffnet die Menüschaltfläche dieselben verfügbaren Ziele. Außerhalb der Galerie zeigt sie das Symbol der aktuellen Seite, und der Seitenname ersetzt daneben den Namen Facet.
 
-Die angeheftete Sammlungskopfzeile hält Suche, Auswahl, Sortierung und aktive Kriterien beim Scrollen erreichbar. **Filter** öffnet Durchsuchen, Qualität und Motiv; ein Zahlenabzeichen zählt aktive Filter, der Hintergrund zeigt den geöffneten Zustand. **Prüfen** enthält Entscheidung, Sichtbarkeit, Bewertung und Favoriten. **Anzeige** enthält Layout, Vorschaubildgröße, Fotoinformationen und Diashow. Jede Einstellung hat einen Zugang. In schmalen Sammlungen liegt die Sortierung unter Anzeige. Hilfe öffnet sich verankert, ohne die Galerie zu verschieben.
+Die angeheftete Sammlungskopfzeile hält Suche, Auswahl, Sortierung und aktive Kriterien beim Scrollen erreichbar. **Filter** öffnet Suchen, Quelle, Qualität, Technik und Motiv; ein Zahlenabzeichen zählt aktive Filter, der Hintergrund zeigt den geöffneten Zustand. **Prüfen** enthält Entscheidung, Sichtbarkeit, Bewertung und Favoriten. **Anzeige** enthält Layout, Vorschaubildgröße, Fotoinformationen und Diashow. Jede Einstellung hat einen Zugang. In schmalen Sammlungen liegt die Sortierung unter Anzeige. Hilfe öffnet sich verankert, ohne die Galerie zu verschieben.
 
 **Kopfzeilensteuerung.** Die Suche enthält nur die Textabfrage. Der Fototyp steht unter **Filter**. **Sichten** enthält vorgeschlagene Stapel und die Auswahl der besten Prozente; **Anzeige** enthält das Auf- und Zuklappen von Stapeln. Im Auswahlmodus zeigt die Auswahltaste die Anzahl ausgewählter Fotos und ein Schließen-Symbol. Auf schmalen Smartphones bleiben Sammlungsname und Beschriftungen durch zwei kompakte Zeilen lesbar.
 
@@ -153,19 +153,21 @@ Die Textsuche der Galerie behält Unicode-Wörter bei und behandelt Satzzeichen 
 
 ### Tabs der Seitenleiste
 
-Die Filterleiste hat drei Tabs: Durchsuchen, Qualität und Motiv. Sichten und Anzeige sind getrennte Popover der Werkzeugleiste. Der letzte Tab wird gespeichert (`facet_sidebar_tab`); ein früher gespeicherter Sichten- oder Anzeige-Tab öffnet Durchsuchen. Jeder Abschnitt merkt sich seinen aufgeklappten Zustand. Messwertverfügbarkeit steht unter den Qualitätsmetriken, mit Symbol, Pfeil und Anzahl aktiver Regeln.
+Die Filterleiste hat fünf Tabs: Suchen, Quelle, Qualität, Technik und Motiv. Sichten und Anzeige sind getrennte Popover der Werkzeugleiste. Der letzte Tab wird gespeichert (`facet_sidebar_tab`); ein früher gespeicherter Sichten-, Anzeige- oder Durchsuchen-Tab öffnet Suchen. Jeder Abschnitt merkt sich seinen aufgeklappten Zustand. Messwertverfügbarkeit steht unter den Qualitätsmetriken, mit Symbol, Pfeil und Anzahl aktiver Regeln.
 
 | Tab | Abschnitte |
 |-----|-----------|
-| **Durchsuchen** | Semantische Suche, Personen, Zeitraum, Inhalt, Alben, Standort, Ordner, Ausrüstung |
-| **Qualität** | Qualität, Farbe & Qualität, Erweiterte Qualität, Technik, Belichtung & Bereich (wie gut das Bild ist) |
-| **Motiv** | Gesichtsmetriken, Komposition, Motiverkennung, Momente (was im Bild zu sehen ist) |
+| **Suchen** | Semantische Suche, Inhalt, Personen, Momente (wonach gesucht wird) |
+| **Quelle** | Zeitraum, Standort, Ordner, Alben, Ausrüstung (wo, wann und womit) |
+| **Qualität** | Qualität, Erweiterte Qualität, Messwertverfügbarkeit (wie gut das Bild ist) |
+| **Technik** | Technik, Belichtung & Bereich, Farbe & Qualität (Schärfe, Belichtung, Farbe und Rauschen) |
+| **Motiv** | Gesichtsmetriken, Komposition, Motiverkennung (was im Bild zu sehen ist) |
 
-Kopfzeile, **Filter suchen**, der Hinweis für Smart-Alben und die Dateinamensuche bleiben auf jedem Tab über den Tabs, daher funktioniert `/` von jedem aus. Eine Eingabe in **Filter suchen** blendet die Tabs aus und listet die passenden Regler aus allen Tabs.
+Kopfzeile, **Filter suchen**, der Hinweis für Smart-Alben und die Dateinamensuche bleiben auf jedem Tab über den Tabs, daher funktioniert `/` von jedem aus. Eine Eingabe in **Filter suchen** blendet die Tabs aus und listet die passenden Regler aus allen Tabs. **Aktive Filter** daneben zeigt nur die Abschnitte mit einem aktiven Filter aus allen Tabs, aufgeklappt und in Tab-Reihenfolge; das Abzeichen zählt diese Filter, und die Wahl eines Tabs verlässt diese Ansicht. Ohne Filter steht dort *Keine Filter angewendet*.
 
 Die Zahl neben **Filter** zählt alle aktiven Kriterien einschließlich nicht verfügbarer Metriken. Ein Wertebereich zählt einmal. **Filter zurücksetzen** steht bei den Sammlungskriterien bereits ab einem aktiven Kriterium; die Seitenleiste dupliziert es nicht. **X** schließt die Leiste.
 
-Im Tab Prüfen sind die Entscheidung und jede Gruppe (zum Beispiel Duplikate) eine Zeile mit ihrem aktuellen Wert (etwa Ausgeblendet, Eingeblendet oder Nur diese), die ein Menü mit Auswahlmöglichkeiten samt einzeiliger Erklärung öffnet. Eine Zeile mit ihrem Standardwert zählt nicht zum Abzeichen des Tabs oder der Kopfzeile. *Nur* und *Ausgeblendet* schließen sich gegenseitig aus. Solange eine Entscheidung gewählt ist, ist Abgelehnt gesperrt, und sein Tooltip nennt den Grund. Eine Zeile **Sternebewertung** öffnet ein Menü (Alle, 1★ und mehr bis 5★ und mehr, 0 Sterne). Darunter stehen die beschrifteten Kontrollkästchen **Nur Favoriten** und **Nur Schwarzweiß**, die Tooltips haben. In den Tabs Qualität und Motiv erklärt das Überfahren des Namens einer Einstellung, was bewertet wird und von welchem Modell, und auch die Steuerelemente im Tab Prüfen haben Tooltips.
+Im Tab Prüfen sind die Entscheidung und jede Gruppe (zum Beispiel Duplikate) eine Zeile mit ihrem aktuellen Wert (etwa Ausgeblendet, Eingeblendet oder Nur diese), die ein Menü mit Auswahlmöglichkeiten samt einzeiliger Erklärung öffnet. Eine Zeile mit ihrem Standardwert zählt nicht zum Abzeichen des Tabs oder der Kopfzeile. *Nur* und *Ausgeblendet* schließen sich gegenseitig aus. Solange eine Entscheidung gewählt ist, ist Abgelehnt gesperrt, und sein Tooltip nennt den Grund. Eine Zeile **Sternebewertung** öffnet ein Menü (Alle, 1★ und mehr bis 5★ und mehr, 0 Sterne). Darunter stehen die beschrifteten Kontrollkästchen **Nur Favoriten** und **Nur Schwarzweiß**, die Tooltips haben. In den Tabs Qualität, Technik und Motiv erklärt das Überfahren des Namens einer Einstellung, was bewertet wird und von welchem Modell, und auch die Steuerelemente im Tab Prüfen haben Tooltips.
 
 ### Primärfilter
 

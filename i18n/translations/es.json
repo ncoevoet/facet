@@ -1335,7 +1335,9 @@
       "color_quality": "Color y calidad",
       "moments": "Momentos",
       "tabs": {
-        "browse": "Explorar",
+        "find": "Buscar",
+        "source": "Origen",
+        "technical": "Técnica",
         "review": "Revisión",
         "quality": "Calidad",
         "subject": "Sujeto",
@@ -1463,6 +1465,11 @@
         "add": "Fijar control {name}",
         "remove": "Desfijar control {name}",
         "limit": "Puedes fijar hasta {max} controles. Desfija uno para añadir otro."
+      },
+      "active_view": {
+        "label": "Filtros activos",
+        "show": "Muestra solo los filtros en uso, de todas las pestañas",
+        "none": "Ningún filtro aplicado"
       }
     },
     "semantic_search_info": "La búsqueda semántica carga los embeddings en la RAM en el primer uso. Esto puede tardar un momento para bibliotecas grandes.",

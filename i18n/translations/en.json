@@ -1365,7 +1365,9 @@
       "color_quality": "Color & Quality",
       "moments": "Moments",
       "tabs": {
-        "browse": "Browse",
+        "find": "Find",
+        "source": "Source",
+        "technical": "Technical",
         "review": "Review",
         "quality": "Quality",
         "subject": "Subject",
@@ -1489,6 +1491,11 @@
         "add": "Pin {name} control",
         "remove": "Unpin {name} control",
         "limit": "You can pin up to {max} controls. Unpin one to add another."
+      },
+      "active_view": {
+        "label": "Active filters",
+        "show": "Show only the filters in use, from every tab",
+        "none": "No filters applied"
       }
     },
     "semantic_search_info": "Semantic search loads embeddings into RAM on first use. This may take a moment for large libraries.",
