@@ -111,6 +111,19 @@ describe('PhotoTooltipComponent', () => {
     expect(fixture.nativeElement.querySelectorAll('app-extended-quality [data-testid$="-row"]').length).toBe(0);
   });
 
+  it('lets a docked portrait preview take the rail width, capping only very tall photos', () => {
+    const photo = makePhotoFull({ image_width: 2000, image_height: 3000 });
+    renderDocked(photo, 'quality');
+    const preview = fixture.nativeElement.querySelector(`img[alt="${photo.filename}"]`) as HTMLImageElement;
+    expect([...preview.classList]).toEqual(expect.arrayContaining(['w-full', 'h-auto', 'object-contain', 'max-h-[75dvh]']));
+    expect([...preview.classList]).not.toContain('w-auto');
+    expect([...preview.classList]).not.toContain('max-h-[32dvh]');
+    fixture.componentInstance.docked.set(false);
+    fixture.detectChanges();
+    expect([...(fixture.nativeElement.querySelector(`img[alt="${photo.filename}"]`) as HTMLImageElement).classList])
+      .toEqual(expect.arrayContaining(['w-auto', 'max-h-[40vh]']));
+  });
+
   it('formats camera-local dates and keeps a single labeled assessment in the docked inspector', () => {
     renderDocked(makePhotoFull({ date_taken: '2026:10:29 10:12:00', aggregate: 0 }), 'quality');
     expect(fixture.nativeElement.querySelector('[data-capture-date]').textContent).toBe('29/10/2026 10:12');

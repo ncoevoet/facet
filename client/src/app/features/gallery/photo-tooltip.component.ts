@@ -83,15 +83,19 @@ const KEY_SCORES = [
         >
           <!-- Image preview. Sized by its own aspect (max-w-full + w-auto) rather
                than stretched and letterboxed, so the box is the picture and the
-               rounded corners show on every orientation. -->
+               rounded corners show on every orientation. In the docked rail it
+               takes the rail's width, so a portrait photo is as large as the column
+               allows; only a very tall one is capped and contained. -->
           <img
             [src]="p.path | thumbnailUrl:640:p.preview_revision"
             [alt]="p.filename"
-            class="rounded-sm shrink-0 max-w-full w-auto h-auto"
-            [class.self-center]="docked()"
+            class="rounded-sm shrink-0 max-w-full h-auto"
+            [class.w-auto]="!docked()"
             [class.max-h-[40vh]]="!isLandscape() && !docked()"
             [class.max-h-[28vh]]="isLandscape() && !docked()"
-            [class.max-h-[32dvh]]="docked()"
+            [class.w-full]="docked()"
+            [class.object-contain]="docked()"
+            [class.max-h-[75dvh]]="docked()"
           />
 
           <!-- Scoring panel -->
