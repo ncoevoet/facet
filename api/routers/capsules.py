@@ -63,10 +63,11 @@ def _get_cached_capsules(user_id, refresh=False, date_from="", date_to=""):
         return entry["data"], True
 
     # Fall back to the startup precomputed cache (user_id=None, no date filters)
-    # when no user-specific cache exists yet
+    # when no user-specific cache exists yet. An empty one is no answer: on a password-protected
+    # install the anonymous pass sees no photos, and would hand every login an empty page.
     if not refresh and user_id is not None and not date_from and not date_to:
         fallback = _capsule_cache.get(_cache_key(None))
-        if fallback and (now - fallback["ts"]) < _CACHE_TTL:
+        if fallback and fallback["data"] and (now - fallback["ts"]) < _CACHE_TTL:
             return fallback["data"], True
 
     return None, False

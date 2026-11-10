@@ -289,7 +289,7 @@ Scannen Sie diese Fotos (`python facet.py /mnt/photos`), und sie verlassen die L
 
 ## Diagnose im Viewer
 
-Öffnen Sie im Benutzermenü **Immich-Diagnose**. Im Mehrbenutzermodus benötigt sie Superadmin-Zugriff, im Einzelbenutzermodus Editionszugriff (oder vertrauenswürdige lokale Bearbeitung).
+Öffnen Sie im Untermenü **Aufgaben & Diagnose** des Benutzermenüs **Immich-Diagnose**. Im Mehrbenutzermodus benötigt sie Superadmin-Zugriff, im Einzelbenutzermodus Editionszugriff (oder vertrauenswürdige lokale Bearbeitung).
 
 - Aus Immich wird nichts gelesen, bis Sie auf **Verbindung testen** klicken. Der Test liest Serverversion und Kontozugriff und schreibt nichts.
 - Die Pfadabdeckung prüft höchstens 200 indexierte Fotos. Sie bestätigt nicht, dass jedes zu einem Immich-Asset passt.

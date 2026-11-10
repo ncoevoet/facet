@@ -43,8 +43,7 @@ const GROUPS_RESPONSE = {
 
 const PREVIEW = {
   groups_processed: 2, kept: 2, rejected: 2, highlights_added: 0,
-  dry_run: true, preview: [], next_cursor: null, plan_digest: 'digest',
-};
+  dry_run: true, preview: [], next_cursor: null, plan_digest: 'digest', decision_state_digest: 'state-digest'};
 
 // The component spec's original feed, kept verbatim so the moved tests read the same.
 const PHOTO_GROUP_FEED = {
@@ -263,6 +262,106 @@ describe('CullingStore', () => {
       expect(store.confirmedGroups().has('1_burst')).toBe(false);
     });
 
+    it('freezes captured keepers across late manual edits and permits editing again after Undo', async () => {
+      vi.useFakeTimers();
+      const group = store.groups()[0];
+      store.setPhotoKept(group, '/b.jpg', true);
+      expect(store.confirmGroup(group)).toBe(true);
+      store.setPhotoKept(group, '/a.jpg', false);
+      store.selectExclusive('/b.jpg', group);
+      store.restoreSelection(group, new Set(['/b.jpg']));
+      store.reselectFromStrictness();
+      expect(store.selectionsMap().get('1_burst')).toEqual(new Set(['/a.jpg', '/b.jpg']));
+      expect(store.rejectEntireGroup(group)).toBe(false);
+      store.cancelPass(group);
+      store.setPhotoKept(group, '/a.jpg', false);
+      expect(store.selectionsMap().get('1_burst')).toEqual(new Set(['/b.jpg']));
+      expect(store.confirmGroup(group)).toBe(true);
+      store.setPhotoKept(group, '/a.jpg', true);
+      await vi.advanceTimersByTimeAsync(store.passCountdownSeconds * 1000);
+      expect(api.post).toHaveBeenCalledWith('/culling-groups/confirm', {
+        group_id: 1, type: 'burst', paths: ['/a.jpg', '/b.jpg'], keep_paths: ['/b.jpg'],
+      });
+    });
+
+    it('restores the exact draft and plan mirror when Reject entire group is cancelled', async () => {
+      vi.useFakeTimers();
+      const group = store.groups()[0];
+      const previous = new Set(['/a.jpg', '/b.jpg']);
+      store.selectionsMap.set(new Map([['1_burst', previous]]));
+      store.planActive.set(true);
+      const mirror = vi.spyOn(TestBed.inject(AssistantCullPlanService), 'recordSelection');
+      expect(store.rejectEntireGroup(group)).toBe(true);
+      store.cancelPass(group);
+      await vi.advanceTimersByTimeAsync(store.passCountdownSeconds * 1000);
+      expect(store.selectionsMap().get('1_burst')).toEqual(previous);
+      expect(mirror).toHaveBeenLastCalledWith('1_burst', previous);
+      expect(store.confirmedGroups().has('1_burst')).toBe(false);
+      expect(store.passingGroups().has('1_burst')).toBe(false);
+      expect(store.touchedGroups().has('1_burst')).toBe(false);
+      expect(api.post).not.toHaveBeenCalled();
+      expect(store.confirmGroup(group)).toBe(true);
+      store.cancelPass(group);
+    });
+
+    it.each(['absent', 'empty', 'touched'])('restores the %s pre-rejection draft state on cancellation', async kind => {
+      vi.useFakeTimers();
+      const group = store.groups()[0];
+      if (kind === 'absent') store.selectionsMap.set(new Map());
+      if (kind === 'empty') store.selectionsMap.set(new Map([['1_burst', new Set<string>()]]));
+      if (kind === 'touched') store.touchedGroups.set(new Set(['1_burst']));
+      const before = new Map(store.selectionsMap());
+      store.rejectEntireGroup(group); store.cancelPass(group);
+      await vi.advanceTimersByTimeAsync(store.passCountdownSeconds * 1000);
+      expect(store.selectionsMap()).toEqual(before);
+      expect(store.touchedGroups().has('1_burst')).toBe(kind === 'touched');
+      expect(api.post).not.toHaveBeenCalled();
+    });
+
+    it.each(['elapsed', 'flushed'])('commits an uncancelled Reject entire group when %s', async mode => {
+      vi.useFakeTimers();
+      store.rejectEntireGroup(store.groups()[0]);
+      if (mode === 'flushed') store.clearAllPassTimers();
+      await vi.advanceTimersByTimeAsync(store.passCountdownSeconds * 1000);
+      expect(api.post).toHaveBeenCalledExactlyOnceWith('/culling-groups/confirm', {
+        group_id: 1, type: 'burst', paths: ['/a.jpg', '/b.jpg'], keep_paths: [],
+      });
+      expect(store.selectionsMap().get('1_burst')).toEqual(new Set());
+      expect(store.hiddenGroups().has('1_burst')).toBe(true);
+    });
+
+    it('restores a rejected draft after a failed commit', async () => {
+      vi.useFakeTimers();
+      const before = new Map(store.selectionsMap());
+      api.post.mockReturnValue(throwError(() => new Error('refused')));
+      store.rejectEntireGroup(store.groups()[0]);
+      await vi.advanceTimersByTimeAsync(store.passCountdownSeconds * 1000);
+      expect(store.selectionsMap()).toEqual(before);
+      expect(store.touchedGroups().has('1_burst')).toBe(false);
+      expect(store.confirmedGroups().has('1_burst')).toBe(false);
+      expect(notices).toEqual([{ key: 'culling.error_confirming', duration: 2000 }]);
+      store.setPhotoKept(store.groups()[0], '/b.jpg', true);
+      expect(store.selectionsMap().get('1_burst')).toEqual(new Set(['/a.jpg', '/b.jpg']));
+      api.post.mockReturnValue(of({}));
+      expect(store.confirmGroup(store.groups()[0])).toBe(true);
+      await vi.advanceTimersByTimeAsync(store.passCountdownSeconds * 1000);
+      expect(api.post).toHaveBeenLastCalledWith('/culling-groups/confirm', expect.objectContaining({ keep_paths: ['/a.jpg', '/b.jpg'] }));
+    });
+
+    it.each(['decision', 'feed'])('does not overwrite a newer %s on a late rejected commit', async change => {
+      vi.useFakeTimers();
+      const response = new Subject<unknown>(); api.post.mockReturnValue(response);
+      const group = store.groups()[0]; store.rejectEntireGroup(group);
+      await vi.advanceTimersByTimeAsync(store.passCountdownSeconds * 1000);
+      if (change === 'feed') store.resetFeed();
+      store.selectionsMap.set(new Map([['1_burst', new Set(['/b.jpg'])]]));
+      store.touchedGroups.set(new Set(['1_burst']));
+      response.error(new Error('late refusal'));
+      await vi.advanceTimersByTimeAsync(0);
+      expect(store.selectionsMap().get('1_burst')).toEqual(new Set(['/b.jpg']));
+      expect(store.touchedGroups().has('1_burst')).toBe(true);
+    });
+
     it('flushes a pending confirm instead of dropping it when the timers are cleared', () => {
       vi.useFakeTimers();
       store.confirmGroup(store.groups()[0]);
@@ -304,6 +403,10 @@ describe('CullingStore', () => {
     const autoCalls = () => api.post.mock.calls.filter(c => c[0] === '/culling/auto');
 
     beforeEach(() => {
+      TestBed.inject(AuthService).status.set({ authenticated: true, multi_user: true,
+        edition_enabled: true, edition_authenticated: true, edition_password_required: true,
+        login_password_required: true, user_id: 'editor', user_role: 'admin', display_name: 'Editor',
+        features: {}, download_profiles: [] });
       api.post.mockImplementation((path: string) => of(path === '/culling/auto' ? PREVIEW : {}));
     });
 
@@ -311,10 +414,10 @@ describe('CullingStore', () => {
       expect(await store.openAutoCull()).toBe('landed');
       expect(autoCalls()).toHaveLength(1);
       expect(autoCalls()[0][1]).toMatchObject({
-        dry_run: true, group_by: 'all', strictness: 100, trim_brackets: false,
-      });
+        dry_run: true, group_by: 'all', strictness: 100, trim_brackets: false, decision_policy: 'preserve'});
       expect(store.autoCullPreview()).toEqual(PREVIEW);
-      expect(store.autoCullRequest()).toBe(autoCalls()[0][1]);
+      expect(store.autoCullRequest()).toEqual(autoCalls()[0][1]);
+      expect(store.autoCullRequest()).not.toBe(autoCalls()[0][1]);
       expect(store.autoCullLoading()).toBe(false);
     });
 
@@ -333,7 +436,7 @@ describe('CullingStore', () => {
       });
       await store.confirmAutoCull(applied);
       expect(autoCalls()).toHaveLength(2);
-      expect(autoCalls()[1][1]).toEqual({ ...previewBody, dry_run: false, highlights_album: '' });
+      expect(autoCalls()[1][1]).toEqual({ ...previewBody, dry_run: false, expected_digest: PREVIEW.plan_digest, expected_state_digest: PREVIEW.decision_state_digest });
       expect(applied).toHaveBeenCalledTimes(1);
       expect(store.autoCullApplying()).toBe(false);
       expect(notices).toEqual([{
@@ -343,11 +446,12 @@ describe('CullingStore', () => {
 
     it('keeps the highlights album name only when the checkbox is ticked', async () => {
       await store.openAutoCull();
-      const album = (autoCalls()[0][1] as { highlights_album: string }).highlights_album;
+      expect((autoCalls()[0][1] as { highlights_album: string }).highlights_album).toBe('');
+      await store.onAutoCullHighlightsChange(true);
+      const album = (autoCalls()[1][1] as { highlights_album: string }).highlights_album;
       expect(album).not.toBe('');
-      store.autoCullHighlights.set(true);
       await store.confirmAutoCull(() => {});
-      expect((autoCalls()[1][1] as { highlights_album: string }).highlights_album).toBe(album);
+      expect((autoCalls()[2][1] as { highlights_album: string }).highlights_album).toBe(album);
     });
 
     it('refuses a second apply while the first is in flight', async () => {
@@ -386,6 +490,88 @@ describe('CullingStore', () => {
       expect(store.autoCullPreview()).not.toBeNull();
       expect(store.autoCullApplying()).toBe(false);
       expect(notices).toEqual([{ key: 'culling.auto_cull.error', duration: 2000 }]);
+    });
+
+    it('requires a fresh preview after an uncertain apply and never blindly repeats it', async () => {
+      await store.openAutoCull();
+      api.post.mockReturnValue(throwError(() => new Error('connection lost')));
+      await store.confirmAutoCull(vi.fn());
+      expect(store.autoCullIssue()).toBe('uncertain');
+      await store.confirmAutoCull(vi.fn());
+      expect(autoCalls()).toHaveLength(2);
+      api.post.mockReturnValue(of(PREVIEW));
+      await store.openAutoCull();
+      expect(store.autoCullIssue()).toBeNull();
+      await store.confirmAutoCull(vi.fn());
+      expect(autoCalls()).toHaveLength(4);
+    });
+
+    it('captures policy changes in a new preview and restores the agreed options after a failed rerun', async () => {
+      await store.openAutoCull();
+      expect(store.autoCullRequest()?.decision_policy).toBe('preserve');
+      api.post.mockReturnValue(throwError(() => new Error('read failed')));
+      await store.onAutoCullPolicyChange('replace');
+      expect(store.autoCullDecisionPolicy()).toBe('preserve');
+      expect(store.autoCullRequest()?.decision_policy).toBe('preserve');
+      api.post.mockReturnValue(of({ ...PREVIEW, decision_state_digest: 'new-state', plan_digest: 'new-plan' }));
+      await store.onAutoCullPolicyChange('replace');
+      expect(store.autoCullRequest()?.decision_policy).toBe('replace');
+      await store.confirmAutoCull(vi.fn());
+      expect(autoCalls().at(-1)?.[1]).toMatchObject({ decision_policy: 'replace', expected_digest: 'new-plan', expected_state_digest: 'new-state' });
+    });
+
+    it('does not apply an expired account preview or expose its late failure to a new account', async () => {
+      await store.openAutoCull();
+      const late = new Subject<typeof PREVIEW>();
+      api.post.mockReturnValue(late);
+      const applied = vi.fn();
+      const operation = store.confirmAutoCull(applied);
+      vi.spyOn(TestBed.inject(AuthService), 'identity').mockReturnValue('other');
+      TestBed.inject(AuthService).status.set(null);
+      TestBed.tick();
+      late.error(new Error('late failure'));
+      await operation;
+      expect(applied).not.toHaveBeenCalled();
+      expect(notices).toEqual([]);
+    });
+
+    it('rejects a response without a decision-state digest', async () => {
+      api.post.mockReturnValue(of({ ...PREVIEW, decision_state_digest: '' }));
+      expect(await store.openAutoCull()).toBe('failed');
+      expect(store.autoCullPreview()).toBeNull();
+      await store.confirmAutoCull(vi.fn());
+      expect(autoCalls()).toHaveLength(1);
+    });
+
+    it('closes a stale page when credentials rotate before auth status effects run', async () => {
+      const token = vi.spyOn(TestBed.inject(AuthService), 'token', 'get').mockReturnValue('first');
+      api.post.mockReturnValue(of({ ...PREVIEW, next_cursor: 1 }));
+      await store.openAutoCull();
+      const page = new Subject<typeof PREVIEW>(); api.post.mockReturnValue(page);
+      const pending = store.loadAutoCullPage();
+      token.mockReturnValue('second');
+      page.next(PREVIEW); page.complete(); await pending;
+      expect(store.autoCullPreview()).toBeNull();
+      expect(store.autoCullBusy()).toBe(false);
+      const calls = autoCalls().length;
+      await store.confirmAutoCull(vi.fn());
+      expect(autoCalls()).toHaveLength(calls);
+    });
+
+    it('a superseded page cannot clear the replacement preview busy state', async () => {
+      api.post.mockReturnValue(of({ ...PREVIEW, next_cursor: 1 }));
+      await store.openAutoCull();
+      const page = new Subject<typeof PREVIEW>();
+      api.post.mockReturnValue(page);
+      const paging = store.loadAutoCullPage();
+      const fresh = new Subject<typeof PREVIEW>();
+      api.post.mockReturnValue(fresh);
+      const refreshing = store.openAutoCull();
+      page.next(PREVIEW); page.complete(); await paging;
+      expect(store.autoCullBusy()).toBe(true);
+      fresh.next({ ...PREVIEW, plan_digest: 'fresh' }); fresh.complete(); await refreshing;
+      expect(store.autoCullBusy()).toBe(false);
+      expect(store.autoCullPreview()?.plan_digest).toBe('fresh');
     });
 
     it('drops a superseded dry run so the newer preview wins', async () => {
@@ -1746,7 +1932,7 @@ describe('CullingStore suggested stacks HTTP isolation', () => {
     stackJournal = vi.fn(); stackRefresh = vi.fn(async () => undefined);
     TestBed.configureTestingModule({ providers: [provideHttpClient(), provideHttpClientTesting(),
       { provide: Router, useValue: { events, url: '/culling?mode=stacks' } },
-      { provide: AuthService, useValue: { identity, isEdition: edition } },
+      { provide: AuthService, useValue: { status: signal({ user_id: 'editor' }), token: 'fixture',  identity, isEdition: edition } },
       { provide: I18nService, useValue: { t: (key: string) => key } },
       { provide: GalleryStore, useValue: { refreshPaths: stackRefresh } },
       { provide: UserActivityJournal, useValue: { record: stackJournal } },
@@ -2028,7 +2214,9 @@ describe('CullingStore suggested stacks HTTP isolation', () => {
   });
 
   it('does not run a cull apply completion after stack mode takes ownership', async () => {
-    store.autoCullRequest.set({ group_by: 'all', strictness: 100, dry_run: true, trim_brackets: false, highlights_album: 'Highlights' });
+    vi.spyOn(store, 'applySuggestedProfile').mockResolvedValue();
+    const preview = store.openAutoCull();
+    http.expectOne('/api/culling/auto').flush(PREVIEW); await preview;
     const onApplied = vi.fn(); const operation = store.confirmAutoCull(onApplied);
     const apply = http.expectOne('/api/culling/auto');
     store.enterStackMode(filters);
@@ -2185,7 +2373,7 @@ describe('CullingStore suggested stacks HTTP isolation', () => {
     { name: 'patchOverrides', run: s => s.patchOverrides(['/a.jpg'], 'bracket') },
     { name: 'restoreOverrides', run: s => s.restoreOverrides(new Map([['/a.jpg', 'bracket']])) },
     { name: 'openAutoCull', run: s => s.openAutoCull() },
-    { name: 'confirmAutoCull', run: s => s.confirmAutoCull(() => undefined) },
+    { name: 'confirmAutoCull', run: async s => { await s.openAutoCull(); await s.confirmAutoCull(() => undefined); } },
     { name: 'onTrimBracketsChange', run: s => s.onTrimBracketsChange(true) },
     { name: 'applyProfile', run: s => s.applyProfile({ id: 'sports', label_key: 'sports', strictness: 50, similarity_threshold: null, eyes_closed_max: null, poor_expression_min: null, keep_min_per_group: 1 }) },
     { name: 'applySuggestedProfile', run: s => s.applySuggestedProfile() },
@@ -2207,7 +2395,7 @@ describe('CullingStore suggested stacks HTTP isolation', () => {
       store.planDigest.set('guard-plan');
       plan.setPin({ digest: 'guard-plan', request: { group_by: 'burst' } });
       store.totalPages.set(2); store.currentPage.set(1);
-      store.autoCullRequest.set({ group_by: 'all', strictness: 100, dry_run: true, trim_brackets: false, highlights_album: 'Highlights' });
+      store.autoCullRequest.set({ group_by: 'all', strictness: 100, dry_run: true, trim_brackets: false, highlights_album: 'Highlights' , decision_policy: 'preserve'});
       store.autoCullPreview.set(null); store.trimBrackets.set(false);
       store.cullProfiles.set([{ id: 'sports', label_key: 'sports', strictness: 50, similarity_threshold: null, eyes_closed_max: null, poor_expression_min: null, keep_min_per_group: 1 }]);
       store.selectedProfile.set(''); store.resetProfileSuggestion();

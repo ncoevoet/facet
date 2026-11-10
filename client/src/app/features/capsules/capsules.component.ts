@@ -58,11 +58,12 @@ interface CapsulesResponse {
   ],
   changeDetection: ChangeDetectionStrategy.Eager,
   template: `
+    <h1 class="sr-only">{{ I18N.capsules.title | translate }}</h1>
     <ng-template #capsulesToolbar>
       <app-date-range-filter
         [from]="capsuleFilters.dateFrom()" [to]="capsuleFilters.dateTo()"
         fromLabel="capsules.date_from" toLabel="capsules.date_to"
-        fromClass="!hidden lg:!inline-flex w-44 ml-2" toClass="!hidden lg:!inline-flex w-44"
+        fromClass="!hidden lg:!inline-flex w-44" toClass="!hidden lg:!inline-flex w-44"
         (fromChange)="capsuleFilters.dateFrom.set($event)" (toChange)="capsuleFilters.dateTo.set($event)" />
       <button class="!hidden lg:!inline-flex" mat-icon-button [disabled]="capsuleFilters.refreshing()" [matTooltip]="I18N.capsules.regenerate | translate" [attr.aria-label]="I18N.capsules.regenerate | translate" (click)="capsuleFilters.regenerate.set(capsuleFilters.regenerate() + 1)">
         <mat-icon>refresh</mat-icon>
@@ -72,12 +73,12 @@ interface CapsulesResponse {
     @if (loading() && capsules().length === 0) {
       <div class="flex flex-col items-center justify-center py-16 gap-3">
         <mat-spinner diameter="48" [attr.aria-label]="I18N.ui.labels.loading | translate" />
-        <p class="text-sm opacity-60">{{ I18N.capsules.loading | translate }}</p>
+        <p class="text-sm text-[var(--mat-sys-on-surface-variant)]">{{ I18N.capsules.loading | translate }}</p>
       </div>
     }
 
     @if (capsules().length === 0 && !loading() && !loadError()) {
-      <div class="text-center py-16 opacity-60">
+      <div class="text-center py-16 text-[var(--mat-sys-on-surface-variant)]">
         <mat-icon class="!text-5xl !w-12 !h-12 mb-4">auto_stories</mat-icon>
         <p>{{ I18N.capsules.empty | translate }}</p>
       </div>
@@ -124,7 +125,7 @@ interface CapsulesResponse {
           }
           <div class="p-3 flex items-center gap-1">
             <div class="flex-1 min-w-0">
-              <div class="flex items-center gap-1.5 text-sm opacity-70">
+              <div class="flex items-center gap-1.5 text-sm text-[var(--mat-sys-on-surface-variant)]">
                 <mat-icon class="!text-xl !w-6 !h-6 !leading-6 inline-flex"
                           [matTooltip]="'capsules.type_' + capsule.type | translate">{{ capsule.icon }}</mat-icon>
                 <span class="font-medium">{{ capsule.photo_count }}</span>
@@ -177,7 +178,7 @@ interface CapsulesResponse {
           @if (nextCapsulePreview(); as next) {
             <mat-icon class="!text-5xl !w-12 !h-12 mb-4 opacity-60">{{ next.icon }}</mat-icon>
             <h2 class="text-2xl font-light mb-2">{{ next.title_key | translate:next.title_params }}</h2>
-            <p class="text-sm opacity-60">{{ I18N.capsules.photos_count | translate:{ count: next.photo_count } }}</p>
+            <p class="text-sm text-[var(--mat-sys-on-surface-variant)]">{{ I18N.capsules.photos_count | translate:{ count: next.photo_count } }}</p>
           }
         </div>
       </div>

@@ -10,6 +10,18 @@ function wire(overrides: Record<string, unknown> = {}): Photo {
 }
 
 describe('normalisePhotoFlags', () => {
+  it('renders logical review values without changing the physical input or other metadata', () => {
+    const source = wire({ star_rating: 5, is_kept: 1, is_rejected: 0, logical_review: {
+      values: { star_rating: 3, is_kept: 0, is_rejected: 1, is_favorite: null },
+    } });
+    const out = normalisePhotoFlags(source);
+    expect(out.star_rating).toBe(3);
+    expect(out.is_kept).toBe(false);
+    expect(out.is_rejected).toBe(true);
+    expect(out.is_favorite).toBeNull();
+    expect(out.aggregate).toBe(7);
+    expect(source.star_rating).toBe(5);
+  });
   it('turns the 0/1 flag columns the API sends into real booleans', () => {
     const p = normalisePhotoFlags(wire({
       is_blink: 1,

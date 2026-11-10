@@ -3,6 +3,9 @@ import { signal, Signal } from '@angular/core';
 /** Tailwind's `md`, the width at which this app calls itself desktop. */
 export const DEFAULT_BREAKPOINT_PX = 768;
 
+/** Tailwind's `lg`. */
+export const LG_BREAKPOINT_PX = 1024;
+
 /**
  * Narrowest viewport that can spare a permanent ~320px details rail (Tailwind `xl`).
  *

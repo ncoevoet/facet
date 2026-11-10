@@ -270,3 +270,29 @@ def test_full_save_without_aesthetic_or_face_pass_stores_unknown(seeded):
         assert conn.execute(
             "SELECT COUNT(*) FROM faces WHERE photo_path=?", (path,)
         ).fetchone()[0] == 1                      # no face pass ran (face_details None): stored face kept (was dropped)
+
+
+def test_full_rescan_clears_decline_even_when_scan_fingerprint_is_identical(seeded, monkeypatch):
+    from contextlib import contextmanager
+    import processing.scorer as scorer_module
+
+    path, facet, db = seeded
+
+    @contextmanager
+    def fixed_clock_connection(*args, **kwargs):
+        with get_connection(*args, **kwargs) as conn:
+            conn.create_function('datetime', -1, lambda *_: '2026-11-02 01:00:00')
+            yield conn
+
+    monkeypatch.setattr(scorer_module, 'get_connection', fixed_clock_connection)
+    result = _scored_result(path)
+    result['face_quality_iqa'] = None
+    facet.save_photos_batch([result])
+    with get_connection(db, row_factory=False) as conn:
+        before = conn.execute('SELECT scanned_at, thumbnail FROM photos WHERE path=?', (path,)).fetchone()
+        conn.execute("INSERT INTO iqa_declined SELECT path,'topiq_nr_face',scanned_at || '|' || length(thumbnail) FROM photos WHERE path=?", (path,))
+        conn.commit()
+    facet.save_photos_batch([_scored_result(path) | {'face_quality_iqa': None}])
+    with get_connection(db, row_factory=False) as conn:
+        assert conn.execute('SELECT scanned_at, thumbnail FROM photos WHERE path=?', (path,)).fetchone() == before
+        assert conn.execute('SELECT COUNT(*) FROM iqa_declined WHERE photo_path=?', (path,)).fetchone()[0] == 0

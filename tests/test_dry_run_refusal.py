@@ -41,7 +41,8 @@ def _digest(path):
 def test_refuses_dry_run_before_touching_the_database(flag, db_path):
     digest = _digest(db_path)
     values = {'--recompute-category': 'others', '--evaluate-models': 'quality',
-              '--import-lightroom': 'ratings.csv', '--immich-stacks-plan': 'push'}
+              '--import-lightroom': 'ratings.csv', '--immich-stacks-plan': 'push',
+              '--update-faces-job': '0' * 32}
     argv = [flag, values[flag]] if flag in values else [flag]
     proc = _run_facet(*argv, '--dry-run', '--db', db_path)
     assert proc.returncode == 2, proc.stdout + proc.stderr

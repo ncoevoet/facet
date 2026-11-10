@@ -18,14 +18,16 @@ describe('CullDialogComponent', () => {
   let component: CullDialogComponent;
   let post: ReturnType<typeof vi.fn>;
   let dialogClose: ReturnType<typeof vi.fn>;
+  let snackOpen: ReturnType<typeof vi.fn>;
 
   function build(paths = ['/a.jpg', '/b.jpg'], trashAvailable?: boolean, allowTrash?: boolean) {
     post = vi.fn(() => of({ would_copy: paths, skipped: [] }));
     dialogClose = vi.fn();
+    snackOpen = vi.fn();
     TestBed.configureTestingModule({
       providers: [
         { provide: ApiService, useValue: { post } },
-        { provide: MatSnackBar, useValue: { open: vi.fn() } },
+        { provide: MatSnackBar, useValue: { open: snackOpen } },
         { provide: I18nService, useValue: { t: (k: string) => k } },
         { provide: MatDialogRef, useValue: { close: dialogClose, beforeClosed: () => NEVER } },
         { provide: MAT_DIALOG_DATA, useValue: { paths, trashAvailable, allowTrash } },
@@ -182,6 +184,32 @@ describe('CullDialogComponent', () => {
     post.mockReturnValueOnce(throwError(() => ({ error: { detail: 'no allowed roots configured' } })));
     await component.runPreview();
     expect(read<string | null>('errorDetail')).toBe('no allowed roots configured');
+  });
+
+  it('titles a failed dry run "Could not preview" and keeps the toast out when the inline error shows', async () => {
+    build();
+    set('targetDir', '/dest');
+    post.mockReturnValueOnce(throwError(() => ({ error: { detail: 'no allowed roots configured' } })));
+    await component.runPreview();
+    expect(read<string>('errorTitleKey')).toBe('cull.preview_error');
+    expect(snackOpen).not.toHaveBeenCalled();
+  });
+
+  it('still toasts a dry-run failure that has no detail to show inline', async () => {
+    build();
+    set('targetDir', '/dest');
+    post.mockReturnValueOnce(throwError(() => new Error('boom')));
+    await component.runPreview();
+    expect(snackOpen).toHaveBeenCalledTimes(1);
+  });
+
+  it('keeps the apply failure title for a failed apply', async () => {
+    build();
+    set('targetDir', '/dest');
+    await component.runPreview();
+    post.mockReturnValueOnce(throwError(() => ({ error: { detail: 'nope' } })));
+    await component.apply();
+    expect(read<string>('errorTitleKey')).toBe('cull.error');
   });
 
   it('preserves the server cap detail for ordinary filtered previews', async () => {

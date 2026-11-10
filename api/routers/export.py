@@ -23,6 +23,7 @@ import json
 import logging
 import os
 import shutil
+import sqlite3
 from typing import Literal, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Response
@@ -42,8 +43,10 @@ from api.db_helpers import (
 )
 from api.models.scan import CullApplyResponse, PhotoDeleteResponse
 from api.models.sidecar_jobs import SidecarJobStatus
+from api.models.export_preview import ExportApplyRequest, ExportPreviewRequest, ExportPreviewResponse
 from api.path_validation import PhotoFileMissing, resolve_photo_disk_path
 from api.raw_processing import find_companion_raw, windows_entry_path
+from comparison.training_scope import read_snapshot
 from db.maintenance import delete_photo_rows
 from processing.xmp_export import (
     FaceRegion,
@@ -58,6 +61,48 @@ from utils.sequence import BRACKET as BRACKET_KIND
 logger = logging.getLogger(__name__)
 
 router = APIRouter(tags=["export"])
+
+
+@router.post('/api/export/preview', response_model=ExportPreviewResponse)
+def api_export_preview(body: ExportPreviewRequest, response: Response, user: CurrentUser = Depends(require_edition)):
+    """Inspect exact export membership, filenames and effective metadata without target writes."""
+    return _export_preview_response(body, response, user.user_id)
+
+
+def _export_preview_response(body, response, user_id):
+    from api.export_preview import export_preview
+    response.headers['Cache-Control'] = 'no-store'
+    try:
+        with get_db() as conn:
+            conn.execute('PRAGMA query_only=ON')
+            conn.execute('BEGIN')
+            return export_preview(conn, body, user_id)
+    except (MetadataPreconditionError, DefectiveExifToolError):
+        raise HTTPException(409, 'Metadata needs inspection or a supported ExifTool before export') from None
+    except OSError:
+        logger.exception('Export preview filesystem inspection failed')
+        raise HTTPException(503, 'Export files could not be inspected; no export was started') from None
+    except sqlite3.Error:
+        logger.exception('Export preview database inspection failed')
+        raise HTTPException(503, 'Export scope could not be read; no export was started') from None
+    except (ValueError, RuntimeError):
+        logger.exception('Export metadata preview failed')
+        raise HTTPException(422, 'Export metadata could not be validated; no export was started') from None
+
+
+@router.post('/api/export/apply', status_code=202, response_model=SidecarJobStatus)
+def api_apply_export(body: ExportApplyRequest, response: Response, user: CurrentUser = Depends(require_edition)):
+    """Admit the exact confirmation; read its receipt for validation/write results."""
+    from api.export_execution import start_confirmed_export
+    from facet import LibraryLockError, LibraryLockUnusableError
+    with _sidecar_job_request(response) as db_path:
+        try:
+            return start_confirmed_export(db_path, body, user.user_id)
+        except LibraryLockUnusableError:
+            raise HTTPException(503, 'Library lock is unavailable') from None
+        except LibraryLockError:
+            raise HTTPException(503, LIBRARY_BUSY_DETAIL,
+                                headers={'Retry-After': str(LIBRARY_BUSY_RETRY_AFTER_SECONDS)}) from None
 
 # Cap the placeholders in a single IN (...) query so a large selection (paths is
 # bounded at 10000) can never exceed legacy SQLite's SQLITE_MAX_VARIABLE_NUMBER
@@ -180,6 +225,9 @@ class CullApplyRequest(_PathsOrFiltersRequest):
 # paths only, capped like every other paths-bearing request in this module.
 class PhotoDeleteRequest(BaseModel):
     paths: list[str] = Field(max_length=10000)
+    # Explicit catalog erasure, independent of file availability or OS trash.
+    # Never widens membership or touches originals/companions on disk.
+    catalog_only: bool = False
     # Off by default: deleting a derived JPEG must not silently trash its
     # untouched companion RAW or darktable .xmp. Opt in to remove a shot whole.
     include_companions: bool = False
@@ -204,13 +252,25 @@ class PhotoDeleteRequest(BaseModel):
 
 # --- Helpers ---
 
-def _fetch_rating_rows(conn, paths, user_id):
+def _fetch_rating_rows(conn, paths, user_id, *, include_metadata=True):
+    # Full-group authorization and inherited review inputs share one read snapshot,
+    # including legacy direct export callers that did not open a transaction.
+    with read_snapshot(conn):
+        rows = _fetch_file_rating_rows(conn, paths, user_id, include_metadata=include_metadata)
+        if include_metadata:
+            from api.logical_export import attach
+            attach(conn, rows, user_id)
+        return rows
+
+
+def _fetch_file_rating_rows(conn, paths, user_id, *, include_metadata=True):
     """Fetch effective-rating rows (per-user resolved) for ``paths``.
 
     Returns a dict keyed by db photo path. Only paths visible to the user and
     present in the DB are returned. ``get_preference_columns`` resolves
     star_rating/is_favorite/is_rejected to the user_preferences COALESCE
-    expressions in multi-user mode, so per-user overrides are honored.
+    expressions in multi-user mode, so per-user overrides are honored. Byte-copy
+    delivery needs only the authorized path projection, not metadata to rewrite.
     """
     if not paths:
         return {}
@@ -225,6 +285,8 @@ def _fetch_rating_rows(conn, paths, user_id):
         f"{pref_cols['is_favorite']} as is_favorite, "
         f"{pref_cols['is_rejected']} as is_rejected, {pref_cols['is_kept']} as is_kept"
     )
+    if not include_metadata:
+        select = 'photos.path as path'
     placeholders = ",".join("?" * len(paths))
     query = (
         f"SELECT {select} FROM {from_clause} "
@@ -232,15 +294,23 @@ def _fetch_rating_rows(conn, paths, user_id):
     )
     rows = conn.execute(query, from_params + list(paths) + vis_params).fetchall()
     result = {row["path"]: dict(row) for row in rows}
+    if not include_metadata:
+        return result
     from db.manual_tags import enrich_effective_tags, load_manual_tags_map
+    from db.keyword_hierarchy import HierarchyError, load_hierarchy_map
     manual = load_manual_tags_map(conn, list(result))
+    try:
+        hierarchy = load_hierarchy_map(conn, list(result))
+    except HierarchyError as exc:
+        raise HTTPException(409, 'Keyword hierarchy metadata cannot be exported safely') from exc
     for data in result.values():
         enrich_effective_tags(data, manual)
+        data['hierarchy_paths'] = [item['exported_path'] for item in hierarchy.get(data['path'], [])]
     return result
 
 
 def _resolve_filter_paths(conn, filters, user_id, exclude=None, max_paths=None,
-                          filter_label="this action"):
+                          filter_label="this action", *, logical=False):
     """Resolve a gallery filter set to a list of photo paths.
 
     ``gallery_scope_sql`` is the gallery's own definition of "the current
@@ -259,7 +329,7 @@ def _resolve_filter_paths(conn, filters, user_id, exclude=None, max_paths=None,
     """
     from api.routers.gallery import gallery_scope_sql
 
-    from_clause, where_str, params = gallery_scope_sql(conn, filters, user_id, exclude)
+    from_clause, where_str, params = gallery_scope_sql(conn, filters, user_id, exclude, logical=logical)
     if max_paths is not None:
         total = conn.execute(
             f"SELECT COUNT(*) FROM {from_clause}{where_str}", params
@@ -272,13 +342,15 @@ def _resolve_filter_paths(conn, filters, user_id, exclude=None, max_paths=None,
                     f"{max_paths}. Narrow the filters and try again."
                 ),
             )
-    rows = conn.execute(
-        f"SELECT photos.path FROM {from_clause}{where_str}", params
-    ).fetchall()
+    columns = 'photos.path,photos._logical_asset_id,photos._logical_primary_path' if logical else 'photos.path'
+    rows = conn.execute(f"SELECT {columns} FROM {from_clause}{where_str}", params).fetchall()
+    if logical:
+        if any(row['_logical_asset_id'] is not None and row['_logical_primary_path'] is None for row in rows):
+            raise HTTPException(409, 'Choose a primary representation before using this collection')
     return [row["path"] for row in rows]
 
 
-def _selected_paths(conn, body, user_id, max_filter_paths=None, filter_label="this action"):
+def _selected_paths(conn, body, user_id, max_filter_paths=None, filter_label="this action", *, logical=False):
     """The paths a ``paths``-or-``filters`` request acts on.
 
     Explicit paths win; otherwise the filter set is resolved through the
@@ -309,7 +381,7 @@ def _selected_paths(conn, body, user_id, max_filter_paths=None, filter_label="th
         return [p for p in body.paths if p not in excluded]
     try:
         return _resolve_filter_paths(conn, body.filters, user_id, body.exclude,
-                                     max_paths=max_filter_paths, filter_label=filter_label)
+                                     max_paths=max_filter_paths, filter_label=filter_label, logical=logical)
     except ValidationError as e:
         from api.routers.gallery import _raise_422_for_invalid_gallery_params
         _raise_422_for_invalid_gallery_params(e, logger, "Export filter validation failed: %s")
@@ -624,6 +696,28 @@ def _resolve_cull_files(paths, include_companions):
     return items, skipped
 
 
+def _authorize_cull_companions(conn, items, user_id):
+    """Validate every bundle before exposing a preview or performing any write.
+
+    CLI copy-keepers retains its operator-owned file scope. HTTP callers must
+    authorize companion expansion against the same indexed visibility policy
+    as RAW downloads, including aliases introduced by path mappings.
+    """
+    from api.related_files import related_files
+
+    visibility, params = get_visibility_clause(user_id)
+    for path, files in items:
+        if not conn.execute(f'SELECT 1 FROM photos WHERE path=? AND {visibility}', [path, *params]).fetchone():
+            raise HTTPException(404, 'Photo not available')
+        inventory = related_files(conn, path, user_id)
+        if (inventory['inventory_state'] != 'checked' or inventory['multiple_raw_candidates']
+                or any(entry['state'] != 'available' for entry in inventory['files'])):
+            raise HTTPException(409, 'Companion files could not be verified; inspect the source files')
+        permitted = {entry['name'] for entry in inventory['files']}
+        if any(os.path.basename(candidate) not in permitted for candidate in files[1:]):
+            raise HTTPException(403, 'A companion file is not available to this account')
+
+
 def _reconcilable_missing(paths):
     """The ``paths`` whose file is genuinely gone, safe for ``remove_missing``.
 
@@ -688,7 +782,7 @@ def _sequence_group_keys(conn, paths, user_id):
     return {r["path"]: (r["sequence_kind"], r["sequence_group_id"]) for r in rows}
 
 
-def _sequence_siblings(conn, group_keys, exclude_paths, user_id):
+def _sequence_siblings(conn, group_keys, exclude_paths, user_id, *, logical=False, require_primary=False):
     """Every visible sibling sharing a ``(sequence_kind, sequence_group_id)``
     found in ``group_keys``, excluding ``exclude_paths`` and de-duplicated
     across groups.
@@ -710,20 +804,38 @@ def _sequence_siblings(conn, group_keys, exclude_paths, user_id):
         return []
     vis_sql, vis_params = get_visibility_clause(user_id)
     exclude = set(exclude_paths)
+    from_sql, source_params = 'photos', []
+    exclude_sql, exclude_params = '', []
+    columns = 'photos.path'
+    if logical:
+        from api.logical_collection import source, membership, REVIEW_FIELDS
+        from api.config import is_multi_user_enabled
+        multi_user = is_multi_user_enabled()
+        collection = source(['path', *REVIEW_FIELDS, 'sequence_kind', 'sequence_group_id'],
+                            owner=(user_id or '') if multi_user else '', multi_user=multi_user,
+                            visibility_sql=vis_sql, visibility_params=vis_params)
+        from_sql, source_params = collection.sql, collection.params
+        excluded = membership('SELECT value AS photo_path FROM json_each(?)', [json.dumps(sorted(exclude))])
+        exclude_sql, exclude_params = f' AND NOT ({excluded.sql})', excluded.params
+        columns = 'photos.path,photos._logical_asset_id,photos._logical_primary_path'
     seen = set()
     siblings = []
-    for kind, group_id in set(group_keys.values()):
-        rows = conn.execute(
-            "SELECT path FROM photos WHERE sequence_kind = ? AND sequence_group_id = ? "
-            f"AND {vis_sql}",
-            [kind, group_id] + vis_params,
-        ).fetchall()
-        for r in rows:
-            p = r["path"]
-            if p in exclude or p in seen:
-                continue
-            seen.add(p)
-            siblings.append(p)
+    groups = json.dumps(list(set(group_keys.values())))
+    rows = conn.execute(
+        f"SELECT {columns} FROM json_each(?) AS requested CROSS JOIN {from_sql} "
+        "WHERE sequence_kind = json_extract(requested.value, '$[0]') "
+        "AND sequence_group_id = json_extract(requested.value, '$[1]') "
+        f"AND {vis_sql}{exclude_sql}",
+        [groups] + source_params + vis_params + exclude_params,
+    ).fetchall()
+    for r in rows:
+        if logical and require_primary and r['_logical_asset_id'] is not None and r['_logical_primary_path'] is None:
+            raise HTTPException(409, 'Choose a primary representation before using this collection')
+        p = r["path"]
+        if p in exclude or p in seen:
+            continue
+        seen.add(p)
+        siblings.append(p)
     return siblings
 
 
@@ -935,7 +1047,9 @@ def _reject_state_map(conn, paths, user_id):
     """Map each visible, in-DB path to its per-user ``is_rejected`` bool.
 
     Used to bound a destructive cull to the user's actual reject set: paths not
-    visible / not in the DB are simply absent from the map.
+    visible / not in the DB are simply absent from the map. Fully visible
+    logical groups use their account decision; partially visible groups refuse
+    the action rather than falling back to a conflicting physical label.
     """
     if not paths:
         return {}
@@ -950,7 +1064,10 @@ def _reject_state_map(conn, paths, user_id):
         ),
         params_fn=lambda chunk: from_params + chunk + vis_params,
     )
-    return {r["path"]: bool(r["is_rejected"]) for r in rows}
+    from api import logical_export
+    states = {row['path']: dict(row) for row in rows}
+    logical_export.attach(conn, states, user_id)
+    return {path: bool(row['is_rejected']) for path, row in states.items()}
 
 
 def _move_into(files, target_dir):
@@ -1136,9 +1253,23 @@ def api_retry_sidecar_job(job_id: str, response: Response, user: CurrentUser = D
     with _sidecar_job_request(response) as db_path:
         try:
             paths, overwrite = sidecar_jobs.remaining(db_path, job_id, user.user_id)
+        except sidecar_jobs.ConfirmationRequired as ex:
+            raise HTTPException(409, 'Inspect a fresh export preview before retrying this job') from ex
         except ValueError as ex:
             raise HTTPException(409, "Export is still running") from ex
         return _start_sidecar_export_job(db_path, paths, user.user_id, overwrite)
+
+
+@router.post('/api/export/sidecar_jobs/{job_id}/preview', response_model=ExportPreviewResponse)
+def api_preview_export_retry(job_id: str, response: Response, user: CurrentUser = Depends(require_edition)):
+    """Fresh read-only preview of this receipt's exact unfinished file units."""
+    with _sidecar_job_request(response) as db_path:
+        try:
+            scope = sidecar_jobs.retry_preview_scope(db_path, job_id, user.user_id)
+        except ValueError as exc:
+            raise HTTPException(409, 'Export has no retryable terminal scope') from exc
+        body = ExportPreviewRequest.model_validate(scope['request'])
+        return _export_preview_response(body, response, user.user_id)
 
 
 @router.get("/api/export/sidecar_jobs/{job_id}", response_model=SidecarJobStatus)
@@ -1252,8 +1383,9 @@ def api_cull_apply(
     # rejects are rejected. Photos in the selection that don't match are skipped.
     want_rejected = body.action != "copy_keeps"
     with get_db() as conn:
+        conn.execute('BEGIN')
         paths = _selected_paths(conn, body, user_id, max_filter_paths=_CULL_FILTER_MAX,
-                                 filter_label="cull")
+                                 filter_label="cull", logical=True)
         state = _reject_state_map(conn, paths, user_id)
         matching = [p for p in paths if state.get(p) == want_rejected]
         group_keys = _sequence_group_keys(conn, matching, user_id)
@@ -1262,12 +1394,13 @@ def api_cull_apply(
         # database, so an excluded frame sharing a bracket/panorama group with
         # a matching one returned as a sibling and was acted on.
         sibling_paths = _sequence_siblings(
-            conn, group_keys, set(matching) | set(body.exclude or ()), user_id)
+            conn, group_keys, set(matching) | set(body.exclude or ()), user_id,
+            logical=True, require_primary=body.include_sequence_siblings)
         # Siblings are auto-added, not requested directly -- bound them to the
         # SAME reject-state check as `matching` (Finding 1, 2026-08-17 review)
         # rather than acting on a whole group regardless of each frame's own
         # state.
-        sibling_state = _reject_state_map(conn, sibling_paths, user_id)
+        sibling_state = _reject_state_map(conn, sibling_paths, user_id) if body.include_sequence_siblings else {}
     sibling_matching = [p for p in sibling_paths if sibling_state.get(p) == want_rejected]
     excluded_by_state = sum(1 for p in paths if p in state and state[p] != want_rejected)
     if body.include_sequence_siblings:
@@ -1280,7 +1413,11 @@ def api_cull_apply(
     sequence_siblings = len(sibling_paths)
 
     action_paths = matching + sibling_matching if body.include_sequence_siblings else matching
-    items, skipped = _resolve_cull_files(action_paths, body.include_companions)
+    with get_db() as conn:
+        conn.execute('BEGIN')
+        items, skipped = _resolve_cull_files(action_paths, body.include_companions)
+        if body.include_companions:
+            _authorize_cull_companions(conn, items, user_id)
     files = [f for _, fs in items for f in fs]
 
     preview_digest = None
@@ -1336,6 +1473,37 @@ def api_cull_apply(
     return respond(False, errors, trashed=trashed)
 
 
+def _invalidate_removed_photos(removed_db_paths: set[str]) -> None:
+    from api.routers.thumbnails import clear_photo_image_caches
+    clear_photo_image_caches(removed_db_paths)
+    # The gallery grid must not keep serving pre-delete counts for up to
+    # `cache_ttl_seconds` (default 1h) -- unlike the row delete itself,
+    # the in-process stats cache has no TTL-independent invalidation of
+    # its own.
+    invalidate_stats_cache()
+
+    # photos_vec (sqlite-vec) has no FK or trigger. Clean it best-effort
+    # OUTSIDE the request transaction -- the vector index is derived and
+    # rebuildable, and this must never fail the response for rows already
+    # committed gone.
+    try:
+        from db.connection import HAS_SQLITE_VEC, load_sqlite_vec
+        from db.vec import _vec_table_exists
+        with get_db() as vec_conn:
+            load_sqlite_vec(vec_conn)
+            if HAS_SQLITE_VEC and _vec_table_exists(vec_conn):
+                placeholders = ",".join("?" * len(removed_db_paths))
+                vec_conn.execute(
+                    f"DELETE FROM photos_vec WHERE path IN ({placeholders})",
+                    list(removed_db_paths),
+                )
+                vec_conn.commit()
+    except Exception:
+        logger.exception(
+            "Could not clean photos_vec entries after photo delete (rebuild with --populate-vec)"
+        )
+
+
 @router.post("/api/photo/delete", response_model=PhotoDeleteResponse, response_model_exclude_unset=True)
 def api_photo_delete(
     body: PhotoDeleteRequest,
@@ -1386,11 +1554,9 @@ def api_photo_delete(
     on a corrupted database), not a silent inconsistency.
 
     A trashed companion (``include_companions``'s RAW/``.xmp``) that is ITSELF
-    a separate ``photos`` row is folded into ``deleted`` too, not a distinct
-    field: its file is gone the moment ``send2trash`` succeeds regardless of
-    whether the caller ever named or could see that row, so it is exactly as
-    deleted as any path the caller requested directly -- `deleted` already
-    means "row removed," not "row the caller named."
+    a separate authorized ``photos`` row is folded into ``deleted`` too.
+    Companion visibility and inventory are checked before any file write;
+    hidden, linked, unavailable or ambiguous companions refuse the request.
 
     ``skipped`` carries a path that was visible, in ``photos``, and never
     refused as a bracket lead, but whose file ``_resolve_cull_files`` could
@@ -1407,6 +1573,30 @@ def api_photo_delete(
     keeps a path ``skipped`` when the allowlist refused it or the folder
     that held it is gone or empty -- the shape of an offline volume.
     """
+    if body.catalog_only:
+        if body.include_companions or body.include_sequence_siblings:
+            raise HTTPException(status_code=422, detail='Catalog removal accepts only the named photos')
+        with get_db() as conn:
+            paths = list(dict.fromkeys(body.paths))
+            visible = _visible_photo_paths(conn, paths, user.user_id)
+            removed = [p for p in paths if p in visible]
+            bracket_leads = _bracket_lead_paths(conn, removed, user.user_id)
+            refused = [p for p in removed if p in bracket_leads]
+            removed = [p for p in removed if p not in bracket_leads]
+            # Do not reveal whether an unavailable path belongs to another account.
+            unavailable = [p for p in paths if p not in visible]
+            if not body.dry_run:
+                _reassign_dead_leads(conn, set(removed), user.user_id, commit=False)
+                delete_photo_rows(conn, removed, preserve_auto_retrain_counters=True)
+                conn.commit()
+        if not body.dry_run and removed:
+            _invalidate_removed_photos(set(removed))
+        return PhotoDeleteResponse(
+            dry_run=body.dry_run, would_trash=[], deleted=[], removed_catalog=removed,
+            not_found=unavailable, not_visible=[], refused_bracket_lead=refused,
+            sequence_siblings=[], skipped=[], removed_missing=[], trashed=0, errors={},
+        )
+
     send2trash = _require_trash_available()
 
     user_id = user.user_id
@@ -1440,7 +1630,18 @@ def api_photo_delete(
             sequence_siblings = _sequence_siblings(conn, group_keys, set(action_paths), user_id)
             action_paths.extend(sequence_siblings)
 
-        items, skipped = _resolve_cull_files(action_paths, body.include_companions)
+        # Keep visibility checks in one read snapshot, then release it before
+        # filesystem work and the later catalog write transaction.
+        conn.execute('SAVEPOINT companion_preflight')
+        try:
+            items, skipped = _resolve_cull_files(action_paths, body.include_companions)
+            if body.include_companions:
+                _authorize_cull_companions(conn, items, user_id)
+        except Exception:
+            conn.execute('ROLLBACK TO companion_preflight')
+            raise
+        finally:
+            conn.execute('RELEASE companion_preflight')
         files = [f for _, fs in items for f in fs]
 
         # With `remove_missing`, a skipped path (visible, in `photos`, file
@@ -1475,18 +1676,9 @@ def api_photo_delete(
         # whose trash failed keeps its row.
         removed_db_paths = {db_path for db_path, fs in items if fs[0] in succeeded}
 
-        # A companion (RAW/.xmp) that trashed successfully may itself be a
-        # SEPARATE `photos` row (a RAW variant scanned independently of its
-        # JPEG) -- its file is gone the instant send2trash succeeds, whether
-        # or not ITS path was ever visible to this caller: visibility gated
-        # only the PRIMARY path the request named, and the companion follows
-        # the shot. `_photo_membership` ignores visibility for exactly this
-        # reason, so a companion belonging to another user's scope is still
-        # matched here and still removed -- its file is gone regardless of
-        # who could see it. Leaving such a row behind would strand it
-        # pointing at a trashed file, contradicting this endpoint's own
-        # "row deleted immediately" contract (no --cleanup-missing-photos
-        # needed).
+        # Authorized companions can have independent catalog rows. Remove
+        # those rows only after their file was successfully trashed. All
+        # bundles were authorized before the first filesystem write.
         companion_files_trashed = {f for _, fs in items for f in fs[1:] if f in succeeded}
         if companion_files_trashed:
             removed_db_paths |= _photo_membership(conn, list(companion_files_trashed))
@@ -1500,32 +1692,7 @@ def api_photo_delete(
         conn.commit()
 
     if removed_db_paths:
-        # The gallery grid must not keep serving pre-delete counts for up to
-        # `cache_ttl_seconds` (default 1h) -- unlike the row delete itself,
-        # the in-process stats cache has no TTL-independent invalidation of
-        # its own.
-        invalidate_stats_cache()
-
-        # photos_vec (sqlite-vec) has no FK or trigger. Clean it best-effort
-        # OUTSIDE the request transaction -- the vector index is derived and
-        # rebuildable, and this must never fail the response for rows already
-        # committed gone.
-        try:
-            from db.connection import HAS_SQLITE_VEC, load_sqlite_vec
-            from db.vec import _vec_table_exists
-            with get_db() as vec_conn:
-                load_sqlite_vec(vec_conn)
-                if HAS_SQLITE_VEC and _vec_table_exists(vec_conn):
-                    placeholders = ",".join("?" * len(removed_db_paths))
-                    vec_conn.execute(
-                        f"DELETE FROM photos_vec WHERE path IN ({placeholders})",
-                        list(removed_db_paths),
-                    )
-                    vec_conn.commit()
-        except Exception:
-            logger.exception(
-                "Could not clean photos_vec entries after photo delete (rebuild with --populate-vec)"
-            )
+        _invalidate_removed_photos(removed_db_paths)
 
     return PhotoDeleteResponse(
         dry_run=False, deleted=sorted(removed_db_paths - set(removed_missing)),

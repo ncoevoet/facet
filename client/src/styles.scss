@@ -2,9 +2,37 @@
 @use "tailwindcss";
 @use './fonts';
 
-// Lets components cancel a translucency effect for users who set the OS
-// "reduce transparency" preference (photo-card's current-photo dimming).
-@custom-variant reduce-transparency (@media (prefers-reduced-transparency: reduce));
+// Shared Tailwind animation utilities; callers opt in only for normal motion.
+@theme {
+  --animate-notice-in: facet-notice-in 180ms cubic-bezier(0.23, 1, 0.32, 1) both;
+  --animate-notice-out: facet-notice-out 120ms cubic-bezier(0.23, 1, 0.32, 1) both;
+  --animate-notice-stack-out: facet-notice-stack-out 120ms ease-out both;
+  @keyframes facet-notice-in {
+    from { opacity: 0; transform: translateY(6px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+  @keyframes facet-notice-out {
+    to { opacity: 0; transform: translateX(8px); }
+  }
+  @keyframes facet-notice-stack-out {
+    to { opacity: 0; }
+  }
+}
+
+:root {
+  --facet-font-ui: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --facet-control-radius: 4px;
+  --facet-dialog-radius: 8px;
+  --facet-space-control: 8px;
+  --facet-image-canvas: oklch(16% 0.005 250);
+  --facet-image-chrome: oklch(22% 0.006 250);
+  --facet-image-ink: oklch(94% 0.004 250);
+  --facet-image-rule: oklch(38% 0.006 250);
+  --facet-favorite: #fda4af;
+  --facet-positive: #4ade80;
+  --facet-review-kept: #064e3b;
+  --facet-review-on-kept: #ffffff;
+}
 
 // Default theme (orange)
 html {
@@ -14,21 +42,23 @@ html {
       primary: mat.$orange-palette,
       tertiary: mat.$cyan-palette,
     ),
-    typography: Roboto,
+    typography: (plain-family: var(--facet-font-ui), brand-family: var(--facet-font-ui)),
     density: -1,
   ));
   --facet-accent: #ff6600;
   --facet-accent-dim: #7c2d12;
   --facet-accent-text: #ff983f;
   --facet-accent-badge: color-mix(in srgb, var(--facet-accent-dim) 50%, transparent);
-  // Tooltip colors (dark theme defaults)
-  --facet-tooltip-bg: rgb(23 23 23 / 0.97);
-  --facet-tooltip-border: #404040;
-  --facet-tooltip-text: #d4d4d4;
-  --facet-tooltip-text-secondary: #a3a3a3;
-  --facet-tooltip-text-muted: #737373;
-  --facet-tooltip-text-title: #e5e5e5;
-  --facet-tooltip-divider: #404040;
+  // Tooltip and details-rail colors: the accent theme's own surface roles, so they carry
+  // the same grey as the workspace (warm with orange, cool with blue). Declared on html,
+  // where every theme class re-declares the --mat-sys-* roles they resolve against.
+  --facet-tooltip-bg: color-mix(in srgb, var(--mat-sys-surface-container-low) 97%, transparent);
+  --facet-tooltip-border: var(--mat-sys-outline-variant);
+  --facet-tooltip-text: var(--mat-sys-on-surface);
+  --facet-tooltip-text-secondary: var(--mat-sys-on-surface-variant);
+  --facet-tooltip-text-muted: var(--mat-sys-outline);
+  --facet-tooltip-text-title: var(--mat-sys-on-surface);
+  --facet-tooltip-divider: var(--mat-sys-outline-variant);
 }
 
 // Theme variants (color only — typography and density inherited from base)
@@ -115,23 +145,19 @@ html.theme-azure {
 
 // Light mode overrides
 html.light-mode {
+  --facet-favorite: #be123c;
+  --facet-positive: #15803d;
   @include mat.theme((
     color: (theme-type: light, primary: mat.$orange-palette, tertiary: mat.$cyan-palette),
-    typography: Roboto,
+    typography: (plain-family: var(--facet-font-ui), brand-family: var(--facet-font-ui)),
     density: -1,
   ));
   --facet-accent: #ea580c;
   --facet-accent-dim: #fed7aa;
-  --facet-accent-text: #c2410c;
+  --facet-accent-text: #a8380a;
   --facet-accent-badge: color-mix(in srgb, var(--facet-accent-dim) 50%, transparent);
-  // Tooltip colors (light theme)
-  --facet-tooltip-bg: rgb(255 255 255 / 0.97);
-  --facet-tooltip-border: #d4d4d4;
-  --facet-tooltip-text: #404040;
-  --facet-tooltip-text-secondary: #525252;
-  --facet-tooltip-text-muted: #737373;
-  --facet-tooltip-text-title: #171717;
-  --facet-tooltip-divider: #e5e5e5;
+  // Light tooltips sit on the lightest surface; the other tooltip roles are inherited from html.
+  --facet-tooltip-bg: color-mix(in srgb, var(--mat-sys-surface-container-lowest) 97%, transparent);
 }
 
 // Light mode + color theme overrides
@@ -177,7 +203,7 @@ body {
   color: var(--mat-sys-on-surface);
   font: var(--mat-sys-body-medium);
   margin: 0;
-  font-family: Roboto, "Helvetica Neue", sans-serif;
+  font-family: var(--facet-font-ui);
 }
 
 html:not(.light-mode) body {
@@ -190,6 +216,7 @@ html.light-mode body {
 
 html, body {
   height: 100%;
+  overflow-x: clip;
 }
 
 // Header selectors: auto-width panels with no text wrapping
@@ -229,13 +256,13 @@ html.light-mode ::-webkit-scrollbar-thumb {
   &:hover { background: #aaa; }
 }
 
-// Compact tab header for stats page
-.stats-tabs .mat-mdc-tab {
+// Compact tab header shared by page-level tab groups (Statistics, Weight Tuning)
+.page-tabs .mat-mdc-tab {
   min-height: 40px;
   padding: 0 12px;
 }
 
-.stats-tabs .mat-mdc-tab-header {
+.page-tabs .mat-mdc-tab-header {
   --mat-tab-header-label-text-size: 13px;
 }
 
@@ -245,7 +272,11 @@ html.light-mode ::-webkit-scrollbar-thumb {
   }
 }
 
-*:focus-visible {
+*:focus-visible,
+// Material buttons set `outline: none` at higher specificity and keep only a faint state layer.
+.mat-focus-indicator:focus-visible,
+.mat-mdc-button-base:focus-visible,
+.mat-mdc-icon-button:focus-visible {
   outline: 2px solid var(--mat-sys-primary);
   outline-offset: 2px;
 }
@@ -253,9 +284,53 @@ html.light-mode ::-webkit-scrollbar-thumb {
 // Normal buttons: trade the M3 pill shape for a subtler radius.
 // Icon buttons and FABs keep their round shape (own tokens, untouched).
 :root {
-  --mat-button-text-container-shape: 8px;
-  --mat-button-outlined-container-shape: 8px;
-  --mat-button-filled-container-shape: 8px;
-  --mat-button-protected-container-shape: 8px;
-  --mat-button-tonal-container-shape: 8px;
+  @include mat.dialog-overrides((container-shape: var(--facet-dialog-radius)));
+  --mat-button-text-container-shape: var(--facet-control-radius);
+  --mat-button-outlined-container-shape: var(--facet-control-radius);
+  --mat-button-filled-container-shape: var(--facet-control-radius);
+  --mat-button-protected-container-shape: var(--facet-control-radius);
+  --mat-button-tonal-container-shape: var(--facet-control-radius);
+}
+
+// Filled fields keep their floating labels at -1; denser M3 fields hide them.
+app-gallery-filter-sidebar,
+[data-collection-query] {
+  @include mat.form-field-density(-1);
+}
+
+// Collection fields read as a search toolbar, rather than large filled forms.
+[data-collection-query] .mat-mdc-form-field {
+  --mat-form-field-container-vertical-padding: var(--facet-space-control);
+  --mat-form-field-filled-container-shape: var(--facet-control-radius);
+  --mat-form-field-filled-container-color: var(--mat-sys-surface-container-lowest);
+  --mat-form-field-filled-active-indicator-color: var(--mat-sys-outline);
+}
+
+app-gallery-view-controls .mat-mdc-button:not(:disabled) {
+  color: var(--mat-sys-on-surface-variant);
+}
+
+// Material's progress indicators already slow themselves under reduced motion; one 0.01ms run
+// would freeze an indeterminate spinner on its last frame, a dot of colour.
+@media (prefers-reduced-motion: reduce) {
+  :not(.mdc-circular-progress, .mdc-circular-progress *, .mdc-linear-progress, .mdc-linear-progress *),
+  ::before, ::after {
+    scroll-behavior: auto !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+// Icon glyphs must use their own line box, including Tailwind text-size overrides.
+@layer utilities {
+  .mat-icon[class] {
+    line-height: 1 !important;
+    flex-shrink: 0;
+  }
+}
+
+@keyframes facet-calendar-enter {
+  from { opacity: 0; transform: translateY(-6px); }
+  to { opacity: 1; transform: translateY(0); }
 }

@@ -40,7 +40,8 @@ export function photoShortcutSection(map: KeymapConfig): ShortcutSection {
     titleKey: I18N.shortcuts.section_detail,
     rows: [
       { keys: [label(map.keep)], labelKey: I18N.review.shortcut },
-      { keys: ['←', '→'], labelKey: I18N.shortcuts.navigate },
+      { keys: ['↑', '↓'], labelKey: I18N.shortcuts.navigate },
+      { keys: ['←', '→'], labelKey: I18N.shortcuts.navigate_set },
       { keys: ['1', '–', '5'], labelKey: I18N.shortcuts.rate },
       { keys: ['0', label(map.reject)], labelKey: I18N.shortcuts.reject },
       { keys: [label(map.favourite)], labelKey: I18N.shortcuts.favorite },

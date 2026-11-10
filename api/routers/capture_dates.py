@@ -35,16 +35,25 @@ def _preview(conn: sqlite3.Connection, body: CaptureDateRequest, user: CurrentUs
     if len(rows) > 1000:
         raise HTTPException(422, 'Select at most 1000 photos')
     changes = []
+    set_date = parse_capture_date(body.set_date) if body.set_date is not None else None
+    absolute = format_capture_date(set_date) if set_date is not None else None
     for row in rows:
         date = parse_capture_date(row['date_taken'])
-        if date is None:
+        if absolute is not None:
+            # A set date fills in a missing or unusable date and never overwrites a real
+            # one: a batch would otherwise collapse every dated photo onto one instant.
+            if date is None:
+                changes.append(dict(path=row['path'], old_date=row['date_taken'], new_date=absolute))
+            continue
+        if date is None or body.offset_seconds is None:
             continue
         try:
             shifted = date + timedelta(seconds=body.offset_seconds)
         except OverflowError:
             continue
         changes.append(dict(path=row['path'], old_date=row['date_taken'], new_date=format_capture_date(shifted)))
-    token = hashlib.sha256(json.dumps([body.offset_seconds, [tuple(row) for row in rows]], ensure_ascii=True).encode()).hexdigest()
+    mode = body.offset_seconds if absolute is None else ['set', absolute]
+    token = hashlib.sha256(json.dumps([mode, [tuple(row) for row in rows]], ensure_ascii=True).encode()).hexdigest()
     return dict(changed=len(changes), skipped=len(rows) - len(changes), samples=changes[:20], preview_token=token), changes
 
 

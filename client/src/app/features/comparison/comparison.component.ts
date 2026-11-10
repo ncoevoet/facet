@@ -1,8 +1,11 @@
-import { Component, computed, DestroyRef, effect, inject, signal, viewChild, TemplateRef, ChangeDetectionStrategy } from '@angular/core';
+import { COMPACT_PAGE_TABS, TabLabelComponent } from '../../shared/components/tab-label/tab-label.component';
+import { Component, computed, DestroyRef, effect, inject, signal, untracked, viewChild, TemplateRef, ChangeDetectionStrategy } from '@angular/core';
 import { NgTemplateOutlet } from '@angular/common';
 import { MatIconModule } from '@angular/material/icon';
 import { MatButtonModule } from '@angular/material/button';
 import { MatTabsModule } from '@angular/material/tabs';
+import { MatFormFieldModule } from '@angular/material/form-field';
+import { MatSelectModule } from '@angular/material/select';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { MatTooltipModule } from '@angular/material/tooltip';
 import { firstValueFrom } from 'rxjs';
@@ -33,9 +36,12 @@ const COMPARE_TAB_NAMES: string[] = [...Object.keys(COMPARE_TAB_INDEX), 'context
   selector: 'app-comparison',
   imports: [
     NgTemplateOutlet,
+    TabLabelComponent,
     MatIconModule,
     MatButtonModule,
     MatTabsModule,
+    MatFormFieldModule,
+    MatSelectModule,
     MatProgressSpinnerModule,
     MatTooltipModule,
     TranslatePipe,
@@ -48,7 +54,8 @@ const COMPARE_TAB_NAMES: string[] = [...Object.keys(COMPARE_TAB_INDEX), 'context
   ],
   changeDetection: ChangeDetectionStrategy.Eager,
   template: `
-    <div class="p-4 md:p-6 max-w-screen-2xl mx-auto">
+    <div class="px-4 py-4">
+      <h1 class="sr-only">{{ I18N.comparison.title | translate }}</h1>
       <!-- Tab-contextual actions projected into the global header on lg (HeaderSlotService);
            small screens use the in-page Top bar below and the weights-tab mobile bar. -->
       <ng-template #compareToolbar>
@@ -124,13 +131,24 @@ const COMPARE_TAB_NAMES: string[] = [...Object.keys(COMPARE_TAB_INDEX), 'context
         </div>
       }
 
+      <!-- Type select for the category tabs below lg, where the shell toolbar select is hidden. Suggestions keeps its own in its bottom bar. -->
+      @if (showCategorySelect()) {
+        <mat-form-field data-compare-category class="lg:!hidden w-full sm:w-52 mb-2" subscriptSizing="dynamic">
+          <mat-label>{{ I18N.ui.filters.type | translate }}</mat-label>
+          <mat-select [value]="compareFilters.selectedCategory()" (selectionChange)="compareFilters.selectedCategory.set($event.value)">
+            @for (t of store.types(); track t.id) {
+              <mat-option [value]="t.id">{{ (t.id === 'top_picks' ? 'photo_types.top_picks' : 'category_names.' + t.id) | translate }} ({{ t.count }})</mat-option>
+            }
+          </mat-select>
+        </mat-form-field>
+      }
+
       @if (compareFilters.selectedCategory()) {
-        <mat-tab-group class="mb-6" [selectedIndex]="compareFilters.activeTab()" (selectedIndexChange)="onTabChange($event)">
+        <mat-tab-group class="page-tabs mb-6" [class]="compactTabs" mat-stretch-tabs="false" mat-align-tabs="start" [selectedIndex]="compareFilters.activeTab()" (selectedIndexChange)="onTabChange($event)">
           <!-- Snapshots tab -->
           <mat-tab>
             <ng-template mat-tab-label>
-              <mat-icon class="mr-2">bookmark</mat-icon>
-              {{ I18N.comparison.snapshots | translate }}
+              <app-tab-label icon="bookmark" [label]="I18N.comparison.snapshots | translate" />
             </ng-template>
             <app-comparison-snapshots-tab #snapshotsTabEl (restored)="onSnapshotRestored()" />
           </mat-tab>
@@ -138,8 +156,7 @@ const COMPARE_TAB_NAMES: string[] = [...Object.keys(COMPARE_TAB_INDEX), 'context
           <!-- A/B Compare tab -->
           <mat-tab>
             <ng-template mat-tab-label>
-              <mat-icon class="mr-2">compare</mat-icon>
-              {{ I18N.comparison.compare_tab | translate }}
+              <app-tab-label icon="compare" [label]="I18N.comparison.compare_tab | translate" />
             </ng-template>
             <app-comparison-ab-tab #abTabEl (weightsApplied)="onWeightsApplied($event)" />
           </mat-tab>
@@ -147,11 +164,8 @@ const COMPARE_TAB_NAMES: string[] = [...Object.keys(COMPARE_TAB_INDEX), 'context
           <!-- Weight Suggestions tab (enabled once enough comparisons exist) -->
           <mat-tab [disabled]="weightsLocked()">
             <ng-template mat-tab-label>
-              <span [matTooltip]="weightsLocked() ? ((I18N.comparison.suggestions_locked_tooltip | translate:{ count: weightsRemaining() })) : ''"
-                    class="inline-flex items-center">
-                <mat-icon class="mr-2">auto_fix_high</mat-icon>
-                {{ I18N.comparison.suggestions_tab | translate }}
-              </span>
+              <app-tab-label icon="auto_fix_high" [label]="I18N.comparison.suggestions_tab | translate"
+                             [hint]="weightsLocked() ? (I18N.comparison.suggestions_locked_tooltip | translate:{ count: weightsRemaining() }) : ''" />
             </ng-template>
             <app-comparison-suggestions-tab #suggestionsTabEl (weightsApplied)="onWeightsApplied($event)" />
           </mat-tab>
@@ -159,8 +173,7 @@ const COMPARE_TAB_NAMES: string[] = [...Object.keys(COMPARE_TAB_INDEX), 'context
           <!-- Weights tab -->
           <mat-tab>
             <ng-template mat-tab-label>
-              <mat-icon class="mr-2">tune</mat-icon>
-              {{ I18N.comparison.weights | translate }}
+              <app-tab-label icon="tune" [label]="I18N.comparison.weights | translate" />
             </ng-template>
             <app-comparison-weights-tab #weightsTabEl />
           </mat-tab>
@@ -168,8 +181,7 @@ const COMPARE_TAB_NAMES: string[] = [...Object.keys(COMPARE_TAB_INDEX), 'context
           <!-- Scoring context tab -->
           <mat-tab>
             <ng-template mat-tab-label>
-              <mat-icon class="mr-2">low_priority</mat-icon>
-              {{ I18N.comparison.context.tab_label | translate }}
+              <app-tab-label icon="low_priority" [label]="I18N.comparison.context.tab_label | translate" />
             </ng-template>
             <app-comparison-priority-tab #priorityTabEl />
           </mat-tab>
@@ -177,8 +189,7 @@ const COMPARE_TAB_NAMES: string[] = [...Object.keys(COMPARE_TAB_INDEX), 'context
           <!-- Panorama detection tab -->
           <mat-tab>
             <ng-template mat-tab-label>
-              <mat-icon class="mr-2">panorama_photosphere</mat-icon>
-              {{ I18N.panorama.settings.tab_label | translate }}
+              <app-tab-label icon="panorama_photosphere" [label]="I18N.panorama.settings.tab_label | translate" />
             </ng-template>
             <app-panorama-settings-tab />
           </mat-tab>
@@ -189,9 +200,10 @@ const COMPARE_TAB_NAMES: string[] = [...Object.keys(COMPARE_TAB_INDEX), 'context
 })
 export class ComparisonComponent {
   protected readonly I18N = i18nKeys();
+  protected readonly compactTabs = COMPACT_PAGE_TABS;
   protected readonly auth = inject(AuthService);
   private readonly api = inject(ApiService);
-  private readonly store = inject(GalleryStore);
+  protected readonly store = inject(GalleryStore);
   private readonly themeService = inject(ThemeService);
   protected readonly compareFilters = inject(CompareFiltersService);
   private readonly pageHelp = inject(PageHelpService);
@@ -212,6 +224,12 @@ export class ComparisonComponent {
   private readonly threshold = computed(() => this.comparisonStats()?.min_comparisons_for_optimization ?? 50);
   protected readonly weightsRemaining = computed(() => Math.max(0, this.threshold() - (this.comparisonStats()?.total_comparisons ?? 0)));
   protected readonly weightsLocked = computed(() => (this.comparisonStats()?.total_comparisons ?? 0) < this.threshold());
+
+  /** The tabs that work on one category and need the in-page Type select below lg (the suggestions tab carries its own). */
+  protected readonly showCategorySelect = computed(() => {
+    const tab = this.compareFilters.activeTab();
+    return tab === COMPARE_TAB_INDEX.snapshots || tab === COMPARE_TAB_INDEX.ab || tab === COMPARE_TAB_INDEX.weights;
+  });
 
   /** Whether the contextual top bar has any action to show for the active tab. */
   protected readonly showTopActions = computed(() => {
@@ -255,7 +273,12 @@ export class ComparisonComponent {
       const tpl = this.compareToolbar();
       if (tpl) this.headerSlot.set(tpl);
     });
-    void this.loadCategories();
+    // Reactive, not one-shot: a type list dropped by an auth refresh arrives later.
+    effect(() => {
+      const first = this.store.types()[0]?.id;
+      if (first && !untracked(this.compareFilters.selectedCategory)) this.compareFilters.selectedCategory.set(first);
+    });
+    if (this.store.types().length === 0) void this.store.loadTypeCounts();
     void this.loadComparisonStats();
   }
 
@@ -266,18 +289,6 @@ export class ComparisonComponent {
       );
       this.comparisonStats.set(stats);
     } catch { /* non-critical: the tab simply stays locked */ }
-  }
-
-  private async loadCategories(): Promise<void> {
-    try {
-      if (this.store.types().length === 0) {
-        await this.store.loadTypeCounts();
-      }
-      const types = this.store.types();
-      if (types.length > 0 && !this.compareFilters.selectedCategory()) {
-        this.compareFilters.selectedCategory.set(types[0].id);
-      }
-    } catch { /* non-critical */ }
   }
 
   protected onTabChange(index: number): void {

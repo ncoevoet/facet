@@ -4,6 +4,7 @@ import { FormsModule } from '@angular/forms';
 import { MatCardModule } from '@angular/material/card';
 import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
+import { MatMenuModule } from '@angular/material/menu';
 import { MatCheckboxModule } from '@angular/material/checkbox';
 import { MatTooltipModule } from '@angular/material/tooltip';
 import { TranslatePipe } from '../../pipes/translate.pipe';
@@ -28,6 +29,7 @@ export interface Person {
     MatCardModule,
     MatButtonModule,
     MatIconModule,
+    MatMenuModule,
     MatCheckboxModule,
     MatTooltipModule,
     TranslatePipe,
@@ -38,7 +40,7 @@ export interface Person {
   changeDetection: ChangeDetectionStrategy.Eager,
   template: `
     <mat-card
-      class="group !overflow-hidden cursor-pointer transition-shadow hover:shadow-lg"
+      class="group cursor-pointer transition-shadow hover:shadow-lg"
       [class.!ring-2]="isSelected()"
       [class.!ring-blue-500]="isSelected()"
       [class.opacity-50]="person().is_hidden"
@@ -51,7 +53,7 @@ export interface Person {
       (keydown.space)="selected.emit(person().id); $event.preventDefault()"
     >
       <!-- Avatar -->
-      <div class="relative aspect-[4/3] bg-[var(--mat-sys-surface-container)] overflow-hidden">
+      <div class="relative aspect-[4/3] rounded-t-[inherit] bg-[var(--mat-sys-surface-container)] overflow-hidden">
         @if (person().face_thumbnail) {
           <img
             [src]="person().id | personThumbnailUrl"
@@ -82,21 +84,21 @@ export interface Person {
         @if (canEdit() && isEditing() && !restoreOnly()) {
           <div class="absolute bottom-1.5 right-1.5 z-10 flex gap-1" role="presentation" (keydown)="$event.stopPropagation()" (dblclick)="$event.stopPropagation()">
             <button
-              class="w-8 h-8 rounded-full bg-black/60 hover:bg-black/80 transition-colors text-white inline-flex items-center justify-center cursor-pointer"
+              class="w-8 h-8 pointer-coarse:w-11 pointer-coarse:h-11 rounded-full bg-black/60 hover:bg-black/80 transition-colors text-white inline-flex items-center justify-center cursor-pointer"
               [matTooltip]="'persons.view_photos' | translate"
               [attr.aria-label]="'persons.view_photos' | translate"
               (click)="viewPhotos.emit(person().id); $event.stopPropagation()">
               <mat-icon class="!text-lg !w-5 !h-5 !leading-5">photo_library</mat-icon>
             </button>
             <button
-              class="w-8 h-8 rounded-full bg-black/60 hover:bg-black/80 transition-colors text-white inline-flex items-center justify-center cursor-pointer"
+              class="w-8 h-8 pointer-coarse:w-11 pointer-coarse:h-11 rounded-full bg-black/60 hover:bg-black/80 transition-colors text-white inline-flex items-center justify-center cursor-pointer"
               [matTooltip]="'persons.find_more' | translate"
               [attr.aria-label]="'persons.find_more' | translate"
               (click)="findMore.emit(person().id); $event.stopPropagation()">
               <mat-icon class="!text-lg !w-5 !h-5 !leading-5">person_search</mat-icon>
             </button>
             <button
-              class="w-8 h-8 rounded-full bg-black/60 hover:bg-black/80 transition-colors text-white inline-flex items-center justify-center cursor-pointer"
+              class="w-8 h-8 pointer-coarse:w-11 pointer-coarse:h-11 rounded-full bg-black/60 hover:bg-black/80 transition-colors text-white inline-flex items-center justify-center cursor-pointer"
               [matTooltip]="'persons.hide' | translate"
               [attr.aria-label]="'persons.hide' | translate"
               (click)="hidden.emit(person().id); $event.stopPropagation()">
@@ -159,34 +161,45 @@ export interface Person {
                  (click)="$event.stopPropagation()"
                  (keydown)="$event.stopPropagation()"
                  (dblclick)="$event.stopPropagation()">
-              @if (!restoreOnly()) {
-                <button mat-icon-button [matTooltip]="'persons.rename' | translate" [attr.aria-label]="'persons.rename' | translate" (click)="editStart.emit(person().id)">
-                  <mat-icon class="opacity-60">edit</mat-icon>
-                </button>
-              }
               <button mat-icon-button [matTooltip]="'persons.view_photos' | translate" [attr.aria-label]="'persons.view_photos' | translate" (click)="viewPhotos.emit(person().id)">
                 <mat-icon class="opacity-60">photo_library</mat-icon>
               </button>
-              @if (!restoreOnly()) {
-                <button mat-icon-button [matTooltip]="'persons.split' | translate" [attr.aria-label]="'persons.split' | translate" (click)="split.emit(person().id)">
-                  <mat-icon class="opacity-60">call_split</mat-icon>
-                </button>
-                <button mat-icon-button [matTooltip]="'persons.find_more' | translate" [attr.aria-label]="'persons.find_more' | translate" (click)="findMore.emit(person().id)">
-                  <mat-icon class="opacity-60">person_search</mat-icon>
-                </button>
-              }
-              @if (person().is_hidden) {
-                <button mat-icon-button [matTooltip]="'persons.unhide' | translate" [attr.aria-label]="'persons.unhide' | translate" (click)="unhidden.emit(person().id)">
-                  <mat-icon class="opacity-60">visibility</mat-icon>
-                </button>
-              } @else {
-                <button mat-icon-button [matTooltip]="'persons.hide' | translate" [attr.aria-label]="'persons.hide' | translate" (click)="hidden.emit(person().id)">
-                  <mat-icon class="opacity-60">visibility_off</mat-icon>
-                </button>
-              }
-              <button mat-icon-button [matTooltip]="'persons.delete' | translate" [attr.aria-label]="'persons.delete' | translate" (click)="deleted.emit(person().id)">
-                <mat-icon class="opacity-60">delete</mat-icon>
+              <button mat-icon-button [matMenuTriggerFor]="actionsMenu" [matTooltip]="'nav.more' | translate" [attr.aria-label]="'nav.more' | translate">
+                <mat-icon class="opacity-60">more_vert</mat-icon>
               </button>
+              <mat-menu #actionsMenu="matMenu">
+                <ng-template matMenuContent>
+                  @if (!restoreOnly()) {
+                    <button mat-menu-item (click)="editStart.emit(person().id)">
+                      <mat-icon>edit</mat-icon>
+                      <span>{{ 'persons.rename' | translate }}</span>
+                    </button>
+                    <button mat-menu-item (click)="findMore.emit(person().id)">
+                      <mat-icon>person_search</mat-icon>
+                      <span>{{ 'persons.find_more' | translate }}</span>
+                    </button>
+                    <button mat-menu-item (click)="split.emit(person().id)">
+                      <mat-icon>call_split</mat-icon>
+                      <span>{{ 'persons.split' | translate }}</span>
+                    </button>
+                  }
+                  @if (person().is_hidden) {
+                    <button mat-menu-item (click)="unhidden.emit(person().id)">
+                      <mat-icon>visibility</mat-icon>
+                      <span>{{ 'persons.unhide' | translate }}</span>
+                    </button>
+                  } @else {
+                    <button mat-menu-item (click)="hidden.emit(person().id)">
+                      <mat-icon>visibility_off</mat-icon>
+                      <span>{{ 'persons.hide' | translate }}</span>
+                    </button>
+                  }
+                  <button mat-menu-item (click)="deleted.emit(person().id)">
+                    <mat-icon>delete</mat-icon>
+                    <span>{{ 'persons.delete' | translate }}</span>
+                  </button>
+                </ng-template>
+              </mat-menu>
             </div>
           }
         </div>

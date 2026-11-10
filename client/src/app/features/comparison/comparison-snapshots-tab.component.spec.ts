@@ -13,7 +13,7 @@ describe('ComparisonSnapshotsTabComponent', () => {
   let component: ComparisonSnapshotsTabComponent;
   let mockApi: { get: Mock; post: Mock };
   let mockSnackBar: { open: Mock };
-  let mockI18n: { t: Mock };
+  let mockI18n: { t: Mock; translations: () => Record<string, unknown> };
   let mockAuth: { isEdition: Mock };
   let compareFilters: { selectedCategory: ReturnType<typeof signal<string>> };
 
@@ -23,7 +23,7 @@ describe('ComparisonSnapshotsTabComponent', () => {
       post: vi.fn(() => of({})),
     };
     mockSnackBar = { open: vi.fn() };
-    mockI18n = { t: vi.fn((key: string) => key) };
+    mockI18n = { t: vi.fn((key: string) => key), translations: () => ({}) };
     mockAuth = { isEdition: vi.fn(() => true) };
     compareFilters = { selectedCategory: signal('portrait') };
 
@@ -38,6 +38,18 @@ describe('ComparisonSnapshotsTabComponent', () => {
       ],
     });
     component = TestBed.inject(ComparisonSnapshotsTabComponent);
+  });
+
+  it('puts the Save button at the end of its row while the cards stack, below lg', async () => {
+    const fixture = TestBed.createComponent(ComparisonSnapshotsTabComponent);
+    fixture.detectChanges();
+    await fixture.whenStable();
+    const root = fixture.nativeElement as HTMLElement;
+    const save = [...root.querySelectorAll('mat-card-content button')].find(button => button.querySelector('mat-icon')?.textContent?.trim() === 'save')!;
+    expect(save.parentElement!.classList).toContain('flex');
+    expect(save.parentElement!.classList).toContain('max-lg:justify-end');
+    expect(save.classList).toContain('pointer-coarse:!min-h-11');
+    fixture.destroy();
   });
 
   describe('loadSnapshots', () => {

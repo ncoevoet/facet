@@ -32,6 +32,16 @@ def _cm(conn):
     return _ctx
 
 
+def _ungrouped_mock(conn):
+    """Make the fake photo explicitly ungrouped; other cursor answers stay intact."""
+    ordinary = conn.execute.return_value
+    absent = mock.MagicMock()
+    absent.fetchone.return_value = None
+    def execute(sql, *args, **kwargs):
+        return absent if sql.startswith('SELECT asset_id FROM logical_asset_members') else ordinary
+    conn.execute.side_effect = execute
+
+
 def _make_app_and_client(raise_server_exceptions=True):
     app = create_app()
     client = TestClient(app, raise_server_exceptions=raise_server_exceptions)
@@ -228,6 +238,7 @@ class TestSetRating:
     def test_set_rating_success(self):
         conn_mock = mock.MagicMock()
         conn_mock.execute.return_value = mock.MagicMock()
+        _ungrouped_mock(conn_mock)
 
         with (
             mock.patch(f"{_AUTH_MODULE}.VIEWER_CONFIG", {"password": "", "edition_password": "edit", "features": {}}),
@@ -291,6 +302,7 @@ class TestToggleFavorite:
         row_mock = mock.MagicMock()
         row_mock.__getitem__ = lambda self, key: 0  # is_favorite = 0
         conn_mock.execute.return_value.fetchone.return_value = row_mock
+        _ungrouped_mock(conn_mock)
 
         with (
             mock.patch(f"{_AUTH_MODULE}.VIEWER_CONFIG", {"password": "", "edition_password": "edit", "features": {}}),
@@ -442,6 +454,7 @@ class TestLockedDatabaseRetry:
 
         conn_mock.commit.side_effect = commit
         conn_mock.execute.return_value = mock.MagicMock()
+        _ungrouped_mock(conn_mock)
         return conn_mock, state
 
     @staticmethod
@@ -480,6 +493,7 @@ class TestLockedDatabaseRetry:
     def test_non_lock_database_error_still_500s_without_retrying(self):
         conn_mock = mock.MagicMock()
         conn_mock.execute.return_value = mock.MagicMock()
+        _ungrouped_mock(conn_mock)
         conn_mock.commit.side_effect = sqlite3.IntegrityError("constraint failed")
 
         resp = self._post(conn_mock, raise_server_exceptions=False)

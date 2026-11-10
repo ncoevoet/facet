@@ -38,7 +38,7 @@ class FakeProc:
 def world(agent_app, monkeypatch):
     spawned = []
     monkeypatch.setattr(scan, "subprocess", spawner(spawned))
-    monkeypatch.setattr(scan, "_read_scan_output", lambda proc: None)
+    monkeypatch.setattr(scan, "_read_scan_output", lambda proc, cleanup=None, on_exit=None: None)
     monkeypatch.setattr(scan, "get_all_scan_directories", lambda: list(CONFIGURED))
     monkeypatch.setattr(scan, "_library_job_conflict_detail", lambda: None)
     for key, value in (("running", False), ("kind", None), ("process", None), ("started_at", None),
@@ -126,7 +126,7 @@ def test_an_open_install_cannot_start_a_scan(agent_app, monkeypatch):
 def test_multi_user_needs_a_superadmin_not_just_an_admin(agent_app, monkeypatch):
     spawned = []
     monkeypatch.setattr(scan, "subprocess", spawner(spawned))
-    monkeypatch.setattr(scan, "_read_scan_output", lambda proc: None)
+    monkeypatch.setattr(scan, "_read_scan_output", lambda proc, cleanup=None, on_exit=None: None)
     monkeypatch.setattr(scan, "get_all_scan_directories", lambda: list(CONFIGURED))
     monkeypatch.setattr(scan, "_library_job_conflict_detail", lambda: None)
     monkeypatch.setitem(scan._scan_state, "running", False)

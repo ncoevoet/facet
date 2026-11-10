@@ -820,6 +820,7 @@ LIBRARY_JOB_RETRAIN = 'retrain'
 LIBRARY_JOB_MAINTENANCE = 'maintenance'
 LIBRARY_JOB_TAGGING = 'tagging'
 LIBRARY_JOB_REPAIR = 'repair'
+LIBRARY_JOB_FACES = 'faces'
 UNKNOWN_LIBRARY_JOB = {'pid': None, 'kind': 'library job', 'origin': 'unknown'}
 DEFAULT_SCAN_STALE_SECONDS = 120
 
@@ -865,7 +866,6 @@ LIBRARY_JOB_ARGS = (
     'recompute_tags',
     'recompute_tags_vlm',
     'recompute_text',
-    'tag_untagged',
     'refill_face_thumbnails_force',
     'refill_face_thumbnails_incremental',
     'refresh_thumbnails',
@@ -874,9 +874,11 @@ LIBRARY_JOB_ARGS = (
     'rescan_gps',
     'score_topiq',
     'sync_label_comparisons',
+    'tag_untagged',
     'train_keeper',
     'train_ranker',
     'translate_captions',
+    'update_faces_job',
 )
 
 # Native previews explicitly keep database/config writes out of their handlers.
@@ -1729,6 +1731,22 @@ def _scan_writes_to_library(args):
 
 
 def _run_scan(args, resumed_run):
+    """Track the complete pipeline while the caller holds LibraryLock."""
+    from processing.scan_state import ScanJobLifecycle
+
+    lifecycle = ScanJobLifecycle()
+    try:
+        completed = _run_scan_pipeline(args, resumed_run, lifecycle)
+    except BaseException as exc:
+        lifecycle.finish('interrupted' if isinstance(exc, KeyboardInterrupt) else 'failed')
+        raise
+    if not lifecycle.finish('completed' if completed else 'interrupted'):
+        logger.error('Scan job outcome could not be reliably recorded')
+        raise SystemExit(1)
+    return completed
+
+
+def _run_scan_pipeline(args, resumed_run, lifecycle):
     """Enumerate, score and post-process a scan, under the library lock.
 
     Extracted from ``main`` so the whole run -- the directory walk, the
@@ -1746,6 +1764,21 @@ def _run_scan(args, resumed_run):
     Returns True when the scan ran to completion (or found nothing new) and
     False when it was interrupted, so ``--auto-cull`` culls only a finished scan.
     """
+    from processing.scan_state import viewer_job_id
+    job_id = viewer_job_id()
+    # The lock is already held here. Revalidate BEFORE constructing Facet:
+    # its constructor initializes the schema and may load heavy models.
+    retry_plan = None
+    if args.retry_plan:
+        from processing.scan_retry import read_retry_manifest, retry_plan_paths, RetryPlanError
+        try:
+            retry_plan = read_retry_manifest(
+                args.retry_plan, args.retry_plan_sha256, args.db, args.config,
+            )
+        except RetryPlanError as exc:
+            logger.error('%s', exc)
+            raise SystemExit(2) from exc
+
     from processing.scorer import Facet, process_bursts, process_single_photo
     from processing.stage_timing import PhaseLedger
     from config import ScoringConfig
@@ -1782,7 +1815,8 @@ def _run_scan(args, resumed_run):
     init_global_plugin_manager(config=scorer.config.config)
 
     # 1. Gather files recursively from subfolders (or single files)
-    all_files = _gather_scan_files(args.photo_paths, scorer.config.get_scanning_settings())
+    all_files = (retry_plan_paths(retry_plan) if retry_plan is not None else
+                 _gather_scan_files(args.photo_paths, scorer.config.get_scanning_settings()))
 
     # Deduplicate (needed for case-insensitive filesystems like Windows).
     #
@@ -1815,8 +1849,7 @@ def _run_scan(args, resumed_run):
     # --retry-failed: the worklist comes from scan_failures, not the dir walk
     if args.retry_failed:
         from processing.scan_state import get_failed_paths
-        scope = 'all' if args.retry_failed == 'all' else 'last'
-        failed = [Path(p) for p in get_failed_paths(args.db, scope)]
+        failed = [Path(p) for p in get_failed_paths(args.db, args.retry_failed)]
         all_files = [p for p in failed if p.exists()]
         missing = len(failed) - len(all_files)
         logger.info("Retrying %d failed files (%d no longer on disk)", len(all_files), missing)
@@ -1834,7 +1867,7 @@ def _run_scan(args, resumed_run):
     def _raw_paired_with_jpeg(f):
         return (f.suffix.lower() in RAW_EXTENSIONS
                 and (os.path.dirname(_resolved(f)), f.stem.lower()) in jpeg_dir_stems)
-    if args.retry_failed:
+    if args.retry_failed or retry_plan is not None:
         unscanned = {_resolved(f) for f in all_files}
     elif args.force_since:
         from processing.scan_state import filter_paths_scanned_before
@@ -1947,6 +1980,10 @@ def _run_scan(args, resumed_run):
     )
     from processing.scan_state import ScanRun, scan_in_progress
     from processing.progress import emit_progress
+
+    def report_progress(phase, *values, **options):
+        lifecycle.progress(phase)
+        emit_progress(phase, *values, **options)
     _proc = scorer.config.get_processing_settings()
     configure_raw_decoding(
         concurrency=_proc.get('raw_decode_concurrency', 0),
@@ -1967,21 +2004,28 @@ def _run_scan(args, resumed_run):
         logger.warning("A scan appears to be running concurrently; starting a separate run.")
 
     route, scan_mode = _scan_route(args, single_pass)
+    recorded_args = {
+        'directories': [os.path.realpath(str(p)) for p in args.photo_paths], 'force': args.force,
+    }
+    if retry_plan is not None:
+        recorded_args.update(retry_of=retry_plan['run_id'], finalization=retry_plan['finalization'])
     scan_run = ScanRun.start(
         args.db, scan_mode,
-        {'directories': [os.path.realpath(str(p)) for p in args.photo_paths], 'force': args.force},
+        recorded_args,
         len(todo_list),
+        job_id=job_id,
     )
+    lifecycle.attach(scan_run)
     _scan_t0 = time.time()
 
     def _on_scan_progress(processed, total):
         scan_run.update_progress(processed)
         elapsed = time.time() - _scan_t0
         eta = (total - processed) * elapsed / processed if processed else None
-        emit_progress('scoring', processed, total, eta_seconds=eta)
+        report_progress('scoring', processed, total, eta_seconds=eta)
 
-    emit_progress('scoring', 0, len(todo_list), force=True)
     ledger.begin('scoring', group='scoring')
+    report_progress('scoring', 0, len(todo_list), force=True)
     processor = None
     calibration_saved = 0
     try:
@@ -2123,13 +2167,29 @@ def _run_scan(args, resumed_run):
         scan_run.finish('failed')
         raise
     else:
-        if route != 'pass' and _photos_saved(processor) + calibration_saved == 0:
+        saved_nothing = route != 'pass' and _photos_saved(processor) + calibration_saved == 0
+        recorded = scan_run.finish('failed' if saved_nothing else 'completed')
+        if not recorded:
+            scorer.commit()
+            logger.error('Scan bookkeeping could not be saved. Existing failure records '
+                         'were retained; inspect the library before creating a new preview.')
+            raise SystemExit(1)
+        if saved_nothing:
             logger.error("Scan failed: saved 0 of %d photos (see the model load and pass "
                          "errors above, or `--retry-failed` after fixing them).", len(todo_list))
-            scan_run.finish('failed')
             exit(SAVED_NOTHING_EXIT_CODE)
-        scan_run.finish('completed')
-        if args.retry_failed and todo_list:
+        if retry_plan is not None:
+            # Clear only this confirmed source run's old records. Preserve
+            # failures in every other run, including the newly recorded retry.
+            retried = {_resolved(f) for f in todo_list}
+            with get_connection(scorer.db_path) as conn:
+                conn.executemany(
+                    'DELETE FROM scan_failures WHERE path = ? AND scan_run_id = ?',
+                    [(item['recorded_path'], retry_plan['run_id']) for item in retry_plan['files']
+                     if item['omission'] is None and item['path'] in retried],
+                )
+                conn.commit()
+        elif args.retry_failed and todo_list:
             retried_paths = [_resolved(f) for f in todo_list]
             with get_connection(scorer.db_path) as conn:
                 conn.executemany(
@@ -2144,6 +2204,12 @@ def _run_scan(args, resumed_run):
     ledger.begin('finalize')
     scorer.commit()
     ledger.end('finalize')
+
+    if retry_plan is not None:
+        report_progress('done', force=True)
+        logger.info('Captured retry ended. Library-wide burst, sequence, tagging, '
+                    'moment, junk and vector finalization were not run.')
+        return True
 
     # 3b. Caption newly scanned AI edits: the original's caption plus "AI: <note>".
     from db.ai_edits import apply_ai_edit_captions, join_ai_edits_to_original_sets
@@ -2165,28 +2231,28 @@ def _run_scan(args, resumed_run):
             logger.warning("%d scanned file(s) were not put in a burst: not a recorded AI edit, or "
                            "the edit or its original is missing or has no phash.", len(scanned) - placed)
         _log_scan_db_destination(scorer.db_path)
-        emit_progress('done', force=True)
+        report_progress('done', force=True)
         logger.info("All tasks complete.")
         return True
 
     # 4. Process bursts
     # Note: Run --cluster-faces-incremental separately if person_ids are needed for grouping
-    emit_progress('bursts', force=True)
     ledger.begin('bursts')
+    report_progress('bursts', force=True)
     process_bursts(scorer.db_path, scorer.config.config_path)
     ledger.end('bursts')
 
     # 5. Name the deliberate multi-exposure sets burst grouping just swallowed,
     # and move each group's lead onto its base exposure. Must follow the bursts
     # step: it is that grouping it corrects.
-    emit_progress('sequences', force=True)
     ledger.begin('sequences')
+    report_progress('sequences', force=True)
     detect_all_sequences(scorer.db_path, scorer.config.config_path, incremental=True)
     ledger.end('sequences')
 
     # 6. Auto-tag photos using stored CLIP/SigLIP embeddings
-    emit_progress('tagging', force=True)
     ledger.begin('tagging')
+    report_progress('tagging', force=True)
     from tag_existing import run_tagging, resolve_scan_tagger, count_untagged, tagging_enabled
 
     # Decide BEFORE resolve_scan_tagger: it loads the profile's embedding model,
@@ -2213,8 +2279,8 @@ def _run_scan(args, resumed_run):
     # so label newly-scanned photos automatically. Reuses the scorer's
     # RAM-cached embedding model; no-ops when narrative_moments is disabled.
     if scorer.config.get_narrative_moments_config().get('enabled', False):
-        emit_progress('moments', force=True)
         ledger.begin('moments')
+        report_progress('moments', force=True)
         try:
             result = run_moment_detection(
                 scorer.db_path, scorer.config,
@@ -2230,8 +2296,8 @@ def _run_scan(args, resumed_run):
     # junk (screenshots/documents/receipts/memes/slides) on newly-scanned
     # photos automatically. No-ops when junk_sweep is disabled.
     if scorer.config.get_junk_sweep_config().get('enabled', False):
-        emit_progress('junk', force=True)
         ledger.begin('junk')
+        report_progress('junk', force=True)
         try:
             result = run_junk_detection(
                 scorer.db_path, scorer.config,
@@ -2250,8 +2316,8 @@ def _run_scan(args, resumed_run):
     # Auto-populate sqlite-vec table so semantic search is fast on first viewer
     # load after a scan. Idempotent: skips when already up-to-date, no-ops when
     # sqlite-vec isn't installed.
-    emit_progress('vec', force=True)
     ledger.begin('vec')
+    report_progress('vec', force=True)
     try:
         from db.vec import populate_vec_table
         populate_vec_table(scorer.db_path)
@@ -2260,7 +2326,7 @@ def _run_scan(args, resumed_run):
     ledger.end('vec')
 
     _log_scan_db_destination(scorer.db_path)
-    emit_progress('done', force=True)
+    report_progress('done', force=True)
     logger.info("All tasks complete.")
     logger.info(ledger.summary_line())
     return True
@@ -2384,7 +2450,15 @@ def _run_auto_cull_cli(args, scope_paths, lock_held):
     try:
         if apply:
             init_database(args.db)
-        with get_connection(args.db) as conn:
+            connection = get_connection(args.db)
+        else:
+            # A preview must not switch journal mode or migrate a released schema.
+            connection = closing(sqlite3.connect(Path(args.db).resolve().as_uri() + '?mode=ro', uri=True))
+        with connection as conn:
+            if not apply:
+                from db.connection import load_sqlite_vec
+                conn.row_factory = sqlite3.Row
+                load_sqlite_vec(conn)
             try:
                 target = None
                 if args.copy_keepers:
@@ -2403,6 +2477,7 @@ def _run_auto_cull_cli(args, scope_paths, lock_held):
                     trim_brackets=args.cull_trim_brackets, dry_run=not apply,
                     path_scope=scope, use_cache=False,
                     membership_groups=min_score is not None,
+                    decision_policy='replace' if args.cull_reconsider_existing else 'preserve',
                 )
                 standalone = []
                 if min_score is not None:
@@ -2422,6 +2497,10 @@ def _run_auto_cull_cli(args, scope_paths, lock_held):
                 print(f"groups={result.processed}  kept={result.kept}  "
                       f"{verb}by_groups={result.rejected}  {verb}by_score={len(standalone)}  "
                       f"spanning_skipped={result.spanning_skipped}")
+                print(f"decision_policy={'reconsider' if args.cull_reconsider_existing else 'preserve'}  "
+                      f"existing_choices={result.existing_labels_count}  "
+                      f"preserved_choices={result.preserved_labels_count}  "
+                      f"revision_guard={'available' if result.decision_guard_available else 'unavailable'}")
                 if target is None:
                     return
                 rejected_now = set(result.reject_paths) | set(standalone)
@@ -2506,12 +2585,30 @@ def main():
     parser = cli_args.build_parser()
     args = parser.parse_args()
     cli_args.validate_face_labels(parser, args)
-    cli_args.validate_evaluate_models_positionals(parser, args)
     if args.dry_run:
         for flag in MUTATING_NO_DRY_RUN_FLAGS:
             value = getattr(args, flag.lstrip('-').replace('-', '_'))
             if value is not None and value is not False:
                 parser.error(f"{flag} has no dry-run; drop --dry-run")
+    if args.update_faces_job:
+        if len(args.update_faces_job) != 32 or any(c not in '0123456789abcdef' for c in args.update_faces_job):
+            parser.error('--update-faces-job requires a valid job identity')
+        defaults = vars(parser.parse_args([]))
+        allowed = {'update_faces_job', 'db', 'config'}
+        if any(value != defaults[name] for name, value in vars(args).items() if name not in allowed):
+            parser.error('--update-faces-job cannot be combined with other commands or scan modifiers')
+        if not args.db or not Path(args.db).is_file():
+            parser.error('--update-faces-job requires an existing database')
+    if args.retry_plan or args.retry_plan_sha256:
+        if not (args.retry_plan and args.retry_plan_sha256):
+            parser.error('--retry-plan and --retry-plan-sha256 must be supplied together')
+        # Validate before any of the maintenance-command dispatches below can
+        # initialize or rewrite the database. The transport has one purpose.
+        defaults = vars(parser.parse_args([]))
+        allowed = {'retry_plan', 'retry_plan_sha256', 'db', 'config'}
+        if any(value != defaults[name] for name, value in vars(args).items() if name not in allowed):
+            parser.error('--retry-plan cannot be combined with other commands or scan modifiers')
+    cli_args.validate_evaluate_models_positionals(parser, args)
     if args.stack_plan_out and not args.immich_stacks_plan:
         parser.error('--stack-plan-out requires --immich-stacks-plan')
     if args.ack_stack_plan and not args.immich_stacks_apply:
@@ -2569,6 +2666,7 @@ def main():
         '--cull-group-by': args.cull_group_by != 'all',
         '--cull-min-score': args.cull_min_score is not None,
         '--cull-trim-brackets': args.cull_trim_brackets,
+        '--cull-reconsider-existing': args.cull_reconsider_existing,
     }
     if not args.auto_cull:
         for flag, given in cull_modifiers.items():
@@ -2596,7 +2694,11 @@ def main():
     # the locked jobs below as subprocesses and would deadlock every one. Its
     # own schema DDL is locked separately, in _upgrade_db_schema.
     if _library_job_requested(args):
-        _acquire_library_lock(args, LIBRARY_JOB_RECOMPUTE)
+        _acquire_library_lock(args, LIBRARY_JOB_FACES if args.update_faces_job else LIBRARY_JOB_RECOMPUTE)
+
+    if args.update_faces_job:
+        from faces.update import run_face_update
+        sys.exit(run_face_update(args.db, ScoringConfig(args.config, validate=False), args.update_faces_job))
 
     # Category validation mode (lightweight - no GPU needed)
     if args.validate_categories:
@@ -4292,7 +4394,7 @@ def main():
             else:
                 logger.info("Resuming scan run #%d (%s)", resumed_run['id'], resumed_run['started_at'])
 
-    if not args.photo_paths and not args.retry_failed:
+    if not args.photo_paths and not args.retry_failed and not args.retry_plan:
         logger.error("photo_paths is required unless using --recompute-average or --compute-recommendations")
         parser.print_help()
         exit(1)

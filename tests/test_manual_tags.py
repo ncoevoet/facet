@@ -92,6 +92,66 @@ class TestNormalize:
         assert out.stdout.strip() == "x"
 
 
+class TestReplaceManualTags:
+    def test_replace_freezes_matching_scope_and_preserves_retained_provenance(self, edition_client, seeded):
+        with sqlite3.connect(DEFAULT_DB_PATH) as conn:
+            conn.executemany('INSERT INTO photo_manual_tags(photo_path,tag,source,created_at) VALUES (?,?,?,?)', [
+                (PHOTO, 'old', 'xmp', '2000-01-01'),
+                (PHOTO_B, 'old', 'user', '2001-01-01'),
+                (PHOTO, 'retained', 'xmp', '2002-01-01'),
+            ])
+        _set_ai_tags(PHOTO, 'landscape')
+        response = edition_client.post(BATCH, json={
+            'filters': {**ALL_FILTERS, 'tag': 'old'}, 'action': 'replace',
+            'tags': ['  Retained  ', 'new', 'landscape'],
+        })
+        assert response.status_code == 200
+        assert _rows(PHOTO) == ['new', 'retained']
+        assert _rows(PHOTO_B) == ['landscape', 'new', 'retained']
+        assert _rows(PHOTO_C) == []
+        with sqlite3.connect(DEFAULT_DB_PATH) as conn:
+            assert conn.execute('SELECT source,created_at FROM photo_manual_tags WHERE photo_path=? AND tag=?',
+                                (PHOTO, 'retained')).fetchone() == ('xmp', '2002-01-01')
+            assert conn.execute('SELECT tags FROM photos WHERE path=?', (PHOTO,)).fetchone()[0] == 'landscape'
+
+    def test_validates_every_value_before_deleting_anything(self, edition_client, seeded):
+        edition_client.put(PUT, json={'path': PHOTO, 'tag': 'old'})
+        for values in [['new', 'bad,tag'], [], ['x'] * 51]:
+            response = edition_client.post(BATCH, json={'photo_paths': [PHOTO], 'action': 'replace', 'tags': values})
+            assert response.status_code == 422
+            assert _rows(PHOTO) == ['old']
+
+    def test_clear_respects_exclusions_and_is_explicit(self, edition_client, seeded):
+        for path in [PHOTO, PHOTO_B]:
+            edition_client.put(PUT, json={'path': path, 'tag': 'old'})
+        response = edition_client.post(BATCH, json={'filters': ALL_FILTERS, 'exclude': [PHOTO_B], 'action': 'clear'})
+        assert response.status_code == 200
+        assert response.json()['count'] == 1
+        assert _rows(PHOTO) == []
+        assert _rows(PHOTO_B) == ['old']
+        assert edition_client.post(BATCH, json={'photo_paths': [PHOTO_B], 'action': 'clear', 'tags': ['ignored']}).status_code == 422
+        assert _rows(PHOTO_B) == ['old']
+
+    @pytest.mark.parametrize('mode', ['ABORT', 'ROLLBACK'])
+    def test_insert_failure_rolls_back_removals(self, edition_client, seeded, mode):
+        edition_client.put(PUT, json={'path': PHOTO, 'tag': 'old'})
+        with sqlite3.connect(DEFAULT_DB_PATH) as conn:
+            conn.execute(f"CREATE TRIGGER fail_manual_replace BEFORE INSERT ON photo_manual_tags WHEN NEW.tag='broken' BEGIN SELECT RAISE({mode}, 'fixture failure'); END")
+        try:
+            response = edition_client.post(BATCH, json={'photo_paths': [PHOTO], 'action': 'replace', 'tags': ['first', 'broken']})
+            assert response.status_code == 500
+            assert _rows(PHOTO) == ['old']
+        finally:
+            with sqlite3.connect(DEFAULT_DB_PATH) as conn:
+                conn.execute('DROP TRIGGER fail_manual_replace')
+
+    def test_replace_and_clear_require_edition(self, regular_client, seeded):
+        for action, fields in [('replace', {'tags': ['new']}), ('clear', {})]:
+            response = regular_client.post(BATCH, json={'photo_paths': [PHOTO], 'action': action, **fields})
+            assert response.status_code == 403
+        assert _rows(PHOTO) == []
+
+
 class TestSinglePhoto:
     def test_put_stores_normalized_tag(self, edition_client, seeded):
         resp = edition_client.put(PUT, json={"path": PHOTO, "tag": "  Sunset "})

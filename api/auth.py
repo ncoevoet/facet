@@ -606,7 +606,7 @@ async def require_scan_access(
 SHARE_CLIENT_ROLE = 'share_client'
 
 
-def create_share_client_token(album_id: int, client_name: str = '') -> str:
+def create_share_client_token(album_id: int, share_token: str, client_name: str = '') -> str:
     """Mint a short-lived JWT for a proofing client on one shared album.
 
     The token is scoped to a single album (``sub: share:<album_id>``) and a
@@ -620,6 +620,7 @@ def create_share_client_token(album_id: int, client_name: str = '') -> str:
         {
             'sub': f'share:{album_id}',
             'role': SHARE_CLIENT_ROLE,
+            'share_epoch': hashlib.sha256(share_token.encode('utf-8')).hexdigest(),
             'album_id': album_id,
             'client_name': client_name,
         },

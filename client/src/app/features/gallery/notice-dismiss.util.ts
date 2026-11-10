@@ -7,7 +7,7 @@
 export const NOTICE_DISMISSALS_KEY = 'facet_notice_dismissals';
 export const MAX_DISMISSALS_PER_KIND = 20;
 
-export type NoticeKind = 'review_progress' | 'review_bookmark' | 'hidden' | 'restore_hidden' | 'active_filters' | 'render_migration';
+export type NoticeKind = 'review_progress' | 'review_bookmark' | 'hidden' | 'restore_hidden' | 'render_migration';
 
 export type NoticeDismissals = Partial<Record<NoticeKind, string[]>>;
 

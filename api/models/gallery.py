@@ -1,10 +1,18 @@
 """Pydantic models for gallery endpoints."""
 
-from pydantic import BaseModel, Field, StringConstraints
+from pydantic import BaseModel, Field, StringConstraints, field_validator, AfterValidator
 from typing import Annotated
 from typing import Any, Literal, Optional, Union
 
+from api.models.logical_assets import LogicalReviewState
 from api.models.common import CoercedInt, PaginationEnvelope
+from tag_query import TAG_QUERY_JSON_LIMIT, validated_tag_query
+from score_presence import SCORE_PRESENCE_JSON_LIMIT, validated_score_presence
+from db.keyword_hierarchy import keyword_node_id
+
+TagQuery = Annotated[str, Field(max_length=TAG_QUERY_JSON_LIMIT), AfterValidator(validated_tag_query)]
+ScorePresence = Annotated[str, Field(max_length=SCORE_PRESENCE_JSON_LIMIT), AfterValidator(validated_score_presence)]
+KeywordBranch = Annotated[str, Field(max_length=36), AfterValidator(keyword_node_id)]
 
 
 class PhotoPerson(BaseModel):
@@ -12,7 +20,7 @@ class PhotoPerson(BaseModel):
     name: str
 
 
-class Photo(BaseModel):
+class PhotoMetadata(BaseModel):
     """A photo row exactly as the gallery endpoints put it on the wire.
 
     Every column-backed field carries the SQLite affinity of its column in
@@ -44,7 +52,6 @@ class Photo(BaseModel):
     ``similarity``, which stays the blended embedding/FTS value.
     """
 
-    path: str
     preview_revision: Optional[str] = None
     # The original this photo was made from, when it is a recorded AI edit (photo_ai_edits).
     ai_edit_of: Optional[str] = None
@@ -152,6 +159,27 @@ class Photo(BaseModel):
     model_config = {'from_attributes': True}
 
 
+class PhotoAssessmentStates(BaseModel):
+    """Explicit reasons backed by receipts for the current stored scan."""
+
+    face_quality_iqa: Optional[Literal['not_applicable']] = None
+
+
+class Photo(PhotoMetadata):
+    """Authenticated catalog photo identity and metadata."""
+
+    path: str
+    logical_review: Optional[LogicalReviewState] = None
+    # Only explicit current-scan receipts support a missing-score reason.
+    assessment_states: Optional[PhotoAssessmentStates] = None
+
+
+class SharedPhoto(PhotoMetadata):
+    """Public album asset metadata, with no native filesystem path."""
+
+    asset_id: str
+
+
 class HiddenSummary(BaseModel):
     """How many rows the gallery's hide toggles removed from this page's count."""
 
@@ -238,6 +266,20 @@ class SimilarPhotosResponse(BaseModel):
 
 # --- Gallery query parameters ---
 
+PERSON_FILTER_LIMIT = 200
+
+
+def person_filter_ids(value: str) -> list[int]:
+    if not isinstance(value, str) or len(value) > 4096:
+        raise ValueError('Invalid person group')
+    if not value:
+        return []
+    ids = list(dict.fromkeys(int(part.strip()) for part in value.split(',')))
+    if len(ids) > PERSON_FILTER_LIMIT or any(pid <= 0 or pid > 9223372036854775807 for pid in ids):
+        raise ValueError('Person group needs at most 200 positive integer IDs')
+    return ids
+
+
 class GalleryParams(BaseModel):
     """Typed gallery filter parameters.
 
@@ -265,8 +307,19 @@ class GalleryParams(BaseModel):
     duplicates_only: str = ''
     search: str = ''
     tag: str = ''
-    person: str = ''
+    tag_groups: TagQuery = ''
+    keyword_branch: KeywordBranch = ''  # Direct assignments to this node or descendants, not inherited assignments.
+    person: str = Field(default='', max_length=4096)
+    person_match: Literal['all', 'any'] = 'all'
+
+    @field_validator('person')
+    @classmethod
+    def valid_person_group(cls, value: str) -> str:
+        person_filter_ids(value)
+        return value
+
     # Score ranges
+    score_presence: ScorePresence = ''
     min_score: str = ''
     max_score: str = ''
     min_aesthetic: str = ''
@@ -297,6 +350,7 @@ class GalleryParams(BaseModel):
     # Date filters
     date_from: str = ''
     date_to: str = ''
+    no_capture_date: str = ''  # NULL or blank stored capture date, not scan/import time
     # Content flags
     is_monochrome: str = ''
     manual_faces_need_review: str = ''

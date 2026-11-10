@@ -3,6 +3,7 @@ Gallery router — photo listing, type counts, similar photos.
 
 """
 
+import json
 import asyncio
 import logging
 import math
@@ -12,7 +13,7 @@ from typing import NoReturn, Optional, Any
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from pydantic import ValidationError
 
-from api.auth import CurrentUser, get_optional_user
+from api.auth import CurrentUser, get_optional_user, require_authenticated
 from api import database as _database
 from api import stack_gallery
 from api.change_token import db_change_token
@@ -22,12 +23,15 @@ from api.model_cache import AcceleratorBusy
 from api.models.gallery import (
     BY_PATHS_MISSING_CAP, GALLERY_PAGING_KEYS, GalleryParams, Photo, PhotoCountResponse,
     PhotoPathsResponse, PhotosByPathsRequest, PhotosByPathsResponse, PhotosResponse,
-    ReviewProgressResponse, SimilarPhotosResponse, gallery_filter_keys, query_value,
+    ReviewProgressResponse, SimilarPhotosResponse, gallery_filter_keys, person_filter_ids, query_value,
 )
 from api.models.discovery import PhotoSetResponse, PhotoTypeCountsResponse, ViewerConfigResponse
+from api.models.provenance import PhotoProvenance
+from api.models.related_files import RelatedFilesResponse
 from api.db_helpers import (
+    CAPTURE_DATE_MISSING_SQL,
     get_existing_columns, get_cached_count_async,
-    get_cached_hidden_aggregates_async, snapshot_count_token, _add_tag_filter,
+    get_cached_hidden_aggregates_async, snapshot_count_token, _add_tag_filter, _add_tag_groups,
     get_art_tags_from_config, build_hide_clauses,
     hide_toggle_params,
     split_photo_tags, attach_person_data_async, sanitize_float_values,
@@ -43,9 +47,12 @@ from api.types import (
     SEQUENCE_OVERRIDE_FORCED, SEQUENCE_OVERRIDE_SUPPRESSED, SEQUENCE_OVERRIDE_VALUES,
 )
 from metric_columns import SCORE_RANGE_COLUMNS
+from score_presence import score_presence_policies
 from api.visual_similarity import find_visual_page
 from db.ai_edits import attach_ai_edit_sources_async
 from db.preview_versions import attach_preview_versions_async
+from db.metadata_provenance import photo_provenance
+from api.related_files import related_files
 from utils.histogram import unpack_histogram
 from utils.sequence import BRACKET as BRACKET_KIND
 
@@ -57,6 +64,62 @@ except ImportError:
 
 router = APIRouter(tags=["gallery"])
 logger = logging.getLogger(__name__)
+
+
+@router.get('/api/photo/related_files', response_model=RelatedFilesResponse)
+def api_photo_related_files(
+    path: str = Query(...),
+    token: str | None = Query(None),
+    user: CurrentUser = Depends(require_authenticated),
+):
+    """Inspect authorized physical candidates without exposing paths or writing files."""
+    if token is not None:
+        raise HTTPException(404, 'Photo not found')
+    visibility, params = get_visibility_clause(user.user_id)
+    try:
+        with get_db() as conn:
+            conn.execute('BEGIN')
+            if not conn.execute(f'SELECT 1 FROM photos WHERE path=? AND {visibility}', [path, *params]).fetchone():
+                raise HTTPException(404, 'Photo not found')
+            return related_files(conn, path, user.user_id)
+    except sqlite3.Error:
+        logger.exception('Failed to inspect related files')
+        raise HTTPException(503, 'Related files could not be read') from None
+
+
+@router.get('/api/photo/provenance', response_model=PhotoProvenance)
+def api_photo_provenance(
+    path: str = Query(...),
+    token: str | None = Query(None),
+    user: CurrentUser = Depends(require_authenticated),
+):
+    """Current own review receipts and shared manual-tag origin, not history.
+
+    A synchronous route keeps SQLite work off the async request loop. Never
+    expose sidecar paths, tag creator IDs, or provenance through share tokens.
+    """
+    if token is not None:
+        raise HTTPException(404, 'Photo not found')
+    source, source_params = get_photos_from_clause(user.user_id)
+    visibility, visibility_params = get_visibility_clause(user.user_id)
+    preferences = get_preference_columns(user.user_id)
+    columns = [f'{expression} AS {field}' for field, expression in preferences.items()]
+    columns += ['photos.date_manually_set', 'photos.gps_manually_set']
+    try:
+        with get_db() as conn:
+            conn.execute('BEGIN')
+            row = conn.execute(
+                f"SELECT {','.join(columns)} FROM {source} WHERE photos.path=? AND {visibility}",
+                [*source_params, path, *visibility_params],
+            ).fetchone()
+            if row is None:
+                raise HTTPException(404, 'Photo not found')
+            personal = source != 'photos'
+            return photo_provenance(conn, path, review_user_id=user.user_id if personal else None,
+                                    values=row, personal=personal)
+    except sqlite3.Error:
+        logger.exception('Failed to read photo provenance')
+        raise HTTPException(503, 'Metadata sources could not be read') from None
 
 
 
@@ -230,7 +293,7 @@ def _add_range_filter(where_clauses, sql_params, params, column, min_key, max_ke
             pass
 
 
-def _apply_text_filters(where_clauses, sql_params, params, conn, include_manual=True):
+def _apply_text_filters(where_clauses, sql_params, params, conn, include_manual=True, *, hierarchy_available=None):
     """Apply camera, lens, search, tag, composition, person, category filters."""
     if params.get('camera'):
         where_clauses.append("camera_model = ?")
@@ -253,18 +316,50 @@ def _apply_text_filters(where_clauses, sql_params, params, conn, include_manual=
         include_manual=include_manual,
     )
 
+    _add_tag_groups(where_clauses, sql_params, params.get('tag_groups', ''), conn, include_manual=include_manual)
+
+    if 'keyword_branch' in params and params['keyword_branch'] != '':
+        from db.keyword_hierarchy import HierarchyError, keyword_node_id
+        try:
+            branch = keyword_node_id(params['keyword_branch'])
+        except HierarchyError:
+            branch = None
+        if hierarchy_available is None and isinstance(conn, sqlite3.Connection):
+            hierarchy_available = conn.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='photo_keyword_nodes'").fetchone() is not None
+        if not include_manual or not branch or hierarchy_available is not True:
+            where_clauses.append('0=1')
+        else:
+            # UNION deduplicates IDs and terminates even on a damaged cycle.
+            where_clauses.append('photos.path IN (WITH RECURSIVE branch(id) AS ('
+                                 'SELECT id FROM keyword_nodes WHERE id=? UNION '
+                                 'SELECT n.id FROM keyword_nodes n JOIN branch ON n.parent_id=branch.id) '
+                                 'SELECT a.photo_path FROM photo_keyword_nodes a '
+                                 'WHERE a.node_id IN (SELECT id FROM branch))')
+            sql_params.append(branch)
+
     if params.get('composition_pattern'):
         where_clauses.append("composition_pattern = ?")
         sql_params.append(params['composition_pattern'])
 
-    if params.get('person'):
-        for pid_str in params['person'].split(','):
-            try:
-                pid = int(pid_str.strip())
-                where_clauses.append("EXISTS (SELECT 1 FROM faces WHERE photo_path = photos.path AND person_id = ?)")
-                sql_params.append(pid)
-            except ValueError:
-                pass
+    person_mode = params.get('person_match') or 'all'
+    people = params.get('person')
+    if person_mode not in ('all', 'any'):
+        # Raw smart-album consumers also reach this builder without a model.
+        where_clauses.append('0=1')
+    elif people:
+        try:
+            person_ids = person_filter_ids(people)
+        except (ValueError, TypeError):
+            where_clauses.append('0=1')
+        else:
+            if person_mode == 'any':
+                placeholders = ','.join('?' for _ in person_ids)
+                where_clauses.append(f"EXISTS (SELECT 1 FROM faces WHERE photo_path = photos.path AND person_id IN ({placeholders}))")
+                sql_params.extend(person_ids)
+            else:
+                for pid in person_ids:
+                    where_clauses.append("EXISTS (SELECT 1 FROM faces WHERE photo_path = photos.path AND person_id = ?)")
+                    sql_params.append(pid)
 
     if params.get('faces_need_names') in ('1', 'true'):
         from db.schema import person_not_hidden_clause
@@ -423,7 +518,7 @@ def _apply_color_quality_filters(where_clauses, sql_params, params):
             sql_params.append(hi)
 
 
-def _apply_visibility_and_hide_filters(where_clauses, sql_params, params, user_id, stack_owner=None):
+def _apply_visibility_and_hide_filters(where_clauses, sql_params, params, user_id, stack_owner=None, *, logical=False):
     """Apply visibility, top picks, aggregate minimum, and hide blinks/bursts/duplicates."""
     vis_sql, vis_params = get_visibility_clause(user_id)
     where_clauses.append(vis_sql)
@@ -487,8 +582,12 @@ def _apply_visibility_and_hide_filters(where_clauses, sql_params, params, user_i
         # leads. Content/visibility filters still apply to every member.
         where_clauses.extend(build_hide_clauses(
             hide_blinks_val, '', '', hide_brackets_val, hide_panoramas_val))
+        stack_membership = stack_gallery.membership_clause()
+        if logical:
+            from api.logical_collection import membership
+            stack_membership = membership('SELECT photo_path FROM photo_stack_members WHERE owner=?').sql
         for clause in build_hide_clauses('', hide_bursts_val, hide_duplicates_val, '', ''):
-            where_clauses.append(f'({clause} OR {stack_gallery.membership_clause()})')
+            where_clauses.append(f'({clause} OR {stack_membership})')
             sql_params.append(owner)
     else:
         where_clauses.extend(build_hide_clauses(
@@ -501,9 +600,9 @@ def _apply_visibility_and_hide_filters(where_clauses, sql_params, params, user_i
         where_clauses.append("duplicate_group_id IS NOT NULL")
 
 
-def _apply_preference_filters(where_clauses, sql_params, params, user_id):
+def _apply_preference_filters(where_clauses, sql_params, params, user_id, preference_columns=None):
     """Apply star rating, favorites, and rejected filters."""
-    pref_cols = get_preference_columns(user_id)
+    pref_cols = preference_columns or get_preference_columns(user_id)
     if params.get('min_rating'):
         try:
             min_rating = int(params['min_rating'])
@@ -545,10 +644,30 @@ EXIF_RANGE_COLUMNS = [
 ]
 
 
-def _apply_score_range_filters(where_clauses, sql_params, params):
+def _apply_score_range_filters(where_clauses, sql_params, params, user_id=None, preference_columns=None):
     """Apply all score/metric range filters."""
+    try:
+        policies = score_presence_policies(params.get('score_presence', ''))
+    except (ValueError, TypeError):
+        where_clauses.append('0=1')
+        return
     for column, min_key, max_key, is_float in SCORE_RANGE_COLUMNS:
-        _add_range_filter(where_clauses, sql_params, params, column, min_key, max_key, is_float=is_float)
+        if column == 'star_rating':
+            # Range predicates must use the same current-account authority as
+            # the selected values, including zero for an absent personal row.
+            column = (preference_columns or get_preference_columns(user_id))['star_rating']
+        policy = policies.get(min_key)
+        if policy == 'missing_only':
+            where_clauses.append(f'{column} IS NULL')
+            continue
+        ranges = []
+        _add_range_filter(ranges, sql_params, params, column, min_key, max_key, is_float=is_float)
+        if policy == 'include_missing' and ranges:
+            where_clauses.append(f"({column} IS NULL OR ({' AND '.join(ranges)}))")
+        else:
+            where_clauses.extend(ranges)
+            if policy == 'measured_only':
+                where_clauses.append(f'{column} IS NOT NULL')
 
 
 def _apply_exif_range_filters(where_clauses, sql_params, params):
@@ -557,8 +676,10 @@ def _apply_exif_range_filters(where_clauses, sql_params, params):
         _add_range_filter(where_clauses, sql_params, params, column, min_key, max_key, is_float=is_float)
 
 
-def _apply_date_album_geo_filters(where_clauses, sql_params, params):
+def _apply_date_album_geo_filters(where_clauses, sql_params, params, *, logical=False):
     """Apply date range, album membership, GPS radius, and path prefix filters."""
+    if params.get('no_capture_date') in ('1', 'true'):
+        where_clauses.append(CAPTURE_DATE_MISSING_SQL)
     if params.get('date_from'):
         try:
             date_from = to_exif_date(params['date_from'])
@@ -576,6 +697,9 @@ def _apply_date_album_geo_filters(where_clauses, sql_params, params):
 
     album_sql, album_params = album_filter_clause(params.get('album_id'))
     if album_params:
+        if logical:
+            from api.logical_collection import membership
+            album_sql = membership('SELECT photo_path FROM album_photos WHERE album_id=?', album_params).sql
         where_clauses.append(album_sql)
         sql_params.extend(album_params)
 
@@ -603,7 +727,7 @@ def _apply_date_album_geo_filters(where_clauses, sql_params, params):
         sql_params.append(escaped + '%')
 
 
-def _build_gallery_where(params, conn=None, user_id=None, include_manual=True, *, stack_owner=None, include_stacks=True):
+def _build_gallery_where(params, conn=None, user_id=None, include_manual=True, *, stack_owner=None, include_stacks=True, hierarchy_available=None, logical=False):
     """Build WHERE clauses for gallery queries.
 
     ``include_manual=False`` makes the tag filter and the text search AI-only:
@@ -617,13 +741,14 @@ def _build_gallery_where(params, conn=None, user_id=None, include_manual=True, *
         stack_owner = stack_gallery.enabled_owner(conn, user_id)
     where_clauses = []
     sql_params = []
-    _apply_visibility_and_hide_filters(where_clauses, sql_params, params, user_id, stack_owner)
-    _apply_text_filters(where_clauses, sql_params, params, conn, include_manual=include_manual)
-    _apply_preference_filters(where_clauses, sql_params, params, user_id)
-    _apply_score_range_filters(where_clauses, sql_params, params)
+    _apply_visibility_and_hide_filters(where_clauses, sql_params, params, user_id, stack_owner, logical=logical)
+    _apply_text_filters(where_clauses, sql_params, params, conn, include_manual=include_manual, hierarchy_available=hierarchy_available)
+    preference_columns = {field: f'photos.{field}' for field in ('star_rating', 'is_favorite', 'is_kept', 'is_rejected')} if logical else None
+    _apply_preference_filters(where_clauses, sql_params, params, user_id, preference_columns)
+    _apply_score_range_filters(where_clauses, sql_params, params, user_id, preference_columns)
     _apply_exif_range_filters(where_clauses, sql_params, params)
     _apply_color_quality_filters(where_clauses, sql_params, params)
-    _apply_date_album_geo_filters(where_clauses, sql_params, params)
+    _apply_date_album_geo_filters(where_clauses, sql_params, params, logical=logical)
     _apply_set_scope_filter(where_clauses, sql_params, params)
     if params.get('stack_id'):
         # Smart-album and share consumers call this builder directly too.
@@ -632,8 +757,12 @@ def _build_gallery_where(params, conn=None, user_id=None, include_manual=True, *
         if not include_manual or not include_stacks or owner is None:
             where_clauses.append('0=1')
         else:
-            where_clauses.append('EXISTS (SELECT 1 FROM photo_stack_members sm '
-                                 'WHERE sm.photo_path=photos.path AND sm.owner=? AND sm.stack_id=?)')
+            if logical:
+                from api.logical_collection import membership
+                where_clauses.append(membership('SELECT photo_path FROM photo_stack_members WHERE owner=? AND stack_id=?').sql)
+            else:
+                where_clauses.append('EXISTS (SELECT 1 FROM photo_stack_members sm '
+                                     'WHERE sm.photo_path=photos.path AND sm.owner=? AND sm.stack_id=?)')
             sql_params.extend([owner, params['stack_id']])
     return where_clauses, sql_params
 
@@ -652,7 +781,7 @@ def _scoped_album_id(filters):
     return album_params[0] if album_params else None
 
 
-def _gallery_scope_sql_checked(conn, filters, user_id, exclude, prepared, stack_owner=None):
+def _gallery_scope_sql_checked(conn, filters, user_id, exclude, prepared, stack_owner=None, *, hierarchy_available=None, collection_source=None):
     """The scope tuple, with the album access check ALREADY performed.
 
     Private on purpose: the two public entry points below each run the access
@@ -664,19 +793,31 @@ def _gallery_scope_sql_checked(conn, filters, user_id, exclude, prepared, stack_
     """
     if prepared is None:
         _, prepared = _prepare_gallery_params(dict(filters or {}))
-    from_clause, from_params = get_photos_from_clause(user_id)
-    where_clauses, sql_params = _build_gallery_where(prepared, conn, user_id=user_id, stack_owner=stack_owner)
+    from_clause, from_params = ((collection_source.sql, collection_source.params) if collection_source is not None
+                                else get_photos_from_clause(user_id))
+    where_clauses, sql_params = _build_gallery_where(prepared, conn, user_id=user_id, stack_owner=stack_owner,
+                                                   hierarchy_available=hierarchy_available, logical=collection_source is not None)
     all_params = list(from_params) + list(sql_params)
     if exclude:
         placeholders = ','.join('?' * len(exclude))
-        where_clauses.append(f"photos.path NOT IN ({placeholders})")
-        all_params.extend(exclude)
+        if collection_source is not None:
+            from api.logical_collection import membership
+            selected = membership('SELECT value AS photo_path FROM json_each(?)', [json.dumps(list(exclude))])
+            where_clauses.append(f'NOT ({selected.sql})')
+            all_params.extend(selected.params)
+        else:
+            where_clauses.append(f"photos.path NOT IN ({placeholders})")
+            all_params.extend(exclude)
     where_str = f" WHERE {' AND '.join(where_clauses)}" if where_clauses else ""
     return from_clause, where_str, all_params
 
 
-def gallery_scope_sql(conn, filters, user_id, exclude=None, prepared=None):
+def gallery_scope_sql(conn, filters, user_id, exclude=None, prepared=None, *, logical=False):
     """``(from_clause, where_str, params)`` for the rows one gallery view shows.
+
+    ``logical=True`` is an explicit collection-only source. Physical mutation
+    and delivery callers retain the default file scope until their own logical
+    ownership/preflight integration. Pair it with logical SELECT columns.
 
     The single definition of "the current view" for every surface that acts on
     a whole filter set instead of a page of it — the count/paths endpoints, the
@@ -719,10 +860,18 @@ def gallery_scope_sql(conn, filters, user_id, exclude=None, prepared=None):
     owner = stack_gallery.enabled_owner(conn, user_id)
     if (filters or {}).get('stack_id'):
         stack_gallery.check_stack_scope(conn, owner, filters['stack_id'], user_id)
-    return _gallery_scope_sql_checked(conn, filters, user_id, exclude, prepared, owner)
+    collection_source = None
+    if logical:
+        from api.logical_collection import source
+        from api.config import is_multi_user_enabled
+        visibility, values = get_visibility_clause(user_id)
+        multi_user = is_multi_user_enabled()
+        collection_source = source(sorted(get_existing_columns(conn)), owner=(user_id or '') if multi_user else '',
+                                   multi_user=multi_user, visibility_sql=visibility, visibility_params=values)
+    return _gallery_scope_sql_checked(conn, filters, user_id, exclude, prepared, owner, collection_source=collection_source)
 
 
-async def gallery_scope_sql_async(conn, filters, user_id, exclude=None, prepared=None):
+async def gallery_scope_sql_async(conn, filters, user_id, exclude=None, prepared=None, *, logical=False, logical_collapse=True):
     """:func:`gallery_scope_sql` for an aiosqlite connection.
 
     Two entry points rather than one, because the album access check is the
@@ -738,7 +887,16 @@ async def gallery_scope_sql_async(conn, filters, user_id, exclude=None, prepared
     owner = await stack_gallery.enabled_owner_async(conn, user_id)
     if (filters or {}).get('stack_id'):
         await stack_gallery.check_stack_scope_async(conn, owner, filters['stack_id'], user_id)
-    return _gallery_scope_sql_checked(conn, filters, user_id, exclude, prepared, owner)
+    hierarchy_available = None
+    if (filters or {}).get('keyword_branch') or (prepared or {}).get('keyword_branch'):
+        from api.keyword_tree import hierarchy_schema_available_async
+        hierarchy_available = await hierarchy_schema_available_async(conn)
+    collection_source = None
+    if logical:
+        from api.logical_collection import for_user_async
+        collection_source = await for_user_async(conn, user_id, collapse=logical_collapse)
+    return _gallery_scope_sql_checked(conn, filters, user_id, exclude, prepared, owner,
+                                      hierarchy_available=hierarchy_available, collection_source=collection_source)
 
 
 @router.get("/api/photo", response_model=Photo, response_model_exclude_unset=True)
@@ -756,6 +914,7 @@ async def api_photo(
     """
     try:
         async with get_async_db() as conn:
+            await conn.execute('BEGIN')
             user_id = user.user_id if user else None
             from_clause, from_params = get_photos_from_clause(user_id)
             vis_sql, vis_params = get_visibility_clause(user_id)
@@ -784,6 +943,22 @@ async def api_photo(
             photo['category_override'] = override['category_override'] if override else None
             await attach_ai_edit_sources_async(conn, [photo])
 
+            # A deliberate model decline is evidence only for the stored scan
+            # fingerprint, never a guess based on face_count or a NULL score.
+            from db.schema import IQA_SCAN_FINGERPRINT_SQL
+            cur = await conn.execute(
+                "SELECT 1 FROM photos JOIN iqa_declined d ON d.photo_path=photos.path "
+                "WHERE photos.path=? AND photos.face_quality_iqa IS NULL "
+                "AND d.model='topiq_nr_face' AND d.scan_fingerprint=" + IQA_SCAN_FINGERPRINT_SQL,
+                [path],
+            )
+            declined = await cur.fetchone()
+            await cur.close()
+            photo['assessment_states'] = {'face_quality_iqa': 'not_applicable'} if declined else {}
+
+            if token is None:
+                from api.logical_reviews import attach_async as attach_logical_reviews
+                await attach_logical_reviews(conn, [photo], user_id)
             sanitize_float_values([photo])
 
             return photo
@@ -1073,14 +1248,17 @@ async def api_review_progress(
     qp['show_rejected'] = '0'
     try:
         async with get_async_db() as conn:
+            await conn.execute('BEGIN')
+            from api.logical_collection import enabled_async
+            logical = await enabled_async(conn)
             user_id = user.user_id if user else None
-            from_clause, where_str, params = await gallery_scope_sql_async(conn, qp, user_id)
+            from_clause, where_str, params = await gallery_scope_sql_async(conn, qp, user_id, logical=logical)
             semantic_q, threshold = _semantic_params(qp)
             if semantic_q is not None:
                 _require_semantic_search_enabled()
                 _, where_str, params = await _apply_semantic_gate(
-                    conn, semantic_q, threshold, user_id, where_str, params, "review progress")
-            pref = get_preference_columns(user_id)
+                    conn, semantic_q, threshold, user_id, where_str, params, "review progress", logical=logical)
+            pref = {field: f'photos.{field}' for field in ('is_kept', 'is_rejected')} if logical else get_preference_columns(user_id)
             rejected = f"COALESCE({pref['is_rejected']}, 0)"
             kept = f"COALESCE({pref['is_kept']}, 0)"
             cur = await conn.execute(
@@ -1116,11 +1294,20 @@ async def api_photos_count(
     """
     qp = dict(request.query_params)
     try:
+        token = await snapshot_count_token()
         async with get_async_db() as conn:
+            await conn.execute('BEGIN')
+            from api.logical_collection import enabled_async
+            logical = await enabled_async(conn)
             user_id = user.user_id if user else None
-            from_clause, where_str, all_params = await gallery_scope_sql_async(conn, qp, user_id)
+            from_clause, where_str, all_params = await gallery_scope_sql_async(conn, qp, user_id, logical=logical)
+            semantic_q, threshold = _semantic_params(qp)
+            if semantic_q is not None:
+                _require_semantic_search_enabled()
+                _, where_str, all_params = await _apply_semantic_gate(
+                    conn, semantic_q, threshold, user_id, where_str, all_params, 'gallery selection', logical=logical)
             total = await get_cached_count_async(
-                conn, where_str, all_params, from_clause=from_clause
+                conn, where_str, all_params, from_clause=from_clause, token=token
             )
     except ValidationError as e:
         _raise_422_for_invalid_gallery_params(e, logger, "Gallery count parameter validation failed: %s")
@@ -1175,9 +1362,18 @@ async def api_photos_paths(
     """
     qp = dict(request.query_params)
     try:
+        token = await snapshot_count_token()
         async with get_async_db() as conn:
+            await conn.execute('BEGIN')
+            from api.logical_collection import enabled_async
+            logical = await enabled_async(conn)
             user_id = user.user_id if user else None
-            from_clause, where_str, all_params = await gallery_scope_sql_async(conn, qp, user_id)
+            from_clause, where_str, all_params = await gallery_scope_sql_async(conn, qp, user_id, logical=logical)
+            semantic_q, threshold = _semantic_params(qp)
+            if semantic_q is not None:
+                _require_semantic_search_enabled()
+                _, where_str, all_params = await _apply_semantic_gate(
+                    conn, semantic_q, threshold, user_id, where_str, all_params, 'gallery selection', logical=logical)
             # LIMIT one past the cap: enough to KNOW the view is oversized
             # without ever materialising the list it would have returned. The
             # exact count for the message is only paid for on the refusal path.
@@ -1189,7 +1385,7 @@ async def api_photos_paths(
             await cur.close()
             if len(rows) > _VIEW_PATHS_MAX:
                 total = await get_cached_count_async(
-                    conn, where_str, all_params, from_clause=from_clause
+                    conn, where_str, all_params, from_clause=from_clause, token=token
                 )
                 raise HTTPException(
                     status_code=412,
@@ -1250,7 +1446,7 @@ def _require_semantic_search_enabled():
         raise HTTPException(status_code=400, detail="Semantic search is disabled")
 
 
-async def _apply_semantic_gate(conn, semantic_q, threshold, user_id, where_str, params, label):
+async def _apply_semantic_gate(conn, semantic_q, threshold, user_id, where_str, params, label, *, logical=False):
     """Narrow a scope to the semantic candidates: ``(candidates, where_str, params)``.
 
     Never degrades to the whole library: a gate that cannot be resolved is a 503 (busy accelerator or any
@@ -1259,6 +1455,9 @@ async def _apply_semantic_gate(conn, semantic_q, threshold, user_id, where_str, 
     """
     try:
         candidates = await semantic_candidates(conn, semantic_q, threshold, user_id)
+        if logical:
+            from api.logical_collection import remap_candidates
+            candidates = await remap_candidates(conn, candidates, user_id)
     except AcceleratorBusy:
         logger.warning("Semantic %s gave up waiting for the MPS lock: %s", label, semantic_q)
         raise HTTPException(status_code=503, detail="Search model is busy with another task, try again in a moment")
@@ -1274,7 +1473,7 @@ def _with_semantic_clause(where_str: str) -> str:
     return f"{where_str} AND{_SEMANTIC_CLAUSE}" if where_str else f" WHERE{_SEMANTIC_CLAUSE}"
 
 
-async def _assemble_gallery_rows(rows, conn) -> list[dict]:
+async def _assemble_gallery_rows(rows, conn, user_id) -> list[dict]:
     """Gallery rows as the wire carries them: tags split, date formatted, persons attached.
 
     Shared by the listing and ``/api/photos/by_paths`` so the two cannot drift.
@@ -1283,6 +1482,8 @@ async def _assemble_gallery_rows(rows, conn) -> list[dict]:
     for photo in photos:
         photo['date_formatted'] = format_date(photo.get('date_taken'))
     await attach_person_data_async(photos, conn)
+    from api.logical_reviews import attach_async as attach_logical_reviews
+    await attach_logical_reviews(conn, photos, user_id)
     await attach_ai_edit_sources_async(conn, photos)
     return photos
 
@@ -1322,24 +1523,24 @@ async def api_photos(
         _require_semantic_search_enabled()
 
     try:
+        token = await snapshot_count_token()
         async with get_async_db() as conn:
+            await conn.execute('BEGIN')
+            from api.logical_collection import enabled_async, for_user_async
+            logical = await enabled_async(conn)
             user_id = user.user_id if user else None
             owner = await stack_gallery.enabled_owner_async(conn, user_id)
-            token = None
-            if owner is not None:
-                token = await snapshot_count_token()
-                await conn.execute('BEGIN')
             # The listing's own scope, from the same builder every whole-view
             # surface uses -- album access check included. `params` is already
             # prepared above for the sort and paging, so it is handed over
             # rather than prepared again.
             from_clause, where_str, all_params = await gallery_scope_sql_async(
-                conn, qp, user_id, prepared=params
+                conn, qp, user_id, prepared=params, logical=logical
             )
             candidates = None
             if semantic_q is not None:
                 candidates, where_str, all_params = await _apply_semantic_gate(
-                    conn, semantic_q, semantic_threshold, user_id, where_str, all_params, "gallery search")
+                    conn, semantic_q, semantic_threshold, user_id, where_str, all_params, "gallery search", logical=logical)
 
             total_count = await get_cached_count_async(
                 conn, where_str, all_params, from_clause=from_clause, token=token)
@@ -1348,7 +1549,7 @@ async def api_photos(
             if owner is not None:
                 display = stack_gallery.projection(
                     from_clause, where_str, all_params, owner,
-                    collapse=params.get('collapse_stacks') not in ('0', 'false') and not params.get('stack_id'),
+                    collapse=params.get('collapse_stacks') not in ('0', 'false') and not params.get('stack_id'), logical=logical,
                 )
                 total_count = await display.count(conn, photo_total)
             total_pages, offset = paginate(total_count, page, per_page)
@@ -1374,7 +1575,7 @@ async def api_photos(
                           'hide_panoramas', 'no_blink', 'burst_only'):
                     params_no_hide[k] = ''
                 _, where_str_no_hide, all_params_no_hide = await gallery_scope_sql_async(
-                    conn, qp, user_id, prepared=params_no_hide,
+                    conn, qp, user_id, prepared=params_no_hide, logical=logical,
                 )
                 if candidates is not None:
                     where_str_no_hide = _with_semantic_clause(where_str_no_hide)
@@ -1382,7 +1583,7 @@ async def api_photos(
                 if any_hide_active:
                     agg = await get_cached_hidden_aggregates_async(
                         conn, where_str_no_hide, all_params_no_hide, from_clause=from_clause,
-                        stack_owner=owner, token=token,
+                        stack_owner=owner, token=token, logical=logical,
                     )
                     hidden_summary.update(
                         total=max(0, agg['unhidden'] - photo_total),
@@ -1394,7 +1595,7 @@ async def api_photos(
                     )
                 if count_rejected:
                     _, where_str_with_rejected, all_params_with_rejected = await gallery_scope_sql_async(
-                        conn, qp, user_id, prepared={**params_no_hide, 'hide_rejected': ''},
+                        conn, qp, user_id, prepared={**params_no_hide, 'hide_rejected': ''}, logical=logical,
                     )
                     if candidates is not None:
                         where_str_with_rejected = _with_semantic_clause(where_str_with_rejected)
@@ -1407,7 +1608,7 @@ async def api_photos(
                     hidden_summary['rejected'] = max(0, every_count - kept_count)
 
             # cache hit, no PRAGMA — same select-cols logic as other endpoints
-            select_cols = build_photo_select_columns(conn=None, user_id=user_id)
+            select_cols = build_photo_select_columns(conn=None, user_id=user_id, logical=logical)
 
             needs_top_picks_score = (
                 params.get('top_picks_filter') == '1' or
@@ -1443,9 +1644,10 @@ async def api_photos(
             else:
                 rows = []
 
-            photos = await _assemble_gallery_rows(rows, conn)
+            photos = await _assemble_gallery_rows(rows, conn, user_id)
             if owner is not None:
-                await stack_gallery.enrich_counts(photos, conn, owner, user_id)
+                await stack_gallery.enrich_counts(photos, conn, owner, user_id,
+                                                   logical_source=await for_user_async(conn, user_id) if logical else None)
             if candidates is not None:
                 for photo in photos:
                     photo['similarity'] = round(candidates.blended.get(photo['path'], 0.0), 4)
@@ -1498,10 +1700,13 @@ async def api_photos_by_paths(
     wanted = list(dict.fromkeys(body.paths))
     try:
         async with get_async_db() as conn:
+            await conn.execute('BEGIN')
+            from api.logical_collection import enabled_async
+            logical = await enabled_async(conn)
             user_id = user.user_id if user else None
             from_clause, where_str, all_params = await gallery_scope_sql_async(
-                conn, qp, user_id, prepared=params)
-            select_cols = build_photo_select_columns(conn=None, user_id=user_id)
+                conn, qp, user_id, prepared=params, logical=logical, logical_collapse=False)
+            select_cols = build_photo_select_columns(conn=None, user_id=user_id, logical=logical)
             select_cols = with_top_picks_alias(select_cols, params.get('top_picks_filter') == '1')
             marks = ','.join('?' * len(wanted))
             cur = await conn.execute(
@@ -1511,7 +1716,7 @@ async def api_photos_by_paths(
             )
             rows = await cur.fetchall()
             await cur.close()
-            photos = await _assemble_gallery_rows(rows, conn)
+            photos = await _assemble_gallery_rows(rows, conn, user_id)
     except sqlite3.Error:
         logger.exception("Failed to fetch photos by path")
         raise HTTPException(status_code=500, detail='Internal server error')

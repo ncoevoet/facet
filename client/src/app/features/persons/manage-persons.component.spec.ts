@@ -1,3 +1,4 @@
+import { signal } from '@angular/core';
 import type { Mock } from 'vitest';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { ActivatedRoute, DefaultUrlSerializer, NavigationEnd, Router } from '@angular/router';
@@ -6,20 +7,25 @@ import { MatDialog } from '@angular/material/dialog';
 import { MatSnackBar } from '@angular/material/snack-bar';
 import { By } from '@angular/platform-browser';
 import { PersonCardComponent } from '../../shared/components/person-card/person-card.component';
+import { InfiniteScrollDirective } from '../../shared/directives/infinite-scroll.directive';
 import { ApiService } from '../../core/services/api.service';
 import { HeaderSlotService } from '../../core/services/header-slot.service';
+import { ScanService } from '../../core/services/scan.service';
 import { AuthService } from '../../core/services/auth.service';
 import { I18nService } from '../../core/services/i18n.service';
 import { UserActivityJournal } from '../../core/agent/user-activity-journal.service';
 import { PersonsFiltersService } from './persons-filters.service';
 import { ManagePersonsComponent } from './manage-persons.component';
+import { FaceReviewQueueComponent } from './face-review-queue.component';
+import { FaceUpdateControlComponent } from './face-update-control.component';
 import { PageContextService } from '../../core/agent/page-context.service';
 import { SameNameMergeDialogComponent } from './same-name-merge.service';
+import { COMPACT_PAGE_TABS } from '../../shared/components/tab-label/tab-label.component';
 
 describe('ManagePersonsComponent', () => {
   let component: ManagePersonsComponent;
   let mockApi: { get: Mock; post: Mock };
-  let mockAuth: { isEdition: Mock; identity: () => string };
+  let mockAuth: { isEdition: Mock; identity: () => string; status: () => null };
   let mockI18n: { t: Mock; translations: () => object };
   let mockDialog: { open: Mock };
   let mockSnackBar: { open: Mock };
@@ -42,7 +48,7 @@ describe('ManagePersonsComponent', () => {
       get: vi.fn(() => of(mockPersonsResponse)),
       post: vi.fn(() => of({})),
     };
-    mockAuth = { isEdition: vi.fn(() => true), identity: () => 'test' };
+    mockAuth = { status: () => null, isEdition: vi.fn(() => true), identity: () => 'test' };
     mockI18n = { t: vi.fn((key: string) => key), translations: () => ({}) };
     mockDialog = {
       open: vi.fn(() => ({ afterClosed: () => of(true) })),
@@ -57,11 +63,12 @@ describe('ManagePersonsComponent', () => {
         ManagePersonsComponent,
         { provide: ApiService, useValue: mockApi },
         { provide: AuthService, useValue: mockAuth },
+        { provide: ScanService, useValue: { canLaunch: signal(false) } },
         { provide: I18nService, useValue: mockI18n },
         { provide: MatDialog, useValue: mockDialog },
         { provide: MatSnackBar, useValue: mockSnackBar },
         { provide: UserActivityJournal, useValue: journal },
-        { provide: Router, useValue: { url: '/persons', navigate: vi.fn(), events: routerEvents, parseUrl: (url: string) => new DefaultUrlSerializer().parse(url) } },
+        { provide: Router, useValue: { url: '/persons', navigate: vi.fn(() => Promise.resolve(true)), currentNavigation: () => null, events: routerEvents, parseUrl: (url: string) => new DefaultUrlSerializer().parse(url) } },
         { provide: ActivatedRoute, useValue: { snapshot: { queryParamMap: { get: () => null } } } },
       ],
     });
@@ -113,10 +120,10 @@ describe('ManagePersonsComponent', () => {
   describe('page context', () => {
     it('registers the persons page and reads its filters live, without the selection', () => {
       const context = TestBed.inject(PageContextService);
-      expect(context.snapshot()).toEqual({ id: 'persons', search: '', sort: 'count', sort_direction: 'desc', show_hidden: false });
+      expect(context.snapshot()).toEqual({ id: 'persons', tab: 'named', search: '', sort: 'count', sort_direction: 'desc', show_hidden: false });
       TestBed.inject(PersonsFiltersService).search.set('ann');
       TestBed.inject(PersonsFiltersService).selectedIds.set(new Set([1]));
-      expect(context.snapshot()).toEqual({ id: 'persons', search: 'ann', sort: 'count', sort_direction: 'desc', show_hidden: false });
+      expect(context.snapshot()).toEqual({ id: 'persons', tab: 'named', search: 'ann', sort: 'count', sort_direction: 'desc', show_hidden: false });
     });
   });
 
@@ -164,6 +171,109 @@ describe('ManagePersonsComponent', () => {
   });
 
   describe('loadPersons', () => {
+    it('keeps the latest search rows and total when an older response arrives last', async () => {
+      const older = new Subject<typeof mockPersonsResponse>();
+      const newer = new Subject<typeof mockPersonsResponse>();
+      mockApi.get.mockReturnValueOnce(older).mockReturnValueOnce(newer);
+      const filters = TestBed.inject(PersonsFiltersService);
+      filters.search.set('A');
+      const first = component.loadPersons(true);
+      filters.search.set('AB');
+      const second = component.loadPersons(true);
+      const fresh = { persons: [{ id: 42, name: 'AB', face_count: 1, face_thumbnail: true }], total: 1 };
+      newer.next(fresh); await second;
+      older.next(mockPersonsResponse); await first;
+      expect(component.persons()).toEqual(fresh.persons);
+      expect(component.total()).toBe(1);
+      expect(filters.search()).toBe('AB');
+    });
+
+    it.each(['success', 'failure'])('does not let stale %s settle the newer loading state', async outcome => {
+      const older = new Subject<typeof mockPersonsResponse>();
+      const newer = new Subject<typeof mockPersonsResponse>();
+      mockApi.get.mockReturnValueOnce(older).mockReturnValueOnce(newer);
+      const first = component.loadPersons(true);
+      const second = component.loadPersons(true);
+      if (outcome === 'success') older.next(mockPersonsResponse);
+      else older.error(new Error('obsolete read'));
+      await first;
+      expect(component.loading()).toBe(true);
+      expect(component.persons()).toEqual([]);
+      expect(mockSnackBar.open).not.toHaveBeenCalled();
+      newer.next(mockPersonsResponse); await second;
+      expect(component.loading()).toBe(false);
+      expect(component.persons()).toEqual(mockPersonsResponse.persons);
+    });
+
+    it.each(['owner', 'token', 'destroy'])('refuses a late read after %s changes', async loss => {
+      const pending = new Subject<typeof mockPersonsResponse>();
+      mockApi.get.mockReturnValueOnce(pending);
+      Object.assign(mockAuth, { token: 'original' });
+      const reading = component.loadPersons(true);
+      if (loss === 'owner') mockAuth.identity = () => 'other';
+      else if (loss === 'token') Object.assign(mockAuth, { token: 'rotated' });
+      else TestBed.resetTestingModule();
+      pending.next(mockPersonsResponse); await reading;
+      expect(component.persons()).toEqual([]);
+      expect(component.total()).toBe(0);
+      expect(mockSnackBar.open).not.toHaveBeenCalled();
+    });
+
+    it.each(['success', 'failure'])('settles an invalidated latest %s without publishing stale state', async outcome => {
+      const pending = new Subject<typeof mockPersonsResponse>();
+      mockApi.get.mockReturnValueOnce(pending);
+      Object.assign(mockAuth, { token: 'original' });
+      const reading = component.loadPersons(true);
+      Object.assign(mockAuth, { token: 'rotated' });
+      if (outcome === 'success') pending.next(mockPersonsResponse);
+      else pending.error(new Error('obsolete credential'));
+      await reading;
+      expect(component.loading()).toBe(false);
+      expect(component.persons()).toEqual([]);
+      expect(mockSnackBar.open).not.toHaveBeenCalled();
+    });
+
+    it.each(['owner', 'token'])('reloads through the real effect when %s changes with edition unchanged', async change => {
+      const status = signal<object | null>({ revision: 1 });
+      const owner = signal('test');
+      Object.assign(mockAuth, { status, identity: owner, token: 'original' });
+      TestBed.tick();
+      await component.ngOnInit();
+      const pending = new Subject<typeof mockPersonsResponse>();
+      mockApi.get.mockImplementation((url: string) => url === '/persons' ? pending : of({ persons: [] }));
+      mockApi.get.mockClear();
+      if (change === 'owner') owner.set('other');
+      else Object.assign(mockAuth, { token: 'rotated' });
+      status.set({ revision: 2 }); TestBed.tick();
+      expect(mockApi.get).toHaveBeenCalledOnce();
+      expect(component.persons()).toEqual([]);
+      expect(component.total()).toBe(0);
+      expect(component.loading()).toBe(true);
+      pending.next(mockPersonsResponse); await Promise.resolve();
+      expect(component.persons()).toEqual(mockPersonsResponse.persons);
+      expect(component.loading()).toBe(false);
+      status.set({ revision: 3 }); TestBed.tick();
+      expect(mockApi.get).toHaveBeenCalledOnce();
+    });
+
+    it('discards a pending old page after a new search and preserves subsequent paging', async () => {
+      await component.loadPersons(true);
+      const oldPage = new Subject<typeof mockPersonsResponse>();
+      mockApi.get.mockReturnValueOnce(oldPage);
+      const paging = component.loadPersons(false);
+      const fresh = { persons: [{ id: 42, name: 'AB', face_count: 1, face_thumbnail: true }], total: 2 };
+      mockApi.get.mockReturnValueOnce(of(fresh));
+      TestBed.inject(PersonsFiltersService).search.set('AB');
+      await component.loadPersons(true);
+      oldPage.next(mockPersonsResponse); await paging;
+      expect(component.persons()).toEqual(fresh.persons);
+      const next = { ...fresh.persons[0], id: 43 };
+      mockApi.get.mockReturnValueOnce(of({ persons: [next], total: 2 }));
+      await component.loadPersons(false);
+      expect(component.persons()).toEqual([...fresh.persons, next]);
+      expect(component.total()).toBe(2);
+    });
+
     it('should reset page and clear persons list when reset is true', async () => {
       component.persons.set([
         { id: 99, name: 'Old', face_count: 1, face_thumbnail: false },
@@ -401,7 +511,7 @@ describe('ManagePersonsComponent', () => {
 
       await component.loadIgnored();
 
-      expect(mockApi.get).toHaveBeenCalledWith('/persons', { hidden_only: true, page: 1, per_page: 200, sort: 'count_desc' });
+      expect(mockApi.get).toHaveBeenCalledWith('/persons', { hidden_only: true, offset: 0, per_page: 200, sort: 'count_desc' });
       expect(component.ignored().map((p) => p.id)).toEqual([7]);
       expect(component.ignoredTotal()).toBe(1);
     });
@@ -413,9 +523,52 @@ describe('ManagePersonsComponent', () => {
 
       await component.loadMoreIgnored();
 
-      expect(mockApi.get).toHaveBeenLastCalledWith('/persons', { hidden_only: true, page: 2, per_page: 200, sort: 'count_desc' });
+      expect(mockApi.get).toHaveBeenLastCalledWith('/persons', { hidden_only: true, offset: 1, per_page: 200, sort: 'count_desc' });
       expect(component.ignored().map((p) => p.id)).toEqual([7, 8]);
       expect(component.ignoredTotal()).toBe(201);
+    });
+
+    it('ends the Ignored section when a page brings no new person, so scrolling stops asking', async () => {
+      mockApi.get.mockReturnValue(of({ persons: [{ ...waiter, is_hidden: true }], total: 2 }));
+      await component.loadIgnored();
+      mockApi.get.mockReturnValue(of({ persons: [], total: 2 }));
+      await component.loadMoreIgnored();
+      expect(component.ignoredTotal()).toBe(1);
+      mockApi.get.mockClear();
+      await component.loadMoreIgnored();
+      expect(mockApi.get).not.toHaveBeenCalled();
+    });
+
+    it('restoring from a full first page asks for the row after the loaded ones, so nobody is skipped', async () => {
+      let server = Array.from({ length: 250 }, (_, i) => ({ id: i + 1, name: null, face_count: 1000 - i, face_thumbnail: true, is_hidden: true }));
+      mockApi.get.mockImplementation((_url: string, params?: { hidden_only?: boolean; page?: number; offset?: number; per_page?: number }) => {
+        if (!params?.hidden_only) return of({ persons: [], total: 0 });
+        const perPage = params.per_page ?? 48;
+        const start = params.offset ?? ((params.page ?? 1) - 1) * perPage;
+        return of({ persons: server.slice(start, start + perPage), total: server.length });
+      });
+      vi.spyOn(component, 'loadNeedsNaming').mockResolvedValue();
+      await component.loadIgnored();
+
+      await component.setHidden(5, false);
+      server = server.filter((p) => p.id !== 5);
+      await component.loadMoreIgnored();
+
+      expect(component.ignored().map((p) => p.id)).toEqual(server.map((p) => p.id));
+      expect(component.ignoredTotal()).toBe(249);
+    });
+
+    it('places a newly ignored person among equal face counts by id, as the server orders them', async () => {
+      const hidden = (id: number) => ({ id, name: null, face_count: 5, face_thumbnail: true, is_hidden: true });
+      component.ignored.set([hidden(1), hidden(9)]);
+      component.ignoredTotal.set(10);
+      component.needsNaming.set([{ ...waiter, id: 5, face_count: 5 }]);
+      vi.spyOn(component, 'loadNeedsNaming').mockResolvedValue();
+
+      await component.setHidden(5, true);
+
+      expect(component.ignored().map((p) => p.id)).toEqual([1, 5, 9]);
+      expect(component.ignoredTotal()).toBe(11);
     });
 
     it('does not load the Ignored section for a read-only user', async () => {
@@ -876,9 +1029,20 @@ describe('ManagePersonsComponent', () => {
 
     const labels = (el: HTMLElement) =>
       ([...el.querySelectorAll('[role="tab"]')] as HTMLElement[]).map((t) => ({
-        text: t.textContent!.replace(/\s+/g, ' ').trim(),
+        text: (t.querySelector('[data-tab-name]') ?? t).textContent!.replace(/\s+/g, ' ').trim(),
         selected: t.getAttribute('aria-selected') === 'true',
       }));
+
+    it('gives every tab an icon that stands alone below md, sharing one row like the other page tabs', async () => {
+      withTab(null);
+      const fixture = await render();
+      const group = (fixture.nativeElement as HTMLElement).querySelector('mat-tab-group')!;
+      for (const cls of COMPACT_PAGE_TABS.split(' ')) expect(group.classList).toContain(cls);
+      const tabs = [...group.querySelectorAll('[role="tab"]')] as HTMLElement[];
+      expect(tabs.map(tab => tab.querySelector('app-tab-label mat-icon')?.textContent)).toEqual(['group', 'badge', 'how_to_reg', 'person_off']);
+      for (const tab of tabs) expect(tab.querySelector('[data-tab-name]')!.classList).toContain('max-md:sr-only');
+      fixture.destroy();
+    });
 
     beforeEach(() => {
       named = { ...NAMED };
@@ -891,6 +1055,34 @@ describe('ManagePersonsComponent', () => {
       });
     });
 
+    it('loads the next Ignored page on scroll, and stops on a failure until Retry', async () => {
+      const original = mockApi.get.getMockImplementation()!;
+      const hidden = (id: number) => ({ id, name: null, face_count: 2, face_thumbnail: true, is_hidden: true });
+      mockApi.get.mockImplementation((url: string, params?: { hidden_only?: boolean; offset?: number }) =>
+        params?.hidden_only ? of({ persons: [hidden(101 + (params.offset ?? 0))], total: 3 }) : original(url, params));
+      withTab(null);
+      const fixture = await render();
+      fixture.componentInstance.ignoredExpanded.set(true); fixture.detectChanges();
+      const root = fixture.nativeElement as HTMLElement;
+      const sentinel = () => root.querySelector('[data-ignored-more] [data-ignored-sentinel]');
+      const reach = () => fixture.debugElement.query(By.css('[data-ignored-sentinel]')).injector.get(InfiniteScrollDirective).scrollReached.emit();
+      expect(sentinel()).not.toBeNull();
+      expect(root.textContent).not.toContain('persons.load_more');
+      mockApi.get.mockImplementationOnce(() => throwError(() => ({ status: 500 })));
+      reach(); await fixture.whenStable(); fixture.detectChanges();
+      expect(sentinel()).toBeNull();
+      expect(root.querySelector('[data-ignored-more] [role="alert"]')?.textContent).toContain('persons.ignored_more_error');
+      root.querySelector<HTMLButtonElement>('[data-ignored-retry]')!.click();
+      await fixture.whenStable(); fixture.detectChanges();
+      expect(mockApi.get).toHaveBeenLastCalledWith('/persons', { hidden_only: true, offset: 1, per_page: 200, sort: 'count_desc' });
+      expect(fixture.componentInstance.ignored().map((p) => p.id)).toEqual([101, 102]);
+      expect(root.querySelector('[data-ignored-more] [role="alert"]')).toBeNull();
+      expect(sentinel()).not.toBeNull();
+      reach(); await fixture.whenStable(); fixture.detectChanges();
+      expect(fixture.componentInstance.ignored().map((p) => p.id)).toEqual([101, 102, 103]);
+      expect(root.querySelector('[data-ignored-more]')).toBeNull();
+    });
+
     it('opens on Named first, even with persons waiting for a name', async () => {
       withTab(null);
       const fixture = await render();
@@ -898,7 +1090,173 @@ describe('ManagePersonsComponent', () => {
       expect(labels(fixture.nativeElement)).toEqual([
         { text: 'manage_persons.named (1)', selected: true },
         { text: 'manage_persons.needs_naming (1)', selected: false },
+        { text: 'persons.review_queue.matches', selected: false },
+        { text: 'persons.review_queue.unassigned', selected: false },
       ]);
+    });
+
+    it('reloads captured match choices only after the explicit face-update review action', async () => {
+      withTab('matches');
+      (TestBed.inject(Router) as unknown as { url: string }).url = '/persons?tab=matches';
+      Object.assign(mockAuth, { status: signal({ user_id: 'test' }), token: 'fixture' });
+      const original = mockApi.get.getMockImplementation()!;
+      mockApi.get.mockImplementation((url: string, params: unknown) => url === '/faces/review' ? of({
+        faces: [{ face_id: 9, photo_path: '/nine.jpg', identity_token: 'a'.repeat(64), embedding_state: 'ready', suggestions: [{ person_id: 1, name: 'Alice', similarity: 0.9 }] }],
+        total_unassigned: 1, next_after_id: null, model: 'arcface_buffalo_l', compared_people: 1, suggestions_requested: true,
+      }) : original(url, params));
+      const fixture = await render();
+      const root = fixture.nativeElement as HTMLElement;
+      document.body.appendChild(root);
+      root.querySelector<HTMLButtonElement>('app-face-review-queue [data-review-tile]')!.focus();
+      root.querySelector<HTMLButtonElement>('app-face-review-queue [data-review-tile]')!.click(); fixture.detectChanges();
+      const queue = fixture.debugElement.query(By.directive(FaceReviewQueueComponent)).componentInstance;
+      expect(queue.selected().has(9)).toBe(true);
+      const before = mockApi.get.mock.calls.filter(([url]) => url === '/faces/review').length;
+      fixture.debugElement.query(By.directive(FaceUpdateControlComponent)).componentInstance.reviewRequested.emit();
+      await fixture.whenStable(); fixture.detectChanges();
+      await fixture.whenStable(); fixture.detectChanges();
+      expect(mockApi.get.mock.calls.filter(([url]) => url === '/faces/review')).toHaveLength(before + 1);
+      expect(queue.selected().size).toBe(0);
+      expect(root.querySelector<HTMLButtonElement>('app-face-review-queue [data-review-tile]')!.getAttribute('aria-pressed')).toBe('false');
+      expect(document.activeElement).toBe(root.querySelector('app-face-review-queue'));
+      root.remove();
+    });
+
+    it('keeps a persons selection from Named but hides its bar on the review tabs, which have their own', async () => {
+      withTab(null);
+      Object.assign(mockAuth, { isEdition: signal(true), status: signal({ user_id: 'test' }), token: 'fixture' });
+      const original = mockApi.get.getMockImplementation()!;
+      mockApi.get.mockImplementation((url: string, params: unknown) => url === '/faces/review' ? of({ faces: [], total_unassigned: 0, next_after_id: null, model: 'arcface_buffalo_l', compared_people: 0, suggestions_requested: true }) : original(url, params));
+      const fixture = await render(); const root = fixture.nativeElement as HTMLElement;
+      const bar = () => [...root.querySelectorAll('button')].some(button => button.textContent?.includes('persons.merge_action'));
+      TestBed.inject(PersonsFiltersService).selectedIds.set(new Set([1])); fixture.detectChanges();
+      expect(bar()).toBe(true);
+      routerEvents.next(new NavigationEnd(5, '/persons?tab=matches', '/persons?tab=matches')); fixture.detectChanges();
+      expect(fixture.componentInstance.tab()).toBe('matches');
+      expect(bar()).toBe(false);
+      expect(fixture.componentInstance.selectedIds().has(1)).toBe(true);
+      routerEvents.next(new NavigationEnd(6, '/persons?tab=named', '/persons?tab=named')); fixture.detectChanges();
+      expect(bar()).toBe(true);
+      fixture.destroy();
+    });
+
+    it('moves focus to the matches queue after the face-update review action changes tabs', async () => {
+      withTab(null);
+      Object.assign(mockAuth, { isEdition: signal(true), status: signal({ user_id: 'test' }), token: 'fixture' });
+      const fixture = await render(); const root = fixture.nativeElement as HTMLElement;
+      document.body.appendChild(root);
+      fixture.debugElement.query(By.directive(FaceUpdateControlComponent)).componentInstance.reviewRequested.emit();
+      await fixture.whenStable(); fixture.detectChanges(); await fixture.whenStable(); fixture.detectChanges();
+      expect(fixture.componentInstance.tab()).toBe('matches');
+      expect(document.activeElement).toBe(root.querySelector('app-face-review-queue'));
+      root.remove();
+    });
+
+    it('does not move focus when the matches navigation is refused', async () => {
+      withTab(null);
+      Object.assign(mockAuth, { isEdition: signal(true), status: signal({ user_id: 'test' }), token: 'fixture' });
+      const router = TestBed.inject(Router) as unknown as { navigate: Mock };
+      router.navigate.mockResolvedValueOnce(false);
+      const fixture = await render(); const root = fixture.nativeElement as HTMLElement;
+      document.body.appendChild(root);
+      const trigger = root.querySelector<HTMLElement>('[role="tab"]')!; trigger.focus();
+      fixture.debugElement.query(By.directive(FaceUpdateControlComponent)).componentInstance.reviewRequested.emit();
+      await fixture.whenStable(); fixture.detectChanges();
+      expect(fixture.componentInstance.tab()).toBe('named'); expect(document.activeElement).toBe(trigger);
+      root.remove();
+    });
+
+    it('exposes global review destinations without duplicating the Named toolbar', async () => {
+      withTab('matches');
+      const router = TestBed.inject(Router) as unknown as { url: string; navigate: Mock };
+      router.url = '/persons?tab=matches';
+      const edition = signal(true);
+      Object.assign(mockAuth, { isEdition: edition, status: signal({ user_id: 'test' }), token: 'fixture' });
+      const original = mockApi.get.getMockImplementation()!;
+      mockApi.get.mockImplementation((url: string, params: unknown) => url === '/faces/review' ? of({ faces: [], total_unassigned: 0, next_after_id: null, model: 'arcface_buffalo_l', compared_people: 0, suggestions_requested: true }) : original(url, params));
+      const fixture = await render();
+      expect(fixture.componentInstance.tab()).toBe('matches');
+      expect(labels(fixture.nativeElement)[2].selected).toBe(true);
+      expect(fixture.nativeElement.querySelectorAll('app-face-review-queue')).toHaveLength(1);
+      expect(TestBed.inject(HeaderSlotService).template()).toBeNull();
+      expect(mockApi.get).toHaveBeenCalledWith('/faces/review', expect.objectContaining({ suggest: true }));
+      routerEvents.next(new NavigationEnd(5, '/persons?tab=unassigned', '/persons?tab=unassigned'));
+      expect(fixture.componentInstance.tab()).toBe('unassigned');
+      edition.set(false); fixture.detectChanges(); await fixture.whenStable(); fixture.detectChanges();
+      expect(fixture.nativeElement.querySelector('app-face-review-queue')).toBeNull();
+      expect(TestBed.inject(HeaderSlotService).template()).not.toBeNull();
+      fixture.destroy();
+    });
+
+    it('restores the previous tab when a requested tab navigation is refused', async () => {
+      const router = TestBed.inject(Router) as unknown as { navigate: Mock };
+      router.navigate.mockResolvedValueOnce(false);
+      component.selectTab('matches');
+      await Promise.resolve();
+      expect(component.tab()).toBe('named');
+    });
+
+    it('restores the previous tab after navigation rejects', async () => {
+      const router = TestBed.inject(Router) as unknown as { navigate: Mock };
+      router.navigate.mockRejectedValueOnce(new Error('navigation failed'));
+      expect(await component.selectTab('matches')).toBe(false);
+      expect(component.tab()).toBe('named');
+    });
+
+    it.each(['refused', 'rejected'] as const)('ignores an old %s completion after tab ABA navigation', async ending => {
+      const router = TestBed.inject(Router) as unknown as { navigate: Mock };
+      let settle!: (value: boolean) => void, reject!: (error: Error) => void;
+      router.navigate.mockReturnValueOnce(new Promise<boolean>((resolve, fail) => { settle = resolve; reject = fail; }));
+      const first = component.selectTab('matches');
+      await component.selectTab('unassigned'); await component.selectTab('matches');
+      if (ending === 'refused') settle(false); else reject(new Error('obsolete navigation'));
+      expect(await first).toBe(false); expect(component.tab()).toBe('matches');
+    });
+
+    it.each(['edition', 'navigation'] as const)('does not launch updated-face review while %s blocks it', state => {
+      const router = TestBed.inject(Router) as unknown as { navigate: Mock; currentNavigation: () => unknown };
+      if (state === 'edition') mockAuth.isEdition.mockReturnValue(false);
+      else router.currentNavigation = () => ({ id: 1 });
+      (component as any).reviewUpdatedFaces();
+      expect(router.navigate).not.toHaveBeenCalled(); expect(component.tab()).toBe('named');
+    });
+
+    it('requests the matches tab from another tab without reloading a nonexistent queue', async () => {
+      const router = TestBed.inject(Router) as unknown as { navigate: Mock };
+      router.navigate.mockResolvedValueOnce(false);
+      (component as any).reviewUpdatedFaces(); await Promise.resolve();
+      expect(router.navigate).toHaveBeenCalledExactlyOnceWith([], { queryParams: { tab: 'matches' }, queryParamsHandling: 'merge', replaceUrl: true });
+      expect(component.tab()).toBe('named');
+    });
+
+    it.each(['owner', 'token', 'edition', 'focus', 'destroyed'] as const)('does not steal focus after updated-face review when %s changes during navigation', async ending => {
+      withTab(null);
+      Object.assign(mockAuth, { isEdition: signal(true), status: signal({ user_id: 'test' }), token: 'fixture' });
+      const original = mockApi.get.getMockImplementation()!;
+      mockApi.get.mockImplementation((url: string, params: unknown) => url === '/faces/review'
+        ? of({ faces: [], total_unassigned: 0, next_after_id: null, model: 'arcface_buffalo_l', compared_people: 0, suggestions_requested: true }) : original(url, params));
+      const fixture = await render(); const root = fixture.nativeElement as HTMLElement;
+      document.body.appendChild(root);
+      let finish!: (value: boolean) => void;
+      const router = TestBed.inject(Router) as unknown as { navigate: Mock };
+      router.navigate.mockReturnValueOnce(new Promise<boolean>(resolve => { finish = resolve; }));
+      fixture.debugElement.query(By.directive(FaceUpdateControlComponent)).componentInstance.reviewRequested.emit();
+      fixture.detectChanges();
+      const queue = fixture.debugElement.query(By.directive(FaceReviewQueueComponent)).componentInstance;
+      const focus = vi.spyOn(queue, 'focus');
+      const newer = document.createElement('button'); document.body.appendChild(newer);
+      if (ending === 'owner') mockAuth.identity = () => 'bob';
+      if (ending === 'token') Object.assign(mockAuth, { token: 'rotated' });
+      if (ending === 'edition') (mockAuth.isEdition as unknown as ReturnType<typeof signal<boolean>>).set(false);
+      if (ending === 'focus') newer.focus();
+      if (ending === 'destroyed') fixture.destroy();
+      finish(true);
+      if (ending !== 'destroyed') { await fixture.whenStable(); fixture.detectChanges(); await fixture.whenStable(); fixture.detectChanges(); }
+      else await Promise.resolve();
+      expect(focus).not.toHaveBeenCalled();
+      if (ending === 'focus') expect(document.activeElement).toBe(newer);
+      if (ending !== 'destroyed') fixture.destroy();
+      root.remove(); newer.remove();
     });
 
     it('?tab=naming opens Needs naming, and switching writes ?tab back', async () => {
@@ -945,6 +1303,8 @@ describe('ManagePersonsComponent', () => {
       expect(labels(fixture.nativeElement).map((l) => l.text)).toEqual([
         'manage_persons.named (2)',
         'manage_persons.needs_naming (0)',
+        'persons.review_queue.matches',
+        'persons.review_queue.unassigned',
       ]);
       expect(fixture.nativeElement.querySelector('[data-needs-naming-empty]')).not.toBeNull();
     });
@@ -976,6 +1336,86 @@ describe('ManagePersonsComponent', () => {
       toolbar.destroy();
     });
 
+    describe('Update faces placement', () => {
+      const control = (el: HTMLElement) => el.querySelector('app-face-update-control') as HTMLElement;
+
+      beforeEach(() => {
+        (TestBed.inject(ScanService) as unknown as { canLaunch: ReturnType<typeof signal<boolean>> }).canLaunch.set(true);
+      });
+
+      it('is the last item of the page-actions bar template, after the labelled create button that carries ml-auto', async () => {
+        withTab('named');
+        const fixture = await render();
+        const toolbar = TestBed.inject(HeaderSlotService).template()!.createEmbeddedView(null);
+        toolbar.detectChanges();
+        const elements = toolbar.rootNodes.filter((n: Node): n is HTMLElement => n instanceof HTMLElement);
+        const last = elements[elements.length - 1];
+        expect(last.tagName.toLowerCase()).toBe('app-face-update-control');
+        expect(last.className).not.toContain('ml-auto');
+        const create = elements.find(e => e.tagName === 'BUTTON' && e.textContent!.includes('manage_persons.new_person'))!;
+        expect(create.className).toContain('ml-auto');
+        expect(create.className).toContain('mat-mdc-unelevated-button');
+        expect(create.querySelector('mat-icon')!.textContent!.trim()).toBe('person_add');
+        expect(create.getAttribute('aria-label')).toBeNull();
+        expect(elements.indexOf(create)).toBeLessThan(elements.indexOf(last));
+        toolbar.destroy();
+        fixture.destroy();
+      });
+
+      it('adds no left margin of its own to the bar items, so the first control sits at 16px', async () => {
+        withTab('named');
+        const fixture = await render();
+        const toolbar = TestBed.inject(HeaderSlotService).template()!.createEmbeddedView(null);
+        toolbar.detectChanges();
+        const fields = toolbar.rootNodes.filter((n: Node): n is HTMLElement => n instanceof HTMLElement && n.matches('mat-form-field'));
+        expect(fields.length).toBeGreaterThan(0);
+        expect(fields.every(f => !f.classList.contains('ml-2'))).toBe(true);
+        toolbar.destroy();
+        fixture.destroy();
+      });
+
+      it('is a right-aligned row above the tabs at every in-page width, hidden at lg+ while the bar shows it', async () => {
+        withTab('named');
+        const fixture = await render();
+        const inPage = control(fixture.nativeElement);
+        const classes = inPage.className.split(/\s+/);
+        expect(classes).toEqual(expect.arrayContaining(['ml-auto', 'block', 'w-fit', 'lg:hidden']));
+        expect(classes.some(c => c.endsWith('absolute'))).toBe(false);
+        expect(inPage.nextElementSibling!.tagName.toLowerCase()).toBe('mat-tab-group');
+        fixture.destroy();
+      });
+
+      it('collapses its in-page host (no mb-2 gap above the tabs) when launching is not allowed', async () => {
+        (TestBed.inject(ScanService) as unknown as { canLaunch: ReturnType<typeof signal<boolean>> }).canLaunch.set(false);
+        withTab('named');
+        const fixture = await render();
+        const inPage = control(fixture.nativeElement);
+        expect(Array.from(inPage.childNodes).filter(n => n.nodeType !== Node.COMMENT_NODE)).toHaveLength(0);
+        expect(inPage.classList).toContain('empty:hidden');
+        fixture.destroy();
+      });
+
+      it('keeps its in-page host unchanged when launching is allowed', async () => {
+        withTab('named');
+        const fixture = await render();
+        const inPage = control(fixture.nativeElement);
+        expect(inPage.querySelector('[data-update-faces]')).not.toBeNull();
+        expect(Array.from(inPage.classList)).toEqual(expect.arrayContaining(['ml-auto', 'mb-2', 'block', 'w-fit']));
+        fixture.destroy();
+      });
+
+      it('stays reachable in the page on the review tabs, where the bar is cleared', async () => {
+        withTab('matches');
+        Object.assign(mockAuth, { isEdition: signal(true), status: signal({ user_id: 'test' }), token: 'fixture' });
+        const fixture = await render();
+        expect(TestBed.inject(HeaderSlotService).template()).toBeNull();
+        const inPage = control(fixture.nativeElement);
+        expect(inPage).not.toBeNull();
+        expect(inPage.className).not.toContain('lg:hidden');
+        fixture.destroy();
+      });
+    });
+
     describe('restore-only cards', () => {
       const IGNORED = { id: 55, name: 'Staff', face_count: 2, face_thumbnail: true, is_hidden: true };
 
@@ -997,17 +1437,23 @@ describe('ManagePersonsComponent', () => {
               .map((b) => b.getAttribute('aria-label')),
           }));
 
-      it('Ignored cards are restore-only: Restore stays, Rename, Split and Find more go', async () => {
+      // The card's actions live in a lazily rendered ⋮ menu: open it and read the item labels.
+      const menuItems = (fixture: ComponentFixture<ManagePersonsComponent>, id: number): string[] => {
+        const card = fixture.debugElement.queryAll(By.directive(PersonCardComponent))
+          .find((d) => (d.componentInstance as PersonCardComponent).person().id === id)!;
+        (card.nativeElement as HTMLElement).querySelector<HTMLButtonElement>('button[aria-label="nav.more"]')!.click();
+        fixture.detectChanges();
+        return [...document.querySelectorAll('.mat-mdc-menu-panel button[mat-menu-item] .mat-mdc-menu-item-text > span')].map((e) => e.textContent!.trim());
+      };
+
+      it('Ignored cards are restore-only: Restore and Delete are all the menu offers', async () => {
         withTab(null);
         const fixture = await render();
         fixture.componentInstance.ignoredExpanded.set(true);
         fixture.detectChanges();
         const ignored = cards(fixture).find((c) => c.id === 55)!;
         expect(ignored.restoreOnly).toBe(true);
-        expect(ignored.labels).toContain('persons.unhide');
-        for (const gone of ['persons.rename', 'persons.split', 'persons.find_more']) {
-          expect(ignored.labels).not.toContain(gone);
-        }
+        expect(menuItems(fixture, 55)).toEqual(['persons.unhide', 'persons.delete']);
       });
 
       it('Named cards are not restore-only', async () => {
@@ -1017,7 +1463,8 @@ describe('ManagePersonsComponent', () => {
         fixture.detectChanges();
         const alice = cards(fixture).find((c) => c.id === 1)!;
         expect(alice.restoreOnly).toBe(false);
-        expect(alice.labels).toEqual(expect.arrayContaining(['persons.rename', 'persons.split', 'persons.find_more']));
+        expect(alice.labels).toEqual(['persons.view_photos', 'nav.more']);
+        expect(menuItems(fixture, 1)).toEqual(expect.arrayContaining(['persons.rename', 'persons.split', 'persons.find_more']));
       });
 
       it('Needs naming cards are not restore-only', async () => {
@@ -1037,6 +1484,8 @@ describe('ManagePersonsComponent', () => {
       expect(labels(fixture.nativeElement).map((l) => l.text)).toEqual([
         'manage_persons.named (1)',
         'manage_persons.needs_naming (0)',
+        'persons.review_queue.matches',
+        'persons.review_queue.unassigned',
       ]);
     });
   });

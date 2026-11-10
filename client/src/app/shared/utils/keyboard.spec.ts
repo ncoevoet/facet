@@ -54,6 +54,15 @@ describe('isPageShortcutBlocked', () => {
     expect(isPageShortcutBlocked(key(init))).toBe(true);
   });
 
+  it('blocks photo actions while a settings or help popover is open', () => {
+    const panel = document.createElement('section');
+    panel.setAttribute('role', 'dialog'); panel.setAttribute('aria-modal', 'true');
+    document.body.append(panel);
+    expect(isPageShortcutBlocked(key({ key: 'x' }))).toBe(true);
+    panel.remove();
+    expect(isPageShortcutBlocked(key({ key: 'x' }))).toBe(false);
+  });
+
   it.each(['mat-dialog-container', 'mat-bottom-sheet-container'])('is true while a %s is open', tag => {
     document.body.append(document.createElement(tag));
     expect(isPageShortcutBlocked(key())).toBe(true);

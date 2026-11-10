@@ -4,6 +4,7 @@ import { Router } from '@angular/router';
 import { firstValueFrom, timeout, TimeoutError } from 'rxjs';
 import { clearReviewQueues, REVIEW_QUEUE_STORAGE_KEY } from './review-queue.storage';
 import { clearPersonAssignmentHistory } from './person-assignment-history.storage';
+import { clearThumbnailCaches } from './thumbnail-cache';
 import {
   confirmPrivateImageOwner, PRIVATE_IMAGE_SESSION_STORAGE_KEY, resetPrivateImageSession, syncPrivateImageSession,
 } from '../../shared/utils/private-image-session';
@@ -201,7 +202,7 @@ export class AuthService {
     this.pendingRevalidation = null;
     this.status.set(null);
     this.confirmedStatus = null;
-    this.clearThumbnailCaches();
+    void clearThumbnailCaches();
   }
 
   /** The cached status, or the one server load every caller shares while it is
@@ -448,17 +449,6 @@ export class AuthService {
     this.invalidateSession();
     this.router.navigate(['/login']);
     return clearingCookie;
-  }
-
-  /** Drop service-worker thumbnail caches so they can't leak across users
-   * sharing a browser (multi-user deployments). */
-  private clearThumbnailCaches(): void {
-    if (!('caches' in window)) return;
-    caches.keys()
-      .then(keys => Promise.allSettled(
-        keys.filter(k => k.includes(':thumbnails:')).map(k => caches.delete(k)),
-      ))
-      .catch(() => { /* cache API unavailable - nothing to clear */ });
   }
 
   /** Drop edition privileges without navigating away */

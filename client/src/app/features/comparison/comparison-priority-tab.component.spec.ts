@@ -967,6 +967,32 @@ describe('ComparisonPriorityTabComponent — rendering (D2/D6)', () => {
     fixture.detectChanges();
   }
 
+  it('priority rows wrap below sm: the category truncates, #priority hides, chips take their own line', async () => {
+    await render();
+    const entries = [
+      { name: 'portrait', priority: 45, filters: { face_ratio_min: 0.05 } },
+      { name: 'default', priority: 999, filters: {} },
+    ];
+    component.categories.set(entries);
+    component.orderedCategories.set(entries.slice(0, 1));
+    fixture.detectChanges();
+    const cdk = fixture.nativeElement.querySelector('[cdkDrag], [cdkdrag]') as HTMLElement;
+    expect(cdk).toBeTruthy();
+    const row = cdk;
+    expect(row.classList).toContain('flex-wrap');
+    expect(row.classList).toContain('sm:flex-nowrap');
+    const spans = [...row.querySelectorAll(':scope > span, :scope > div')] as HTMLElement[];
+    const category = spans.find(e => e.textContent!.includes('category_names.portrait'))!;
+    for (const c of ['min-w-0', 'flex-1', 'truncate', 'sm:w-40', 'sm:flex-none']) expect(category.classList, c).toContain(c);
+    const priority = spans.find(e => e.textContent!.includes('#45'))!;
+    expect(priority.classList).toContain('max-sm:hidden');
+    const chips = spans.find(e => e.tagName === 'DIV')!;
+    expect(chips.classList).toContain('max-sm:basis-full');
+    const pinned = fixture.nativeElement.querySelector('.border-dashed') as HTMLElement;
+    const pinnedCategory = [...pinned.querySelectorAll(':scope > span')].find(e => e.textContent!.includes('category_names.default'))!;
+    for (const c of ['min-w-0', 'flex-1', 'truncate', 'sm:w-40', 'sm:flex-none']) expect(pinnedCategory.classList, c).toContain(c);
+  });
+
   it('D6: the stale/recompute affordance renders for a named (non-default) context', async () => {
     await render();
     component.selectContext('action_stage');

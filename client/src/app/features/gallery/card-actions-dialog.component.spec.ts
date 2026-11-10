@@ -1,6 +1,8 @@
+import { signal } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import { MatDialogRef } from '@angular/material/dialog';
 import { I18nService } from '../../core/services/i18n.service';
+import { AuthService } from '../../core/services/auth.service';
 import { DEFAULT_CARD_ACTIONS } from '../../shared/components/photo-card/card-actions';
 import { CardActionsDialogComponent } from './card-actions-dialog.component';
 import { CardActionsService } from './card-actions.service';
@@ -8,7 +10,7 @@ import { CardActionsService } from './card-actions.service';
 describe('CardActionsDialogComponent', () => {
   let close: ReturnType<typeof vi.fn>;
 
-  function build(saved?: object) {
+  function build(saved?: object, edition = true) {
     localStorage.removeItem('facet_card_actions');
     if (saved) localStorage.setItem('facet_card_actions', JSON.stringify(saved));
     close = vi.fn();
@@ -17,6 +19,7 @@ describe('CardActionsDialogComponent', () => {
       providers: [
         { provide: I18nService, useValue: { t: (k: string) => k, translations: () => ({}) } },
         { provide: MatDialogRef, useValue: { close } },
+        { provide: AuthService, useValue: { isEdition: signal(edition) } },
       ],
     });
     const fixture = TestBed.createComponent(CardActionsDialogComponent);
@@ -27,6 +30,19 @@ describe('CardActionsDialogComponent', () => {
   const rows = (el: HTMLElement) => [...el.querySelectorAll('mat-dialog-content mat-checkbox')];
   const actionButton = (el: HTMLElement, label: string) =>
     [...el.querySelectorAll<HTMLButtonElement>('mat-dialog-actions button')].find(b => b.textContent?.includes(label))!;
+
+  it('hides edition-only actions without edition rights and keeps their slot when moving around them', () => {
+    const { fixture, service } = build(undefined, false);
+    const el = fixture.nativeElement as HTMLElement;
+    const labels = rows(el).map(r => r.textContent!);
+    expect(labels.some(t => t.includes('photoCard.embed_to_file') || t.includes('manage_persons.assign_face'))).toBe(false);
+    expect(labels.some(t => t.includes('critique.title'))).toBe(true);
+    expect(rows(el)).toHaveLength(DEFAULT_CARD_ACTIONS.order.length - 2);
+    // critique (visible #1) moves down past the hidden embed/assign_face to swap with duplicate_set.
+    el.querySelectorAll<HTMLButtonElement>('button[aria-label="gallery.card_actions.move_down"]')[1].click();
+    actionButton(el, 'ui.buttons.save').click();
+    expect(service.config().order).toEqual(['similar', 'duplicate_set', 'embed', 'assign_face', 'critique', 'burst_set', 'sequence_set', 'stack_set', 'open_detail']);
+  });
 
   it('moves a row down, shows a hidden one, and saves both to the service', () => {
     const { fixture, service } = build();

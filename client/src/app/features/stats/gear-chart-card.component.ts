@@ -7,12 +7,16 @@ import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
 import { MatTooltipModule } from '@angular/material/tooltip';
-import { Chart, type ChartType, type LegendItem } from 'chart.js';
+import { Chart, type ChartType, type LegendItem, type PointStyle } from 'chart.js';
 import 'chartjs-adapter-date-fns';
 import { ThemeService } from '../../core/services/theme.service';
+import { I18nService } from '../../core/services/i18n.service';
 import { TranslatePipe } from '../../shared/pipes/translate.pipe';
+import { SortOptionIconPipe } from '../../shared/pipes/sort-option-icon.pipe';
 import { ChartHeightPipe } from './chart-height.pipe';
 import { downloadCsv } from '../../shared/utils/csv';
+import { chartSeriesColor, chartSeriesColors, chartTheme } from './chart-theme';
+import { StatsNumberPipe } from './stats-locale-number.pipe';
 
 export const GEAR_LEGEND_MAX_CHARS = 24;
 
@@ -55,12 +59,14 @@ const GEAR_METRIC_OPTIONS = [
   { key: 'avg_focal_length' },
   { key: 'usage_timeline' },
 ];
+import { SelectTriggerLabelComponent } from '../../shared/components/select-trigger-label/select-trigger-label.component';
 
 @Component({
   selector: 'app-gear-chart-card',
   standalone: true,
   host: { class: 'block' },
   imports: [
+    SelectTriggerLabelComponent,
     FormsModule,
     MatCardModule,
     MatFormFieldModule,
@@ -70,25 +76,35 @@ const GEAR_METRIC_OPTIONS = [
     MatIconModule,
     MatTooltipModule,
     TranslatePipe,
+    SortOptionIconPipe,
     ChartHeightPipe,
+    StatsNumberPipe,
   ],
   changeDetection: ChangeDetectionStrategy.Eager,
   template: `
     <mat-card>
-      <mat-card-header class="!flex !items-center !justify-between !gap-4">
-        <mat-card-title class="shrink-0">{{ titleKey() | translate }}</mat-card-title>
-        <mat-form-field class="flex-1 min-w-0 !-mt-2" subscriptSizing="dynamic">
+      <mat-card-header class="!flex !flex-wrap !items-center !justify-between !gap-3">
+        <mat-card-title role="heading" aria-level="2" class="shrink-0">{{ titleKey() | translate }}</mat-card-title>
+        <mat-form-field class="flex-1 min-w-[10rem] !-mt-2 max-sm:order-last max-sm:basis-full" subscriptSizing="dynamic">
           <!-- No mat-label: the card title next to it already names the chart,
                and repeating it read as a rendering glitch. The aria-label gives
                the select the accessible name the visible label used to. -->
           <mat-select [ngModel]="selectedMetric()" (ngModelChange)="selectedMetric.set($event)"
                       [aria-label]="'stats.gear_metric_label' | translate">
+            <mat-select-trigger>
+              @let selectedIcon = selectedMetric() | sortOptionIcon;
+              <app-select-trigger-label [icon]="selectedIcon">{{ 'stats.gear_metrics.' + selectedMetric() | translate }}</app-select-trigger-label>
+            </mat-select-trigger>
             @for (opt of metricOptions; track opt.key) {
-              <mat-option [value]="opt.key">{{ 'stats.gear_metrics.' + opt.key | translate }}</mat-option>
+              @let optionIcon = opt.key | sortOptionIcon;
+              <mat-option [value]="opt.key">
+                <mat-icon aria-hidden="true" class="!w-8 text-center" [class]="optionIcon.classes">{{ optionIcon.text }}</mat-icon>
+                {{ 'stats.gear_metrics.' + opt.key | translate }}
+              </mat-option>
             }
           </mat-select>
         </mat-form-field>
-        <button mat-icon-button class="shrink-0" [disabled]="items().length === 0"
+        <button mat-icon-button class="shrink-0 max-sm:ml-auto" [disabled]="items().length === 0"
           [matTooltip]="'stats.export_csv' | translate"
           [attr.aria-label]="'stats.export_csv' | translate" (click)="exportCsv()">
           <mat-icon>download</mat-icon>
@@ -97,10 +113,23 @@ const GEAR_METRIC_OPTIONS = [
       <mat-card-content class="!pt-4">
         @if (loading()) {
           <div class="flex justify-center py-4"><mat-spinner diameter="32" [attr.aria-label]="'ui.labels.loading' | translate" /></div>
+        } @else if (items().length === 0) {
+          <p class="py-6 text-center text-[var(--mat-sys-on-surface-variant)]">{{ 'stats.no_data' | translate }}</p>
         } @else {
           <div [style.height.px]="sortedItems() | chartHeight">
-            <canvas #chartCanvas></canvas>
+            <canvas #chartCanvas aria-hidden="true"></canvas>
           </div>
+            <details class="mt-3 text-sm text-[var(--mat-sys-on-surface-variant)]">
+              <summary class="min-h-11 cursor-pointer content-center">{{ 'stats.show_chart_data' | translate }}</summary>
+              <div class="mt-2 max-h-72 overflow-auto"><table class="w-full text-left">
+                <caption class="sr-only">{{ titleKey() | translate }}</caption>
+                <thead><tr><th scope="col" class="py-1 pr-3">{{ 'stats.model' | translate }}</th><th scope="col" class="py-1 text-right">{{ ('stats.gear_metrics.' + selectedMetric()) | translate }}</th></tr></thead>
+                <tbody>
+                @for (row of accessibleRows(); track $index) {
+                  <tr class="border-b border-[var(--mat-sys-outline-variant)]"><th scope="row" class="py-1 pr-3 font-normal">{{ row.name }}</th><td class="py-1 text-right tabular-nums">{{ row.value | statsNumber:i18n.locale():valueDigits() }}</td></tr>
+                }
+              </tbody></table></div>
+            </details>
         }
       </mat-card-content>
     </mat-card>
@@ -109,6 +138,7 @@ const GEAR_METRIC_OPTIONS = [
 export class GearChartCardComponent {
   private readonly destroyRef = inject(DestroyRef);
   private readonly themeService = inject(ThemeService);
+  protected readonly i18n = inject(I18nService);
   private chart: Chart | null = null;
 
   /** i18n key for the card title, e.g. 'stats.cameras' or 'stats.lenses' */
@@ -129,6 +159,11 @@ export class GearChartCardComponent {
 
   /** Items sorted by selected metric */
   protected readonly sortedItems = computed(() => this.sortByMetric(this.items(), this.selectedMetric()));
+  /** Counts and ISO/focal length are whole numbers; the averaged scores and f-stop keep one decimal. */
+  protected readonly valueDigits = computed(() => ['count', 'usage_timeline', 'avg_iso', 'avg_focal_length'].includes(this.selectedMetric()) ? 0 : 1);
+  protected readonly accessibleRows = computed(() => this.selectedMetric() === 'usage_timeline'
+    ? this.sortedItems().slice(0, 8).flatMap(item => item.history.map(point => ({ name: `${item.name} · ${point.date}`, value: point.count })))
+    : this.sortedItems().map(item => ({ name: item.name, value: this.metricValue(item, this.selectedMetric()) })));
 
   constructor() {
     // Persistence: Load selected metric from localStorage
@@ -139,7 +174,7 @@ export class GearChartCardComponent {
         this.selectedMetric.set(saved);
       } else {
         // Apply default based on type if no saved value
-        if (key === 'stats.cameras') this.selectedMetric.set('usage_timeline');
+        if (key === 'stats.cameras') this.selectedMetric.set('count');
         else if (key === 'stats.lenses') this.selectedMetric.set('avg_score');
         else if (key === 'stats.charts.camera_lens_combos') this.selectedMetric.set('count');
       }
@@ -157,17 +192,23 @@ export class GearChartCardComponent {
       const items = this.sortedItems();
       const metric = this.selectedMetric();
       const canvas = this.chartCanvas();
-      const color = this.color() || this.themeService.accentColor();
+      const dark = this.themeService.darkMode();
+      const color = chartSeriesColor(this.color() || this.themeService.accentColor(), dark, this.titleKey() === 'stats.lenses' ? 1 : 0);
+      this.themeService.theme();
+      this.i18n.locale();
 
       if (!canvas) return;
 
       this.destroyChart();
       const ctx = canvas.nativeElement.getContext('2d');
       if (!ctx) return;
+      const palette = chartTheme();
 
       if (metric === 'usage_timeline') {
         const topItems = items.slice(0, 8); // Limit to top 8 to avoid clutter
-        const colors = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899', '#06b6d4', '#eab308'];
+        const colors = chartSeriesColors(dark);
+        const dashes = [[], [7, 4], [2, 3], [9, 3, 2, 3]];
+        const points: PointStyle[] = ['circle', 'triangle', 'rect', 'rectRot', 'crossRot', 'star'];
         
         this.chart = new Chart(ctx, {
           type: 'line',
@@ -178,15 +219,17 @@ export class GearChartCardComponent {
               borderColor: colors[i % colors.length],
               backgroundColor: colors[i % colors.length] + '80',
               borderWidth: 2,
-              tension: 0.3,
-              pointRadius: 2,
+              borderDash: dashes[i % dashes.length],
+              tension: 0,
+              pointRadius: 3,
+              pointStyle: points[i % points.length],
             })),
           },
           options: {
             responsive: true,
             maintainAspectRatio: false,
             plugins: {
-              legend: { display: true, position: 'bottom', labels: { color: '#d4d4d4', usePointStyle: true, boxWidth: 8, generateLabels: truncatedLegendLabels } },
+              legend: { display: true, position: 'bottom', labels: { color: palette.text, usePointStyle: true, boxWidth: 8, generateLabels: truncatedLegendLabels } },
               tooltip: {
                 mode: 'index',
                 intersect: false,
@@ -200,14 +243,14 @@ export class GearChartCardComponent {
                     const x = (items[0]?.raw as { x?: string } | undefined)?.x ?? '';
                     const d = new Date(x + 'T00:00:00');
                     return Number.isNaN(d.getTime()) ? x
-                      : new Intl.DateTimeFormat(undefined, { month: 'short', year: 'numeric' }).format(d);
+                      : new Intl.DateTimeFormat(this.i18n.locale(), { month: 'short', year: 'numeric' }).format(d);
                   },
                 },
               },
             },
             scales: {
-              x: { type: 'time', time: { unit: 'month' }, grid: { color: '#262626' }, ticks: { color: '#a3a3a3' } },
-              y: { beginAtZero: true, grid: { color: '#262626' }, ticks: { color: '#d4d4d4' } },
+              x: { type: 'time', time: { unit: 'month' }, grid: { color: palette.grid }, ticks: { color: palette.text } },
+              y: { beginAtZero: true, grid: { color: palette.grid }, ticks: { color: palette.text } },
             },
           }
         });
@@ -234,11 +277,11 @@ export class GearChartCardComponent {
             maintainAspectRatio: false,
             plugins: {
               legend: { display: false },
-              tooltip: { callbacks: { label: (ctx) => (ctx.parsed.x ?? 0).toLocaleString() } },
+              tooltip: { callbacks: { label: (ctx) => (ctx.parsed.x ?? 0).toLocaleString(this.i18n.locale()) } },
             },
             scales: {
-              x: { grid: { color: '#262626' }, ticks: { color: '#a3a3a3' } },
-              y: { grid: { display: false }, ticks: { color: '#d4d4d4', font: { size: 11 } } },
+              x: { grid: { color: palette.grid }, ticks: { color: palette.text } },
+              y: { grid: { display: false }, ticks: { color: palette.text, font: { size: 11 }, callback: function(value) { return truncateLegendLabel(this.getLabelForValue(Number(value)), canvas.nativeElement.clientWidth < 420 ? 14 : 24); } } },
             },
           },
         });

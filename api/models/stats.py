@@ -156,3 +156,15 @@ class StatsCategoryRecomputeResponse(BaseModel):
     success: bool
     message: str
     output: str
+
+
+class MetricDistribution(BaseModel):
+    column: str
+    min: float
+    max: float
+    buckets: list[int]
+
+
+class MetricDistributionResponse(BaseModel):
+    distribution: Optional[MetricDistribution]
+    count: int

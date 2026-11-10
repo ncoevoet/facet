@@ -1,3 +1,4 @@
+import { personOutlineColors } from '../../shared/utils/person-outline-colors';
 import { Component, inject, input, output, signal, computed, effect, viewChild, afterNextRender, ElementRef, Injector, ChangeDetectionStrategy } from '@angular/core';
 import { MatAutocompleteModule, MatAutocompleteTrigger } from '@angular/material/autocomplete';
 import { FormsModule } from '@angular/forms';
@@ -44,10 +45,11 @@ const CHIP_BUTTON = 'inline-flex items-center justify-center w-6 h-6 shrink-0 ro
   host: { class: 'contents' },
   template: `
     <div data-person-chip
-         class="inline-flex items-center gap-1 pl-0.5 pr-1 py-0.5 min-h-9 rounded-full border-2 bg-[var(--mat-sys-secondary-container)] text-[var(--mat-sys-on-secondary-container)] text-xs font-medium"
+         class="inline-flex items-center gap-1 pl-0.5 pr-1 py-0.5 min-h-9 rounded-md border-2 bg-[var(--mat-sys-secondary-container)] text-[var(--mat-sys-on-secondary-container)] text-xs font-medium"
          [class]="unnamed() ? 'border-dashed border-[var(--mat-sys-primary)]' : 'border-solid border-transparent'"
-         [attr.data-person-id]="personId()">
-      <img data-person-chip-avatar [src]="personId() | personThumbnailUrl" class="w-8 h-8 rounded-full object-cover shrink-0" [alt]="label()" />
+         [attr.data-person-id]="personId()" [style.border-color]="outlineColor()">
+      <!-- Below sm the name is hidden, so the face carries it as a tooltip (hover or long-press). -->
+      <img data-person-chip-avatar [src]="personId() | personThumbnailUrl" class="w-8 h-8 rounded-full object-cover shrink-0" [alt]="label()" [matTooltip]="label()" />
       @if (editing()) {
         <input #nameInput
           data-person-name-input
@@ -73,7 +75,7 @@ const CHIP_BUTTON = 'inline-flex items-center justify-center w-6 h-6 shrink-0 ro
           <mat-icon class="!text-base !w-4 !h-4 !leading-4">close</mat-icon>
         </button>
       } @else {
-        <span class="hidden xl:inline mx-0.5">{{ label() }}</span>
+        <span data-person-chip-name class="hidden sm:inline mx-0.5 max-w-24 md:max-w-40 truncate" [matTooltip]="label()">{{ label() }}</span>
         @if (canEdit()) {
           <button type="button" data-person-name-edit [class]="CHIP_BUTTON"
                   (click)="$event.stopPropagation(); startEdit()"
@@ -109,6 +111,7 @@ export class PersonFilterChipComponent {
   private readonly injector = inject(Injector);
 
   readonly personId = input.required<number>();
+  protected readonly outlineColor = computed(() => personOutlineColors(this.store.filters().person_id).get(this.personId()) ?? null);
   readonly canEdit = input(false);
   /** The remove (×) button: the gallery drops this person from its filter. */
   readonly remove = output<void>();

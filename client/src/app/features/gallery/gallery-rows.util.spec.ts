@@ -1,4 +1,6 @@
 import {
+  buildListRows,
+  metadataRowHeight,
   DETAILS_ESTIMATE_PX,
   FALLBACK_ASPECT,
   GalleryRow,
@@ -147,6 +149,25 @@ describe('gridColumnCount', () => {
   });
 });
 
+describe('metadata list rows', () => {
+  it('keeps one photo per deterministic full-width row and windows a large collection', () => {
+    const rows = buildListRows(photos(1000), 359, 96, 8);
+    expect(rows).toHaveLength(1000);
+    expect(rows[500]).toMatchObject({ startIndex: 500, widths: [359], height: 96, offset: 52000 });
+    expect(rows[500].photos).toHaveLength(1);
+    const range = windowRange(rows, 52000, 400, 104);
+    expect(range.first).toBeLessThanOrEqual(500); expect(range.last - range.first).toBeLessThan(8);
+    expect(totalRowsHeight(rows)).toBe(103992);
+  });
+  it('scales text-sized row geometry without depending on image dimensions', () => {
+    const rows = buildListRows(photos(4), 359, metadataRowHeight(359, 32), 8);
+    expect(rows.map(row => row.offset)).toEqual([0, 296, 592, 888]);
+    expect(rows.every(row => row.height === 288)).toBe(true);
+    expect(metadataRowHeight(359, 16)).toBe(144);
+    expect(metadataRowHeight(1200, 16)).toBe(96);
+  });
+});
+
 describe('buildGridRows', () => {
   it('chunks photos into rows of the column count', () => {
     const rows = buildGridRows(photos(12), 1000, 168, 8, true);
@@ -162,11 +183,20 @@ describe('buildGridRows', () => {
     expect(rows[0].widths).toEqual(Array(5).fill(Math.floor(cellW)));
   });
 
-  it('details-on rows add the estimate to the tallest image', () => {
+  it('details-on rows align mixed orientations in equal 4:3 frames plus metadata', () => {
     const tallAndWide = [photo(0, 1000, 2000), photo(1, 2000, 1000)];
     const rows = buildGridRows(tallAndWide, 1000, 400, 8, false);
     const cellW = (1000 - 8) / 2;
-    expect(rows[0].height).toBe(Math.round(cellW / 0.5) + DETAILS_ESTIMATE_PX);
+    expect(rows[0].height).toBe(Math.round(cellW / (4 / 3)) + DETAILS_ESTIMATE_PX);
+  });
+
+  it('gives phone metadata two readable columns while image-only browsing keeps three', () => {
+    const detailed = buildGridRows(photos(4), 359, 168, 8, false, false);
+    const imageOnly = buildGridRows(photos(4), 359, 168, 8, true, false);
+    expect(detailed.map(row => row.photos.length)).toEqual([2, 2]);
+    expect(detailed[0].widths).toEqual([175, 175]);
+    expect(imageOnly.map(row => row.photos.length)).toEqual([3, 1]);
+    expect(gridColumnCount(359, 168, 8, false, 2)).toBe(detailed[0].photos.length);
   });
 
   it('natural fit keeps the tallest original ratio instead of squaring', () => {

@@ -1,0 +1,175 @@
+import { HttpClient } from '@angular/common/http';
+import { of } from 'rxjs';
+import fr from '../../../../../i18n/translations/fr.json';
+import en from '../../../../../i18n/translations/en.json';
+import { computed, signal } from '@angular/core';
+import { TestBed, type ComponentFixture } from '@angular/core/testing';
+import { NavigationStart, Router } from '@angular/router';
+import { Subject } from 'rxjs';
+import { GalleryQueryProposalComponent } from './gallery-query-proposal.component';
+import { GalleryStore, DEFAULT_FILTERS } from './gallery.store';
+import { AuthService } from '../../core/services/auth.service';
+import { I18nService } from '../../core/services/i18n.service';
+import { ViewActionRegistry } from '../../core/agent/view-action-registry.service';
+
+describe('User-owned query proposal', () => {
+  let fixture: ComponentFixture<GalleryQueryProposalComponent>;
+  let actions: ViewActionRegistry;
+  let events: Subject<NavigationStart>;
+  let filters: ReturnType<typeof signal<typeof DEFAULT_FILTERS>>;
+  let selected: ReturnType<typeof signal<Set<string>>>;
+  let wholeView: ReturnType<typeof signal<boolean>>;
+  let apply: ReturnType<typeof vi.fn>;
+  let token: string;
+  let owner: ReturnType<typeof signal<{ name: string }>>;
+
+  function build(localized = false): void {
+    token = 'initial'; owner = signal({ name: 'alice' }); events = new Subject();
+    filters = signal({ ...DEFAULT_FILTERS, camera: 'Canon' }); selected = signal(new Set(['/a.jpg'])); wholeView = signal(false);
+    apply = vi.fn(async updates => { filters.update(current => ({ ...current, ...updates, page: 1 })); });
+    TestBed.configureTestingModule({ imports: [GalleryQueryProposalComponent], providers: [
+      { provide: Router, useValue: { url: '/', events } },
+      { provide: AuthService, useValue: { identity: computed(() => owner().name), status: owner, get token() { return token; } } },
+      { provide: GalleryStore, useValue: { filters, config: signal({}), currentAlbum: signal(null), pinnedPaths: signal(null), selectedPaths: selected,
+        viewScopeSelected: wholeView, filterKey: (value: unknown) => JSON.stringify(value), updateFilters: apply, loadError: signal(false),
+        previewFilters: (updates: unknown) => ({ ...filters(), ...updates as object, page: 1 }) } },
+      ...(localized ? [I18nService, { provide: HttpClient, useValue: { get: vi.fn(() => of(fr)) } }] : [{ provide: I18nService, useValue: { translations: signal({}), t: (key: string) => key } }]),
+    ] });
+    fixture = TestBed.createComponent(GalleryQueryProposalComponent); fixture.componentRef.setInput('active', true); fixture.detectChanges();
+    actions = TestBed.inject(ViewActionRegistry);
+  }
+  async function propose(unrepresented: string[] = []): Promise<void> {
+    await actions.get('gallery_filter_proposal')!({ patch: { date_from: '2024-03-01', tag: 'Birds' }, replace: false,
+      proposal: { source_query: 'birds last spring except videos', unrepresented }, reset: {}, normalize: (patch: unknown) => patch });
+    await fixture.whenStable(); fixture.detectChanges();
+  }
+  afterEach(() => fixture.destroy());
+
+  it('localizes ordinary fields and accepted changes live while preserving proposed text', async () => {
+    build(true);
+    const i18n = TestBed.inject(I18nService); i18n.locale.set('fr'); await i18n.load();
+    await actions.get('gallery_filter_proposal')!({ patch: { camera: 'gallery.camera', date_from: '2024-03-01', min_dynamic_range: 6 },
+      proposal: { source_query: 'literal query', unrepresented: [] }, replace: false, reset: {}, normalize: (patch: unknown) => patch });
+    await fixture.whenStable(); fixture.detectChanges();
+    const root = fixture.nativeElement as HTMLElement;
+    const label = () => root.querySelector('label[for="query-proposal-camera"]')!.textContent!;
+    expect(label()).toContain(fr.gallery.camera);
+    expect(root.querySelector<HTMLInputElement>('#query-proposal-camera')!.value).toBe('gallery.camera');
+    expect(root.querySelector('[data-effective-field="camera"] dt')!.textContent).toBe(fr.gallery.camera);
+    expect(root.textContent).toContain(fr.gallery.dynamic_range + ' (EV) ≥');
+    // Retain the accepted preview after a result load fails, then switch locale.
+    (TestBed.inject(GalleryStore).loadError as ReturnType<typeof signal<boolean>>).set(true);
+    await fixture.componentInstance.apply(); fixture.detectChanges();
+    vi.mocked(TestBed.inject(HttpClient).get).mockReturnValue(of(en)); i18n.locale.set('en'); await i18n.load();
+    fixture.detectChanges();
+    expect(root.querySelector('[data-effective-field="camera"] dt')!.textContent).toBe(en.gallery.camera);
+    expect(root.querySelector('[data-effective-field="camera"] dd')!.textContent).toContain('gallery.camera');
+    expect(root.textContent).toContain(en.gallery.dynamic_range + ' (EV) ≥');
+  });
+
+  it('uses shared metric names and units with explicit input-label associations', async () => {
+    build();
+    await actions.get('gallery_filter_proposal')!({ patch: { min_dynamic_range: 6, max_focal_length: 85, min_face_ratio: 0.2 },
+      proposal: { source_query: 'dynamic range and lens', unrepresented: [] }, replace: false,
+      reset: {}, normalize: (patch: unknown) => patch });
+    await fixture.whenStable(); fixture.detectChanges();
+    const page = fixture.nativeElement as HTMLElement;
+    expect(page.textContent).toContain('gallery.dynamic_range (EV) ≥');
+    expect(page.textContent).toContain('gallery.focal_range (mm) ≤');
+    expect(page.textContent).toContain('gallery.proposal.fraction');
+    const label = page.querySelector<HTMLLabelElement>('label[for="query-proposal-min_dynamic_range"]')!;
+    expect(label.control?.id).toBe('query-proposal-min_dynamic_range');
+    expect(apply).not.toHaveBeenCalled();
+  });
+
+  it('keeps a cleared numeric field editable and prevents applying it until corrected', async () => {
+    build();
+    await actions.get('gallery_filter_proposal')!({ patch: { min_dynamic_range: 6 },
+      proposal: { source_query: 'dynamic range', unrepresented: [] }, replace: false, reset: {}, normalize: (patch: unknown) => patch });
+    fixture.detectChanges();
+    const page = fixture.nativeElement as HTMLElement;
+    const input = page.querySelector<HTMLInputElement>('#query-proposal-min_dynamic_range')!;
+    input.value = ''; input.dispatchEvent(new Event('input')); fixture.detectChanges();
+    expect(page.querySelector('#query-proposal-min_dynamic_range')).not.toBeNull();
+    expect(page.querySelector<HTMLButtonElement>('[data-apply-query-proposal]')!.disabled).toBe(true);
+    input.value = '7'; input.dispatchEvent(new Event('input')); fixture.detectChanges();
+    page.querySelector<HTMLButtonElement>('[data-apply-query-proposal]')!.click(); await fixture.whenStable();
+    expect(apply).toHaveBeenCalledExactlyOnceWith({ min_dynamic_range: 7 });
+  });
+
+  it('shows an editable interpretation without changing the gallery and applies a corrected date only on the user action', async () => {
+    build(); const before = filters(); await propose();
+    expect(apply).not.toHaveBeenCalled(); expect(filters()).toBe(before);
+    const page = fixture.nativeElement as HTMLElement;
+    expect(page.textContent).toContain('birds last spring except videos');
+    const date = page.querySelector<HTMLInputElement>('input[type="date"]')!;
+    date.value = '2025-03-01'; date.dispatchEvent(new Event('input')); fixture.detectChanges();
+    const newer = new Set(['/new.jpg']); selected.set(newer);
+    page.querySelector<HTMLButtonElement>('[data-apply-query-proposal]')!.click(); await fixture.whenStable(); fixture.detectChanges();
+    expect(apply).toHaveBeenCalledExactlyOnceWith({ date_from: '2025-03-01', tag: 'Birds' });
+    expect(selected()).toBe(newer); expect(page.querySelector('[data-query-proposal]')).toBeNull();
+  });
+
+  it('requires acknowledgement for untranslated clauses and refuses retargeting a whole-view selection', async () => {
+    build(); await propose(['except videos']);
+    const page = fixture.nativeElement as HTMLElement;
+    const button = page.querySelector<HTMLButtonElement>('[data-apply-query-proposal]')!;
+    expect(button.disabled).toBe(true); expect(page.textContent).toContain('except videos');
+    const checkbox = page.querySelector<HTMLInputElement>('input[type="checkbox"]')!;
+    checkbox.checked = true; checkbox.dispatchEvent(new Event('change')); wholeView.set(true); fixture.detectChanges();
+    expect(button.disabled).toBe(true); await fixture.componentInstance.apply(); expect(apply).not.toHaveBeenCalled();
+    wholeView.set(false); fixture.detectChanges(); button.click(); await fixture.whenStable();
+    expect(apply).toHaveBeenCalledOnce();
+  });
+
+  it('refuses a stale query or live token, cancels on navigation and unregisters when parked', async () => {
+    build(); await propose();
+    filters.update(value => ({ ...value, camera: 'Nikon' })); await fixture.componentInstance.apply();
+    expect(apply).not.toHaveBeenCalled();
+    fixture.detectChanges();
+    expect(fixture.nativeElement.querySelector('[role="alert"]')?.textContent).toContain('gallery.proposal.changed');
+    await propose(); token = 'rotated'; await fixture.componentInstance.apply(); expect(apply).not.toHaveBeenCalled();
+    await propose(); events.next(new NavigationStart(1, '/persons')); fixture.detectChanges();
+    expect(fixture.componentInstance.proposal()).toBeNull();
+    await expect(propose()).rejects.toMatchObject({ code: 'no_active_view' });
+    fixture.componentRef.setInput('active', false); fixture.detectChanges();
+    expect(actions.get('gallery_filter_proposal')).toBeUndefined();
+  });
+
+  it('replaces existing criteria using the reviewed reset and patch only on Apply', async () => {
+    build();
+    await actions.get('gallery_filter_proposal')!({ patch: { tag: 'Birds' }, replace: true, reset: { camera: '' },
+      proposal: { source_query: 'only birds', unrepresented: [] }, normalize: (patch: unknown) => patch });
+    fixture.detectChanges(); expect(filters().camera).toBe('Canon'); expect(apply).not.toHaveBeenCalled();
+    await fixture.componentInstance.apply();
+    expect(apply).toHaveBeenCalledExactlyOnceWith({ camera: '', tag: 'Birds' });
+    expect(filters().camera).toBe('');
+  });
+
+  it.each(['2024-02-31', 'not-a-date', '2025-01-01'])('refuses invalid or reversed dates: %s', async from => {
+    build();
+    await actions.get('gallery_filter_proposal')!({ patch: { date_from: '2024-01-01', date_to: '2024-12-31' }, replace: false, reset: {},
+      proposal: { source_query: 'date window', unrepresented: [] }, normalize: (patch: unknown) => patch });
+    fixture.componentInstance.edit('date_from', from, 'date'); fixture.detectChanges();
+    expect(fixture.nativeElement.querySelector('[data-apply-query-proposal]').disabled).toBe(true);
+    await fixture.componentInstance.apply(); expect(apply).not.toHaveBeenCalled();
+  });
+
+  it('removes a proposed row and closes without applying, then accepts another proposal', async () => {
+    build(); await propose();
+    fixture.componentInstance.remove('tag'); fixture.detectChanges();
+    expect(fixture.componentInstance.rows().map(row => row.key)).toEqual(['date_from']);
+    fixture.componentInstance.close(); fixture.detectChanges();
+    expect(fixture.nativeElement.querySelector('[data-query-proposal]')).toBeNull(); expect(apply).not.toHaveBeenCalled();
+    await propose(); expect(fixture.componentInstance.proposal()).not.toBeNull();
+    await expect(propose()).rejects.toMatchObject({ code: 'no_active_view' });
+  });
+
+  it('refuses malformed proposals before presenting them', async () => {
+    build();
+    await expect(actions.get('gallery_filter_proposal')!({ patch: { unknown_filter: true }, reset: {},
+      proposal: { source_query: 'bad filter', unrepresented: [] }, normalize: (patch: unknown) => patch }))
+      .rejects.toMatchObject({ code: 'invalid_input' });
+    expect(fixture.componentInstance.proposal()).toBeNull(); expect(apply).not.toHaveBeenCalled();
+  });
+});

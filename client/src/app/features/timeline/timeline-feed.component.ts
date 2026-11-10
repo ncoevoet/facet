@@ -1,0 +1,202 @@
+import { timelineRouteActivity } from './timeline-route-activity';
+import { Component, DestroyRef, ElementRef, Injector, afterEveryRender, afterNextRender, computed, effect, inject, input, signal, untracked, viewChild, ChangeDetectionStrategy } from '@angular/core';
+import { Router, RouterLink } from '@angular/router';
+import { Subscription } from 'rxjs';
+import { MatButtonModule } from '@angular/material/button';
+import { MatIconModule } from '@angular/material/icon';
+import { ApiService } from '../../core/services/api.service';
+import { AuthService, type AuthStatus } from '../../core/services/auth.service';
+import { i18nKeys } from '../../core/i18n/keys';
+import { TranslatePipe } from '../../shared/pipes/translate.pipe';
+import { ThumbnailUrlPipe } from '../../shared/pipes/thumbnail-url.pipe';
+import { CaptureDatePipe } from '../../shared/pipes/capture-date.pipe';
+import { TimelineDayQueryPipe, TimelinePhotoLinkPipe } from './timeline-day-query.pipe';
+import { TimelineFiltersService } from './timeline-filters.service';
+import { GalleryStore } from '../gallery/gallery.store';
+import { TimelineFeedCache, type TimelineGroup, type TimelinePage } from './timeline-feed-cache.service';
+import type { Photo } from '../../shared/models/photo.model';
+import { timelineWindow } from './timeline-density.util';
+import { timelineReadContext } from './timeline-read-context';
+import { InfiniteScrollDirective } from '../../shared/directives/infinite-scroll.directive';
+import { privateImageSessionKey } from '../../shared/utils/private-image-session';
+
+@Component({
+  selector: 'app-timeline-feed',
+  standalone: true,
+  imports: [RouterLink, MatButtonModule, MatIconModule, TranslatePipe, ThumbnailUrlPipe, CaptureDatePipe, TimelineDayQueryPipe, TimelinePhotoLinkPipe, InfiniteScrollDirective],
+  host: { class: 'block min-w-0' },
+  changeDetection: ChangeDetectionStrategy.OnPush,
+  template: `
+    <div data-timeline-days class="grid grid-cols-1 gap-4 xl:grid-cols-2 2xl:grid-cols-3">
+    @for (group of groups(); track group.date) {
+      <!-- The feed only grows while scrolling, so off-screen days skip layout and paint, as the gallery's cards do. -->
+      <section class="rounded-xl bg-[var(--mat-sys-surface-container)] p-3 sm:p-4" [class.col-span-full]="group.photos.length > 4" [attr.data-timeline-date]="group.date" [attr.aria-label]="group.date | captureDate"
+               [style.content-visibility]="'auto'" [style.contain-intrinsic-size]="'auto 22rem'">
+        <header class="flex min-h-11 flex-wrap items-baseline justify-between gap-x-3 gap-y-1 py-0">
+          <h2 class="m-0 text-base font-semibold tabular-nums">{{ group.date | captureDate }}</h2>
+          <a mat-button routerLink="/" [queryParams]="group.date | timelineDayQuery:visibility()">
+            {{ I18N.timeline.view_day | translate: { count: group.count } }}
+            <mat-icon iconPositionEnd>chevron_right</mat-icon>
+          </a>
+        </header>
+        <div data-timeline-photos class="grid grid-cols-3 gap-1 sm:grid-cols-4" [class]="group.photos.length > 4 ? 'xl:grid-cols-6' : ''">
+          @for (photo of group.photos; track photo.path) {
+            <a [href]="photo.path | timelinePhotoLink" (click)="openPhoto($event, photo)"
+              class="relative block aspect-square min-w-0 overflow-hidden rounded bg-[var(--mat-sys-surface-container-high)] focus-visible:z-10 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--mat-sys-primary)]"
+              [attr.aria-label]="photo.filename">
+              <img [src]="photo.path | thumbnailUrl:320:photo.preview_revision" alt="" loading="lazy" decoding="async" class="h-full w-full object-cover" />
+            </a>
+          }
+        </div>
+        @if (group.count > group.photos.length) {
+          <p class="mb-0 mt-2 text-sm text-[var(--mat-sys-on-surface-variant)]">
+            {{ I18N.timeline.preview_count | translate: { shown: group.photos.length, total: group.count } }}
+          </p>
+        }
+      </section>
+    }
+    </div>
+    <div class="flex min-h-16 flex-wrap items-center justify-center gap-2 pb-4" aria-live="polite">
+      @if (error()) { <p role="alert">{{ I18N.timeline.load_failed | translate }}</p> }
+      @if (loading() && !manualLoading()) { <span role="status">{{ I18N.ui.labels.loading | translate }}</span> }
+      @else if (!loading() && !error() && groups().length === 0) { <p>{{ I18N.timeline.empty | translate }}</p> }
+      @if (error() || manualLoading()) {
+        <button mat-stroked-button data-timeline-load-more [attr.aria-disabled]="loading()" (click)="loadMore()">
+          {{ (loading() ? I18N.ui.labels.loading : I18N.timeline.retry) | translate }}
+        </button>
+      }
+    </div>
+    @if (hasMore() && !error()) { <div appInfiniteScroll scrollRoot="app-timeline" data-timeline-sentinel class="h-1" (scrollReached)="onScrollReached()"></div> }
+  `,
+})
+export class TimelineFeedComponent {
+  protected readonly I18N = i18nKeys();
+  protected readonly filters = inject(TimelineFiltersService);
+  private readonly store = inject(GalleryStore);
+  private readonly api = inject(ApiService);
+  private readonly auth = inject(AuthService);
+  private readonly cache = inject(TimelineFeedCache);
+  private readonly router = inject(Router);
+  private readonly host = inject<ElementRef<HTMLElement>>(ElementRef);
+  private readonly injector = inject(Injector);
+  private readonly sentinel = viewChild(InfiniteScrollDirective);
+  readonly year = input('');
+  readonly month = input('');
+  protected readonly active = timelineRouteActivity(() => { this.remember(); this.cancel(); });
+  protected readonly groups = signal<TimelineGroup[]>([]);
+  protected readonly loading = signal(false);
+  protected readonly manualLoading = signal(false);
+  protected readonly error = signal(false);
+  protected readonly hasMore = signal(false);
+  protected readonly visibility = computed(() => this.store.viewFilterParams());
+  private readonly nextCursor = signal<string | null>(null);
+  private request: Subscription | null = null;
+  private generation = 0;
+  private context: { scope: string; params: Record<string, string | number>; owner: AuthStatus; token: string | null; rows: Photo[]; membershipRevision: number } | null = null;
+  private scrollOwner: HTMLElement | null = null;
+  private restoreScroll: number | null = null;
+
+  private readonly params = computed(() => {
+    const { from, to } = timelineWindow(this.year(), this.month(), this.filters.dateFrom(), this.filters.dateTo());
+    return { ...this.visibility(), date_from: from, date_to: to, direction: this.filters.sortDirection(),
+      limit: 8, photos_per_group: 8, sort_by: 'date_taken', granularity: 'day' };
+  });
+
+  constructor() {
+    effect(() => {
+      const params = this.params(); const owner = this.auth.status(); const active = this.active(); const rows = this.cache.rows(); const membershipRevision = this.cache.membershipRevision();
+      untracked(() => {
+      const scope = JSON.stringify(params); const running = this.context;
+      // An identical scope already in flight: cancelling and re-requesting would only restart the same read.
+      if (active && owner && running && this.loading() && running.scope === scope && running.owner === owner
+        && running.token === this.auth.token && running.rows === rows && running.membershipRevision === membershipRevision) return;
+      this.cancel(); this.context = null; this.groups.set([]); this.hasMore.set(false); this.error.set(false);
+      if (!owner || !active) return;
+      this.context = { params, owner, rows, membershipRevision, token: this.auth.token, scope };
+      const cached = this.cache.read(this.context.scope);
+      this.groups.set(cached?.groups ?? []); this.hasMore.set(cached?.has_more ?? false);
+      this.nextCursor.set(cached?.next_cursor ?? null); this.restoreScroll = cached?.scrollTop ?? 0;
+      if (!cached && this.scrollOwner) this.scrollOwner.scrollTop = 0;
+      if (!cached) this.loadMore();
+      });
+    });
+    afterNextRender(() => {
+      this.scrollOwner = this.host.nativeElement.closest('app-timeline');
+      if (this.scrollOwner) {
+        this.scrollOwner.scrollTop = this.restoreScroll ?? 0;
+        this.restoreScroll = null;
+        this.scrollOwner.addEventListener('scroll', this.remember, { passive: true });
+      }
+    });
+    afterEveryRender({ write: () => {
+      if (this.scrollOwner && this.restoreScroll !== null) {
+        this.scrollOwner.scrollTop = this.restoreScroll;
+        this.restoreScroll = null;
+      }
+    } });
+    inject(DestroyRef).onDestroy(() => {
+      this.cancel(); this.scrollOwner?.removeEventListener('scroll', this.remember);
+    });
+  }
+
+  private cancel(): void { this.generation++; this.request?.unsubscribe(); this.request = null; this.loading.set(false); this.manualLoading.set(false); }
+
+  private current(context: NonNullable<TimelineFeedComponent['context']>, generation: number): boolean {
+    return generation === this.generation && this.active() && context === this.context
+      && context.owner === this.auth.status() && context.token === this.auth.token && context.rows === this.cache.rows()
+      && context.membershipRevision === this.cache.membershipRevision();
+  }
+
+  protected openPhoto(event: MouseEvent, photo: Photo): void {
+    if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+    event.preventDefault();
+    if (!this.context || !this.current(this.context, this.generation)) return;
+    this.remember(); this.cache.capturePhotos(this.groups());
+    void this.router.navigate(['/photo'], { queryParams: { path: photo.path }, state: { photo, photoSession: privateImageSessionKey(), photoOrigin: 'timeline' } });
+  }
+
+  private readonly remember = (): void => {
+    const context = this.context;
+    if (!context || this.error() || this.loading() || !this.current(context, this.generation)) return;
+    this.cache.save({ ...context, groups: this.groups(), next_cursor: this.nextCursor(), has_more: this.hasMore(),
+      scrollTop: this.scrollOwner?.scrollTop ?? 0 });
+  };
+
+  protected loadMore(): void {
+    const context = this.context;
+    if (!context || this.loading() || !this.current(context, this.generation)) return;
+    const button = this.host.nativeElement.querySelector<HTMLButtonElement>('[data-timeline-load-more]');
+    const restoreFocus = !!button && this.host.nativeElement.ownerDocument.activeElement === button;
+    this.manualLoading.set(!!button);
+    const generation = ++this.generation;
+    this.loading.set(true); this.error.set(false);
+    this.request = this.api.get<TimelinePage>('/timeline', { ...context.params, cursor: this.nextCursor() ?? '' }, timelineReadContext()).subscribe({
+      next: page => {
+        if (!this.current(context, generation)) return;
+        const seen = new Set(this.groups().map(group => group.date));
+        const added = page.groups.filter(group => !seen.has(group.date));
+        const firstAddedDate = added.find(group => group.photos.length > 0)?.date;
+        this.groups.update(groups => [...groups, ...added]);
+        this.nextCursor.set(page.next_cursor); this.hasMore.set(page.has_more && !!page.next_cursor);
+        this.loading.set(false); this.manualLoading.set(false); this.remember();
+        // A sentinel still in view after the page renders fires no new intersection, so re-check it.
+        afterNextRender(() => { if (this.current(context, generation)) this.sentinel()?.recheck(); }, { injector: this.injector });
+        if (restoreFocus && this.host.nativeElement.ownerDocument.activeElement === button) {
+          afterNextRender(() => {
+            const doc = this.host.nativeElement.ownerDocument;
+            if (this.current(context, generation) && (doc.activeElement === doc.body || doc.activeElement === button)) {
+              const firstAdded = [...this.host.nativeElement.querySelectorAll<HTMLElement>('[data-timeline-date]')]
+                .find(section => section.dataset['timelineDate'] === firstAddedDate)?.querySelector<HTMLElement>('[data-timeline-photos] a[href]');
+              (firstAdded ?? this.host.nativeElement.querySelector<HTMLElement>('section:last-of-type header a[href]'))?.focus();
+            }
+          }, { injector: this.injector });
+        }
+      },
+      error: () => { if (this.current(context, generation)) { this.loading.set(false); this.manualLoading.set(false); this.error.set(true); } },
+    });
+  }
+
+  protected onScrollReached(): void {
+    if (this.hasMore() && !this.error()) this.loadMore();
+  }
+}

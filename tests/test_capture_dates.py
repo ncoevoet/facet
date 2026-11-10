@@ -366,3 +366,61 @@ def test_reset_database_failure_rolls_back_override_and_history(edition_client, 
     finally:
         with get_db() as conn, conn:
             conn.execute('DROP TRIGGER capture_reset_fail')
+
+
+def test_set_date_dates_only_the_rows_without_a_usable_date(edition_client, seed_photos_prefix):
+    paths = seed(seed_photos_prefix, [None, '2024-01-01', '2024:01:01 00:00:00', '2024:05:06 07:08:09'])
+    body = dict(photo_paths=paths, set_date='2024-05-06T07:08:09')
+    data = edition_client.post('/api/photos/capture_date/preview', json=body).json()
+    assert (data['changed'], data['skipped']) == (2, 2)
+    assert data['samples'] == [dict(path=paths[0], old_date=None, new_date='2024:05:06 07:08:09'),
+                               dict(path=paths[1], old_date='2024-01-01', new_date='2024:05:06 07:08:09')]
+    assert values(paths)[0] == (None, 0)
+    assert edition_client.post('/api/photos/capture_date/apply', json={**body, 'preview_token': data['preview_token']}).status_code == 200
+    assert values(paths) == [('2024:05:06 07:08:09', 1), ('2024:05:06 07:08:09', 1),
+                             ('2024:01:01 00:00:00', 0), ('2024:05:06 07:08:09', 0)]
+
+
+def test_set_date_over_a_filter_scope_keeps_every_dated_photo(edition_client, seed_photos_prefix):
+    paths = seed(seed_photos_prefix, [None, '2023:03:04 05:06:07', '2021:01:01 12:00:00'])
+    body = dict(filters={'folder': '/capture'}, set_date='2024-05-06T07:08:09')
+    data = edition_client.post('/api/photos/capture_date/preview', json=body).json()
+    assert (data['changed'], data['skipped']) == (1, 2)
+    assert edition_client.post('/api/photos/capture_date/apply', json={**body, 'preview_token': data['preview_token']}).status_code == 200
+    assert values(paths) == [('2024:05:06 07:08:09', 1), ('2023:03:04 05:06:07', 0), ('2021:01:01 12:00:00', 0)]
+
+
+@pytest.mark.parametrize('extra', [{}, dict(offset_seconds=5, set_date='2024-05-06T07:08:09')])
+def test_exactly_one_of_offset_or_set_date(edition_client, extra):
+    assert edition_client.post('/api/photos/capture_date/preview', json=dict(photo_paths=[], **extra)).status_code == 422
+
+
+@pytest.mark.parametrize('date', ['', 'garbage', '2024-02-30T12:00:00', '2024-05-06', '2024-05-06T07:08:09Z', 5])
+def test_unparseable_set_date(edition_client, date):
+    assert edition_client.post('/api/photos/capture_date/preview', json=dict(photo_paths=[], set_date=date)).status_code == 422
+
+
+def test_set_date_accepts_stored_and_space_forms(edition_client, seed_photos_prefix):
+    paths = seed(seed_photos_prefix, [None])
+    for form in ('2024:05:06 07:08:09', '2024-05-06 07:08:09'):
+        data = edition_client.post('/api/photos/capture_date/preview', json=dict(photo_paths=paths, set_date=form)).json()
+        assert data['samples'][0]['new_date'] == '2024:05:06 07:08:09'
+
+
+def test_token_is_bound_to_the_mode_and_value(edition_client, seed_photos_prefix):
+    paths = seed(seed_photos_prefix, ['2024:01:01 00:00:00'])
+    offset_token = edition_client.post('/api/photos/capture_date/preview', json=dict(photo_paths=paths, offset_seconds=60)).json()['preview_token']
+    set_body = dict(photo_paths=paths, set_date='2024-01-01T00:01:00')
+    set_token = edition_client.post('/api/photos/capture_date/preview', json=set_body).json()['preview_token']
+    assert offset_token != set_token
+    assert edition_client.post('/api/photos/capture_date/apply', json={**set_body, 'preview_token': offset_token}).status_code == 409
+    assert edition_client.post('/api/photos/capture_date/apply', json=dict(photo_paths=paths, offset_seconds=60, preview_token=set_token)).status_code == 409
+    other = edition_client.post('/api/photos/capture_date/apply', json={**set_body, 'set_date': '2024-01-01T00:02:00', 'preview_token': set_token})
+    assert other.status_code == 409
+    assert values(paths) == [('2024:01:01 00:00:00', 0)]
+
+
+def test_offset_requests_still_skip_undated_rows(edition_client, seed_photos_prefix):
+    paths = seed(seed_photos_prefix, [None])
+    data = edition_client.post('/api/photos/capture_date/preview', json=dict(photo_paths=paths, offset_seconds=60)).json()
+    assert (data['changed'], data['skipped'], data['samples']) == (0, 1, [])

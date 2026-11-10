@@ -47,8 +47,11 @@ type GpsResult = components['schemas']['GpsUpdateResponse'];
   imports: [FormsModule, MatDialogModule, MatButtonModule, MatIconModule, MatSnackBarModule, TranslatePipe, FixedPipe, PluralKeyPipe],
   changeDetection: ChangeDetectionStrategy.Eager,
   template: `
-    <h2 mat-dialog-title class="!flex items-center gap-2">
-      <mat-icon>location_on</mat-icon><span class="truncate">{{ data.filename }}</span>
+    <h2 mat-dialog-title class="!flex !items-center !gap-3 !text-base !font-semibold !m-0 !px-4 !pt-5 !pb-4 before:!content-none">
+      <span class="w-9 h-9 rounded-lg bg-[var(--mat-sys-primary-container)] flex items-center justify-center shrink-0">
+        <mat-icon aria-hidden="true" class="!text-xl !leading-none !w-5 !h-5 text-[var(--mat-sys-on-primary-container)]">location_on</mat-icon>
+      </span>
+      <span class="truncate">{{ data.filename }}</span>
     </h2>
     <mat-dialog-content class="!px-4 !pb-2">
       <p class="text-sm mb-3">{{ (data.batch ? I18N.photo_detail.gps.batch_hint : I18N.photo_detail.gps.preview_hint) | translate }}</p>
@@ -63,13 +66,13 @@ type GpsResult = components['schemas']['GpsUpdateResponse'];
       </label>
       <p id="gps-online-notice" class="text-xs mb-2">{{ I18N.photo_detail.gps.online_notice | translate }}</p>
       <p class="text-xs mb-2"><a href="https://photon.komoot.io" target="_blank" rel="noopener noreferrer">Photon<span class="sr-only"> {{ I18N.photo_detail.gps.opens_new_tab | translate }}</span></a> · <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener noreferrer">{{ I18N.photo_detail.gps.osm_attribution | translate }}<span class="sr-only"> {{ I18N.photo_detail.gps.opens_new_tab | translate }}</span></a></p>
-      <button mat-button (click)="searchOnline()" [disabled]="saving() || onlineBusy() || !onlineQueryValid() || !onlineEnabled() || !auth.isEdition()">{{ I18N.photo_detail.gps.online_search | translate }}</button>
+      <button mat-stroked-button (click)="searchOnline()" [disabled]="saving() || onlineBusy() || !onlineQueryValid() || !onlineEnabled() || !auth.isEdition()"><mat-icon>search</mat-icon>{{ I18N.photo_detail.gps.online_search | translate }}</button>
       @if (!onlineEnabled()) { <p role="status">{{ I18N.photo_detail.gps.online_disabled | translate }}</p> }
       @if (onlineBusy()) { <p role="status">{{ I18N.photo_detail.gps.online_loading | translate }}</p> }
       @if (onlineError()) { <p role="alert">{{ onlineError() | translate }}</p> }
       @if (onlineSearched() && !onlineResults().length) { <p role="status">{{ I18N.photo_detail.gps.online_empty | translate }}</p> }
       <p role="status" class="sr-only">@if (onlineResults().length) { {{ onlineResults().length | pluralKey:I18N.photo_detail.gps.online_results:I18N.photo_detail.gps.online_results_plural | translate:{ count: onlineResults().length } }} }</p>
-      <ul class="max-h-40 overflow-auto mb-3" [attr.aria-label]="I18N.photo_detail.gps.online_results_label | translate">
+      <ul class="m-0 max-h-40 list-none overflow-y-auto overflow-x-hidden p-0 mb-3" [attr.aria-label]="I18N.photo_detail.gps.online_results_label | translate">
         @for (result of onlineResults(); track $index) {
           <li><button mat-button class="!h-auto !py-2 !text-left" (click)="selectOnlineResult(result)">{{ result.label }}</button></li>
         }
@@ -77,29 +80,29 @@ type GpsResult = components['schemas']['GpsUpdateResponse'];
       @if (loadingPlaces()) { <p role="status">{{ I18N.photo_detail.gps.loading | translate }}</p> }
       @if (placesError()) {
         <p role="alert">{{ placesError() | translate }}</p>
-        <button mat-button (click)="loadPlaces()" [disabled]="loadingPlaces() || placeBusy()">{{ I18N.photo_detail.gps.retry | translate }}</button>
+        <button mat-stroked-button (click)="loadPlaces()" [disabled]="loadingPlaces() || placeBusy()">{{ I18N.photo_detail.gps.retry | translate }}</button>
       }
       <h3 class="text-sm font-semibold">{{ I18N.photo_detail.gps.saved | translate }}</h3>
-      <ul class="max-h-40 overflow-auto mb-3">
+      <ul class="m-0 max-h-40 list-none overflow-y-auto overflow-x-hidden p-0 mb-3">
         @for (place of filteredPlaces(); track place.id) {
           <li class="flex flex-wrap items-center gap-1 border-b py-1">
             @if (editingId() === place.id) {
               <label class="grow text-sm">{{ I18N.photo_detail.gps.name | translate }}
                 <input class="block w-full border rounded p-1 bg-transparent" maxlength="120" [ngModel]="editName()" (ngModelChange)="editName.set($event)">
               </label>
-              <button mat-button (click)="renamePlace(place)" [disabled]="placeBusy() || !editNameValid()">{{ I18N.ui.buttons.save | translate }}</button>
+              <button mat-flat-button (click)="renamePlace(place)" [disabled]="placeBusy() || !editNameValid()">{{ I18N.ui.buttons.save | translate }}</button>
               <button mat-button (click)="editingId.set(null)" [disabled]="placeBusy() || loadingPlaces()">{{ I18N.ui.buttons.cancel | translate }}</button>
             } @else {
-              <button mat-button class="grow !justify-start" (click)="selectPlace(place)" [attr.aria-pressed]="selectedPlaceId() === place.id">{{ place.name }}</button>
-              <button mat-button (click)="startRename(place)" [disabled]="placeBusy() || loadingPlaces()">{{ I18N.photo_detail.gps.rename | translate }}</button>
-              <button mat-button (click)="deletePlace(place)" [disabled]="placeBusy() || loadingPlaces()">{{ I18N.photo_detail.gps.delete | translate }}</button>
+              <button mat-button class="grow !justify-start" [class.!bg-[var(--mat-sys-secondary-container)]]="selectedPlaceId() === place.id" (click)="selectPlace(place)" [attr.aria-pressed]="selectedPlaceId() === place.id"><mat-icon>{{ selectedPlaceId() === place.id ? 'check_circle' : 'place' }}</mat-icon>{{ place.name }}</button>
+              <button mat-icon-button (click)="startRename(place)" [disabled]="placeBusy() || loadingPlaces()" [attr.title]="I18N.photo_detail.gps.rename | translate" [attr.aria-label]="I18N.photo_detail.gps.rename | translate"><mat-icon aria-hidden="true">edit</mat-icon></button>
+              <button mat-icon-button class="!text-[var(--mat-sys-error)]" (click)="deletePlace(place)" [disabled]="placeBusy() || loadingPlaces()" [attr.title]="I18N.photo_detail.gps.delete | translate" [attr.aria-label]="I18N.photo_detail.gps.delete | translate"><mat-icon aria-hidden="true">delete</mat-icon></button>
             }
           </li>
         } @empty { @if (!loadingPlaces()) { <li class="text-sm py-2">{{ I18N.photo_detail.gps.no_places | translate }}</li> } }
       </ul>
       @if (recent().length) {
         <h3 class="text-sm font-semibold">{{ I18N.photo_detail.gps.recent | translate }}</h3>
-        <ul class="max-h-24 overflow-auto mb-3">
+        <ul class="m-0 max-h-24 list-none overflow-y-auto overflow-x-hidden p-0 mb-3">
           @for (point of recent(); track $index) {
             <li><button mat-button (click)="selectRecent(point)">{{ point.latitude | fixed:6 }}, {{ point.longitude | fixed:6 }}</button></li>
           }
@@ -121,7 +124,7 @@ type GpsResult = components['schemas']['GpsUpdateResponse'];
         <label class="grow text-sm">{{ I18N.photo_detail.gps.name | translate }}
           <input class="block w-full border rounded p-2 bg-transparent" maxlength="120" [ngModel]="placeName()" (ngModelChange)="placeName.set($event)">
         </label>
-        <button mat-button (click)="createPlace()" [disabled]="!canCreatePlace()">{{ I18N.photo_detail.gps.save_place | translate }}</button>
+        <button mat-stroked-button (click)="createPlace()" [disabled]="!canCreatePlace()"><mat-icon>bookmark_add</mat-icon>{{ I18N.photo_detail.gps.save_place | translate }}</button>
       </div>
       @if (placeBusy()) { <p role="status">{{ I18N.photo_detail.gps.updating | translate }}</p> }
       @if (placeError()) { <p role="alert">{{ placeError() | translate }}</p> }
@@ -135,13 +138,13 @@ type GpsResult = components['schemas']['GpsUpdateResponse'];
       @if (saveError()) { <p role="alert">{{ saveError() | translate }}</p> }
     </mat-dialog-content>
     <mat-dialog-actions align="end">
-      @if (!data.batch) { <button mat-button (click)="clearLocation()" class="!mr-auto">{{ I18N.photo_detail.gps_clear | translate }}</button> }
+      @if (!data.batch) { <button mat-button (click)="clearLocation()" class="!mr-auto !text-[var(--mat-sys-error)]"><mat-icon>location_off</mat-icon>{{ I18N.photo_detail.gps_clear | translate }}</button> }
       @if (data.manuallySet) {
         <button mat-button (click)="useFileLocation()" [disabled]="saving() || placeBusy()">{{ I18N.photo_detail.gps.use_file_location | translate }}</button>
       }
       <button mat-button (click)="cancel()">{{ I18N.ui.buttons.cancel | translate }}</button>
       @if (data.batch) {
-        <button mat-button (click)="previewBatch()" [disabled]="saving() || placeBusy() || !batchCoordinatesValid()">{{ I18N.photo_detail.gps.preview_batch | translate }}</button>
+        <button mat-stroked-button (click)="previewBatch()" [disabled]="saving() || placeBusy() || !batchCoordinatesValid()">{{ I18N.photo_detail.gps.preview_batch | translate }}</button>
       }
       <button mat-flat-button (click)="save()" [disabled]="saving() || placeBusy() || (data.batch ? !canApplyBatch() : (!coordinatesValid() || unchanged()))">{{ I18N.ui.buttons.save | translate }}</button>
     </mat-dialog-actions>

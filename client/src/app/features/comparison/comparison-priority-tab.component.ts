@@ -196,12 +196,12 @@ export class CategoryFilterSummaryPipe implements PipeTransform {
             } @else {
               <div cdkDropList class="flex flex-col gap-1.5" (cdkDropListDropped)="drop($event)">
                 @for (cat of orderedCategories(); track cat.name; let i = $index) {
-                  <div cdkDrag class="flex items-center gap-3 rounded-lg border border-[var(--mat-sys-outline-variant)] px-3 py-2 bg-[var(--mat-sys-surface-container)]">
+                  <div cdkDrag class="flex flex-wrap items-center gap-x-3 gap-y-1 rounded-lg border border-[var(--mat-sys-outline-variant)] px-3 py-2 bg-[var(--mat-sys-surface-container)] sm:flex-nowrap">
                     <mat-icon cdkDragHandle class="text-gray-400 cursor-move shrink-0">drag_indicator</mat-icon>
                     <span class="w-8 shrink-0 text-xs font-mono text-gray-400">{{ i + 1 }}</span>
-                    <span class="w-40 shrink-0 text-sm font-medium">{{ ('category_names.' + cat.name) | translate }}</span>
-                    <span class="w-14 shrink-0 text-xs font-mono text-gray-500">#{{ cat.priority }}</span>
-                    <div class="flex flex-wrap gap-x-2 gap-y-0.5 text-xs text-gray-500 min-w-0">
+                    <span class="min-w-0 flex-1 truncate text-sm font-medium sm:w-40 sm:flex-none">{{ ('category_names.' + cat.name) | translate }}</span>
+                    <span class="w-14 shrink-0 text-xs font-mono text-gray-500 max-sm:hidden">#{{ cat.priority }}</span>
+                    <div class="flex flex-wrap gap-x-2 gap-y-0.5 text-xs text-gray-500 min-w-0 max-sm:basis-full">
                       @for (entry of (cat.filters | categoryFilterSummary); track entry.labelKey) {
                         <span>{{ entry.labelKey | translate }}: {{ entry.text }}</span>
                       }
@@ -209,11 +209,11 @@ export class CategoryFilterSummaryPipe implements PipeTransform {
                   </div>
                 }
                 @if (defaultCategory(); as def) {
-                  <div class="flex items-center gap-3 rounded-lg border border-dashed border-[var(--mat-sys-outline-variant)] px-3 py-2 opacity-60">
+                  <div class="flex flex-wrap items-center gap-x-3 gap-y-1 rounded-lg border border-dashed border-[var(--mat-sys-outline-variant)] px-3 py-2 opacity-60 sm:flex-nowrap">
                     <mat-icon class="text-gray-400 shrink-0">lock</mat-icon>
                     <span class="w-8 shrink-0 text-xs font-mono text-gray-400">{{ orderedCategories().length + 1 }}</span>
-                    <span class="w-40 shrink-0 text-sm font-medium">{{ ('category_names.' + def.name) | translate }}</span>
-                    <span class="text-xs text-gray-500">{{ 'comparison.context.pinned_default_note' | translate }}</span>
+                    <span class="min-w-0 flex-1 truncate text-sm font-medium sm:w-40 sm:flex-none">{{ ('category_names.' + def.name) | translate }}</span>
+                    <span class="min-w-0 text-xs text-gray-500 max-sm:basis-full">{{ 'comparison.context.pinned_default_note' | translate }}</span>
                   </div>
                 }
               </div>

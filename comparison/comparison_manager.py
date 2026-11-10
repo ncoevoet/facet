@@ -450,6 +450,8 @@ def record_culling_pairs(
     (single-user / legacy) as distinct, so INSERT OR IGNORE alone would not
     dedup the NULL case — the pre-filter keeps explicit votes intact for every
     user, and INSERT OR IGNORE remains a backstop against concurrent inserts.
+    Existing comparisons through either logical alias also suppress a new pair;
+    earlier votes and their original representation paths are never rewritten.
 
     Runs inside the caller's transaction - does not commit.
 
@@ -492,16 +494,27 @@ def record_culling_pairs(
     # UNIQUE treats NULL user_id as distinct, so INSERT OR IGNORE would not skip
     # them in single-user mode and could duplicate an existing explicit vote.
     pair_paths = list({p for r in rows for p in (r[0], r[1])})
+    identities = {path: ('file', path) for path in pair_paths}
+    if conn.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='logical_asset_members'").fetchone():
+        marks = ','.join('?' * len(pair_paths))
+        keys = {row[0] for row in conn.execute(
+            f'SELECT DISTINCT asset_id FROM logical_asset_members WHERE photo_path IN ({marks})', pair_paths)}
+        if keys:
+            marks = ','.join('?' * len(keys))
+            for path, key in conn.execute(f'SELECT photo_path,asset_id FROM logical_asset_members WHERE asset_id IN ({marks})', list(keys)):
+                identities[path] = ('asset', key)
+            pair_paths = list(identities)
     ph = ','.join('?' * len(pair_paths))
     existing = {
-        (a, b) for a, b in conn.execute(
+        tuple(sorted((identities[a], identities[b]))) for a, b in conn.execute(
             f"SELECT photo_a_path, photo_b_path FROM comparisons "
             f"WHERE user_id IS ? "
             f"AND photo_a_path IN ({ph}) AND photo_b_path IN ({ph})",
             [user_id, *pair_paths, *pair_paths],
         ).fetchall()
     }
-    rows = [r for r in rows if (r[0], r[1]) not in existing]
+    rows = [r for r in rows if identities[r[0]] != identities[r[1]]
+            and tuple(sorted((identities[r[0]], identities[r[1]]))) not in existing]
     if not rows:
         return 0
     before = conn.total_changes
