@@ -6927,6 +6927,16 @@ describe('GalleryComponent', () => {
         expect(pill(host)).toBeNull();
       });
 
+      it('sizes the bar to its text on the right instead of spanning the screen', () => {
+        const host = render(true, false);
+        const classes = bar(host)!.classList;
+        expect(classes).not.toContain('w-full');
+        expect(classes).toContain('w-fit');
+        expect(classes).toContain('max-w-full');
+        expect(classes).toContain('self-end');
+        expect(pill(host)!.classList).not.toContain('flex-1');
+      });
+
       it('the expanded bar carries a collapse button next to Dismiss all, and a tap folds it', () => {
         twoNotices();
         const host = render(true, false);

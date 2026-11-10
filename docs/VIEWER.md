@@ -273,7 +273,7 @@ Use **Review status → Needs review** in the gallery to work through undecided 
 - Temporary burst/sequence groups are not bookmarked, because a rescan can renumber them.
 - Logging out clears every review-queue bookmark on this browser.
 
-**Floating notices.** Review progress, **Continue reviewing**, the hidden-photos notice and the thumbnail-migration notice stack at the bottom right. Below 1024 px wide they collapse into one full-width bar with the notice count and **Dismiss all**: tap the count to expand them, and the collapse button to fold them back. The bar never folds by itself, and stays as you left it until every notice is gone.
+**Floating notices.** Review progress, **Continue reviewing**, the hidden-photos notice and the thumbnail-migration notice stack at the bottom right. Below 1024 px wide they collapse into one compact bar at the bottom right, as wide as its text, with the notice count and **Dismiss all**: tap the count to expand them, and the collapse button to fold them back. The bar never folds by itself, and stays as you left it until every notice is gone.
 
 - Each card's × hides it for the current browser tab. It returns in a new tab, or when the notice changes (another scope or a changed hidden count).
 - To hide review progress for good, untick **Show review progress** in the gallery's **Review** popover. This is stored per browser and also hides the **Review undecided** button. Ticking it again also brings back a banner you closed with its ×.

@@ -720,12 +720,12 @@ const SET_KIND_TOGGLE: Record<string, keyof HiddenFilterFlags> = {
             <!-- Below lg the stack is one bar whenever it shows, collapsed or not: the label toggles
                  it and Dismiss all is a sibling button (never nested), so the two never float apart
                  over the grid, and a single expanded notice can always be folded back. -->
-            <div data-notice-bar class="pointer-events-auto flex min-h-11 w-full items-stretch overflow-hidden rounded-full border border-[var(--mat-sys-outline-variant)] bg-[var(--mat-sys-surface-container-high)] shadow-lg">
+            <div data-notice-bar class="pointer-events-auto flex min-h-11 w-fit max-w-full self-end items-stretch overflow-hidden rounded-full border border-[var(--mat-sys-outline-variant)] bg-[var(--mat-sys-surface-container-high)] shadow-lg">
               @if (noticesCollapsed()) {
-                <ng-container *ngTemplateOutlet="noticesPill; context: { $implicit: 'min-w-0 flex-1 text-left' }" />
+                <ng-container *ngTemplateOutlet="noticesPill; context: { $implicit: 'min-w-0 text-left' }" />
               } @else {
                 <button type="button" data-notices-collapse
-                        class="flex min-h-11 min-w-0 flex-1 items-center gap-1.5 px-3 text-left text-xs"
+                        class="flex min-h-11 min-w-0 items-center gap-1.5 px-3 text-left text-xs"
                         (click)="collapseNotices($event)">
                   <mat-icon class="!text-base !w-4 !h-4 !leading-4 shrink-0">expand_more</mat-icon>
                   <span class="truncate">{{ I18N.gallery.notices.collapse | translate }}</span>

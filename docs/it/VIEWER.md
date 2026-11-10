@@ -272,7 +272,7 @@ Usa **Stato revisione → Da esaminare** nella galleria per smaltire le foto non
 - I gruppi temporanei di raffica/serie non vengono salvati come segnalibro, perché una nuova scansione può rinumerarli.
 - Il logout cancella ogni segnalibro delle code di revisione su questo browser.
 
-**Avvisi fluttuanti.** L'avanzamento della revisione, **Continua revisione**, l'avviso delle foto nascoste e l'avviso di migrazione delle miniature si impilano in basso a destra. Sotto i 1024 px di larghezza si riuniscono in un'unica barra a tutta larghezza con il conteggio degli avvisi e **Chiudi tutti**: tocca il conteggio per espanderli e il pulsante di riduzione per richiuderli. La barra non si ripiega mai da sola e resta come l'hai lasciata finché non scompare ogni avviso.
+**Avvisi fluttuanti.** L'avanzamento della revisione, **Continua revisione**, l'avviso delle foto nascoste e l'avviso di migrazione delle miniature si impilano in basso a destra. Sotto i 1024 px di larghezza si riuniscono in un'unica barra compatta in basso a destra, larga quanto il suo testo, con il conteggio degli avvisi e **Chiudi tutti**: tocca il conteggio per espanderli e il pulsante di riduzione per richiuderli. La barra non si ripiega mai da sola e resta come l'hai lasciata finché non scompare ogni avviso.
 
 - La × di ogni scheda la nasconde per la scheda corrente del browser. Ritorna in una nuova scheda, o quando l'avviso cambia (altro ambito o conteggio di nascoste cambiato).
 - Per nascondere per sempre l'avanzamento della revisione, deseleziona **Mostra l’avanzamento della revisione** nel popover **Revisione** della galleria. È memorizzato per browser e nasconde anche il pulsante **Rivedi le indecise**. Riselezionandola torna anche un banner chiuso con la sua ×.
