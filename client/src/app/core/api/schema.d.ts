@@ -5280,8 +5280,9 @@ export interface paths {
          * @description Get photo thumbnail.
          *
          *     A ``size`` above 640 is rendered from the original at up to 1920 px. If that
-         *     fails, or the render has no signal, the stored thumbnail is served with a
-         *     short ``max-age``.
+         *     fails, or the render has no signal, the stored thumbnail is served. Every
+         *     image response carries the private ``no-cache`` headers (see
+         *     ``_private_image_headers``) with an ETag, so a client revalidates each time.
          */
         get: operations["get_thumbnail_thumbnail_get"];
         put?: never;

@@ -73,7 +73,10 @@ def test_account_change_revokes_bearer_cookie_refresh_and_held_grant(agent_app, 
         status = env.client.get("/api/auth/status", headers=headers).json()
         assert status["user_id"] is None and status["user_role"] == "user"
         assert status["edition_authenticated"] is False
+        # The refresh above set its own anonymous cookie; send only the stale admin one.
+        env.client.cookies.clear()
         env.client.cookies.set("facet_auth", token)
+        assert list(env.client.cookies.values()) == [token]
         cookie_status = env.client.get("/api/auth/status").json()
         assert cookie_status["user_id"] is None and cookie_status["edition_authenticated"] is False
         from tests.test_agent_bridge import auth_frame, closed_after, connect
