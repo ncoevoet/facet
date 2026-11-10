@@ -114,6 +114,22 @@ describe('rendered literal tag rule editor', () => {
     expect(update).toHaveBeenCalledExactlyOnceWith('tag_groups', '{"any":["coast,ridge"]}');
   });
 
+  it('keeps the typed text in the box when a picked suggestion is refused at the rule limit', () => {
+    const full = { none: Array.from({ length: 50 }, (_, index) => `t${index}`) };
+    filters.update(current => ({ ...current, tag_groups: JSON.stringify(full) })); fixture.detectChanges();
+    const element = input('coa');
+    overlay().querySelector<HTMLElement>('mat-option')!.click(); fixture.detectChanges();
+    expect(update).not.toHaveBeenCalled();
+    expect(element.value).toBe('coa');
+  });
+
+  it('closes its suggestion list when asked to, for a gallery parking behind a photo', () => {
+    input('coa');
+    expect(overlay().querySelector('mat-option')).not.toBeNull();
+    fixture.componentInstance.closeOverlays(); fixture.detectChanges();
+    expect(overlay().querySelector('mat-option')).toBeNull();
+  });
+
   it('clears every rule and returns focus to the first row', async () => {
     add('coast');
     root.querySelector<HTMLButtonElement>('[data-tag-rule-clear]')!.click(); fixture.detectChanges();

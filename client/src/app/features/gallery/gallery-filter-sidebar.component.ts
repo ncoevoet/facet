@@ -160,6 +160,8 @@ export interface SegmentRow {
   options: SegmentOption[];
 }
 
+const COMPOSITION_SECTION = 'gallery.sidebar.composition';
+
 /**
  * The panel a filter control (see `filterUnit`) is counted under. One map feeds the
  * panel badges, the tab badges and the header total, so a range counts once everywhere.
@@ -171,7 +173,7 @@ export const UNIT_PANEL: Record<string, string> = {
   person_id: 'persons', faces_need_names: 'persons',
   date_from: 'date', date_to: 'date', no_capture_date: 'date',
   type: 'content', tag: 'content', keyword_branch: 'content', tag_groups: 'tag_rules',
-  composition_pattern: 'gallery.sidebar.composition',
+  composition_pattern: COMPOSITION_SECTION,
   camera: 'equipment', lens: 'equipment',
   review_status: 'refine', favorites_only: 'refine', is_monochrome: 'refine', show_rejected: 'refine',
   blinks_only: 'refine', duplicates_only: 'refine', sequence_override: 'refine', manual_faces_need_review: 'refine',
@@ -184,7 +186,6 @@ export const UNIT_PANEL: Record<string, string> = {
 
 /** Units of the metric rows; only these drop from a panel's count when the licensing policy hides them. */
 const METRIC_UNITS = new Set(ADDITIONAL_FILTERS.map(def => filterUnit(def.minKey)));
-const COMPOSITION_SECTION = 'gallery.sidebar.composition';
 const COUNT_SCOPE_HELP = [I18N.gallery.sidebar.count_scope_options, I18N.gallery.sidebar.count_scope_types, I18N.gallery.sidebar.count_scope_badges];
 const SEMANTIC_HELP = [I18N.gallery.semantic_search_info, I18N.gallery.semantic_search_threshold_hint];
 const TAG_RULES_HELP = [I18N.gallery.tag_groups.hint];
@@ -590,10 +591,10 @@ type RatingOption = 'any' | '1' | '2' | '3' | '4' | '5' | 'zero';
       <!-- Tag rules -->
         <div class="relative">
         <app-context-help data-section-help="tag_rules" class="absolute right-10 top-1.5 z-10 pointer-coarse:top-0" [iconOnly]="true" [label]="I18N.gallery.tag_groups.help" [keys]="tagRulesHelp" />
-        <mat-expansion-panel class="!mb-1" [expanded]="activeView() || sectionStates()['tag_rules'] === true"
-                             (opened)="onSectionToggle('tag_rules', true)"
-                             (closed)="onSectionToggle('tag_rules', false)"
-                             [style.background-color]="activeView() || sectionStates()['tag_rules'] === true ? 'var(--mat-sys-surface-container)' : null">
+        <mat-expansion-panel class="!mb-1" [expanded]="activeView() || tagRulesOpen()"
+                             (opened)="onTagRulesToggle(true)"
+                             (closed)="onTagRulesToggle(false)"
+                             [style.background-color]="activeView() || tagRulesOpen() ? 'var(--mat-sys-surface-container)' : null">
           <mat-expansion-panel-header class="!px-2 [&_.mat-content]:pe-9">
             <mat-panel-title class="flex items-center gap-2">
               <mat-icon class="!text-xl !w-5 !h-5 !leading-none opacity-80">sell</mat-icon>
@@ -1454,6 +1455,12 @@ export class GalleryFilterSidebarComponent {
     return counts;
   });
 
+  /** Tag rules open by default while rules are set (they may come from a photo's tag), unless the user closed them. */
+  readonly tagRulesOpen = computed(() => {
+    const state = this.sectionStates()['tag_rules'];
+    return state === true || (state !== false && this.sectionActiveCounts()['tag_rules'] > 0);
+  });
+
   /** Each tab's badge: the sum of its panels' counts. */
   readonly tabActiveCounts = computed((): Record<SidebarTabId, number> => {
     const counts = this.sectionActiveCounts();
@@ -1514,6 +1521,11 @@ export class GalleryFilterSidebarComponent {
     this.sidebarPersonQuery.set('');
     const el = this.scrollArea()?.nativeElement;
     if (el) el.scrollTop = 0;
+  }
+
+  /** Save only the user's own toggle: opening because rules were set, or closing because they were cleared, is not a choice. */
+  onTagRulesToggle(isOpen: boolean): void {
+    if (isOpen !== this.tagRulesOpen()) this.onSectionToggle('tag_rules', isOpen);
   }
 
   onSectionToggle(sectionId: string, isOpen: boolean): void {
@@ -1585,11 +1597,14 @@ export class GalleryFilterSidebarComponent {
   /** Close overlays before the gallery parks behind a photo. */
   private readonly helps = viewChildren(ContextHelpComponent);
 
+  private readonly tagGroups = viewChild(TagGroupsComponent);
+
   closeOverlays(): void {
     for (const help of this.helps()) {
       help.close();
       help.hideTooltips();
     }
+    this.tagGroups()?.closeOverlays();
     closeOverlayDirectives(this.tooltips(), this.menuTriggers(), this.selects());
   }
 

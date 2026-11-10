@@ -1,7 +1,7 @@
 import { GalleryViewControlsComponent } from './gallery-view-controls.component';
 import { ADDITIONAL_FILTERS } from './gallery-metric-filters';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
-import { signal } from '@angular/core';
+import { signal, WritableSignal } from '@angular/core';
 import { provideRouter } from '@angular/router';
 import { of } from 'rxjs';
 import { MatSelect } from '@angular/material/select';
@@ -1227,6 +1227,39 @@ describe('GalleryFilterSidebarComponent', () => {
       expect(editor!.querySelector('[role=alert]')!.textContent).toContain('gallery.tag_groups.invalid');
       editor!.querySelector<HTMLButtonElement>('[data-tag-rule-clear]')!.click();
       expect(mockStore['updateFilter']).toHaveBeenCalledWith('tag_groups', '');
+    });
+
+    it('opens Tag rules while rules are set, unless the user closed the section', () => {
+      showTab('find');
+      const panel = () => (fixture.nativeElement as HTMLElement).querySelector('app-tag-groups')!.closest('mat-expansion-panel')!;
+      expect(panel().classList).not.toContain('mat-expanded');
+      TestBed.inject(GalleryStore).filters.update(filters => ({ ...filters, tag_groups: '{"any":["sea"]}' }));
+      fixture.detectChanges();
+      expect(panel().classList).toContain('mat-expanded');
+      expect(JSON.parse(localStorage.getItem('facet_sidebar_sections') ?? '{}')['tag_rules']).toBeUndefined();
+      TestBed.inject(GalleryStore).filters.update(filters => ({ ...filters, tag_groups: '' }));
+      fixture.detectChanges();
+      expect(panel().classList).not.toContain('mat-expanded');
+      TestBed.inject(GalleryStore).filters.update(filters => ({ ...filters, tag_groups: '{"any":["sea"]}' }));
+      fixture.detectChanges();
+      fixture.componentInstance.onTagRulesToggle(false);
+      fixture.detectChanges();
+      expect(panel().classList).not.toContain('mat-expanded');
+      localStorage.removeItem('facet_sidebar_sections');
+    });
+
+    it('closes the tag-rule suggestion list when the gallery parks', () => {
+      (mockStore['tags'] as WritableSignal<{ value: string; count: number }[]>).set([{ value: 'sea', count: 3 }]);
+      showTab('find');
+      const field = (fixture.nativeElement as HTMLElement).querySelector<HTMLInputElement>('[data-tag-rule-input]')!;
+      field.focus();
+      field.value = 'se'; field.dispatchEvent(new Event('input', { bubbles: true }));
+      fixture.detectChanges();
+      const overlay = TestBed.inject(OverlayContainer).getContainerElement();
+      expect(overlay.querySelector('mat-option')).not.toBeNull();
+      fixture.componentInstance.closeOverlays();
+      fixture.detectChanges();
+      expect(overlay.querySelector('mat-option')).toBeNull();
     });
 
     it('lists the advanced metric sections as top-level sections, with no wrapping panel', () => {

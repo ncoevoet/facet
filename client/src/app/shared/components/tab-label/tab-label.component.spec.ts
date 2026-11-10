@@ -50,5 +50,7 @@ describe('TabLabelComponent', () => {
     fixture.detectChanges();
     expect(tooltip.message).toBe('Locked until 10 more comparisons');
     expect(tooltip.disabled).toBe(false);
+    // Material sets pointer-events: none on a disabled tab; the label opts back in so the hint can show.
+    expect((fixture.nativeElement as HTMLElement).querySelector('[data-tab-label]')!.classList).toContain('pointer-events-auto');
   });
 });

@@ -61,6 +61,7 @@ export class TagGroupsComponent {
   protected readonly store = inject(GalleryStore);
   private readonly injector = inject(Injector);
   private readonly ruleInputs = viewChildren<ElementRef<HTMLInputElement>>('ruleInput');
+  private readonly triggers = viewChildren(MatAutocompleteTrigger);
   /** Enter is handled by `add`, which guards IME composition and key repeat; commas are literal. */
   protected readonly noSeparators: readonly number[] = [];
   protected readonly drafts = signal<Record<TagQueryGroup, string>>(EMPTY_DRAFTS);
@@ -100,20 +101,29 @@ export class TagGroupsComponent {
   }
 
   protected pick(group: TagQueryGroup, event: MatAutocompleteSelectedEvent, input: HTMLInputElement): void {
-    this.commit(group, String(event.option.value));
-    input.value = '';
+    // A refused pick leaves the typed text in the box, so the input never hides what Enter would add.
+    input.value = this.commit(group, String(event.option.value)) ? '' : this.drafts()[group];
   }
 
-  private commit(group: TagQueryGroup, raw: string): void {
+  /** Close the suggestion lists, for a gallery parking behind a photo page. */
+  closeOverlays(): void {
+    for (const trigger of this.triggers()) trigger.closePanel();
+  }
+
+  private commit(group: TagQueryGroup, raw: string): boolean {
     const name = raw.trim();
-    if (!this.context.current() || !name || this.total() >= TAG_QUERY_LIMIT || this.context.pending()) return;
+    if (!this.context.current() || !name || this.total() >= TAG_QUERY_LIMIT || this.context.pending()) return false;
     const groups = this.groups();
-    if (!groups) return;
+    if (!groups) return false;
     const next = { ...groups, [group]: [...new Set([...groups[group], name])] };
-    if (!parseTagQuery(JSON.stringify(next))) { this.error.set(group); return; }
+    if (!parseTagQuery(JSON.stringify(next))) {
+      this.error.set(group);
+      return false;
+    }
     void this.store.updateFilter('tag_groups', serializeTagQuery(next));
     this.setDraft(group, '');
     this.error.set(null);
+    return true;
   }
 
   protected remove(group: TagQueryGroup, tag: string): void {

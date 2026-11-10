@@ -13,7 +13,7 @@ import { SM_BREAKPOINT_PX, useDesktopSignal } from '../../utils/media-query';
   changeDetection: ChangeDetectionStrategy.OnPush,
   host: { class: 'inline-flex' },
   template: `
-    <span data-tab-label class="inline-flex items-center gap-2" [matTooltip]="hint() || label()" [matTooltipDisabled]="!hint() && wide()">
+    <span data-tab-label class="pointer-events-auto inline-flex items-center gap-2" [matTooltip]="hint() || label()" [matTooltipDisabled]="!hint() && wide()">
       <mat-icon aria-hidden="true">{{ icon() }}</mat-icon>
       <span data-tab-name class="whitespace-nowrap max-sm:sr-only">{{ label() }}</span>
     </span>
