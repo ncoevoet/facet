@@ -4,8 +4,7 @@ import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
 import { MatTooltipModule } from '@angular/material/tooltip';
-import { firstValueFrom, Subject, takeUntil } from 'rxjs';
-import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import { firstValueFrom } from 'rxjs';
 import { Chart } from 'chart.js';
 import { ApiService } from '../../core/services/api.service';
 import { I18nService } from '../../core/services/i18n.service';
@@ -13,6 +12,7 @@ import { ThemeService } from '../../core/services/theme.service';
 import { TranslatePipe } from '../../shared/pipes/translate.pipe';
 import { StatsFiltersService } from './stats-filters.service';
 import { downloadCsv } from '../../shared/utils/csv';
+import { LatestRequest } from '../../shared/utils/latest-request';
 import { i18nKeys } from '../../core/i18n/keys';
 
 /** Pipe to compute heatmap circle color from count:max. */
@@ -171,8 +171,7 @@ export class StatsTimelineTabComponent {
   private statsFilters = inject(StatsFiltersService);
   private themeService = inject(ThemeService);
   private charts = new Map<string, Chart>();
-  private readonly cancelLoad = new Subject<void>();
-  private requestId = 0;
+  private readonly latestLoad = new LatestRequest(this.destroyRef);
 
   readonly timelineCanvas = viewChild<ElementRef<HTMLCanvasElement>>('timelineCanvas');
   readonly yearlyCanvas = viewChild<ElementRef<HTMLCanvasElement>>('yearlyCanvas');
@@ -240,21 +239,18 @@ export class StatsTimelineTabComponent {
   }
 
   async loadTimeline(): Promise<void> {
-    const requestId = ++this.requestId;
-    this.cancelLoad.next();
+    const req = this.latestLoad.begin();
     const params = this.filterParams;
-    const isCurrent = () => !this.destroyRef.destroyed && requestId === this.requestId
+    const isCurrent = () => req.isCurrent()
       && JSON.stringify(params) === JSON.stringify(this.filterParams);
     this.clearTimeline();
     this.timelineError.set(false);
     this.timelineLoading.set(true);
     try {
-      const data = await firstValueFrom(this.api.get<{
+      const data = await firstValueFrom(req.bind(this.api.get<{
         monthly: { month: string; count: number; avg_score: number }[];
         heatmap?: { day: number; hour: number; count: number }[];
-      }>('/stats/timeline', params).pipe(
-        takeUntil(this.cancelLoad), takeUntilDestroyed(this.destroyRef),
-      ));
+      }>('/stats/timeline', params)));
       if (!isCurrent()) return;
 
       const monthly = data.monthly ?? [];

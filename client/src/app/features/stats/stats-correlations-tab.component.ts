@@ -7,8 +7,7 @@ import { MatSelectModule } from '@angular/material/select';
 import { MatIconModule } from '@angular/material/icon';
 import { MatTooltipModule } from '@angular/material/tooltip';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
-import { firstValueFrom, Subject, takeUntil } from 'rxjs';
-import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import { firstValueFrom } from 'rxjs';
 import { Chart } from 'chart.js';
 import { ApiService } from '../../core/services/api.service';
 import { ThemeService } from '../../core/services/theme.service';
@@ -16,6 +15,7 @@ import { TranslatePipe } from '../../shared/pipes/translate.pipe';
 import { StatsFiltersService } from './stats-filters.service';
 import { downloadCsv } from '../../shared/utils/csv';
 import { CorrelationApiResponse, buildCorrelationCsvRecords } from './stats-correlations-csv';
+import { LatestRequest } from '../../shared/utils/latest-request';
 import { i18nKeys } from '../../core/i18n/keys';
 
 interface LoadedCorrelation {
@@ -125,8 +125,7 @@ export class StatsCorrelationsTabComponent {
   private statsFilters = inject(StatsFiltersService);
   private themeService = inject(ThemeService);
   private charts = new Map<string, Chart>();
-  private readonly cancelLoad = new Subject<void>();
-  private requestId = 0;
+  private readonly latestLoad = new LatestRequest(this.destroyRef);
   private activeQueryKey: string | null = null;
 
   readonly correlationsCanvas = viewChild<ElementRef<HTMLCanvasElement>>('correlationsCanvas');
@@ -215,9 +214,8 @@ export class StatsCorrelationsTabComponent {
   }
 
   private invalidateCorrelation(): void {
-    ++this.requestId;
+    this.latestLoad.cancel();
     this.activeQueryKey = null;
-    this.cancelLoad.next();
     this.loadedCorrelation.set(null);
     this.correlationLoading.set(false);
     this.correlationError.set(false);
@@ -227,18 +225,16 @@ export class StatsCorrelationsTabComponent {
     this.invalidateCorrelation();
     const metrics = [...this.corrYMetrics()];
     if (metrics.length === 0) return;
-    const requestId = this.requestId;
+    const req = this.latestLoad.begin();
     const params = this.queryParams();
     const queryKey = this.queryKey();
     this.activeQueryKey = queryKey;
-    const isCurrent = () => !this.destroyRef.destroyed && requestId === this.requestId
+    const isCurrent = () => req.isCurrent()
       && queryKey === this.queryKey();
     this.correlationLoading.set(true);
     try {
       const data = await firstValueFrom(
-        this.api.get<CorrelationApiResponse>('/stats/correlations', params).pipe(
-          takeUntil(this.cancelLoad), takeUntilDestroyed(this.destroyRef),
-        ),
+        req.bind(this.api.get<CorrelationApiResponse>('/stats/correlations', params)),
       );
       if (isCurrent()) this.loadedCorrelation.set({ data, metrics, queryKey });
     } catch {

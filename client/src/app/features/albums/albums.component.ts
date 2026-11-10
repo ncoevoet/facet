@@ -8,8 +8,8 @@ import { MatSelectModule } from '@angular/material/select';
 import { MatDialogModule, MatDialog } from '@angular/material/dialog';
 import { MatTooltipModule } from '@angular/material/tooltip';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
-import { firstValueFrom, Subject, takeUntil } from 'rxjs';
-import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import { firstValueFrom } from 'rxjs';
+import { LatestRequest } from '../../shared/utils/latest-request';
 import { AlbumService, Album } from '../../core/services/album.service';
 import { AuthService } from '../../core/services/auth.service';
 import { I18nService } from '../../core/services/i18n.service';
@@ -204,8 +204,7 @@ import { MarkTonePipe } from '../../shared/pipes/mark-tone.pipe';
 export class AlbumsComponent {
   private readonly albumService = inject(AlbumService);
   private readonly destroyRef = inject(DestroyRef);
-  private readonly cancelLoad = new Subject<void>();
-  private requestId = 0;
+  private readonly latestLoad = new LatestRequest(this.destroyRef);
   private readonly journal = inject(UserActivityJournal);
   private readonly dialog = inject(MatDialog);
   private readonly i18n = inject(I18nService);
@@ -269,8 +268,7 @@ export class AlbumsComponent {
   }
 
   private async loadAlbums(reset: boolean): Promise<void> {
-    const requestId = ++this.requestId;
-    this.cancelLoad.next();
+    const req = this.latestLoad.begin();
     const requestedPage = reset ? 1 : this.page + 1;
     const params = {
       page: requestedPage,
@@ -279,7 +277,7 @@ export class AlbumsComponent {
       sort: this.albumsFilters.sort(),
       search: this.albumsFilters.search(),
     };
-    const isCurrent = () => !this.destroyRef.destroyed && requestId === this.requestId
+    const isCurrent = () => req.isCurrent()
       && params.type === this.albumsFilters.typeFilter()
       && params.sort === this.albumsFilters.sort()
       && params.search === this.albumsFilters.search();
@@ -291,9 +289,7 @@ export class AlbumsComponent {
     this.loadError.set(false);
     this.loading.set(true);
     try {
-      const res = await firstValueFrom(this.albumService.list(params).pipe(
-        takeUntil(this.cancelLoad), takeUntilDestroyed(this.destroyRef),
-      ));
+      const res = await firstValueFrom(req.bind(this.albumService.list(params)));
       if (!isCurrent()) return;
       if (reset) {
         this.albums.set(res.albums);

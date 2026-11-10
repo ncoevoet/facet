@@ -1,14 +1,14 @@
 import { Component, inject, signal, input, effect, output, DestroyRef, ChangeDetectionStrategy } from '@angular/core';
 import { MatIconModule } from '@angular/material/icon';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
-import { firstValueFrom, Subject, takeUntil } from 'rxjs';
-import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import { firstValueFrom } from 'rxjs';
 import { MatButtonModule } from '@angular/material/button';
 import { ApiService } from '../../core/services/api.service';
 import { ThumbnailUrlPipe } from '../../shared/pipes/thumbnail-url.pipe';
 import { TranslatePipe } from '../../shared/pipes/translate.pipe';
 import { TimelineFiltersService } from './timeline-filters.service';
 import { GalleryStore, type ViewFilterParams } from '../gallery/gallery.store';
+import { LatestRequest } from '../../shared/utils/latest-request';
 
 interface DateEntry {
   date: string;
@@ -85,8 +85,7 @@ interface CalendarCell {
 export class TimelineDaysComponent {
   private readonly api = inject(ApiService);
   private readonly destroyRef = inject(DestroyRef);
-  private readonly cancelLoad = new Subject<void>();
-  private requestId = 0;
+  private readonly latestLoad = new LatestRequest(this.destroyRef);
   private readonly filters = inject(TimelineFiltersService);
   private readonly store = inject(GalleryStore);
 
@@ -125,10 +124,9 @@ export class TimelineDaysComponent {
   private async load(
     year: number, month: number, dateFrom: string, dateTo: string, viewParams: ViewFilterParams,
   ): Promise<void> {
-    const requestId = ++this.requestId;
-    this.cancelLoad.next();
+    const req = this.latestLoad.begin();
     const selectionKey = this.selectionKey;
-    const isCurrent = () => !this.destroyRef.destroyed && requestId === this.requestId
+    const isCurrent = () => req.isCurrent()
       && selectionKey === this.selectionKey;
     this.calendarCells.set([]);
     this.loadError.set(false);
@@ -138,9 +136,7 @@ export class TimelineDaysComponent {
       if (dateFrom) params['date_from'] = dateFrom;
       if (dateTo) params['date_to'] = dateTo;
       const res = await firstValueFrom(
-        this.api.get<{ dates: DateEntry[] }>('/timeline/dates', params).pipe(
-          takeUntil(this.cancelLoad), takeUntilDestroyed(this.destroyRef),
-        ),
+        req.bind(this.api.get<{ dates: DateEntry[] }>('/timeline/dates', params)),
       );
 
       if (!isCurrent()) return;
