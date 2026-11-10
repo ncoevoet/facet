@@ -1510,6 +1510,7 @@ export const I18N = {
         label: "gallery.sidebar.active_view.label",
         show: "gallery.sidebar.active_view.show",
         none: "gallery.sidebar.active_view.none",
+        elsewhere: "gallery.sidebar.active_view.elsewhere",
       },
     },
     semantic_search_info: "gallery.semantic_search_info",

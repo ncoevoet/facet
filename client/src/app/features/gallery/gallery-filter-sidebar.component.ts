@@ -392,7 +392,7 @@ type RatingOption = 'any' | '1' | '2' | '3' | '4' | '5' | 'zero';
         }
       } @else {
         @if (activeView() && !shownPanels().length) {
-          <p data-active-view-empty class="text-xs text-[var(--mat-sys-on-surface-variant)] px-2 py-3">{{ I18N.gallery.sidebar.active_view.none | translate }}</p>
+          <p data-active-view-empty class="text-xs text-[var(--mat-sys-on-surface-variant)] px-2 py-3">{{ activeViewEmptyKey() | translate }}</p>
         }
         <!-- Each tab, and the Active filters view, lists its panels in TAB_SECTIONS order. -->
         @for (panel of shownPanels(); track panel) {
@@ -1465,18 +1465,27 @@ export class GalleryFilterSidebarComponent {
 
   /** The Active filters view: every visible tab's panels that hold an active filter, in tab order, shown open. */
   readonly activeView = signal(false);
+  /** The panels the view opened with stay until it is left, so clearing a filter never removes the panel holding focus. */
+  private readonly activeViewKept = signal<readonly string[]>([]);
   readonly activeViewCount = computed(() => this.visibleTabIds().reduce((sum, id) => sum + this.tabActiveCounts()[id], 0));
   readonly activeViewPanels = computed(() => {
     const counts = this.sectionActiveCounts();
+    const kept = this.activeViewKept();
     // The Review settings render as one block from their first panel id.
     return this.visibleTabIds().flatMap(id => id === 'review'
-      ? (this.tabActiveCounts().review ? [TAB_SECTIONS.review[0]] : [])
-      : TAB_SECTIONS[id].filter(panel => counts[panel] > 0));
+      ? (this.tabActiveCounts().review || kept.includes(TAB_SECTIONS.review[0]) ? [TAB_SECTIONS.review[0]] : [])
+      : TAB_SECTIONS[id].filter(panel => counts[panel] > 0 || kept.includes(panel)));
   });
   readonly shownPanels = computed(() => this.activeView() ? this.activeViewPanels() : TAB_SECTIONS[this.effectiveTab()]);
+  /** Filters outside the visible tabs (Review, the filename search) still count in the header, so the view must not say none apply. */
+  readonly activeViewEmptyKey = computed((): string => this.totalActiveCount()
+    ? I18N.gallery.sidebar.active_view.elsewhere
+    : I18N.gallery.sidebar.active_view.none);
 
   toggleActiveView(): void {
+    this.activeViewKept.set([]);
     this.activeView.update(on => !on);
+    if (this.activeView()) this.activeViewKept.set(this.activeViewPanels());
     const el = this.scrollArea()?.nativeElement;
     if (el) el.scrollTop = 0;
   }

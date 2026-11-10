@@ -1469,7 +1469,8 @@
       "active_view": {
         "label": "Filtres actifs",
         "show": "N’affiche que les filtres utilisés, de tous les onglets",
-        "none": "Aucun filtre appliqué"
+        "none": "Aucun filtre appliqué",
+        "elsewhere": "Aucun filtre de ces onglets n’est utilisé"
       }
     },
     "semantic_search_info": "La recherche sémantique charge les embeddings en mémoire au premier usage. Cela peut prendre un moment pour les grandes bibliothèques.",

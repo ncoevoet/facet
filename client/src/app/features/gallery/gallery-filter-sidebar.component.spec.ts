@@ -963,6 +963,25 @@ describe('GalleryFilterSidebarComponent', () => {
         expect(host().querySelector('mat-expansion-panel')).toBeNull();
       });
 
+      it('keeps a panel whose last filter is cleared until the view is left, so focus is not lost', () => {
+        setFilters({ date_from: '2024-01-01', min_score: '5' });
+        toggle().click(); settle();
+        setFilters({ date_from: '' });
+        expect(panelTitles()).toEqual(['gallery.sidebar.date', 'gallery.sidebar.quality']);
+        toggle().click(); settle();
+        toggle().click(); settle();
+        expect(panelTitles()).toEqual(['gallery.sidebar.quality']);
+      });
+
+      it('does not claim that no filter is applied while only filters outside its tabs are set', () => {
+        toggle().click(); settle();
+        expect(fixture.componentInstance.activeViewEmptyKey()).toBe('gallery.sidebar.active_view.none');
+        fixture.componentRef.setInput('portSettings', true);
+        setFilters({ favorites_only: true });
+        expect(fixture.componentInstance.activeViewPanels()).toEqual([]);
+        expect(fixture.componentInstance.activeViewEmptyKey()).toBe('gallery.sidebar.active_view.elsewhere');
+      });
+
       it('leaves the view when a tab is chosen, the current one included', () => {
         toggle().click(); settle();
         links()[0].click(); settle();

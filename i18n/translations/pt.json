@@ -1469,7 +1469,8 @@
       "active_view": {
         "label": "Filtros ativos",
         "show": "Mostra só os filtros em uso, de todas as abas",
-        "none": "Nenhum filtro aplicado"
+        "none": "Nenhum filtro aplicado",
+        "elsewhere": "Nenhum filtro destas abas está em uso"
       }
     },
     "semantic_search_info": "A busca semântica carrega os embeddings na RAM no primeiro uso. Isso pode levar um momento para bibliotecas grandes.",

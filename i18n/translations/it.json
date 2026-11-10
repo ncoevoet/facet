@@ -1469,7 +1469,8 @@
       "active_view": {
         "label": "Filtri attivi",
         "show": "Mostra solo i filtri in uso, da tutte le schede",
-        "none": "Nessun filtro applicato"
+        "none": "Nessun filtro applicato",
+        "elsewhere": "Nessun filtro di queste schede è in uso"
       }
     },
     "semantic_search_info": "La ricerca semantica carica gli embedding nella RAM al primo utilizzo. Potrebbe richiedere un momento per le librerie di grandi dimensioni.",

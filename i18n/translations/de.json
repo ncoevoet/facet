@@ -1469,7 +1469,8 @@
       "active_view": {
         "label": "Aktive Filter",
         "show": "Zeigt nur die verwendeten Filter aus allen Tabs",
-        "none": "Keine Filter angewendet"
+        "none": "Keine Filter angewendet",
+        "elsewhere": "Keine Filter aus diesen Tabs in Verwendung"
       }
     },
     "semantic_search_info": "Die semantische Suche lädt beim ersten Gebrauch Embeddings in den RAM. Bei großen Bibliotheken kann dies einen Moment dauern.",
