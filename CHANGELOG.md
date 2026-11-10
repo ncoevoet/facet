@@ -8,6 +8,7 @@ All notable changes to Facet are documented in this file.
 
 - **`Ctrl+Z` / `Cmd+Z` presses the snackbar's Undo while it is showing**, on every page that offers one (gallery batch changes, culling and stack confirms, person hides), including inside the darkroom. A text field keeps its own undo, an open dialog keeps the key, and with no snackbar on screen the key does nothing. The `?` reference lists it on the gallery, culling and stack-suggestion pages.
 - **Clicking the version in the user menu copies it**, with the build line when there is one (`Facet 1.28.0 (main@abc1234)`), so a bug report or test note can quote exactly what is running.
+- **Google Maps in the location dialog.** For one photo and for **Set location** on a selection or a whole view, **Pick on Google Maps** opens Google Maps in a new tab at the pin (else the selection's first geotagged photo, else the map centre), and a **Google Maps link or coordinates** field moves the pin to a pasted point: the pair Google copies on right-click, degrees/minutes/seconds, or a Google Maps URL (the dropped pin `!3d…!4d…` first, then `q=`/`query=`/`ll=`/`center=`, then `@lat,lon`). Short links (`maps.app.goo.gl`, `goo.gl/maps`) are followed by the new edition-only `POST /api/geo/resolve_maps_link`, which requests only five Google hosts over HTTPS at public addresses, at most 5 redirects within 5 seconds, and never reads a page body. Nothing is saved until Save, as before. No Google API, key or map tiles are used; the dialog map stays OpenStreetMap.
 
 ### Changed
 

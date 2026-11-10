@@ -107,6 +107,7 @@ EXPECTED_EDITION_ROUTES = frozenset({
     ('DELETE', '/api/places/{place_id}'),
     ('GET', '/api/places'),
     ('GET', '/api/places/search'),
+    ('POST', '/api/geo/resolve_maps_link'),
     ('POST', '/api/places'),
     ('PUT', '/api/places/{place_id}'),
     ('GET', '/api/albums/{album_id}/picks'),

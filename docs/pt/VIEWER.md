@@ -824,6 +824,19 @@ Use **Endereço ou estabelecimento → Pesquisar online** para procurar um local
 - O Facet espera pelo menos um segundo entre chamadas ao provedor e nunca envia duas ao mesmo tempo.
 - O Facet não registra as consultas. Configure o seu proxy reverso para não registrar as query strings.
 
+### Links e coordenadas do Google Maps
+
+A caixa de localização (uma foto, ou **Definir localização** para uma seleção ou toda uma vista de álbum) também aceita pontos do Google Maps. Nada é salvo até você clicar em **Salvar** (ou pré-visualizar e aplicar um lote), como com qualquer outro ponto.
+
+- **Escolher no Google Maps** abre o Google Maps numa nova aba no alfinete atual; se não houver, na primeira foto geolocalizada da seleção; senão, no centro do mapa. Encontre o lugar lá e copie-o.
+- **Link do Google Maps ou coordenadas**: cole e pressione Enter ou clique em **Ir ao ponto**. O alfinete vai para o ponto para você conferir. São aceitos:
+  - o par que o Google copia ao clicar com o botão direito no mapa, p. ex. `32.6064, -116.3239` (um espaço no lugar da vírgula também funciona);
+  - graus, minutos e segundos como `32°36'23.0"N 116°19'26.0"W`;
+  - uma URL completa do Google Maps. O alfinete marcado (`!3d…!4d…`) prevalece sobre um valor `q=`, `query=`, `ll=` ou `center=`, que prevalece sobre o centro da vista `@lat,lon`;
+  - um link curto (`maps.app.goo.gl/…`, `goo.gl/maps/…`). O navegador não consegue abri-los, então a galeria segue o redirecionamento (`POST /api/geo/resolve_maps_link`, só no modo de edição).
+- A resolução de links curtos só consulta `maps.app.goo.gl`, `goo.gl`, `maps.google.com`, `www.google.com` e `google.com` por HTTPS, apenas em endereços públicos, com no máximo 5 redirecionamentos em 5 segundos, e nunca lê o corpo de uma página. Qualquer outro host é recusado sem requisição. Os links não são registrados.
+- O Facet não usa API do Google, chave de API nem blocos de mapa do Google: os termos do Google não permitem seus blocos dentro de outro mapa, por isso o mapa da caixa continua sendo o OpenStreetMap.
+
 ## Cápsulas
 
 Apresentações temáticas agrupadas por tema, local, pessoas e tempo. Abra `/capsules` e clique em uma cápsula para reproduzi-la.

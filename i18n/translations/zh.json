@@ -3359,7 +3359,15 @@
       "batch_applied_plural": "已更新 {changed} 张照片；跳过 {skipped} 张。",
       "batch_error": "无法应用位置。请选择最多 1000 张照片并重新预览；所选照片或已保存地点可能已更改。",
       "batch_limit": "请选择最多 1000 张照片。关闭保护后将替换现有位置。原始文件保持不变。",
-      "batch_hint": "选择一个位置，然后预览更改，再保存所选照片。"
+      "batch_hint": "选择一个位置，然后预览更改，再保存所选照片。",
+      "maps_link": "Google 地图链接或坐标",
+      "maps_go": "前往该点",
+      "maps_hint": "粘贴 Google 地图链接（包括短链接）或坐标，例如 32.6064, -116.3239 或 32°36'23\"N 116°19'26\"W。图钉会移动；点击保存前不会保存任何内容。",
+      "maps_resolving": "正在读取链接…",
+      "maps_moved": "图钉已移到 {lat}, {lng}。请确认后保存。",
+      "maps_unrecognized": "未找到坐标。请粘贴 Google 地图链接，或在 Google 地图中右键点击地图并复制数字。",
+      "maps_unreachable": "无法打开该链接。请检查网络连接，或改为复制坐标。",
+      "maps_pick": "在 Google 地图上选择"
     },
     "distribution": {
       "scope": "分布范围",

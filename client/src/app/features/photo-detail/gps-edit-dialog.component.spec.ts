@@ -637,6 +637,280 @@ describe('GpsEditDialogComponent', () => {
     expect(mockStore.loadPhotos).not.toHaveBeenCalled();
   });
 
+  describe('Google Maps links and coordinates', () => {
+    const PIN_URL = 'https://www.google.com/maps/place/X/@1,2,12z/data=!3m1!4b1!4m6!3m5!8m2!3d32.6064!4d-116.3239';
+    const DMS_TEXT = `32°36'23.0"N 116°19'26.0"W`;
+    let open: ReturnType<typeof vi.spyOn>;
+
+    beforeEach(() => { open = vi.spyOn(window, 'open').mockReturnValue(null); });
+    afterEach(() => open.mockRestore());
+
+    function single() { createComponent({ path: '/photo.jpg', filename: 'photo.jpg', lat: null, lng: null }); }
+
+    it('moves the pin to a pasted coordinate pair without saving', async () => {
+      single();
+      component.setMapsInput('32.6064, -116.3239');
+      await component.applyMapsInput();
+      expect(component.selectedLat()).toBe(32.6064);
+      expect(component.selectedLng()).toBe(-116.3239);
+      expect(component.mapsPoint()).toEqual({ lat: 32.6064, lng: -116.3239 });
+      expect(mockApi.post).not.toHaveBeenCalled();
+      expect(mockApi.put).not.toHaveBeenCalled();
+      expect(mockDialogRef.close).not.toHaveBeenCalled();
+    });
+
+    it('reads the dropped pin of a full URL and clears a chosen saved place', async () => {
+      single();
+      component.selectedPlaceId.set(7);
+      component.setMapsInput(PIN_URL);
+      await component.applyMapsInput();
+      expect([component.selectedLat(), component.selectedLng()]).toEqual([32.6064, -116.3239]);
+      expect(component.selectedPlaceId()).toBeNull();
+    });
+
+    it('resolves a short link on the server, then the user still saves', async () => {
+      single();
+      mockApi.post.mockReturnValue(of({ latitude: 10.5, longitude: 20.25 }));
+      component.setMapsInput(' https://maps.app.goo.gl/AbC ');
+      await component.applyMapsInput();
+      expect(mockApi.post).toHaveBeenCalledWith('/geo/resolve_maps_link', { url: 'https://maps.app.goo.gl/AbC' });
+      expect([component.selectedLat(), component.selectedLng()]).toEqual([10.5, 20.25]);
+      expect(mockApi.put).not.toHaveBeenCalled();
+      mockApi.put.mockReturnValue(of({ gps_latitude: 10.5, gps_longitude: 20.25 }));
+      await component.save();
+      expect(mockApi.put).toHaveBeenCalledWith('/photo/gps', { path: '/photo.jpg', gps_latitude: 10.5, gps_longitude: 20.25 });
+    });
+
+    it.each(['Pine Valley', 'https://evil.example/maps/x', '95, 10'])('refuses %s locally without a request', async text => {
+      single();
+      component.setMapsInput(text);
+      await component.applyMapsInput();
+      expect(component.mapsError()).toBe('photo_detail.gps.maps_unrecognized');
+      expect(component.selectedLat()).toBeNull();
+      expect(mockApi.post).not.toHaveBeenCalled();
+    });
+
+    it.each([
+      [{ status: 422, error: { detail: 'no_coordinates' } }, 'photo_detail.gps.maps_unrecognized'],
+      [{ status: 422, error: { detail: 'unsupported_host' } }, 'photo_detail.gps.maps_unrecognized'],
+      [{ status: 422, error: { detail: 'unreachable' } }, 'photo_detail.gps.maps_unreachable'],
+      [{ status: 0 }, 'photo_detail.gps.maps_unreachable'],
+    ])('reports a refused short link %j', async (error, key) => {
+      single();
+      mockApi.post.mockReturnValue(throwError(() => error));
+      component.setMapsInput('https://maps.app.goo.gl/AbC');
+      await component.applyMapsInput();
+      expect(component.mapsError()).toBe(key);
+      expect(component.mapsBusy()).toBe(false);
+      expect(component.selectedLat()).toBeNull();
+    });
+
+    it('drops a short-link answer once the field has been edited', async () => {
+      single();
+      const pending = new Subject<{ latitude: number; longitude: number }>();
+      mockApi.post.mockReturnValue(pending);
+      component.setMapsInput('https://maps.app.goo.gl/AbC');
+      const resolving = component.applyMapsInput();
+      expect(component.mapsBusy()).toBe(true);
+      component.setMapsInput('something else');
+      pending.next({ latitude: 1, longitude: 2 });
+      pending.complete();
+      await resolving;
+      expect(component.selectedLat()).toBeNull();
+      expect(component.mapsBusy()).toBe(false);
+    });
+
+    it('opens Google Maps at the pin, in a new tab without an opener', () => {
+      createComponent({ path: '/photo.jpg', filename: 'photo.jpg', lat: 32.6064, lng: -116.3239 });
+      component.openGoogleMaps();
+      expect(open).toHaveBeenCalledWith('https://www.google.com/maps/search/?api=1&query=32.606400,-116.323900', '_blank', 'noopener');
+    });
+
+    const MAPS = (lat: number, lng: number) => `https://www.google.com/maps/search/?api=1&query=${lat.toFixed(6)},${lng.toFixed(6)}`;
+
+    it('opens a listed batch at the first geotagged listed photo', () => {
+      createComponent({ path: '', filename: 'Set location', lat: null, lng: null, batch: { photo_paths: ['/b.jpg', '/c.jpg'] } });
+      Object.assign(mockStore, { photos: () => [
+        makePhoto({ path: '/a.jpg', gps_latitude: 1, gps_longitude: 1 }),
+        makePhoto({ path: '/b.jpg', gps_latitude: null, gps_longitude: null }),
+        makePhoto({ path: '/c.jpg', gps_latitude: 3, gps_longitude: 4 }),
+      ] });
+      component.openGoogleMaps();
+      expect(open).toHaveBeenLastCalledWith(MAPS(3, 4), '_blank', 'noopener');
+    });
+
+    it('opens a filters batch at the default centre when every geotagged photo is excluded', () => {
+      createComponent({ path: '', filename: 'Set location', lat: null, lng: null, batch: { filters: {}, exclude: ['/a.jpg'] } });
+      Object.assign(mockStore, { photos: () => [makePhoto({ path: '/a.jpg', gps_latitude: 1, gps_longitude: 1 })] });
+      component.openGoogleMaps();
+      expect(open).toHaveBeenLastCalledWith(MAPS(48.8566, 2.3522), '_blank', 'noopener');
+    });
+
+    it('opens a filters batch at the first geotagged photo that is not excluded', () => {
+      createComponent({ path: '', filename: 'Set location', lat: null, lng: null, batch: { filters: {}, exclude: ['/a.jpg'] } });
+      Object.assign(mockStore, { photos: () => [
+        makePhoto({ path: '/a.jpg', gps_latitude: 1, gps_longitude: 1 }),
+        makePhoto({ path: '/b.jpg', gps_latitude: 5, gps_longitude: 6 }),
+      ] });
+      component.openGoogleMaps();
+      expect(open).toHaveBeenLastCalledWith(MAPS(5, 6), '_blank', 'noopener');
+    });
+
+    it('falls back to the photo coordinates while the typed ones are invalid', () => {
+      createComponent({ path: '/photo.jpg', filename: 'photo.jpg', lat: 1, lng: 2 });
+      component.setLatitude(95);
+      expect(component.coordinatesValid()).toBe(false);
+      component.openGoogleMaps();
+      expect(open).toHaveBeenLastCalledWith(MAPS(1, 2), '_blank', 'noopener');
+    });
+
+    it('opens a rendered map without any point at the map centre', async () => {
+      createComponent({ path: '/photo.jpg', filename: 'photo.jpg', lat: null, lng: null }, true);
+      await fixture.whenStable();
+      component.openGoogleMaps();
+      expect(open).toHaveBeenLastCalledWith(MAPS(47.5, 5), '_blank', 'noopener');
+    });
+
+    describe('a pending short link', () => {
+      function pendingLink() {
+        single();
+        const pending = new Subject<{ latitude: number; longitude: number }>();
+        mockApi.post.mockReturnValue(pending);
+        component.setMapsInput('https://maps.app.goo.gl/AbC');
+        const resolving = component.applyMapsInput();
+        expect(component.mapsBusy()).toBe(true);
+        return { pending, resolving };
+      }
+      async function answer(p: ReturnType<typeof pendingLink>) {
+        p.pending.next({ latitude: 10, longitude: 20 });
+        p.pending.complete();
+        await p.resolving;
+      }
+
+      it.each<[string, () => void]>([
+        ['typed latitude', () => { component.setLatitude(5); component.setLongitude(6); }],
+        ['a recent pick', () => component.selectRecent({ latitude: 5, longitude: 6 })],
+        ['a saved place', () => component.selectPlace({ id: 1, name: 'Home', latitude: 5, longitude: 6 } as SavedPlace)],
+        ['an online result', () => component.selectOnlineResult({ label: 'Home', latitude: 5, longitude: 6 } as never)],
+      ])('does not move a pin placed by %s', async (_name, place) => {
+        const p = pendingLink();
+        place();
+        expect(component.mapsBusy()).toBe(false);
+        await answer(p);
+        expect([component.selectedLat(), component.selectedLng()]).toEqual([5, 6]);
+        expect(component.mapsPoint()).toBeNull();
+        expect(component.mapsBusy()).toBe(false);
+      });
+
+      it('does not move a pin once the location was cleared', async () => {
+        const p = pendingLink();
+        component.clearLocation();
+        await answer(p);
+        expect(component.selectedLat()).toBeNull();
+        expect(component.mapsBusy()).toBe(false);
+      });
+
+      it('does not move a pin placed by a map click', async () => {
+        createComponent({ path: '/photo.jpg', filename: 'photo.jpg', lat: null, lng: null }, true);
+        await fixture.whenStable();
+        const pending = new Subject<{ latitude: number; longitude: number }>();
+        mockApi.post.mockReturnValue(pending);
+        component.setMapsInput('https://maps.app.goo.gl/AbC');
+        const resolving = component.applyMapsInput();
+        const click = leafletMockMap.on.mock.calls.filter(call => call[0] === 'click').at(-1)![1];
+        click({ latlng: { wrap: () => ({ lat: 5, lng: 6 }) } });
+        pending.next({ latitude: 10, longitude: 20 });
+        pending.complete();
+        await resolving;
+        expect([component.selectedLat(), component.selectedLng()]).toEqual([5, 6]);
+        expect(component.mapsBusy()).toBe(false);
+      });
+
+      it('still applies its own answer when nothing else moved the pin', async () => {
+        const p = pendingLink();
+        await answer(p);
+        expect([component.selectedLat(), component.selectedLng()]).toEqual([10, 20]);
+        expect(component.mapsBusy()).toBe(false);
+      });
+    });
+
+    it('sends one request while the first is pending', async () => {
+      single();
+      const pending = new Subject<{ latitude: number; longitude: number }>();
+      mockApi.post.mockReturnValue(pending);
+      component.setMapsInput('https://maps.app.goo.gl/AbC');
+      const first = component.applyMapsInput();
+      await component.applyMapsInput();
+      expect(mockApi.post).toHaveBeenCalledTimes(1);
+      pending.next({ latitude: 1, longitude: 2 });
+      pending.complete();
+      await first;
+    });
+
+    it('ignores a rejected answer once the field has been edited', async () => {
+      single();
+      const pending = new Subject<unknown>();
+      mockApi.post.mockReturnValue(pending);
+      component.setMapsInput('https://maps.app.goo.gl/AbC');
+      const resolving = component.applyMapsInput();
+      component.setMapsInput('something else');
+      pending.error({ status: 0 });
+      await resolving;
+      expect(component.mapsError()).toBe('');
+      expect(component.mapsBusy()).toBe(false);
+    });
+
+    it('ignores an Enter with the IME process key code', async () => {
+      single();
+      component.setMapsInput('1, 2');
+      const enter = new KeyboardEvent('keydown', { key: 'Enter', keyCode: 229, cancelable: true });
+      component.onMapsEnter(enter);
+      await Promise.resolve();
+      expect(enter.defaultPrevented).toBe(false);
+      expect(component.selectedLat()).toBeNull();
+    });
+
+    it('lets a paste without text through', () => {
+      single();
+      const paste = new Event('paste', { cancelable: true }) as ClipboardEvent;
+      Object.defineProperty(paste, 'clipboardData', { value: { getData: () => '' } });
+      component.onMapsPaste(paste);
+      expect(paste.defaultPrevented).toBe(false);
+      expect(component.mapsInput()).toBe('');
+    });
+
+    it('reads a paste into the rendered field at once and describes the field by its hint', async () => {
+      createComponent({ path: '/photo.jpg', filename: 'photo.jpg', lat: null, lng: null }, true);
+      await fixture.whenStable();
+      const input = fixture.nativeElement.querySelector('input[aria-describedby="gps-maps-hint"]') as HTMLInputElement;
+      expect(fixture.nativeElement.querySelector('#gps-maps-hint')).not.toBeNull();
+      const paste = new Event('paste', { cancelable: true }) as ClipboardEvent;
+      Object.defineProperty(paste, 'clipboardData', { value: { getData: () => DMS_TEXT } });
+      input.dispatchEvent(paste);
+      await fixture.whenStable();
+      fixture.detectChanges();
+      expect(paste.defaultPrevented).toBe(true);
+      expect(component.selectedLat()).toBeCloseTo(32 + 36 / 60 + 23 / 3600, 9);
+      expect(component.selectedLng()).toBeCloseTo(-(116 + 19 / 60 + 26 / 3600), 9);
+      expect(fixture.nativeElement.textContent).toContain('photo_detail.gps.maps_moved');
+      const pick = Array.from(fixture.nativeElement.querySelectorAll('button') as NodeListOf<HTMLButtonElement>)
+        .find(b => b.textContent?.includes('photo_detail.gps.maps_pick'))!;
+      pick.click();
+      expect(open).toHaveBeenCalledWith(expect.stringContaining('query=32.606389,-116.323889'), '_blank', 'noopener');
+    });
+
+    it('does not read the Enter that commits an IME candidate', async () => {
+      single();
+      component.setMapsInput('1, 2');
+      component.onMapsEnter(new KeyboardEvent('keydown', { key: 'Enter', isComposing: true }));
+      await Promise.resolve();
+      expect(component.selectedLat()).toBeNull();
+      component.onMapsEnter(new KeyboardEvent('keydown', { key: 'Enter' }));
+      await Promise.resolve();
+      expect(component.selectedLat()).toBe(1);
+    });
+  });
+
   describe('clearLocation', () => {
     it('should set coordinates to null', () => {
       createComponent({ path: '/photo.jpg', filename: 'photo.jpg', lat: 48.8566, lng: 2.3522 });

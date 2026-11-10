@@ -104,6 +104,28 @@ def _embedded_ipv4_unwrapped(addr):
     return addr
 
 
+def _first_public_address(addr_infos) -> str | None:
+    """The first address of a ``getaddrinfo`` result, or ``None`` when it is empty.
+
+    Raises ``ValueError`` as soon as ANY address is not globally routable: a host
+    is safe only when every address it resolves to is. Shared by the webhook
+    guard and the Google Maps short-link resolver (``api.maps_link``).
+    """
+    resolved_ip: str | None = None
+    for info in addr_infos:
+        addr = ipaddress.ip_address(info[4][0])
+        # Judge the IPv4 address an IPv6 one embeds, not its wrapper; then
+        # accept only what is globally routable.  ``is_global`` alone
+        # lets multicast through, and "not private" alone lets the shared
+        # address space (100.64.0.0/10, 100.100.100.200 on Alibaba Cloud) through.
+        effective = _embedded_ipv4_unwrapped(addr)
+        if not effective.is_global or effective.is_multicast:
+            raise ValueError(f"URL resolves to private or non-public address: {addr}")
+        if resolved_ip is None:
+            resolved_ip = str(addr)
+    return resolved_ip
+
+
 class PluginManager:
     """Discovers plugin modules, manages event hooks, and dispatches events.
 
@@ -460,23 +482,11 @@ class PluginManager:
         if not hostname:
             raise ValueError("No hostname in URL")
 
-        resolved_ip: str | None = None
         try:
             addr_infos = socket.getaddrinfo(hostname, parsed.port or 80)
         except socket.gaierror as exc:
             raise ValueError("DNS resolution failed") from exc
-        for info in addr_infos:
-            addr = ipaddress.ip_address(info[4][0])
-            # Judge the IPv4 address an IPv6 one embeds, not its wrapper; then
-            # accept only what is globally routable.  ``is_global`` alone
-            # lets multicast through, and "not private" alone lets the shared
-            # address space (100.64.0.0/10, 100.100.100.200 on Alibaba Cloud) through.
-            effective = _embedded_ipv4_unwrapped(addr)
-            if not effective.is_global or effective.is_multicast:
-                raise ValueError(f"URL resolves to private or non-public address: {addr}")
-            if resolved_ip is None:
-                resolved_ip = str(addr)
-
+        resolved_ip = _first_public_address(addr_infos)
         if resolved_ip is None:
             raise ValueError("Could not resolve hostname")
         return resolved_ip

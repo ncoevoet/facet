@@ -826,6 +826,19 @@ Utilisez **Adresse ou établissement → Rechercher en ligne** pour chercher un 
 - Facet attend au moins une seconde entre deux appels au fournisseur et n'en envoie jamais deux à la fois.
 - Facet ne journalise pas les requêtes. Configurez votre reverse proxy pour qu'il ne journalise pas les chaînes de requête.
 
+### Liens et coordonnées Google Maps
+
+La boîte de localisation (une photo, ou **Définir le lieu** pour une sélection ou toute une vue d'album) accepte aussi des points venant de Google Maps. Rien n'est enregistré avant de cliquer sur **Enregistrer** (ou de prévisualiser puis appliquer un lot), comme pour tout autre point.
+
+- **Choisir sur Google Maps** ouvre Google Maps dans un nouvel onglet sur l'épingle actuelle, sinon sur la première photo géolocalisée de la sélection, sinon au centre de la carte. Trouvez l'endroit et copiez-le.
+- **Lien Google Maps ou coordonnées** : collez, puis appuyez sur Entrée ou cliquez sur **Aller au point**. L'épingle se place sur le point pour vérification. Formats acceptés :
+  - la paire que Google copie au clic droit sur la carte, p. ex. `32.6064, -116.3239` (un espace au lieu de la virgule fonctionne aussi) ;
+  - degrés, minutes, secondes comme `32°36'23.0"N 116°19'26.0"W` ;
+  - une URL Google Maps complète. L'épingle posée (`!3d…!4d…`) l'emporte sur une valeur `q=`, `query=`, `ll=` ou `center=`, qui l'emporte sur le centre de vue `@lat,lon` ;
+  - un lien court (`maps.app.goo.gl/…`, `goo.gl/maps/…`). Le navigateur ne peut pas les ouvrir ; la galerie suit donc la redirection (`POST /api/geo/resolve_maps_link`, mode édition uniquement).
+- La résolution des liens courts ne contacte que `maps.app.goo.gl`, `goo.gl`, `maps.google.com`, `www.google.com` et `google.com` en HTTPS, sur des adresses publiques uniquement, avec au plus 5 redirections en 5 secondes, sans jamais lire le corps d'une page. Tout autre hôte est refusé sans requête. Les liens ne sont pas journalisés.
+- Facet n'utilise ni API Google, ni clé d'API, ni tuiles Google : les conditions de Google interdisent ses tuiles dans une autre carte, la carte de la boîte reste donc OpenStreetMap.
+
 ## Capsules
 
 Diaporamas thématiques regroupés par thème, lieu, personnes et période. Ouvrez `/capsules` et cliquez sur une capsule pour la lire.

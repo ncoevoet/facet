@@ -3359,7 +3359,15 @@
       "batch_applied_plural": "{changed} Fotos geändert; {skipped} übersprungen.",
       "batch_error": "Standort konnte nicht angewendet werden. Wählen Sie höchstens 1000 Fotos und erstellen Sie eine neue Vorschau; Auswahl oder gespeicherter Ort könnte sich geändert haben.",
       "batch_limit": "Wählen Sie höchstens 1000 Fotos. Ohne Schutz werden vorhandene Standorte ersetzt. Originaldateien bleiben unverändert.",
-      "batch_hint": "Wählen Sie einen Ort und prüfen Sie die Änderungen, bevor Sie die Auswahl speichern."
+      "batch_hint": "Wählen Sie einen Ort und prüfen Sie die Änderungen, bevor Sie die Auswahl speichern.",
+      "maps_link": "Google-Maps-Link oder Koordinaten",
+      "maps_go": "Zum Punkt",
+      "maps_hint": "Fügen Sie einen Google-Maps-Link (auch Kurzlinks) oder Koordinaten wie 32.6064, -116.3239 oder 32°36'23\"N 116°19'26\"W ein. Die Markierung springt dorthin; gespeichert wird erst mit Speichern.",
+      "maps_resolving": "Link wird gelesen…",
+      "maps_moved": "Markierung auf {lat}, {lng} gesetzt. Prüfen, dann speichern.",
+      "maps_unrecognized": "Keine Koordinaten gefunden. Fügen Sie einen Google-Maps-Link ein oder klicken Sie in Google Maps mit der rechten Maustaste auf die Karte und kopieren Sie die Zahlen.",
+      "maps_unreachable": "Der Link konnte nicht geöffnet werden. Prüfen Sie die Verbindung oder kopieren Sie stattdessen die Koordinaten.",
+      "maps_pick": "Auf Google Maps wählen"
     },
     "distribution": {
       "scope": "Verteilungsbereich",
