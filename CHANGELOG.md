@@ -4,6 +4,14 @@ All notable changes to Facet are documented in this file.
 
 ## [Unreleased]
 
+### Added
+
+- **`Ctrl+Z` / `Cmd+Z` presses the snackbar's Undo while it is showing**, on every page that offers one (gallery batch changes, culling and stack confirms, person hides), including inside the darkroom. A text field keeps its own undo, an open dialog keeps the key, and with no snackbar on screen the key does nothing. The `?` reference lists it on the gallery, culling and stack-suggestion pages.
+
+### Changed
+
+- **The remappable keyboard actions live in one registry** (`SHORTCUT_REGISTRY`: id, default key, page scope, label). The Customize shortcuts dialog, the saved-keymap loader and the `?` reference read from it, so a new action is one row. A key is now refused only when another action on the same page holds it; all seven current actions are live on the gallery, so nothing a user can do changes yet.
+
 ## [1.29.0] "Pamir" — 2026-11-10
 
 ### Added

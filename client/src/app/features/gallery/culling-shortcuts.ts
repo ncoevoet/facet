@@ -1,3 +1,5 @@
+import { UNDO_SHORTCUT_ROW } from '../../core/services/shortcut-registry';
+
 /** Keyboard reference data for the culling page and the help dialog.
  *  Extracted from BurstCullingComponent so the help dialog can render the
  *  tables without importing the (lazy, heavy) culling component. */
@@ -24,6 +26,7 @@ export const CULLING_SHORTCUT_SECTIONS: { titleKey: string; rows: CullingShortcu
       { keys: ['←', '→'], labelKey: 'culling.shortcuts.navigate' },
       { keys: ['Space', 'Shift+Space'], labelKey: 'culling.shortcuts.confirm_next' },
       { keys: ['Enter'], labelKey: 'culling.shortcuts.open' },
+      UNDO_SHORTCUT_ROW,
     ],
   },
   { titleKey: 'culling.shortcuts.darkroom_title', rows: DARKROOM_SHORTCUTS },
@@ -42,6 +45,7 @@ export const STACK_SHORTCUT_SECTIONS = [
     { keys: ['Enter'], labelKey: 'culling.shortcuts.open' },
     { keys: ['S'], labelKey: 'stacks.stack_cover' },
     { keys: ['X'], labelKey: 'stacks.suggestion_skip' },
+    UNDO_SHORTCUT_ROW,
   ] },
   { titleKey: 'culling.shortcuts.darkroom_title', rows: STACK_DARKROOM_SHORTCUTS },
 ];

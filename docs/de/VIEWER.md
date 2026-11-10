@@ -1245,13 +1245,14 @@ Einzeltasten-Kürzel sind inaktiv, solange der Fokus in einem Textfeld, Menü od
 | `/` | Die Sammlungssuche fokussieren; auf schmalen Bildschirmen zuerst einblenden |
 | `S` | Den Stapel-Editor für die ausdrückliche Auswahl öffnen (Bearbeitungsmodus; umbelegbar, kann unbelegt bleiben) |
 | `Strg+Umschalt+S` / `Cmd+Umschalt+S` | Die ausdrückliche, ungestapelte Auswahl sofort in Auswahlreihenfolge stapeln, das erste Foto als Titelbild (Bearbeitungsmodus; vorhandene Stapelmitglieder öffnen den Editor) |
+| `Strg+Z` / `Cmd+Z` | Macht die letzte Änderung rückgängig, solange ihre [Rückgängig](#rückgängig)-Snackbar angezeigt wird (jede Seite; nicht in Textfeldern oder Dialogen) |
 | `B` | Die Filter-Seitenleiste ein-/ausblenden |
 | `V` | Zwischen Raster, Mosaik und Liste wechseln |
 | `?` | Die Tastenkürzel-Referenz anzeigen (auf jeder Seite; auch unter Benutzermenü → Hilfe) |
 
 **Nach dem Speichern weiter** ist in den Ansichtsoptionen standardmäßig ausgeschaltet. Aktivieren Sie es, um nach einer erfolgreich gespeicherten Bewertung, Behalten- oder Ablehnen-Tastenkombination zum nächsten Foto zu wechseln. Die Einstellung gilt für die aktuelle Sitzung; ein Wechsel von Foto, Sammlung oder Konto während des Speicherns verhindert das automatische Weiterspringen.
 
-**Tasten umbelegen.** `K`, `F`, `X`, `/`, `B`, `V` und `S` sind Standardwerte. Unter Benutzermenü → **Tastenkürzel anpassen** klicken Sie eine Aktion an und drücken eine neue Taste (`Esc` oder `Tab` bricht ab). Ziffern, `Space` und `?` sind reserviert, und eine bereits verwendete Taste wird abgelehnt. **Alle zurücksetzen** stellt die Standardwerte wieder her. Die Belegung wird pro Browser gespeichert (`localStorage`). Die Fotoseite verwendet dieselben Tasten, und die Referenz unter `?` zeigt immer die geltenden Tasten.
+**Tasten umbelegen.** `K`, `F`, `X`, `/`, `B`, `V` und `S` sind Standardwerte. Unter Benutzermenü → **Tastenkürzel anpassen** klicken Sie eine Aktion an und drücken eine neue Taste (`Esc` oder `Tab` bricht ab). Ziffern, `Space` und `?` sind reserviert, und eine Taste, die eine andere Aktion auf derselben Seite schon belegt, wird abgelehnt. **Alle zurücksetzen** stellt die Standardwerte wieder her. Die Belegung wird pro Browser gespeichert (`localStorage`). Die Fotoseite verwendet dieselben Tasten, und die Referenz unter `?` zeigt immer die geltenden Tasten.
 
 **Aktuelles Foto.** Das Foto, auf das die Tasten für Bewertung, Favorit und Ablehnung wirken, hat eine 4px-Kontur; andere Karten behalten ihre normale Helligkeit. Nichts ist markiert, bis Sie sich auf ein Foto bewegen. Ein Klick auf ein Foto verschiebt die Markierung darauf. Die Rückkehr von einem Foto lässt die Markierung auf dem zuletzt betrachteten. Der Hinweis zur fokussierten Karte erscheint nur im Bearbeitungsmodus bei aktivem `viewer.features.show_rating_controls`.
 
@@ -1261,7 +1262,7 @@ Mit **Bild kopieren** kopieren Sie eine PNG-Darstellung zum Einfügen in eine an
 
 ## Rückgängig
 
-Sammeländerungen an Favorit/Ablehnung/Bewertung und verzögerte Auswahl-Bestätigungen zeigen etwa 7 Sekunden lang eine Snackbar mit **Rückgängig**.
+Sammeländerungen an Favorit/Ablehnung/Bewertung und verzögerte Auswahl-Bestätigungen zeigen etwa 7 Sekunden lang eine Snackbar mit **Rückgängig**. `Strg+Z` / `Cmd+Z` löst sie aus, solange sie angezeigt wird; in einem Textfeld behält die Taste ihre übliche Bedeutung.
 
 - Sammeländerungen von Markierungen gelten sofort und werden durch Umkehren rückgängig gemacht (bis zu 500 Fotos).
 - Rückgängig für Bewertungen stellt nur Sterne wieder her und erhält andere Markierungen. Es erfordert eine vollständige beobachtete Momentaufnahme von höchstens 500 Fotos und prüft lokal bekannte spätere Änderungen; es ist nicht die Verlaufsaktion mit serverseitiger Konfliktprüfung.

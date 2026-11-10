@@ -1245,13 +1245,14 @@ Los atajos de una sola tecla están inactivos mientras el foco está en un campo
 | `/` | Enfoca la búsqueda de la colección; la muestra primero en pantallas estrechas |
 | `S` | Abre el editor de pilas para la selección explícita (modo de edición; reasignable, puede quedar sin asignar) |
 | `Ctrl+Mayús+S` / `Cmd+Mayús+S` | Apila al instante la selección explícita sin pila en orden de selección, con la primera foto como portada (modo de edición; los miembros de pilas existentes abren el editor) |
+| `Ctrl+Z` / `Cmd+Z` | Deshace el último cambio mientras su barra de aviso [Deshacer](#deshacer) está visible (todas las páginas; no en campos de texto ni diálogos) |
 | `B` | Muestra / oculta la barra lateral de filtros |
 | `V` | Alterna entre cuadrícula, mosaico y lista |
 | `?` | Muestra la referencia de atajos de teclado (todas las páginas; también en menú de usuario → Ayuda) |
 
 **Avanzar al guardar**, en los controles de vista, está desactivado por defecto. Actívalo para pasar a la siguiente foto después de guardar correctamente una valoración o usar los atajos de conservar o rechazar. Se aplica a la sesión actual; cambiar de foto, colección o cuenta mientras se guarda impide el avance automático.
 
-**Reasignar teclas.** `K`, `F`, `X`, `/`, `B`, `V` y `S` son valores por defecto. Menú de usuario → **Personalizar atajos** te permite hacer clic en una acción y pulsar una tecla nueva (`Esc` o `Tab` cancela). Los dígitos, `Space` y `?` están reservados, y una tecla ya en uso se rechaza. **Restablecer todo** restaura los valores por defecto. La asignación se guarda por navegador (`localStorage`). La página de la foto usa las mismas teclas, y la referencia `?` siempre muestra las teclas en vigor.
+**Reasignar teclas.** `K`, `F`, `X`, `/`, `B`, `V` y `S` son valores por defecto. Menú de usuario → **Personalizar atajos** te permite hacer clic en una acción y pulsar una tecla nueva (`Esc` o `Tab` cancela). Los dígitos, `Space` y `?` están reservados, y una tecla que ya usa otra acción en la misma página se rechaza. **Restablecer todo** restaura los valores por defecto. La asignación se guarda por navegador (`localStorage`). La página de la foto usa las mismas teclas, y la referencia `?` siempre muestra las teclas en vigor.
 
 **Foto actual.** La foto sobre la que actúan las teclas de valoración, favorito y rechazo tiene un contorno de 4 px; las demás tarjetas conservan su luminosidad normal. No se marca nada hasta que te mueves a una foto. Hacer clic en una foto mueve el marcador a ella. Volver desde una foto deja el marcador en la última que viste. La pista de la tarjeta enfocada aparece solo en modo de edición con `viewer.features.show_rating_controls` activado.
 
@@ -1261,7 +1262,7 @@ Usa **Copiar imagen** para copiar una representación PNG y pegarla en otra apli
 
 ## Deshacer
 
-Los cambios por lotes de favorito/rechazo/valoración y las confirmaciones aplazadas de descarte muestran una barra de aviso con **Deshacer** durante ~7 segundos.
+Los cambios por lotes de favorito/rechazo/valoración y las confirmaciones aplazadas de descarte muestran una barra de aviso con **Deshacer** durante ~7 segundos. `Ctrl+Z` / `Cmd+Z` la pulsa mientras está visible; en un campo de texto, la tecla conserva su función habitual.
 
 - Los cambios de indicadores por lotes se aplican al instante y se deshacen invirtiéndolos (hasta 500 fotos).
 - Deshacer una valoración restaura solo las estrellas y conserva los demás indicadores. Requiere una captura observada completa de un máximo de 500 fotos y comprueba los cambios posteriores conocidos localmente; no es la operación del historial que comprueba conflictos en el servidor.
