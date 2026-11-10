@@ -4,6 +4,8 @@ All notable changes to Facet are documented in this file.
 
 ## [Unreleased]
 
+## [1.29.0] "Pamir" — 2026-11-10
+
 ### Added
 
 - **A Look-alikes view in culling** finds near-duplicates the Burst and Similar views leave out. It scores pairs of photos from how alike they look, near-identical content and closeness in time, reads photos that were already reviewed or sit inside a burst so a new shot meets an earlier keeper, and shows the evidence on each card ("96% alike · 10 s apart · same camera"). Nothing is automatic and the existing views are unchanged.
