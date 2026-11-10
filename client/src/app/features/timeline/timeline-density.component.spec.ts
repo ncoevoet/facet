@@ -8,7 +8,7 @@ import { TimelineDensityComponent } from './timeline-density.component';
 import { TimelineYearsComponent } from './timeline-years.component';
 import { TimelineFiltersService } from './timeline-filters.service';
 import { timelineDayQuery } from './timeline-day-query.pipe';
-import { densityBuckets, densityRange, timelineWindow, type DensityResponse } from './timeline-density.util';
+import { densityBuckets, densityIndexAt, densityLabelStep, densityRange, timelineWindow, type DensityResponse } from './timeline-density.util';
 import { HANDLE_SERVER_ERROR_LOCALLY } from '../../core/utils/http-error-context';
 import { ApiService } from '../../core/services/api.service';
 import { AuthService } from '../../core/services/auth.service';
@@ -33,7 +33,13 @@ describe('Timeline date density', () => {
       .toEqual({ from: '2024-02-01', to: '2024-02-29' });
   });
 
-  async function render(inputs: Record<string, unknown> = {}) {
+  const matchMedia = window.matchMedia;
+  const resizeObserver = globalThis.ResizeObserver;
+
+  /** `wide` is the lg+ layout; below lg the strip is a touch scrubber. */
+  async function render(inputs: Record<string, unknown> = {}, wide = true) {
+    // A plain function, as in test-setup: a vi.fn would lose its implementation to another spec's restoreAllMocks.
+    window.matchMedia = (query: string) => ({ ...matchMedia(query), matches: wide });
     const api = { get: vi.fn().mockReturnValue(of(years)) };
     const auth = { status: signal({ user_id: 'alice' }), token: 'a' };
     const photos = signal([makePhoto({ path: '/photo.jpg', date_taken: '2020-01-01' })]);
@@ -63,10 +69,20 @@ describe('Timeline date density', () => {
     const pointer = (type: string, target: Element, init: Record<string, unknown> = {}) => target.dispatchEvent(
       new (globalThis.PointerEvent ?? MouseEvent)(type, { bubbles: true, cancelable: true, button: 0, buttons: 1, pointerType: 'mouse', clientX: 1, clientY: 1, ...init } as PointerEventInit));
     const under = (target: Element | null) => { (document as unknown as { elementFromPoint: unknown }).elementFromPoint = vi.fn(() => target); };
-    return { fixture, root, api, auth, photos, timelineMembershipRevision, loading, router, navigate, totals, settle, bars, button, key, pointer, under, filters: TestBed.inject(TimelineFiltersService) };
+    /** Lay the strip out as 0..width px wide and 0..92 px tall, as a phone would. */
+    const strip = (width: number) => {
+      const element = root.querySelector<HTMLElement>('[role=group]')!;
+      element.getBoundingClientRect = () => ({ left: 0, right: width, top: 0, bottom: 92, width, height: 92, x: 0, y: 0, toJSON: () => ({}) });
+      return element;
+    };
+    const readout = () => root.querySelector<HTMLElement>('[data-density-readout]')!;
+    return { fixture, root, api, auth, photos, timelineMembershipRevision, loading, router, navigate, totals, settle, bars, button, key, pointer, under, strip, readout, filters: TestBed.inject(TimelineFiltersService) };
   }
 
-  afterEach(() => { delete (document as unknown as { elementFromPoint?: unknown }).elementFromPoint; });
+  afterEach(() => {
+    delete (document as unknown as { elementFromPoint?: unknown }).elementFromPoint;
+    window.matchMedia = matchMedia; globalThis.ResizeObserver = resizeObserver; vi.useRealTimers();
+  });
 
   it('renders the strip at once, with no disclosure and no query parameter', async () => {
     const v = await render();
@@ -85,9 +101,10 @@ describe('Timeline date density', () => {
     expect(bar.textContent?.trim()).toBe('2020');
     expect(bar.querySelector('.max-w-12')).toBeNull();
     expect(bar.className).toContain('min-w-11');
-    expect(bar.className).toContain('max-sm:min-w-6');
+    expect(bar.className).toContain('max-lg:min-w-0');
     const tip = v.fixture.debugElement.queryAll(By.directive(MatTooltip)).find(debug => debug.nativeElement === bar)!.injector.get(MatTooltip);
     expect(tip.message).toContain('"count":"12,345"');
+    expect(tip.touchGestures).toBe('auto');
     expect(bar.getAttribute('aria-label')).toContain('"count":12345');
     expect(v.root.querySelector('[role=group]')!.getAttribute('aria-label')).toBe('timeline.density_years');
     expect(v.root.textContent).not.toContain('timeline.density_years');
@@ -212,7 +229,7 @@ describe('Timeline date density', () => {
     v.fixture.destroy();
   });
 
-  it('does not drag with touch pointers: a tap drills', async () => {
+  it('from lg up does not drag with touch pointers: a tap drills', async () => {
     const v = await render(); const bars = v.bars();
     v.pointer('pointerdown', bars[0], { pointerType: 'touch' }); v.under(bars[2]); v.pointer('pointermove', bars[2], { pointerType: 'touch' });
     v.pointer('pointerup', bars[2], { pointerType: 'touch' }); await v.settle();
@@ -320,7 +337,12 @@ describe('Timeline date density', () => {
     expect(v.root.querySelector('mat-button-toggle-group')).toBeNull(); expect(v.root.querySelector('select')).toBeNull();
     v.fixture.componentRef.setInput('year', '2019'); v.api.get.mockReturnValue(of({ months: [{ month: '2019-01', count: 10 }, { month: '2019-02', count: 2 }] })); await v.settle();
     const toggles = [...v.root.querySelectorAll('mat-button-toggle')];
-    expect(toggles.map(row => row.textContent?.trim())).toEqual(['timeline.density_months', 'timeline.density_weeks']);
+    expect(toggles.map(row => row.querySelector('[data-unit-long]')?.textContent?.trim())).toEqual(['timeline.density_months', 'timeline.density_weeks']);
+    // Below sm a short label keeps the toggle and the log button on one row; the full one stays its name.
+    expect(toggles.map(row => row.querySelector('[data-unit-short]')?.textContent?.trim())).toEqual(['timeline.density_months_short', 'timeline.density_weeks_short']);
+    expect(toggles.every(row => row.querySelector('[data-unit-long]')!.classList.contains('max-sm:hidden'))).toBe(true);
+    expect(toggles.every(row => row.querySelector('[data-unit-short]')!.classList.contains('sm:hidden'))).toBe(true);
+    expect(toggles.map(row => row.querySelector('button')?.getAttribute('aria-label'))).toEqual(['timeline.density_months', 'timeline.density_weeks']);
     const before = v.bars()[1].querySelector<HTMLElement>('[aria-hidden=true] > span')!.style.height;
     const log = v.button('timeline.log_scale'); expect(log.getAttribute('aria-pressed')).toBe('false');
     log.click(); await v.settle();
@@ -386,6 +408,151 @@ describe('Timeline date density', () => {
     calendar.nativeElement.querySelector('button').click(); calendar.detectChanges(); await calendar.whenStable(); calendar.detectChanges();
     expect(calendar.nativeElement.querySelector('[role=alert]')).toBeNull(); expect(calendar.nativeElement.querySelector('img')).not.toBeNull();
     calendar.destroy();
+  });
+
+  describe('below lg, as a touch scrubber', () => {
+    type View = Awaited<ReturnType<typeof render>>;
+    /** A finger: touch pointers stay captured by the bar they went down on, so only the position moves. */
+    const touch = (v: View, type: string, target: Element, clientX: number, init: Record<string, unknown> = {}) =>
+      v.pointer(type, target, { pointerType: 'touch', pointerId: 7, clientX, clientY: 40, ...init });
+
+    it('finds the bucket under a pointer position, clamped to the ends of the strip', () => {
+      expect(densityIndexAt(10, 0, 300, 3)).toBe(0);
+      expect(densityIndexAt(150, 0, 300, 3)).toBe(1);
+      expect(densityIndexAt(299, 0, 300, 3)).toBe(2);
+      expect(densityIndexAt(-40, 0, 300, 3)).toBe(0);
+      expect(densityIndexAt(900, 0, 300, 3)).toBe(2);
+      expect(densityIndexAt(120, 100, 31, 31)).toBe(20);
+      expect(densityIndexAt(50, 0, 0, 3)).toBe(0);
+    });
+
+    it('labels every bar whose label fits, else every n-th bar', () => {
+      const years = Array.from({ length: 24 }, (_, index) => String(2002 + index));
+      expect(densityLabelStep(years, 1000)).toBe(1);
+      expect(densityLabelStep(years, 328)).toBe(3);
+      expect(densityLabelStep(Array.from({ length: 12 }, (_, index) => String(index + 1).padStart(2, '0')), 328)).toBe(1);
+      expect(densityLabelStep(Array.from({ length: 31 }, (_, index) => String(index + 1)), 328)).toBe(3);
+      expect(densityLabelStep(years, 0)).toBe(1);
+    });
+
+    it('shares the width with no scroll, labels every n-th bar, and leaves touch to the strip rather than tooltips', async () => {
+      let resized: ResizeObserverCallback | null = null;
+      globalThis.ResizeObserver = class {
+        constructor(callback: ResizeObserverCallback) { resized = callback; }
+        observe(): void {} unobserve(): void {} disconnect(): void {}
+      } as unknown as typeof ResizeObserver;
+      const v = await render({}, false);
+      const strip = v.root.querySelector<HTMLElement>('[role=group]')!;
+      for (const cls of ['max-lg:overflow-x-clip', 'max-lg:touch-pan-y']) expect(strip.classList).toContain(cls);
+      expect(v.bars()[0].className).toContain('max-lg:min-w-0');
+      const tips = v.fixture.debugElement.queryAll(By.directive(MatTooltip))
+        .filter(debug => v.bars().includes(debug.nativeElement)).map(debug => debug.injector.get(MatTooltip));
+      expect(tips.map(tip => tip.touchGestures)).toEqual(['off', 'off', 'off']);
+      // Three year labels need 108 px; in 60 px only every second bar keeps one, and never one that would run off the end.
+      resized!([{ contentRect: { width: 60 } } as ResizeObserverEntry], {} as ResizeObserver); await v.settle();
+      const labels = v.bars().map(bar => bar.lastElementChild!);
+      expect(labels.map(label => label.classList.contains('max-lg:invisible'))).toEqual([false, true, true]);
+      expect(labels[0].classList).toContain('max-lg:text-left');
+      // A label runs over the next bars; positioned, it paints above their highlight instead of under it.
+      expect(labels[0].classList).toContain('max-lg:relative');
+      v.fixture.destroy();
+    });
+
+    it('reads the bucket under a finger in a live readout above the strip, and drills the one it lifts on', async () => {
+      const v = await render({}, false); const bars = v.bars(); v.strip(300);
+      expect(v.readout().getAttribute('role')).toBe('status');
+      expect(v.readout().className).toContain('sr-only');
+      // detectChanges, not settle: whenStable would wait out the pending hold and draft a range.
+      touch(v, 'pointerdown', bars[0], 10); v.fixture.detectChanges();
+      expect(v.readout().className).not.toContain('sr-only');
+      expect(v.readout().textContent).toContain('timeline.period_count{"period":"2019","count":"1"}');
+      expect(v.readout().textContent).toContain('timeline.scrub_hint');
+      touch(v, 'pointermove', bars[0], 150); v.fixture.detectChanges();
+      expect(v.readout().textContent).toContain('"period":"2020","count":"100"');
+      expect(bars[1].className).toContain('surface-container-highest');
+      expect(v.navigate).not.toHaveBeenCalled();
+      touch(v, 'pointerup', bars[0], 150); bars[0].click(); await v.settle();
+      expect(v.navigate).toHaveBeenCalledExactlyOnceWith(['/timeline', '2020']);
+      expect(v.readout().className).toContain('sr-only');
+      expect(v.filters.dateFrom()).toBe('');
+      v.fixture.destroy();
+    });
+
+    it('drills a tapped bar once, though the browser follows the tap with a click', async () => {
+      const v = await render({}, false); const bars = v.bars(); v.strip(300);
+      touch(v, 'pointerdown', bars[2], 250); touch(v, 'pointerup', bars[2], 250); bars[2].click(); await v.settle();
+      expect(v.navigate).toHaveBeenCalledExactlyOnceWith(['/timeline', '2021']);
+      v.fixture.destroy();
+    });
+
+    it('does not let a slide that ends without a click swallow the next keyboard Enter', async () => {
+      const v = await render({}, false); const bars = v.bars(); v.strip(300);
+      touch(v, 'pointerdown', bars[0], 10); touch(v, 'pointermove', bars[0], 250); touch(v, 'pointerup', bars[0], 250); await v.settle();
+      expect(v.navigate).toHaveBeenCalledExactlyOnceWith(['/timeline', '2021']);
+      v.navigate.mockClear(); bars[1].focus(); v.key(bars[1], 'Enter'); bars[1].click(); await v.settle();
+      expect(v.navigate).toHaveBeenCalledExactlyOnceWith(['/timeline', '2020']);
+      v.fixture.destroy();
+    });
+
+    it('reads without drilling when the finger lifts off the bars or the page takes the gesture for a scroll', async () => {
+      const v = await render({}, false); const bars = v.bars(); v.strip(300);
+      touch(v, 'pointerdown', bars[1], 150); touch(v, 'pointerup', bars[1], 150, { clientY: 200 }); bars[1].click(); await v.settle();
+      touch(v, 'pointerdown', bars[1], 150); touch(v, 'pointercancel', bars[1], 150); await v.settle();
+      expect(v.navigate).not.toHaveBeenCalled(); expect(v.readout().className).toContain('sr-only');
+      v.fixture.destroy();
+    });
+
+    it('picks a range with a long press then a slide, applied to the capture dates on lift', async () => {
+      const v = await render({}, false); const bars = v.bars(); v.strip(300);
+      vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+      touch(v, 'pointerdown', bars[0], 10); touch(v, 'pointermove', bars[0], 15);
+      vi.advanceTimersByTime(499); v.fixture.detectChanges();
+      expect(bars[0].getAttribute('aria-pressed')).toBe('false');
+      vi.advanceTimersByTime(1); v.fixture.detectChanges();
+      expect(bars[0].getAttribute('aria-pressed')).toBe('true');
+      expect(v.readout().textContent).toContain('01/01/2019 – 31/12/2019');
+      expect(v.readout().textContent).toContain('timeline.scrub_range_hint');
+      touch(v, 'pointermove', bars[0], 250); v.fixture.detectChanges();
+      expect(bars.map(bar => bar.getAttribute('aria-pressed'))).toEqual(['true', 'true', 'true']);
+      expect(v.readout().textContent).toContain('01/01/2019 – 31/12/2021');
+      expect(v.filters.dateFrom()).toBe('');
+      touch(v, 'pointerup', bars[0], 250); bars[0].click(); v.fixture.detectChanges();
+      expect(v.filters.dateFrom()).toBe('2019-01-01'); expect(v.filters.dateTo()).toBe('2021-12-31');
+      expect(v.navigate).not.toHaveBeenCalled();
+      v.fixture.destroy();
+    });
+
+    it('treats a slide before the hold as a read, not a range', async () => {
+      const v = await render({}, false); const bars = v.bars(); v.strip(300);
+      vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+      touch(v, 'pointerdown', bars[0], 10); touch(v, 'pointermove', bars[0], 250);
+      vi.advanceTimersByTime(600); v.fixture.detectChanges();
+      expect(bars.every(bar => bar.getAttribute('aria-pressed') === 'false')).toBe(true);
+      touch(v, 'pointerup', bars[0], 250); v.fixture.detectChanges();
+      expect(v.navigate).toHaveBeenCalledExactlyOnceWith(['/timeline', '2021']); expect(v.filters.dateFrom()).toBe('');
+      v.fixture.destroy();
+    });
+
+    it('keeps the keyboard: arrows move, Shift+arrows draft an announced range and Enter applies it', async () => {
+      const v = await render({}, false); const bars = v.bars();
+      expect(v.root.querySelector('[role=group]')!.getAttribute('aria-label')).toBe('timeline.density_years');
+      bars[0].focus(); v.key(bars[0], 'ArrowRight'); await v.settle();
+      expect(document.activeElement).toBe(bars[1]);
+      v.key(bars[1], 'ArrowRight', { shiftKey: true }); await v.settle();
+      expect(v.readout().textContent).toContain('timeline.range_draft{"from":"01/01/2020","to":"31/12/2021"}');
+      v.key(bars[2], 'Enter'); await v.settle();
+      expect(v.filters.dateFrom()).toBe('2020-01-01'); expect(v.filters.dateTo()).toBe('2021-12-31');
+      expect(v.navigate).not.toHaveBeenCalled();
+      v.fixture.destroy();
+    });
+
+    it('still drags a range with a mouse in a narrow window', async () => {
+      const v = await render({}, false); const bars = v.bars();
+      v.pointer('pointerdown', bars[0]); v.under(bars[2]); v.pointer('pointermove', bars[2]); v.pointer('pointerup', bars[2]); bars[2].click(); await v.settle();
+      expect(v.filters.dateFrom()).toBe('2019-01-01'); expect(v.filters.dateTo()).toBe('2021-12-31');
+      expect(v.navigate).not.toHaveBeenCalled();
+      v.fixture.destroy();
+    });
   });
 });
 

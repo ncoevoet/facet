@@ -61,7 +61,7 @@ import { PhotoSetKindIconPipe, PhotoSetKindLabelPipe } from '../../shared/pipes/
 import { AuthService } from '../../core/services/auth.service';
 import { StalenessGuardFactory } from '../../core/services/staleness-guard.service';
 import { ScanService } from '../../core/services/scan.service';
-import { useDesktopSignal, DETAILS_RAIL_MIN_WIDTH_PX } from '../../shared/utils/media-query';
+import { useDesktopSignal, DETAILS_RAIL_MIN_WIDTH_PX, LG_BREAKPOINT_PX } from '../../shared/utils/media-query';
 import { I18nService } from '../../core/services/i18n.service';
 import { ApiService } from '../../core/services/api.service';
 import { PluralKeyPipe } from '../../shared/pipes/plural-key.pipe';
@@ -109,9 +109,6 @@ type ReturnTarget = { scroll: number; focus: Element | null } & (
 const SET_KIND_TOGGLE: Record<string, keyof HiddenFilterFlags> = {
   burst: 'hide_bursts', duplicate: 'hide_duplicates', bracket: 'hide_brackets', panorama: 'hide_panoramas',
 };
-
-/** Tailwind's `lg`: where the notice stack floats as cards and the criteria row sticks under the header. */
-const LG_BREAKPOINT_PX = 1024;
 
 @Component({
   selector: 'app-gallery',

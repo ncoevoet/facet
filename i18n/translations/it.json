@@ -3065,7 +3065,12 @@
     "dates": "Date",
     "density_show": "Mostra la densità per data",
     "density_hide": "Nascondi la densità per data",
-    "range_draft": "{from} – {to} · Invio applica, Esc annulla"
+    "range_draft": "{from} – {to} · Invio applica, Esc annulla",
+    "density_days_short": "Giorni",
+    "density_months_short": "Mesi",
+    "density_weeks_short": "Settimane",
+    "scrub_hint": "Tieni premuto, poi scorri, per scegliere un intervallo",
+    "scrub_range_hint": "Solleva il dito per applicare, o fuori dalle barre per annullare"
   },
   "folders": {
     "help": "Le cartelle corrispondono alla posizione dei file originali sul disco. Gli album organizzano le foto senza spostare quei file. Apri una cartella per sfogliarne le foto o filtra la galleria per quella posizione.",

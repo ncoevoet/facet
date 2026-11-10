@@ -3065,7 +3065,12 @@
     "dates": "Daten",
     "density_show": "Datumsdichte anzeigen",
     "density_hide": "Datumsdichte ausblenden",
-    "range_draft": "{from} – {to} · Eingabe übernimmt, Escape bricht ab"
+    "range_draft": "{from} – {to} · Eingabe übernimmt, Escape bricht ab",
+    "density_days_short": "Tage",
+    "density_months_short": "Monate",
+    "density_weeks_short": "Wochen",
+    "scrub_hint": "Halten, dann ziehen, um einen Bereich zu wählen",
+    "scrub_range_hint": "Loslassen übernimmt, außerhalb der Balken loslassen bricht ab"
   },
   "folders": {
     "help": "Ordner entsprechen dem Speicherort der Originaldateien auf dem Datenträger. Alben organisieren Fotos, ohne diese Dateien zu verschieben. Öffnen Sie einen Ordner, um seine Fotos zu durchsuchen, oder filtern Sie die Galerie nach diesem Speicherort.",

@@ -1,5 +1,5 @@
 import { DOCUMENT } from '@angular/common';
-import { Component, ChangeDetectionStrategy, ElementRef, computed, effect, inject, input, output, signal, untracked } from '@angular/core';
+import { afterNextRender, Component, ChangeDetectionStrategy, DestroyRef, ElementRef, computed, effect, inject, input, output, signal, untracked, viewChild } from '@angular/core';
 import { DecimalPipe } from '@angular/common';
 import { Router } from '@angular/router';
 import { timelineRouteActivity } from './timeline-route-activity';
@@ -11,38 +11,76 @@ import { AuthService } from '../../core/services/auth.service';
 import { i18nKeys } from '../../core/i18n/keys';
 import { TranslatePipe } from '../../shared/pipes/translate.pipe';
 import { CaptureDatePipe } from '../../shared/pipes/capture-date.pipe';
+import { LG_BREAKPOINT_PX, useDesktopSignal } from '../../shared/utils/media-query';
 import { GalleryStore } from '../gallery/gallery.store';
 import { TimelineFeedCache } from './timeline-feed-cache.service';
 import { TimelineFiltersService } from './timeline-filters.service';
 import { timelineDayQuery } from './timeline-day-query.pipe';
-import { densityBuckets, densityRange, type DensityBucket, type DensityResponse } from './timeline-density.util';
+import { DensityPeriodPipe } from './timeline-density-period.pipe';
+import { densityBuckets, densityIndexAt, densityLabelStep, densityRange, type DensityBucket, type DensityResponse } from './timeline-density.util';
 import { TimelineLoadFailureComponent } from './timeline-load-failure.component';
 import { TimelineReads } from './timeline-reads.service';
+
+/** Material's tooltip long-press delay, so holding a bar feels like holding a tooltip. */
+const LONG_PRESS_MS = 500;
+/** How far a finger may drift and still count as holding still. */
+const TOUCH_SLOP_PX = 10;
+
+/** A finger on the strip below lg: which one, where it went down, and its pending hold. */
+interface Scrub { pointerId: number; x: number; timer: ReturnType<typeof setTimeout> }
+
+/** A bar's background: a drafted range wins over the bar under a finger. */
+function bucketTone(selected: boolean, active: boolean): string {
+  if (selected) return '!bg-[var(--mat-sys-secondary-container)]';
+  return active ? '!bg-[var(--mat-sys-surface-container-highest)]' : '';
+}
 
 @Component({
   selector: 'app-timeline-density',
   standalone: true,
-  imports: [TimelineLoadFailureComponent, MatButtonModule, MatButtonToggleModule, MatIconModule, MatTooltipModule, DecimalPipe, TranslatePipe, CaptureDatePipe],
+  imports: [TimelineLoadFailureComponent, MatButtonModule, MatButtonToggleModule, MatIconModule, MatTooltipModule, DecimalPipe, TranslatePipe, CaptureDatePipe, DensityPeriodPipe],
   changeDetection: ChangeDetectionStrategy.OnPush,
   host: {
     class: 'block min-w-0',
-    '(document:pointerup)': 'endDrag()',
-    '(document:pointercancel)': 'endDrag()',
+    '(document:pointerup)': 'endDrag($event)',
+    '(document:pointercancel)': 'endDrag($event)',
     '(document:keydown)': 'endPress()',
   },
   template: `
     @if (visible()) {
       <div data-timeline-density-row class="flex flex-col gap-2 border-b border-[var(--mat-sys-outline-variant)] pb-1 lg:flex-row lg:items-start">
-        <div data-timeline-density-controls class="flex flex-wrap items-center justify-end gap-1 lg:order-last lg:shrink-0 lg:flex-nowrap">
+        <div data-timeline-density-controls class="relative flex flex-wrap items-center justify-end gap-1 lg:order-last lg:shrink-0 lg:flex-nowrap">
+          <!-- One live region: a keyboard or mouse range draft for assistive tech, and below lg the bar
+            under a finger, shown over the controls so the strip never moves under it. -->
+          <p role="status" data-density-readout [class]="scrubbed() ? 'absolute inset-0 m-0 flex min-w-0 flex-col justify-center' : 'sr-only'">
+            @if (scrubbed(); as bucket) {
+              @if (holding() && range(); as draft) {
+                <span class="truncate text-sm font-medium tabular-nums">{{ draft.from | captureDate }} – {{ draft.to | captureDate }}</span>
+                <span class="truncate text-xs text-[var(--mat-sys-on-surface-variant)]">{{ I18N.timeline.scrub_range_hint | translate }}</span>
+              } @else {
+                <span class="truncate text-sm font-medium tabular-nums">{{ I18N.timeline.period_count | translate: { period: bucket | densityPeriod: unit(), count: (bucket.count | number) ?? '' } }}</span>
+                <span class="truncate text-xs text-[var(--mat-sys-on-surface-variant)]">{{ I18N.timeline.scrub_hint | translate }}</span>
+              }
+            } @else if (range(); as draft) {
+              {{ I18N.timeline.range_draft | translate: { from: draft.from | captureDate, to: draft.to | captureDate } }}
+            }
+          </p>
           @if (year()) {
-            <mat-button-toggle-group hideSingleSelectionIndicator class="[--mat-button-toggle-height:32px]" [value]="unit()"
+            @let autoUnit = month() ? I18N.timeline.density_days : I18N.timeline.density_months;
+            <mat-button-toggle-group hideSingleSelectionIndicator class="[--mat-button-toggle-height:32px]" [class.invisible]="!!scrubbed()" [value]="unit()"
               [attr.aria-label]="I18N.timeline.density_unit | translate" (change)="unit.set($event.value)">
-              <mat-button-toggle value="auto">{{ (month() ? I18N.timeline.density_days : I18N.timeline.density_months) | translate }}</mat-button-toggle>
-              <mat-button-toggle value="week">{{ I18N.timeline.density_weeks | translate }}</mat-button-toggle>
+              <mat-button-toggle value="auto" [aria-label]="autoUnit | translate">
+                <span data-unit-long class="max-sm:hidden">{{ autoUnit | translate }}</span>
+                <span data-unit-short class="sm:hidden">{{ (month() ? I18N.timeline.density_days_short : I18N.timeline.density_months_short) | translate }}</span>
+              </mat-button-toggle>
+              <mat-button-toggle value="week" [aria-label]="I18N.timeline.density_weeks | translate">
+                <span data-unit-long class="max-sm:hidden">{{ I18N.timeline.density_weeks | translate }}</span>
+                <span data-unit-short class="sm:hidden">{{ I18N.timeline.density_weeks_short | translate }}</span>
+              </mat-button-toggle>
             </mat-button-toggle-group>
           }
           <button mat-icon-button type="button" [attr.aria-pressed]="logScale()" [class]="logScale() ? '!bg-[var(--mat-sys-secondary-container)]' : ''"
-            [matTooltip]="I18N.timeline.log_scale | translate" [attr.aria-label]="I18N.timeline.log_scale | translate"
+            [class.invisible]="!!scrubbed()" [matTooltip]="I18N.timeline.log_scale | translate" [attr.aria-label]="I18N.timeline.log_scale | translate"
             (click)="logScale.set(!logScale())">
             <mat-icon>show_chart</mat-icon>
           </button>
@@ -53,29 +91,30 @@ import { TimelineReads } from './timeline-reads.service';
           } @else if (failed()) {
             <app-timeline-load-failure (retry)="retry.update(value => value + 1)" />
           } @else {
-            <div class="flex min-h-23 select-none gap-0.5 overflow-x-auto" role="group" [attr.aria-label]="unitLabel() | translate" [attr.aria-describedby]="helpId"
-              (keydown)="onKey($event)" (pointermove)="move($event)">
+            <!-- Below lg the bars share the width instead of scrolling, and the strip is one touch surface:
+              vertical swipes still scroll the page, a horizontal slide reads the bars. -->
+            <div #strip class="flex min-h-23 select-none gap-0.5 overflow-x-auto max-lg:gap-px max-lg:overflow-x-clip max-lg:touch-pan-y max-lg:[-webkit-touch-callout:none]"
+              role="group" [attr.aria-label]="unitLabel() | translate" [attr.aria-describedby]="helpId"
+              (keydown)="onKey($event)" (pointermove)="move($event)" (contextmenu)="holdMenu($event)">
               @for (bucket of rendered(); track bucket.key) {
-                @let period = unit() === 'week' ? (bucket.from | captureDate) + ' – ' + (bucket.to | captureDate) : bucket.key;
+                @let period = bucket | densityPeriod: unit();
                 <button type="button" [attr.data-density-key]="bucket.key" [tabindex]="bucket.key === tabKey() ? 0 : -1"
-                  class="flex h-23 min-w-11 max-sm:min-w-6 flex-1 flex-col justify-end gap-1 rounded px-0.5 py-1 hover:bg-[var(--mat-sys-surface-container)] focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-[var(--mat-sys-primary)]"
-                  [class]="bucket.selected ? '!bg-[var(--mat-sys-secondary-container)]' : ''"
+                  class="flex h-23 min-w-11 flex-1 flex-col justify-end gap-1 rounded px-0.5 py-1 hover:bg-[var(--mat-sys-surface-container)] focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-[var(--mat-sys-primary)] max-lg:min-w-0 max-lg:px-0"
+                  [class]="bucket.tone"
                   [matTooltip]="I18N.timeline.period_count | translate: { period: period, count: (bucket.count | number) ?? '' }"
+                  [matTooltipTouchGestures]="scrubber() ? 'off' : 'auto'"
                   [attr.aria-label]="I18N.timeline.period_count | translate: { period: period, count: bucket.count }"
                   [attr.aria-pressed]="bucket.selected"
                   (pointerdown)="startDrag($event, bucket)" (focus)="onFocus(bucket)" (click)="onClick($event, bucket)">
                   <span class="flex h-16 w-full items-end" aria-hidden="true">
                     <span class="block w-full rounded-t-sm bg-[var(--mat-sys-primary)]" [style.height.%]="bucket.height"></span>
                   </span>
-                  <span class="block text-center text-xs tabular-nums">{{ bucket.label }}</span>
+                  <span class="block text-center text-xs tabular-nums max-lg:relative max-lg:whitespace-nowrap" [class]="bucket.labelClass">{{ bucket.label }}</span>
                 </button>
               } @empty { <p class="text-sm">{{ I18N.timeline.empty | translate }}</p> }
             </div>
             <p [id]="helpId" class="sr-only">{{ I18N.timeline.density_keyboard | translate }}</p>
           }
-          <p role="status" class="sr-only">
-            @if (range(); as draft) { {{ I18N.timeline.range_draft | translate: { from: draft.from | captureDate, to: draft.to | captureDate } }} }
-          </p>
         </div>
       </div>
     }
@@ -120,6 +159,16 @@ export class TimelineDensityComponent {
   private dragged = false;
   private suppressClick = false;
   private currentRead: (() => boolean) | null = null;
+  private readonly wide = useDesktopSignal({ breakpointPx: LG_BREAKPOINT_PX });
+  /** Below lg the bars fit the width and a finger scrubs them; from lg up each keeps 44 px and the strip scrolls. */
+  protected readonly scrubber = computed(() => !this.wide.isDesktop());
+  private readonly strip = viewChild<ElementRef<HTMLElement>>('strip');
+  private readonly stripWidth = signal(0);
+  private scrub: Scrub | null = null;
+  /** The bar under a finger on the strip, which the readout names. */
+  protected readonly scrubbed = signal<DensityBucket | null>(null);
+  /** True once that finger has held still long enough to draft a range. */
+  protected readonly holding = signal(false);
   protected readonly range = computed(() => {
     const first = this.first(); const last = this.last();
     return first ? densityRange(first, last ?? first) : null;
@@ -134,20 +183,36 @@ export class TimelineDensityComponent {
     return this.year() ? this.I18N.timeline.density_months : this.I18N.timeline.density_years;
   });
   protected readonly rendered = computed(() => {
-    const rows = this.buckets(); const log = this.logScale(); const range = this.range();
+    const rows = this.buckets(); const log = this.logScale(); const range = this.range(); const active = this.scrubbed()?.key;
     const scale = (count: number) => log ? Math.log1p(count) : count;
     const max = Math.max(1, ...rows.map(row => scale(row.count)));
-    return rows.map(row => ({ ...row, height: row.count ? Math.max(2, scale(row.count) / max * 100) : 0,
-      selected: !!range && row.from <= range.to && row.to >= range.from }));
+    // Below lg a label starts at its bar's left edge and runs over the next ones (positioned, so their
+    // highlight cannot paint over it), so only every step-th bar keeps one, and none that would run past the last bar.
+    const step = densityLabelStep(rows.map(row => row.label), this.stripWidth());
+    return rows.map((row, index) => {
+      const selected = !!range && row.from <= range.to && row.to >= range.from;
+      const tick = index % step === 0 && index + step <= rows.length;
+      return { ...row, height: row.count ? Math.max(2, scale(row.count) / max * 100) : 0, selected,
+        tone: bucketTone(selected, row.key === active), labelClass: `${tick ? '' : 'max-lg:invisible'} ${step > 1 ? 'max-lg:text-left' : ''}` };
+    });
   });
 
   constructor() {
+    afterNextRender(() => this.wide.setup());
+    inject(DestroyRef).onDestroy(() => { this.wide.cleanup(); this.cancelScrub(); });
+    effect(onCleanup => {
+      const element = this.strip()?.nativeElement;
+      if (!element) return;
+      const observer = new ResizeObserver(([entry]) => this.stripWidth.set(entry.contentRect.width));
+      observer.observe(element);
+      onCleanup(() => observer.disconnect());
+    });
     effect(onCleanup => {
       const active = this.active(); const owner = this.auth.status(); const token = this.auth.token;
       const year = this.year(); const month = this.month(); const unit = this.unit(); const visibility = this.store.viewFilterParams();
       const from = this.filters.dateFrom(); const to = this.filters.dateTo();
       const rows = this.membership.rows(); const revision = this.membership.membershipRevision(); this.retry();
-      untracked(() => { this.currentRead = null; this.buckets.set([]); this.clearDraft(); this.anchorKey = ''; this.failed.set(false); this.loading.set(false); this.total.emit(null); });
+      untracked(() => { this.currentRead = null; this.cancelScrub(); this.buckets.set([]); this.clearDraft(); this.anchorKey = ''; this.failed.set(false); this.loading.set(false); this.total.emit(null); });
       if (!active || !owner) return;
       const path = month || (unit === 'week' && year) ? '/timeline/dates' : year ? '/timeline/months' : '/timeline/years';
       const params = { ...visibility, ...(year ? { year: +year } : {}), ...(month ? { month: +month } : {}), date_from: from, date_to: to };
@@ -187,7 +252,8 @@ export class TimelineDensityComponent {
     else void this.router.navigate(this.year() ? ['/timeline', this.year(), String(+bucket.key.slice(5, 7))] : ['/timeline', bucket.key]);
   }
 
-  protected endPress(): void { this.pressing = false; }
+  /** A key ends a pointer press; it also drops a click a slide left unconsumed, so Enter still activates a bar. */
+  protected endPress(): void { this.pressing = false; this.suppressClick = false; }
 
   protected onFocus(bucket: DensityBucket): void {
     this.focusKey.set(bucket.key);
@@ -213,9 +279,11 @@ export class TimelineDensityComponent {
     this.suppressClick = false; this.dragged = false;
     this.pressAnchor = this.anchorKey; this.pressing = true;
     this.dragStart = event.pointerType === 'touch' || event.button !== 0 ? null : bucket;
+    if (event.pointerType === 'touch' && this.scrubber()) this.startScrub(event, bucket);
   }
 
   protected move(event: PointerEvent): void {
+    if (this.scrub) { this.moveScrub(event, this.scrub); return; }
     const start = this.dragStart;
     if (!start) return;
     if (!(event.buttons & 1)) { this.endDrag(); return; }
@@ -226,7 +294,8 @@ export class TimelineDensityComponent {
     if (this.dragged) { this.first.set(start); this.last.set(bucket); }
   }
 
-  protected endDrag(): void {
+  protected endDrag(event?: PointerEvent): void {
+    if (this.scrub && event) { this.endScrub(event, this.scrub); return; }
     const first = this.first(); const last = this.last();
     const dragged = this.dragged;
     this.dragStart = null; this.dragged = false;
@@ -235,6 +304,66 @@ export class TimelineDensityComponent {
     setTimeout(() => { this.suppressClick = false; });
     if (first && last && first.key !== last.key) this.apply(first, last);
     else this.clearDraft();
+  }
+
+  /** A finger went down on a bar below lg: name it at once, and draft a range if the finger holds still. */
+  private startScrub(event: PointerEvent, bucket: DensityBucket): void {
+    if (this.scrub) {
+      // A second finger: neither reads nor picks.
+      if (this.holding()) this.clearDraft();
+      this.cancelScrub(); return;
+    }
+    this.scrub = { pointerId: event.pointerId, x: event.clientX, timer: setTimeout(() => this.holdScrub(), LONG_PRESS_MS) };
+    this.scrubbed.set(bucket);
+  }
+
+  private holdScrub(): void {
+    const bucket = this.scrubbed();
+    if (!this.scrub || !bucket) return;
+    this.holding.set(true); this.first.set(bucket); this.last.set(bucket);
+  }
+
+  private moveScrub(event: PointerEvent, scrub: Scrub): void {
+    if (event.pointerId !== scrub.pointerId) return;
+    if (!this.holding() && Math.abs(event.clientX - scrub.x) > TOUCH_SLOP_PX) clearTimeout(scrub.timer);
+    const bucket = this.bucketAt(event.clientX);
+    if (!bucket) return;
+    this.scrubbed.set(bucket);
+    if (this.holding()) this.last.set(bucket);
+  }
+
+  /** The finger lifted: a held range applies, a tap or a slide drills the bar under it.
+   * Lifting off the bars, or the page taking the gesture for a scroll, only reads. */
+  private endScrub(event: PointerEvent, scrub: Scrub): void {
+    if (event.pointerId !== scrub.pointerId) return;
+    const held = this.holding(); const first = this.first(); const bucket = this.bucketAt(event.clientX);
+    this.cancelScrub();
+    // The click the browser ends a tap with must not drill a second time.
+    this.suppressClick = true;
+    if (event.type === 'pointercancel' || !bucket || !this.overStrip(event)) { if (held) this.clearDraft(); return; }
+    if (held && first) { this.apply(first, bucket); this.clearDraft(); return; }
+    if (this.currentRead?.()) this.drill(bucket);
+  }
+
+  private cancelScrub(): void {
+    if (this.scrub) clearTimeout(this.scrub.timer);
+    this.scrub = null; this.scrubbed.set(null); this.holding.set(false);
+  }
+
+  /** The bar under `clientX`: the strip's bars share its width equally below lg. */
+  private bucketAt(clientX: number): DensityBucket | null {
+    const rect = this.strip()?.nativeElement.getBoundingClientRect(); const rows = this.buckets();
+    return rect && rows.length ? rows[densityIndexAt(clientX, rect.left, rect.width, rows.length)] : null;
+  }
+
+  private overStrip(event: PointerEvent): boolean {
+    const rect = this.strip()?.nativeElement.getBoundingClientRect();
+    return !!rect && event.clientY >= rect.top && event.clientY <= rect.bottom;
+  }
+
+  /** A held finger must not open the browser's menu over the range it is picking. */
+  protected holdMenu(event: Event): void {
+    if (this.scrub) event.preventDefault();
   }
 
   protected onKey(event: KeyboardEvent): void {

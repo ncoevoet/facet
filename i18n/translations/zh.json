@@ -3065,7 +3065,12 @@
     "dates": "日期",
     "density_show": "显示日期密度",
     "density_hide": "隐藏日期密度",
-    "range_draft": "{from} – {to} · 按 Enter 应用，按 Esc 取消"
+    "range_draft": "{from} – {to} · 按 Enter 应用，按 Esc 取消",
+    "density_days_short": "日",
+    "density_months_short": "月",
+    "density_weeks_short": "周",
+    "scrub_hint": "按住后滑动可选择范围",
+    "scrub_range_hint": "抬起手指即应用，在柱形外抬起则取消"
   },
   "folders": {
     "help": "文件夹对应原始文件在磁盘上的存储位置。相册整理照片而不移动这些文件。打开文件夹可浏览其中的照片，也可按该位置筛选图库。",

@@ -3105,6 +3105,11 @@ export const I18N = {
     density_show: "timeline.density_show",
     density_hide: "timeline.density_hide",
     range_draft: "timeline.range_draft",
+    density_days_short: "timeline.density_days_short",
+    density_months_short: "timeline.density_months_short",
+    density_weeks_short: "timeline.density_weeks_short",
+    scrub_hint: "timeline.scrub_hint",
+    scrub_range_hint: "timeline.scrub_range_hint",
   },
   folders: {
     help: "folders.help",

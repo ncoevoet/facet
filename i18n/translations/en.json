@@ -3090,7 +3090,12 @@
     "dates": "Dates",
     "density_show": "Show date density",
     "density_hide": "Hide date density",
-    "range_draft": "{from} – {to} · Enter applies, Escape cancels"
+    "range_draft": "{from} – {to} · Enter applies, Escape cancels",
+    "density_days_short": "Days",
+    "density_months_short": "Months",
+    "density_weeks_short": "Weeks",
+    "scrub_hint": "Hold, then slide, to pick a range",
+    "scrub_range_hint": "Lift to apply, or lift off the bars to cancel"
   },
   "folders": {
     "help": "Folders follow where original files are stored on disk. Albums organize photos without moving those files. Open a folder to browse its photos or filter the gallery to that location.",

@@ -3065,7 +3065,12 @@
     "dates": "Dates",
     "density_show": "Afficher la densité par date",
     "density_hide": "Masquer la densité par date",
-    "range_draft": "{from} – {to} · Entrée applique, Échap annule"
+    "range_draft": "{from} – {to} · Entrée applique, Échap annule",
+    "density_days_short": "Jours",
+    "density_months_short": "Mois",
+    "density_weeks_short": "Semaines",
+    "scrub_hint": "Maintenez, puis glissez, pour choisir une plage",
+    "scrub_range_hint": "Levez le doigt pour appliquer, ou hors des barres pour annuler"
   },
   "folders": {
     "help": "Les dossiers reflètent l’emplacement des fichiers originaux sur le disque. Les albums organisent les photos sans déplacer ces fichiers. Ouvrez un dossier pour parcourir ses photos ou filtrez la galerie sur cet emplacement.",

@@ -3065,7 +3065,12 @@
     "dates": "Datas",
     "density_show": "Mostrar a densidade por data",
     "density_hide": "Ocultar a densidade por data",
-    "range_draft": "{from} – {to} · Enter aplica, Esc cancela"
+    "range_draft": "{from} – {to} · Enter aplica, Esc cancela",
+    "density_days_short": "Dias",
+    "density_months_short": "Meses",
+    "density_weeks_short": "Semanas",
+    "scrub_hint": "Mantenha premido e deslize para escolher um intervalo",
+    "scrub_range_hint": "Levante o dedo para aplicar, ou fora das barras para cancelar"
   },
   "folders": {
     "help": "As pastas correspondem ao local onde os arquivos originais estão guardados no disco. Os álbuns organizam as fotos sem mover esses arquivos. Abra uma pasta para explorar suas fotos ou filtre a galeria por esse local.",

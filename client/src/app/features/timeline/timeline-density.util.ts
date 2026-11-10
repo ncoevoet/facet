@@ -68,3 +68,21 @@ function weekBuckets(response: DensityResponse, year: string, month: string, fro
 export function densityRange(first: DensityBucket, last: DensityBucket): { from: string; to: string } {
   return first.from <= last.from ? { from: first.from, to: last.to } : { from: last.from, to: first.to };
 }
+
+/** The bucket under a pointer at `clientX`, for `count` equal slots across `left`..`left + width`.
+ * Clamped to the ends, so a finger that runs past the strip keeps the first or the last bucket. */
+export function densityIndexAt(clientX: number, left: number, width: number, count: number): number {
+  if (count < 1 || width <= 0) return 0;
+  return Math.min(count - 1, Math.max(0, Math.floor((clientX - left) / width * count)));
+}
+
+/** A text-xs tabular label's width, estimated: 7 px a character plus a margin. */
+const LABEL_CHAR_PX = 7;
+const LABEL_MARGIN_PX = 8;
+
+/** Every how many bars a label fits when `labels.length` bars share `width` px: 1 when all fit. */
+export function densityLabelStep(labels: string[], width: number): number {
+  if (width <= 0) return 1;
+  const widest = Math.max(0, ...labels.map(label => label.length)) * LABEL_CHAR_PX + LABEL_MARGIN_PX;
+  return Math.max(1, Math.ceil(labels.length * widest / width));
+}
