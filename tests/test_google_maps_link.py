@@ -432,3 +432,19 @@ def test_endpoint_is_edition_only(regular_client, anonymous_client, hops):
     assert regular_client.post('/api/geo/resolve_maps_link', json=body).status_code in (401, 403)
     assert anonymous_client.post('/api/geo/resolve_maps_link', json=body).status_code in (401, 403)
     assert requested == []
+
+
+def _declared_422_shapes(client):
+    document = client.app.openapi()
+    schema = document['paths']['/api/geo/resolve_maps_link']['post']['responses']['422']['content']['application/json']['schema']
+    models = [document['components']['schemas'][ref['$ref'].split('/')[-1]] for ref in schema['oneOf']]
+    return {model['properties']['detail']['type'] for model in models}
+
+
+def test_declared_422_covers_both_wire_shapes(edition_client, hops):
+    assert _declared_422_shapes(edition_client) == {'string', 'array'}
+    coded = edition_client.post('/api/geo/resolve_maps_link', json={'url': 'https://evil.example/x'})
+    invalid = edition_client.post('/api/geo/resolve_maps_link', json={'url': ''})
+    assert coded.status_code == invalid.status_code == 422
+    assert isinstance(coded.json()['detail'], str)
+    assert isinstance(invalid.json()['detail'], list)

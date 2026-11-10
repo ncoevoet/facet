@@ -15265,13 +15265,13 @@ export interface operations {
                     "application/json": components["schemas"]["MapsLinkResponse"];
                 };
             };
-            /** @description No coordinates: invalid_link, unsupported_host, no_coordinates, unreachable or too_many_redirects. */
+            /** @description No coordinates: a `detail` code (invalid_link, unsupported_host, no_coordinates, unreachable or too_many_redirects), or the validation-detail array for an invalid body. */
             422: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["PlaceSearchErrorResponse"];
+                    "application/json": components["schemas"]["PlaceSearchErrorResponse"] | components["schemas"]["HTTPValidationError"];
                 };
             };
         };

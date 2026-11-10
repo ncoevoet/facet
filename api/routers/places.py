@@ -128,8 +128,14 @@ class MapsLinkResponse(BaseModel):
 
 
 @router.post('/api/geo/resolve_maps_link', response_model=MapsLinkResponse, responses={
-    422: {'model': PlaceSearchErrorResponse, 'description': (
-        'No coordinates: invalid_link, unsupported_host, no_coordinates, unreachable or too_many_redirects.')},
+    422: {'description': (
+        'No coordinates: a `detail` code (invalid_link, unsupported_host, no_coordinates, unreachable or '
+        'too_many_redirects), or the validation-detail array for an invalid body.'),
+        # Both shapes answer 422; a bare `model` would hide FastAPI's validation error.
+        'content': {'application/json': {'schema': {'oneOf': [
+            {'$ref': '#/components/schemas/PlaceSearchErrorResponse'},
+            {'$ref': '#/components/schemas/HTTPValidationError'},
+        ]}}}},
 })
 def api_resolve_maps_link(body: MapsLinkRequest, user: CurrentUser = Depends(require_edition)):
     """Follow a Google Maps short link to the point it opens on; nothing is stored or assigned."""
