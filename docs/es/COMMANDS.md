@@ -119,6 +119,7 @@ En una GPU CUDA, en cuanto un chunk está decodificado, el mismo worker de decod
 - Los originales nunca se modifican a menos que añadas `--embed-originals` (solo JPEG/HEIC/TIFF/PNG/DNG; los RAW nunca se tocan).
 - Las palabras clave son los tags de IA más tus [tags manuales](VIEWER.md#tags-manuales). Solo se añaden, salvo que `--reconcile-keywords` elimine las que Facet escribió antes; las palabras clave ajenas se conservan. Ver [Tags manuales y palabras clave XMP](INTEROP.md#tags-manuales-y-palabras-clave-xmp).
 - La incrustación y la fusión de palabras clave requieren **exiftool**. Sin él, Facet escribe un sidecar XML simple.
+- El resumen cuenta los archivos escritos, incrustados, ausentes y fallidos. Cualquier error de escritura termina con código 1, incluida una exportación parcialmente correcta; los archivos completados permanecen escritos. Los originales ausentes se omiten y se cuentan, y por sí solos no hacen fallar el comando. Una selección vacía termina con 0.
 
 **Importación de sidecars.**
 
@@ -487,6 +488,8 @@ El paso de etiquetado al final de un escaneo se omite cuando `tagging.enabled` e
 
 Comprueba: rangos de puntuación, métricas faciales, corrupción de BLOB, tamaños de embeddings, rostros huérfanos, valores atípicos estadísticos.
 
+Tanto las reparaciones interactivas como `--auto-fix` toman el bloqueo de la biblioteca y vuelven a comprobar los problemas antes de escribir. El modo interactivo espera tu confirmación inicial antes de tomar el bloqueo. Una biblioteca ocupada termina con 75; un bloqueo inutilizable, con 1. `--report-only` y rechazar las reparaciones no necesitan el bloqueo de reparación.
+
 ## Mantenimiento de la base de datos
 
 | Comando | Descripción |
@@ -517,6 +520,10 @@ Comprueba: rangos de puntuación, métricas faciales, corrupción de BLOB, tama�
 | `python database.py --migrate-user-preferences --user alice` | Copia las valoraciones de photos a user_preferences |
 
 **`python database.py`** también construye los índices de la galería que falten (ver [VIEWER.md](VIEWER.md#índices-de-la-galería-y-caché-de-recuentos)). En una biblioteca grande, ejecútalo una vez antes de iniciar el visor; puede tardar cerca de un minuto. De lo contrario, el visor los construye en segundo plano y rechaza los guardados mientras tanto.
+
+**`--backup`** publica una instantánea completada con un nombre único con marca de tiempo antes de rotar las instantáneas antiguas. Las ejecuciones en el mismo segundo conservan instantáneas separadas; una copia fallida deja intactas las copias anteriores. El sistema de archivos de destino debe admitir enlaces duros.
+
+**`--export-viewer-db`** conserva las ediciones del destino y los lugares privados durante la sincronización incremental. Las exportaciones completas omiten los lugares guardados/recientes del origen. Consulta [finalización de la exportación y reintento](DEPLOYMENT.md#exportar-una-base-de-datos-ligera) para la publicación, las actualizaciones de esquema y la recuperación tras un error.
 
 **`--migrate-tags`** hace falta una sola vez. Después, los escaneos, `--recompute-tags`, `--recompute-tags-vlm` y `tag_existing.py` mantienen la tabla al día. Mientras no esté rellena, los filtros de etiquetas usan una búsqueda `LIKE` más lenta.
 

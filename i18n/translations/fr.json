@@ -1038,6 +1038,7 @@
     "unlock_description": "Entrez le mot de passe d'édition pour activer les fonctionnalités de modification.",
     "unlock_button": "Déverrouiller",
     "lock_title": "Mode édition actif - cliquer pour verrouiller",
+    "lock_failed": "Impossible de confirmer le verrouillage. Le mode édition peut encore être actif ; réessayez.",
     "password_placeholder": "Mot de passe d'édition",
     "invalid_password": "Mot de passe invalide",
     "read_only_hint": "Lecture seule : définissez viewer.edition_password dans scoring_config.json pour activer la notation, le tri et l'édition, puis redémarrez la visionneuse."

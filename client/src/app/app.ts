@@ -425,9 +425,13 @@ export class App implements OnInit {
     // new rights immediately — refreshConfig() leaves the user's filters intact.
     effect(() => {
       const s = this.auth.status();
-      const key = s ? `${s.authenticated}|${s.edition_authenticated}|${s.user_role ?? ''}` : '';
+      // A rotated token clears status while its new account is being checked.
+      // Keep the last known identity until that check settles, so the pending
+      // state cannot swallow the config refresh for the actual transition.
+      if (!s) return;
+      const key = `${s.authenticated}|${s.user_id ?? ''}|${s.edition_authenticated}|${s.user_role ?? ''}`;
       untracked(() => {
-        if (this.lastAuthKey !== null && this.lastAuthKey !== '' && key !== this.lastAuthKey) {
+        if (this.lastAuthKey !== null && key !== this.lastAuthKey) {
           void this.store.refreshConfig();
           // Edition-only indicators loaded once at startup must refresh when
           // edition is gained mid-session (otherwise they'd need an app reload).
@@ -515,7 +519,10 @@ export class App implements OnInit {
   }
 
   protected async lockEdition(): Promise<void> {
-    await this.auth.dropEdition();
+    if (!await this.auth.dropEdition()) {
+      this.snackBar.open(this.i18n.t(I18N.edition.lock_failed), '', { duration: 5000 });
+      return;
+    }
     const path = this.url().split('?')[0];
     const onEditionRoute = this.router.config.some(r => {
       const base = `/${r.path}`;

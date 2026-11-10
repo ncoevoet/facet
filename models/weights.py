@@ -11,6 +11,8 @@ import logging
 import os
 import shutil
 import tempfile
+import time
+import urllib.error
 import urllib.request
 from pathlib import Path
 from typing import Optional
@@ -21,6 +23,12 @@ logger = logging.getLogger("facet.models")
 # Per operation, not a total: a 400 MB fetch on a slow link is legitimate, a
 # stalled connection holding a fetch lock for every face worker is not.
 DOWNLOAD_TIMEOUT_SECONDS = 60
+
+# Attempts per download, and the first backoff (doubled after each failure). Only
+# a server-side refusal (5xx, 429) or a dropped connection is retried: a stall
+# already cost DOWNLOAD_TIMEOUT_SECONDS, and a 4xx or a bad body will not change.
+DOWNLOAD_ATTEMPTS = 3
+DOWNLOAD_RETRY_BACKOFF_SECONDS = 2
 
 PRETRAINED_MODELS_DIR = Path(__file__).resolve().parent.parent / 'pretrained_models'
 
@@ -47,43 +55,65 @@ def _sha256_file(path: str) -> str:
     return digest.hexdigest()
 
 
+def _is_transient(ex: Exception) -> bool:
+    if isinstance(ex, urllib.error.HTTPError):
+        return ex.code >= 500 or ex.code == 429
+    if isinstance(ex, urllib.error.URLError):
+        return isinstance(ex.reason, ConnectionError)
+    return isinstance(ex, ConnectionError)
+
+
+def _fetch(url: str, temp_path: str, sha256: Optional[str]):
+    with urllib.request.urlopen(url, timeout=DOWNLOAD_TIMEOUT_SECONDS) as response, \
+            open(temp_path, 'wb') as out:
+        shutil.copyfileobj(response, out, 1 << 20)
+        received = out.tell()
+    # HTTPResponse.read() does not raise on a short body, so check it ourselves.
+    headers = getattr(response, 'headers', None)
+    declared = headers.get('Content-Length') if headers else None
+    if declared is not None and declared.strip().isdigit() and received != int(declared):
+        raise ValueError(
+            f"Downloaded {url} is truncated: received {received} bytes, "
+            f"server declared Content-Length {declared}."
+        )
+    if sha256 is not None:
+        digest = _sha256_file(temp_path)
+        if digest != sha256:
+            raise ValueError(
+                f"Downloaded {url} has SHA-256 {digest}, expected {sha256}. "
+                f"Refusing to install a checkpoint that doesn't match."
+            )
+
+
 def download_weights(url: str, destination: Path, sha256: Optional[str] = None):
     """Download ``url`` to ``destination``, atomically.
 
     The fetch goes to a unique temporary file in the destination directory and is
     then moved into place, so a second scan racing on the same missing file can
     never load a half-written checkpoint. When ``sha256`` is given, a mismatched
-    download is discarded rather than installed.
+    download is discarded rather than installed. A transient server or connection
+    failure is retried up to ``DOWNLOAD_ATTEMPTS`` times with a doubling backoff.
     """
     destination.parent.mkdir(parents=True, exist_ok=True)
     logger.info("Downloading model weights to %s...", destination)
     fd, temp_path = tempfile.mkstemp(dir=str(destination.parent), suffix='.part')
     os.close(fd)
     try:
-        with urllib.request.urlopen(url, timeout=DOWNLOAD_TIMEOUT_SECONDS) as response, \
-                open(temp_path, 'wb') as out:
-            shutil.copyfileobj(response, out, 1 << 20)
-            received = out.tell()
-        # HTTPResponse.read() does not raise on a short body, so check it ourselves.
-        headers = getattr(response, 'headers', None)
-        declared = headers.get('Content-Length') if headers else None
-        if declared is not None and declared.strip().isdigit() and received != int(declared):
-            raise ValueError(
-                f"Downloaded {url} is truncated: received {received} bytes, "
-                f"server declared Content-Length {declared}."
-            )
-        if sha256 is not None:
-            digest = _sha256_file(temp_path)
-            if digest != sha256:
-                raise ValueError(
-                    f"Downloaded {url} has SHA-256 {digest}, expected {sha256}. "
-                    f"Refusing to install a checkpoint that doesn't match."
-                )
+        for attempt in range(1, DOWNLOAD_ATTEMPTS + 1):
+            try:
+                _fetch(url, temp_path, sha256)
+                break
+            except Exception as ex:
+                if attempt == DOWNLOAD_ATTEMPTS or not _is_transient(ex):
+                    raise
+                delay = DOWNLOAD_RETRY_BACKOFF_SECONDS * 2 ** (attempt - 1)
+                logger.warning("Download of %s failed (%s); retrying in %ss (attempt %d of %d)",
+                               url, ex, delay, attempt + 1, DOWNLOAD_ATTEMPTS)
+                time.sleep(delay)
         os.replace(temp_path, destination)
     finally:
         if os.path.exists(temp_path):
             os.remove(temp_path)
-
 
 # Permissive (commercial-mode) face pipeline weights, issue #185 W5. Pinned to the
 # opencv_zoo commit that last touched each file (not `main`) and SHA-256 checked.

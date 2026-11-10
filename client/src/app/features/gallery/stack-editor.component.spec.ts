@@ -1,6 +1,7 @@
 import english from '../../../../../i18n/translations/en.json';
 import { signal } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
+import { privateImageSessionKey } from '../../shared/utils/private-image-session';
 import { provideHttpClient, withXhr } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { NavigationStart, Router } from '@angular/router';
@@ -286,7 +287,7 @@ describe('StackDialog HTTP workflow', () => {
     const photo = { path: '/a.jpg' };
     http.expectOne(request => request.url === '/api/photo').flush(photo); await opening;
     expect(TestBed.inject(GalleryStore).showPaths).not.toHaveBeenCalled();
-    expect(TestBed.inject(Router).navigate).toHaveBeenCalledWith(['/photo'], { queryParams: { path: '/a.jpg' }, state: { photo, photoBack: true }, replaceUrl: false });
+    expect(TestBed.inject(Router).navigate).toHaveBeenCalledWith(['/photo'], { queryParams: { path: '/a.jpg' }, state: { photo, photoSession: privateImageSessionKey(), photoBack: true }, replaceUrl: false });
   });
   it('opens a newly added draft member without saving or changing gallery scope', async () => {
     create(); await load(); await addSelected();
@@ -294,7 +295,7 @@ describe('StackDialog HTTP workflow', () => {
     const photo = { path: '/c.jpg' };
     http.expectOne(request => request.url === '/api/photo').flush(photo); await opening;
     expect(TestBed.inject(GalleryStore).showPaths).not.toHaveBeenCalled();
-    expect(TestBed.inject(Router).navigate).toHaveBeenCalledWith(['/photo'], { queryParams: { path: '/c.jpg' }, state: { photo, photoBack: true }, replaceUrl: false });
+    expect(TestBed.inject(Router).navigate).toHaveBeenCalledWith(['/photo'], { queryParams: { path: '/c.jpg' }, state: { photo, photoSession: privateImageSessionKey(), photoBack: true }, replaceUrl: false });
     http.expectNone(request => request.method === 'PUT');
   });
   it('does not open a member outside an existing exact pinned list', async () => {

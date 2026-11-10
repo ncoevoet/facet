@@ -153,10 +153,10 @@ O servidor serve a SPA pré-compilada a partir de `client/dist/client/browser/`.
 implantar:
 
 ```bash
-cd client && npm install && npx ng build && cd ..
+cd client && npm ci && npm run build && cd ..
 ```
 
-Isso requer Node.js 20+ apenas no momento da compilação, não no servidor.
+Isso requer Node.js 24.15.0 ou mais recente (série 24.x) apenas no momento da compilação, não no servidor.
 
 ## Synology NAS (DS420j / série J)
 
@@ -197,6 +197,7 @@ Isso cria `photo_scores_viewer.db`, que:
 - remove os embeddings CLIP, de legenda e de rostos;
 - mantém o histograma por foto (~2 KB cada) para o widget de histograma RGB;
 - reduz as miniaturas de 640px para 320px;
+- começa com listas vazias de locais salvos e localizações recentes; os locais privados da máquina de pontuação não são copiados;
 - normalmente reduz um banco de dados de 14GB para ~4-5GB.
 
 As exportações são incrementais: apenas as fotos novas e alteradas são sincronizadas. Para uma reconstrução completa:
@@ -205,8 +206,18 @@ As exportações são incrementais: apenas as fotos novas e alteradas são sincr
 python database.py --export-viewer-db --force-export
 ```
 
-> **Aviso:** `--force-export` descarta as classificações, localizações e tags manuais definidos no
+> **Aviso:** `--force-export` descarta as classificações, localizações, tags manuais e locais privados salvos ou recentes definidos no
 > visualizador no NAS. Apenas uma exportação incremental os mantém.
+
+**Conclusão e nova tentativa.** Uma exportação completa é preparada em um diretório temporário exclusivo do proprietário ao lado do destino, livre do estado privado da origem, compactada e verificada quanto à consistência do SQLite e das chaves estrangeiras antes da publicação. Uma saída nova só aparece quando está pronta. Substituir uma saída existente usa a transação de backup do SQLite, preservando o inode para leitores abertos e conexões WAL; se falhar, o banco anterior é mantido. Uma saída existente que o SQLite não consegue abrir, por não ser um banco de dados ou estar corrompida, é substituída como arquivo. Saídas novas e snapshots de backup exigem um sistema de arquivos com suporte a hard links. Se não houver, o comando falha sem publicar um arquivo parcial; escolha um diretório de saída compatível.
+
+Uma exportação incremental primeiro atualiza o esquema do destino e depois sincroniza um snapshot da origem em uma única transação do destino. As miniaturas das fotos novas são reduzidas e a integridade do destino é verificada antes de essa transação começar, de modo que as gravações do visualizador esperam apenas enquanto as alterações são aplicadas. Uma sincronização de dados com falha ou interrompida reverte em conjunto as alterações de fotos, rostos, tags, vetores e recibos de revisão; a atualização do esquema pode permanecer. Corrija a causa informada e execute o mesmo comando novamente. Uma miniatura corrompida de uma foto nova é um erro, então repará-la na origem e tentar de novo também gera sua miniatura. As miniaturas existentes permanecem inalteradas. As edições de revisão, as tags manuais e os locais salvos/recentes do destino continuam locais e são preservados pela sincronização incremental.
+
+Os caminhos de saída são nomes de arquivo literais, inclusive nomes que começam com `file:` em sistemas de arquivos que os aceitam; parâmetros de URI do SQLite não são aceitos.
+
+As exportações reservam espaço livre para a área de preparação ou os diários de reversão e falham antes de copiar se a estimativa não couber. Exceções e interrupções normais removem a cópia temporária; um processo encerrado à força pode deixar ao lado da saída um diretório oculto `.*.export-*` exclusivo do proprietário. Depois que o exportador parar, remova esse diretório temporário e tente novamente. O banco publicado anterior continua sendo o ponto de recuperação. O bloqueio do SQLite continua valendo: tente novamente após erros de bloqueio quando o gravador do destino estiver ocioso.
+
+Se o arquivo principal da saída estiver ausente, mas restar um arquivo acompanhante `-wal`, `-shm` ou `-journal`, a exportação para sem apagá-lo. Feche os usuários desse banco de dados e recupere-o antes de tentar novamente; um WAL remanescente pode conter dados que pertencem ao banco anterior.
 
 "Encontrar semelhantes" não funciona no banco de dados exportado (sem embeddings). Use a
 máquina de pontuação para isso.

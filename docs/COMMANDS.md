@@ -119,6 +119,7 @@ On a CUDA GPU, once a chunk is decoded the same decode worker starts on the firs
 - Originals are never modified unless you add `--embed-originals` (JPEG/HEIC/TIFF/PNG/DNG only; RAW is never touched).
 - Keywords are the AI tags plus your [manual tags](VIEWER.md#manual-tags). They are only added, unless `--reconcile-keywords` removes ones Facet wrote before; foreign keywords are kept. See [Manual tags and XMP keywords](INTEROP.md#manual-tags-and-xmp-keywords).
 - Embedding and keyword merging need **exiftool**. Without it, Facet writes a plain XML sidecar.
+- The summary counts written, embedded, missing and failed files. Any write error exits 1, including a partially successful export; completed files remain written. Missing originals are skipped and counted, and do not alone make the command fail. An empty selection exits 0.
 
 **Sidecar import.**
 
@@ -207,7 +208,7 @@ These update metrics or derive new data without re-running the full scoring pipe
 | `python facet.py --compute-recommendations --apply-recommendations` | Auto-apply scoring fixes |
 | `python facet.py --compute-recommendations --simulate` | Preview projected changes |
 
-**`--dry-run`** has no preview for these database rewriters, so each refuses it with exit code 2 rather than writing anyway: `--backfill-clipping`, `--backfill-focal-35mm`, `--cluster-faces-force`, `--generate-captions`, `--recompute-average`, `--recompute-colors`, `--recompute-distortions`, `--recompute-form`, `--recompute-skin-tone`, `--recompute-tags`, `--recompute-text`, `--repair-int-columns`, `--repair-neutral-iqa`, `--upgrade-db`.
+**`--dry-run`** previews scans, `--import-sidecars`, `--detect-moments` / `--recompute-moments`, `--detect-junk` / `--recompute-junk`, `--recompute-silhouette` and `--immich-sync`. Stored-data previews open the existing database read-only and do not migrate its schema or change its journal mode. Other commands that write the database, config, exports or reports refuse `--dry-run` with exit code 2 before dispatch; this includes GPS extraction/rescanning, model recomputation/training, face clustering, recommendations and sidecar exports. Run those commands without `--dry-run` only when you intend to apply them. `--auto-cull` has its own preview-by-default workflow below.
 
 **`--recompute-average`** keeps no snapshot: to roll back, restore a weight snapshot and recompute. After upgrading from 1.20 or earlier, run `--recompute-silhouette` first, then `--recompute-average` twice. The first pass stores new percentiles, so the second still changes some rows.
 
@@ -487,6 +488,8 @@ The tagging step at the end of a scan is skipped when `tagging.enabled` is `fals
 
 Checks: score ranges, face metrics, BLOB corruption, embedding sizes, orphaned faces, statistical outliers.
 
+Both interactive repairs and `--auto-fix` take the library lock and check the issues again before writing. Interactive mode waits for your initial confirmation before taking the lock. A busy library exits 75; an unusable lock exits 1. `--report-only` and declining repairs do not need the repair lock.
+
 ## Database Maintenance
 
 | Command | Description |
@@ -516,7 +519,15 @@ Checks: score ranges, face metrics, BLOB corruption, embedding sizes, orphaned f
 | `python database.py --add-user alice --role user --display-name "Alice"` | Add a user with a display name |
 | `python database.py --migrate-user-preferences --user alice` | Copy ratings from photos to user_preferences |
 
+Choose one primary `database.py` command per invocation; conflicting commands and orphan modifiers exit 2 before initialization or lock checks. `--dry-run` and `--force` belong to `--cleanup-missing-photos`, `--force-export` to `--export-viewer-db`, `--role` / `--display-name` to `--add-user`, `--user` to `--migrate-user-preferences`, and `--keep` to `--backup`. Spell option names in full. With no primary command, the normal schema initialization still runs.
+
+Backups treat `--db` as a literal filesystem path, including spaces, Unicode and URI-reserved characters such as `#`, `?` and `%` where supported by the OS. The old comparisons-table upgrade is transactional: a failed or interrupted rebuild preserves the original votes. If initialization reports an existing `comparisons_new` recovery table, stop the viewer, take a backup and inspect both comparison tables before recovery; initialization deliberately preserves them instead of deleting potentially recoverable votes.
+
 **`python database.py`** also builds missing gallery indexes (see [VIEWER.md](VIEWER.md#gallery-indexes-and-the-count-cache)). On a large library, run it once before starting the viewer; it can take about a minute. Otherwise the viewer builds them in the background and refuses saves meanwhile.
+
+**`--backup`** publishes a completed snapshot under a unique timestamped name before rotating old snapshots. Runs in the same second keep separate snapshots; a failed copy leaves earlier backups intact. The destination filesystem must support hard links.
+
+**`--export-viewer-db`** keeps destination edits and private places during incremental sync. Full exports omit source saved/recent places. See [export completion and retry](DEPLOYMENT.md#export-lightweight-database) for publication, schema upgrades and recovery after an error.
 
 **`--migrate-tags`** is needed once. After that, scans, `--recompute-tags`, `--recompute-tags-vlm` and `tag_existing.py` keep the table current. Until it is populated, tag filters use a slower `LIKE` search.
 

@@ -6,7 +6,7 @@ import { App } from './app';
 import { I18nTitleStrategy } from './core/i18n-title.strategy';
 import { HeaderSlotService } from './core/services/header-slot.service';
 import { GalleryStore, GalleryFilters, DEFAULT_FILTERS } from './features/gallery/gallery.store';
-import { AuthService } from './core/services/auth.service';
+import { AuthService, AuthStatus } from './core/services/auth.service';
 import { ApiService } from './core/services/api.service';
 import { I18nService } from './core/services/i18n.service';
 import { ThemeService } from './core/services/theme.service';
@@ -52,6 +52,7 @@ function createApp(routerUrl = '/', extraProviders: Provider[] = []) {
     types: signal<{ id: string; count: number }[]>([]),
     loadTypeCounts: vi.fn(() => Promise.resolve()),
     loadConfig: vi.fn(),
+    refreshConfig: vi.fn(() => Promise.resolve()),
     viewFilterParams: viewFilterParamsSignal,
     pinnedPaths: signal<string[] | null>(null),
     galleryMode: signal('grid'),
@@ -484,6 +485,34 @@ describe('App', () => {
       expect(render(false).buttons).toHaveLength(0);
     });
   });
+
+  describe('account configuration', () => {
+    it('refreshes when another account with the same role loads through a pending status', () => {
+      const alice: AuthStatus = {
+        authenticated: true, multi_user: true, edition_enabled: true,
+        edition_authenticated: false, edition_password_required: false,
+        login_password_required: true, user_id: 'alice', user_role: 'user',
+        display_name: 'Alice', features: {}, download_profiles: [],
+      };
+      const status = signal<AuthStatus | null>(alice);
+      const { mockStore } = createApp('/', [
+        { provide: AuthService, useValue: {
+          identity: () => '1|alice', status, hasFeature: () => false, isMultiUser: () => true, isSuperadmin: () => false,
+          editionPasswordRequired: () => false, loginPasswordRequired: () => true, isEdition: () => false,
+        } },
+      ]);
+      TestBed.tick();
+      expect(mockStore.refreshConfig).not.toHaveBeenCalled();
+
+      status.set(null);
+      TestBed.tick();
+      expect(mockStore.refreshConfig).not.toHaveBeenCalled();
+      status.set({ ...alice, user_id: 'bob', display_name: 'Bob' });
+      TestBed.tick();
+      expect(mockStore.refreshConfig).toHaveBeenCalledTimes(1);
+    });
+  });
+
   describe('lockEdition', () => {
     it('leaves a page the route table flags data.edition, and only those', async () => {
       const config = [{ path: 'compare', data: { edition: true } }, { path: 'stats' }];
@@ -491,13 +520,26 @@ describe('App', () => {
         TestBed.resetTestingModule();
         const { app, mockRouter } = createApp(url, [
           { provide: Router, useValue: { url, events: NEVER, navigate: vi.fn(), config } },
-          { provide: AuthService, useValue: { identity: () => '0|', isAuthenticated: vi.fn(() => true), checkStatus: vi.fn(), dropEdition: vi.fn(() => Promise.resolve()) } },
+          { provide: AuthService, useValue: { identity: () => '0|', isAuthenticated: vi.fn(() => true), checkStatus: vi.fn(), dropEdition: vi.fn(() => Promise.resolve(true)) } },
         ]);
         await (app as any).lockEdition();
         return { app, router: TestBed.inject(Router) as unknown as { navigate: ReturnType<typeof vi.fn> }, mockRouter };
       };
       expect((await lock('/compare?x=1')).router.navigate).toHaveBeenCalledWith(['/']);
       expect((await lock('/stats')).router.navigate).not.toHaveBeenCalled();
+    });
+
+    it('reports a failed lock without navigating away as though it succeeded', async () => {
+      const router = { url: '/compare', events: NEVER, navigate: vi.fn(), config: [{ path: 'compare', data: { edition: true } }] };
+      const snackBar = { open: vi.fn() };
+      const { app } = createApp('/compare', [
+        { provide: Router, useValue: router },
+        { provide: MatSnackBar, useValue: snackBar },
+        { provide: AuthService, useValue: { identity: () => '0|', isAuthenticated: vi.fn(() => true), checkStatus: vi.fn(), dropEdition: vi.fn(() => Promise.resolve(false)) } },
+      ]);
+      await (app as unknown as { lockEdition: () => Promise<void> }).lockEdition();
+      expect(router.navigate).not.toHaveBeenCalled();
+      expect(snackBar.open).toHaveBeenCalledWith(I18N.edition.lock_failed, '', { duration: 5000 });
     });
   });
 

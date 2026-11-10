@@ -493,7 +493,8 @@ def _report_pending(db_path, dry_run: bool) -> int:
     leaves the list; the rest are logged so an Immich upload that Facet never
     picked up is visible from an ordinary sync run.
     """
-    with _state_write(db_path) as conn:
+    connection = get_connection(db_path, read_only=True) if dry_run else _state_write(db_path)
+    with connection as conn:
         pending = _load_pending(conn, None)
         if not pending:
             return 0
@@ -593,7 +594,7 @@ def sync_to_immich(db_path, config: dict, user_id: str | None = None,
     path_map = immich_cfg.get("path_map", [])
     multi_user = any(k != "shared_directories" for k in config.get("users", {}))
     scope = user_id if multi_user else None
-    with get_connection(db_path) as conn:
+    with get_connection(db_path, read_only=dry_run) as conn:
         synced_state = _load_synced_state(conn, scope)
         rows = _fetch_rating_rows(conn, scope, extra_paths=synced_state.keys(),
                                   push_rejected=push_rejected)

@@ -62,6 +62,7 @@ import { AuthService } from '../../core/services/auth.service';
 import { StalenessGuardFactory } from '../../core/services/staleness-guard.service';
 import { ScanService } from '../../core/services/scan.service';
 import { useDesktopSignal, DETAILS_RAIL_MIN_WIDTH_PX, LG_BREAKPOINT_PX } from '../../shared/utils/media-query';
+import { privateImageSessionKey } from '../../shared/utils/private-image-session';
 import { I18nService } from '../../core/services/i18n.service';
 import { ApiService } from '../../core/services/api.service';
 import { PluralKeyPipe } from '../../shared/pipes/plural-key.pipe';
@@ -1081,6 +1082,9 @@ export class GalleryComponent implements OnInit, OnDestroy {
   protected readonly MAX_REFRESH_PATHS = MAX_REFRESH_PATHS;
   protected readonly store = inject(GalleryStore);
   protected readonly auth = inject(AuthService);
+  // A parked gallery can retain old rows across a credential change. Preserve
+  // their original owner so opening one requires a fresh authorized detail read.
+  private readonly photoSession = privateImageSessionKey();
   private readonly cardActionsService = inject(CardActionsService);
   private readonly keymap = inject(KeyboardMappingService);
   /** The user's hover-button layout for every card, from localStorage. */
@@ -2150,6 +2154,15 @@ export class GalleryComponent implements OnInit, OnDestroy {
     const current = () => !this.destroyRef.destroyed && mount === this.store.galleryMounts()
       && owner === this.auth.identity() && token === this.auth.token;
     this.setGalleryChrome(true);
+    // Validate before any asynchronous load or set-scope fast path: the root
+    // store outlives the gallery, so another account must not inherit its rows.
+    const previousView = this.store.viewSnapshot();
+    if (previousView && previousView.photoSession !== this.photoSession) {
+      this.store.viewSnapshot.set(null);
+      this.store.photos.set([]);
+      this.store.total.set(0);
+      this.store.clearSelection();
+    }
     // Read (and clear) BEFORE tryRestoreView: a scoped "open this set" request
     // means the user wants that new scoped view, never a resumed previous one.
     const setScope = this.consumeSetScopeState();
@@ -2449,6 +2462,7 @@ export class GalleryComponent implements OnInit, OnDestroy {
       scrollTop: this.parked ? this.returnTo?.scroll ?? 0 : this.scrollContent()?.measureScrollOffset('top') ?? 0,
       albumId: this.route.snapshot.paramMap.get('albumId'),
       filterKey: this.store.filterKey(),
+      photoSession: this.photoSession,
     });
   }
 
@@ -2480,7 +2494,7 @@ export class GalleryComponent implements OnInit, OnDestroy {
   private tryRestoreView(): boolean {
     const snap = this.store.viewSnapshot();
     this.store.viewSnapshot.set(null);
-    if (!snap || !this.store.photos().length) return false;
+    if (!snap || snap.photoSession !== this.photoSession || !this.store.photos().length) return false;
     if (snap.albumId !== this.route.snapshot.paramMap.get('albumId')) return false;
     const candidate = applyQueryParams(this.store.filters(), this.route.snapshot.queryParams);
     if (snap.filterKey !== this.store.filterKey(candidate)) return false;
@@ -2842,7 +2856,7 @@ export class GalleryComponent implements OnInit, OnDestroy {
   protected downloadPhoto(photo: Photo): void {
     this.router.navigate(['/photo'], {
       queryParams: { path: photo.path },
-      state: { photo },
+      state: { photo, photoSession: this.photoSession },
     });
   }
 

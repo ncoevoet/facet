@@ -610,7 +610,7 @@ export class GalleryStore {
   readonly hiddenFiltersStash = signal<HiddenFilterFlags | null>(null);
 
   // --- View snapshot for back-navigation restoration ---
-  readonly viewSnapshot = signal<{ scrollTop: number; albumId: string | null; filterKey: string } | null>(null);
+  readonly viewSnapshot = signal<{ scrollTop: number; albumId: string | null; filterKey: string; photoSession: string } | null>(null);
 
   /** Cheap equality token for the current query state (or an explicit candidate filter set). */
   filterKey(f: GalleryFilters = this.filters()): string {

@@ -36,7 +36,7 @@ from typing import Any, Optional
 
 from api.auth import (
     EDITION_PASSWORD_KEY, CurrentUser, VIEWER_PASSWORD_KEY, _is_open_install, _trusted_local_editing_enabled,
-    password_generation, request_is_local_for, trusted_local_for,
+    ACCOUNT_GENERATION_CLAIM, account_generation, password_generation, request_is_local_for, trusted_local_for,
 )
 from api.config import config_load_failed, get_user_config, is_multi_user_enabled
 from api.database import get_db
@@ -319,6 +319,7 @@ class SessionGrant:
     display_name: str
     user_gen: str
     edition_gen: str
+    viewer_gen: str = ""
     session_id: Optional[str] = None
     selection_snapshot: Optional[dict] = None
 
@@ -345,11 +346,11 @@ class SessionGrant:
     def resolve(self) -> Optional[ResolvedGrant]:
         """The level the session holds against the live config, or None when it no longer exists."""
         mode = install_mode()
-        if mode == "unreadable":
+        if mode == "unreadable" or self.viewer_gen != password_generation(VIEWER_PASSWORD_KEY):
             return None
         if mode == "multi":
             user = get_user_config(self.user_id or "")
-            if user is None:
+            if user is None or self.user_gen != account_generation(user):
                 return None
             role = user.get("role", "user")
             level = _lower(self.level, "edition" if role in ("admin", "superadmin") else "user")
@@ -380,7 +381,8 @@ def session_grant(user: CurrentUser, claims: Optional[dict] = None) -> Optional[
     generations the session was minted under.
     """
     mode = install_mode()
-    if mode == "unreadable" or (mode == "multi" and get_user_config(user.user_id or "") is None):
+    account = get_user_config(user.user_id or "") if mode == "multi" else None
+    if mode == "unreadable" or (mode == "multi" and account is None):
         return None
     level = session_level(user)
     if level == "readonly" and mode == "multi":
@@ -389,8 +391,10 @@ def session_grant(user: CurrentUser, claims: Optional[dict] = None) -> Optional[
     return SessionGrant(
         user.user_id, session_principal(user.user_id), level, getattr(user, "role", "user") or "user",
         getattr(user, "display_name", "") or "",
-        claims.get("pv") or password_generation(VIEWER_PASSWORD_KEY),
-        claims.get("ev") or password_generation(EDITION_PASSWORD_KEY))
+        (claims.get(ACCOUNT_GENERATION_CLAIM) or account_generation(account))
+        if account is not None else (claims.get("pv") or password_generation(VIEWER_PASSWORD_KEY)),
+        claims.get("ev") or password_generation(EDITION_PASSWORD_KEY),
+        viewer_gen=claims.get("pv") or password_generation(VIEWER_PASSWORD_KEY))
 
 
 @dataclass(frozen=True)

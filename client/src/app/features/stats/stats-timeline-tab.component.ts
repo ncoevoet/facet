@@ -15,6 +15,7 @@ import { TranslatePipe } from '../../shared/pipes/translate.pipe';
 import { StatsFiltersService } from './stats-filters.service';
 import { statsAuthScope } from './stats-auth-scope';
 import { downloadCsv } from '../../shared/utils/csv';
+import { LatestRequest } from '../../shared/utils/latest-request';
 import { i18nKeys } from '../../core/i18n/keys';
 import { chartSeriesColor, chartTheme } from './chart-theme';
 import { HANDLE_SERVER_ERROR_LOCALLY } from '../../core/utils/http-error-context';
@@ -206,6 +207,7 @@ export class StatsTimelineTabComponent {
   private auth = inject(AuthService);
   private readonly authScope = statsAuthScope(this.auth);
   private charts = new Map<string, Chart>();
+  private readonly latestLoad = new LatestRequest(this.destroyRef);
   private generation = 0;
   private loadedKey = '';
 
@@ -291,6 +293,7 @@ export class StatsTimelineTabComponent {
 
   async loadTimeline(retry = false): Promise<void> {
     const generation = ++this.generation;
+    const req = this.latestLoad.begin();
     const key = JSON.stringify([this.auth.identity(), this.auth.isAuthenticated(), this.auth.token, this.filterParams]);
     const button = retry ? this.timelineRetry()?.nativeElement : undefined;
     const doc = button?.ownerDocument;
@@ -299,13 +302,13 @@ export class StatsTimelineTabComponent {
     this.retrying.set(retry);
     this.timelineFailed.set(false);
     this.loadedKey = '';
-    this.timeline.set([]); this.yearlyData.set([]); this.dayOfWeekData.set([]); this.hourOfDayData.set([]); this.heatmapGrid.set([]);
+    this.timeline.set([]); this.yearlyData.set([]); this.dayOfWeekData.set([]); this.hourOfDayData.set([]); this.heatmapGrid.set([]); this.heatmapMax.set(1);
     if (!this.auth.isAuthenticated()) { this.timelineLoading.set(false); this.retrying.set(false); return; }
     try {
-      const data = await firstValueFrom(this.api.get<{
+      const data = await firstValueFrom(req.bind(this.api.get<{
         monthly: { month: string; count: number; avg_score: number }[];
         heatmap?: { day: number; hour: number; count: number }[];
-      }>('/stats/timeline', this.filterParams, new HttpContext().set(HANDLE_SERVER_ERROR_LOCALLY, true)));
+      }>('/stats/timeline', this.filterParams, new HttpContext().set(HANDLE_SERVER_ERROR_LOCALLY, true))));
 
       if (generation !== this.generation || key !== JSON.stringify([this.auth.identity(), this.auth.isAuthenticated(), this.auth.token, this.filterParams])) return;
       this.loadedKey = key;
@@ -354,13 +357,13 @@ export class StatsTimelineTabComponent {
 
   /** Export the monthly photo timeline as CSV. */
   exportCsv(): void {
-    if (this.loadedKey !== JSON.stringify([this.auth.identity(), this.auth.isAuthenticated(), this.auth.token, this.filterParams])) return;
+    if (this.timeline().length === 0 || this.loadedKey !== JSON.stringify([this.auth.identity(), this.auth.isAuthenticated(), this.auth.token, this.filterParams])) return;
     downloadCsv('facet-timeline', this.timeline());
   }
 
   private buildAreaLine(id: string, ref: ElementRef<HTMLCanvasElement> | undefined, labels: string[], data: number[], color: string): void {
-    if (!ref || data.length === 0) return;
     this.destroyChart(id);
+    if (!ref || data.length === 0) return;
     const ctx = ref.nativeElement.getContext('2d');
     if (!ctx) return;
     const palette = chartTheme();
@@ -395,8 +398,8 @@ export class StatsTimelineTabComponent {
   }
 
   private buildVerticalBar(id: string, ref: ElementRef<HTMLCanvasElement> | undefined, labels: string[], data: number[], color: string): void {
-    if (!ref || data.length === 0) return;
     this.destroyChart(id);
+    if (!ref || data.length === 0) return;
     const ctx = ref.nativeElement.getContext('2d');
     if (!ctx) return;
     const palette = chartTheme();

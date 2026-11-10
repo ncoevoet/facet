@@ -88,6 +88,8 @@ Reinicia el visor tras definir `viewer.edition_password`: la configuración no s
 
 El inicio de sesión también guarda el token de sesión en una cookie `HttpOnly` `SameSite=Lax`, de modo que las miniaturas y el flujo de progreso del escaneo se cargan en instalaciones protegidas con contraseña. La cookie solo se acepta en peticiones de solo lectura (GET/HEAD); las ediciones siguen necesitando el token Bearer. Cerrar sesión (`POST /api/auth/logout`) la borra.
 
+Las miniaturas de la biblioteca, las imágenes completas y los recortes de caras/personas se sirven con cabeceras de caché HTTP privadas que exigen revalidación. Evitan el service worker, que ya no guarda una caché sin conexión de miniaturas. Las URL de imagen llevan un parámetro de consulta `session`, que no es una credencial y cambia cuando cambia la cuenta con la sesión iniciada; así el visor no reutiliza las imágenes decodificadas de una cuenta anterior. Las instantáneas del historial de fotos privadas solo se pueden usar en su sesión original; Atrás tras cerrar e iniciar sesión, o al recargar la página, vuelve a comprobar el acceso antes de mostrar metadatos. Esto no borra los bytes de imagen ni el historial ya entregados al navegador. Los álbumes compartidos públicos y los quioscos de marcos de fotos mantienen sus propias políticas de acceso. Si el servidor rechaza expresamente **Bloquear edición**, los privilegios actuales siguen visibles y se muestra un error; una respuesta interrumpida debe reconciliar antes su cookie, como se describe más abajo.
+
 ### Modo multiusuario
 
 Para un NAS familiar donde cada miembro tiene carpetas de fotos privadas. Añade una sección `users` a `scoring_config.json`:
@@ -124,6 +126,10 @@ python database.py --add-user alice --role superadmin --display-name "Alice"
 ```
 
 Consulta [Configuración](CONFIGURATION.md#usuarios) para la referencia completa.
+
+Cambiar el hash de contraseña almacenado o el rol de una cuenta, o eliminarla, invalida sus sesiones existentes en cuanto el servidor carga la nueva configuración. Esto incluye las cookies de imagen, los tokens del flujo de escaneo y el asistente de la página. Vuelve a iniciar sesión tras cambiar una cuenta; las sesiones multiusuario existentes también necesitan un inicio de sesión nuevo tras esta actualización. Eliminar a todos los usuarios no conserva un token de administrador antiguo. Rotar `viewer.password` sigue invalidando todas las sesiones; rotar `viewer.edition_password` retira los derechos de edición en modo de un solo usuario. El inicio/cierre de sesión de edición solo se aplica al modo de un solo usuario; las cuentas con roles cierran sesión o cambian de rol. El cierre de sesión normal borra las credenciales de este navegador sin revocar un token copiado.
+
+El inicio de sesión, los cambios de edición y el cierre de sesión se ejecutan en orden dentro de una pestaña, para que sus cookies de imagen y credenciales Bearer no se adelanten entre sí; una petición de autenticación bloqueada se aborta a los 15 segundos. Los navegadores con Web Locks también coordinan estas operaciones entre pestañas (HTTPS y localhost). En orígenes HTTP sin Web Locks, los inicios de sesión simultáneos en pestañas distintas siguen el orden de finalización; el último completado pasa a ser la cuenta compartida del navegador. Si una respuesta falla después de actualizar su cookie de imagen, Facet reconcilia esa cookie con la sesión Bearer confirmada antes de volver a mostrar la cuenta. Si la reconciliación y la limpieza fallan, la cuenta queda sin confirmar tras recargar hasta que un reintento posterior tenga éxito.
 
 ### Roles
 
@@ -1191,6 +1197,8 @@ La página Estadísticas (`/stats`) tiene 5 pestañas. El resumen muestra los re
 | **Categorías** | Análisis de categorías, gestión de pesos y correlaciones de puntuación |
 | **Correlaciones** | Gráficos de correlación X/Y personalizados entre métricas, con agrupación. La pestaña se abre con las puntuaciones por año, y los gráficos sugeridos (ruido según ISO por cámara, puntuación por categoría, puntuación por distancia focal) rellenan el formulario y dibujan el gráfico con un clic. Mientras no edites el formulario, un cambio de filtro vuelve a dibujar el gráfico; después de una edición, lo hace el botón de actualizar **Cargar correlaciones** |
 
+En **Correlaciones**, cambiar una opción de la consulta borra el resultado anterior; pulsa **Cargar correlaciones** para obtener la nueva selección antes de exportar el CSV. El gráfico y el CSV describen la misma selección cargada. Cambiar el estilo o el tema del gráfico conserva esa selección.
+
 ### Pestaña Categorías
 
 Cuatro subpestañas:
@@ -1265,9 +1273,9 @@ Para cambios más antiguos, ver [Historial de organización](#historial-de-organ
 
 ## Aplicación web progresiva
 
-Las compilaciones de producción se pueden instalar en la pantalla de inicio. El armazón de la aplicación se carga sin conexión, y hasta 1000 miniaturas se guardan en caché durante 7 días (los tamaños mayores, como los renderizados de 1920 px del cuarto oscuro, dependen de la caché del navegador). Las respuestas de la API nunca se guardan en caché, salvo los paquetes de traducción. Una barra de aviso ofrece recargar cuando se despliega una versión nueva.
+Las compilaciones de producción se pueden instalar en la pantalla de inicio. La carcasa de la aplicación se carga sin conexión; las miniaturas y demás imágenes de la biblioteca no se guardan en caché sin conexión. Antes de reutilizar una copia guardada, el navegador la revalida con el servidor, de modo que una sesión revocada no puede volver a cargarla; una imagen ya mostrada en una pestaña abierta puede seguir visible en ella hasta que la pestaña se recargue. Las respuestas de la API nunca se almacenan en caché, salvo los paquetes de traducción. Una barra de aviso ofrece recargar cuando se despliega una versión nueva.
 
-> **Advertencia:** al cerrar sesión, la aplicación intenta eliminar las miniaturas existentes de la caché del service worker. Las solicitudes en curso pueden volver a guardar imágenes en caché. Esto no borra la caché HTTP del navegador, que puede conservar las imágenes vistas (miniaturas, renderizados, imágenes a resolución completa) hasta un año. Las cuentas que no deben ver las fotos de las demás no deberían compartir un perfil de navegador.
+> **Nota:** el navegador revalida cada imagen con el servidor antes de reutilizarla; tras cerrar sesión o revocar una sesión ya no se muestra una copia guardada. Los bytes ya entregados no se borran: las cuentas que no deban ver las fotos de las demás tampoco deberían compartir un perfil de navegador.
 
 ## Móvil
 

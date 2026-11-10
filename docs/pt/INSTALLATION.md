@@ -136,7 +136,8 @@ git clone https://github.com/ncoevoet/facet.git && cd facet
 bash install.sh
 ```
 
-O `install.sh` detecta a sua placa de vídeo, instala os pacotes correspondentes e compila a
+O `install.sh` exige Node.js **24.15.0 ou mais recente dentro da série 24.x** e npm para compilar a galeria;
+ele verifica isso antes de instalar os pacotes. Detecta a sua placa de vídeo, instala os pacotes correspondentes e compila a
 galeria web. Depois, toda vez:
 
 ```bash
@@ -181,8 +182,7 @@ Um instalador por usuário (MSI) instala o Facet sem direitos de administrador:
 **Obter o instalador.** Nenhuma versão publicada o inclui ainda. Gere-o a partir de um clone
 com `installer\build-msi.ps1` (precisa do WiX 3.14, do `uv` e do cliente compilado, e indica
 onde obter o WiX), ou baixe o artefato `facet-msi` de uma execução do workflow *Windows install
-(MSI)*. A compilação precisa do Node.js 22.22.3 ou mais recente para o cliente (22.14 falha em
-`npm run build`).
+(MSI)*. A compilação precisa do Node.js 24.15.0 ou mais recente dentro da série 24.x para o cliente.
 
 **Primeira execução.** O instalador inicia a criação do ambiente Python assim que termina. O ambiente tem cerca de 6 GB, e o cache de download do uv
 (`%LOCALAPPDATA%\uv\cache`) ocupa quase o mesmo. O item *Facet* do menu Iniciar executa a
@@ -433,7 +433,7 @@ ativo e, no modo comercial, os componentes que uma varredura carregaria (YuNet, 
 
 ## Instalação manual, sem o install.sh
 
-Requer Python 3.12 (3.10+ funciona) e Node.js 20+ para compilar a galeria.
+Requer Python 3.12 (3.10+ funciona) e Node.js 24.15.0 ou mais recente (série 24.x) para compilar a galeria.
 
 ```bash
 # 1. Crie e ative um ambiente virtual
@@ -462,7 +462,7 @@ pip uninstall -y opencv-python opencv-python-headless
 pip install --no-deps "opencv-python-headless==$CV_VER"
 
 # 6. Compile a galeria web
-cd client && npm install && npx ng build && cd ..
+cd client && npm ci && npm run build && cd ..
 
 # 7. Execute
 python facet.py /path/to/photos
@@ -485,18 +485,20 @@ Encontrando erros? Veja [Solução de Conflitos de Dependência](#solução-de-c
 
 O `install.sh`:
 
-1. localiza um Python 3.10+ e cria o `venv`;
+1. verifica o Node.js 24.15.0+ (24.x) e o npm, a menos que `--skip-client` seja usado, e então localiza um Python 3.10+ e cria o `venv`;
 2. detecta o SO e a GPU (Apple Silicon → Metal, senão `nvidia-smi` → build de CUDA correspondente);
 3. instala o PyTorch, o `requirements.txt`, o `transformers` e o `accelerate`;
 4. troca para o [ONNX Runtime](#onnx-runtime-para-detecção-de-faces) certo e para o
    [build headless do OpenCV](#opencv-na-versão-headless);
 5. verifica a presença do `exiftool`, compila o cliente Angular e verifica todas as importações (status de saída 1 se alguma falhar).
 
+Atualizar o código e executar `install.sh` novamente recompila a galeria mesmo que `client/dist` já exista. A compilação usa o lockfile versionado (`npm ci`) e um diretório temporário antes de substituir o cliente servido. Uma falha de dependência ou de compilação deixa o frontend anterior no lugar e termina com código diferente de zero. Se a publicação falhar, o instalador restaura o frontend anterior; se a restauração também falhar, ele imprime o diretório de backup mantido para recuperação.
+
 | Flag | Efeito |
 |------|--------|
 | `--cpu` | Força o PyTorch somente em CPU (sem CUDA) |
 | `--cuda VERSION` | Substitui a versão de CUDA detectada (ex.: `--cuda 12.8`) |
-| `--skip-client` | Pula a compilação do frontend Angular |
+| `--skip-client` | Pula as verificações de Node/npm e a compilação do frontend Angular; mantém o frontend atual |
 | `--no-uv` | Usa pip em vez de uv |
 | `--commercial` | Instalação adequada ao uso comercial: omite insightface, pyiqa e ONNX Runtime, instala o mediapipe com `--no-deps`; você mesmo define `licensing.mode` como `commercial` |
 
@@ -880,11 +882,11 @@ python facet.py --doctor --simulate-gpu "RTX 5070 Ti" --simulate-vram 16
 ## Cliente Angular
 
 Necessário apenas para desenvolvimento ou builds personalizados; o `install.sh` e a imagem Docker já
-o compilam.
+o compilam. Use o Node.js 24.15.0 ou mais recente dentro da série 24.x.
 
 ```bash
 cd client
-npm install
+npm ci
 npm run build    # Build de produção → client/dist/
 npm start        # Servidor de desenvolvimento em http://localhost:4200 (encaminha a API para :5000)
 ```
