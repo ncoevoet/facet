@@ -20,6 +20,7 @@ import { FaceReviewQueueComponent } from './face-review-queue.component';
 import { FaceUpdateControlComponent } from './face-update-control.component';
 import { PageContextService } from '../../core/agent/page-context.service';
 import { SameNameMergeDialogComponent } from './same-name-merge.service';
+import { COMPACT_PAGE_TABS } from '../../shared/components/tab-label/tab-label.component';
 
 describe('ManagePersonsComponent', () => {
   let component: ManagePersonsComponent;
@@ -1028,9 +1029,20 @@ describe('ManagePersonsComponent', () => {
 
     const labels = (el: HTMLElement) =>
       ([...el.querySelectorAll('[role="tab"]')] as HTMLElement[]).map((t) => ({
-        text: t.textContent!.replace(/\s+/g, ' ').trim(),
+        text: (t.querySelector('[data-tab-name]') ?? t).textContent!.replace(/\s+/g, ' ').trim(),
         selected: t.getAttribute('aria-selected') === 'true',
       }));
+
+    it('gives every tab an icon that stands alone below sm, sharing one row like the other page tabs', async () => {
+      withTab(null);
+      const fixture = await render();
+      const group = (fixture.nativeElement as HTMLElement).querySelector('mat-tab-group')!;
+      for (const cls of COMPACT_PAGE_TABS.split(' ')) expect(group.classList).toContain(cls);
+      const tabs = [...group.querySelectorAll('[role="tab"]')] as HTMLElement[];
+      expect(tabs.map(tab => tab.querySelector('app-tab-label mat-icon')?.textContent)).toEqual(['group', 'badge', 'how_to_reg', 'person_off']);
+      for (const tab of tabs) expect(tab.querySelector('[data-tab-name]')!.classList).toContain('max-sm:sr-only');
+      fixture.destroy();
+    });
 
     beforeEach(() => {
       named = { ...NAMED };

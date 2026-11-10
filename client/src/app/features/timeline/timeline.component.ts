@@ -27,7 +27,7 @@ import { ControlPopoverComponent } from '../../shared/components/control-popover
 import { PageHelpService } from '../../core/services/page-help.service';
 import { DateRangeFilterComponent } from '../../shared/components/date-range-filter/date-range-filter.component';
 import { GalleryStore, anyHideToggleActive } from '../gallery/gallery.store';
-import { MOBILE_BAR_ROW } from '../../shared/utils/mobile-bar';
+import { MOBILE_BAR_ROW, XL_LABEL_BUTTON } from '../../shared/utils/mobile-bar';
 
 const DENSITY_HIDDEN_KEY = 'facet_timeline_density_hidden';
 
@@ -96,11 +96,11 @@ function readDensityVisible(): boolean {
     </ng-template>
     <ng-template #viewToggle>
       <div class="flex shrink-0 items-center gap-1" role="group" [attr.aria-label]="I18N.timeline.title | translate">
-        <button mat-button [class]="!showOverview() ? '!bg-[var(--mat-sys-secondary-container)]' : ''" [attr.aria-pressed]="!showOverview()"
+        <button mat-button class="${XL_LABEL_BUTTON}" [class]="!showOverview() ? '!bg-[var(--mat-sys-secondary-container)]' : ''" [attr.aria-pressed]="!showOverview()"
           [matTooltip]="I18N.timeline.photo_feed | translate" [attr.aria-label]="I18N.timeline.photo_feed | translate" (click)="setCalendarView(false)">
           <mat-icon>photo_library</mat-icon><span class="hidden xl:inline">{{ I18N.timeline.photo_feed | translate }}</span>
         </button>
-        <button mat-button [class]="showOverview() ? '!bg-[var(--mat-sys-secondary-container)]' : ''" [attr.aria-pressed]="showOverview()"
+        <button mat-button class="${XL_LABEL_BUTTON}" [class]="showOverview() ? '!bg-[var(--mat-sys-secondary-container)]' : ''" [attr.aria-pressed]="showOverview()"
           [matTooltip]="I18N.timeline.calendar | translate" [attr.aria-label]="I18N.timeline.calendar | translate" (click)="setCalendarView(true)">
           <mat-icon>calendar_view_month</mat-icon><span class="hidden xl:inline">{{ I18N.timeline.calendar | translate }}</span>
         </button>
@@ -110,14 +110,14 @@ function readDensityVisible(): boolean {
       @if (!showOverview()) {
         <app-timeline-month-jump [year]="year()" [month]="month()" [disabled]="!active()" [compact]="!!compact" />
         @let sortLabel = (filters.sortDirection() === 'older' ? I18N.timeline.newest_first : I18N.timeline.oldest_first) | translate;
-        <button mat-button class="shrink-0" (click)="toggleDirection()" [disabled]="!active()" [matTooltip]="sortLabel" [attr.aria-label]="sortLabel">
+        <button mat-button class="shrink-0 ${XL_LABEL_BUTTON}" (click)="toggleDirection()" [disabled]="!active()" [matTooltip]="sortLabel" [attr.aria-label]="sortLabel">
           <mat-icon>{{ filters.sortDirection() === 'older' ? 'arrow_downward' : 'arrow_upward' }}</mat-icon><span class="hidden xl:inline">{{ sortLabel }}</span>
         </button>
       }
     </ng-template>
     <ng-template #densityToggle>
       @let densityLabel = (densityVisible() ? I18N.timeline.density_hide : I18N.timeline.density_show) | translate;
-      <button mat-button class="shrink-0" [class]="densityVisible() ? '!bg-[var(--mat-sys-secondary-container)]' : ''"
+      <button mat-button class="shrink-0 ${XL_LABEL_BUTTON}" [class]="densityVisible() ? '!bg-[var(--mat-sys-secondary-container)]' : ''"
         [attr.aria-pressed]="densityVisible()" [matTooltip]="densityLabel" [attr.aria-label]="densityLabel" (click)="toggleDensity()">
         <mat-icon>bar_chart</mat-icon><span class="hidden xl:inline">{{ densityLabel }}</span>
       </button>
@@ -161,14 +161,14 @@ function readDensityVisible(): boolean {
     </ng-template>
     <ng-template #hiddenFilters>
       @if (anyHiddenByFilters()) {
-        <button mat-button class="shrink-0"
+        <button mat-button class="shrink-0 ${XL_LABEL_BUTTON}"
                 [matTooltip]="I18N.gallery.hidden_banner.some_hidden | translate"
                 [attr.aria-label]="I18N.gallery.hidden_banner.show_all | translate"
                 (click)="store.showAllHidden()">
           <mat-icon>visibility_off</mat-icon><span class="hidden xl:inline">{{ I18N.gallery.hidden_banner.show_all | translate }}</span>
         </button>
       } @else if (store.hiddenFiltersStash()) {
-        <button mat-button class="shrink-0"
+        <button mat-button class="shrink-0 ${XL_LABEL_BUTTON}"
                 [matTooltip]="I18N.gallery.hidden_banner.showing_all | translate"
                 [attr.aria-label]="I18N.gallery.hidden_banner.restore | translate"
                 (click)="store.restoreHidden()">
@@ -193,7 +193,8 @@ function readDensityVisible(): boolean {
       <ng-container [ngTemplateOutlet]="breadcrumb" />
       <ng-container [ngTemplateOutlet]="rangeChip" />
     </div>
-    <div data-timeline-mobile-bar class="lg:hidden fixed bottom-0 left-0 right-0 z-50 justify-around ${MOBILE_BAR_ROW} [&_.mat-mdc-button-base]:!h-11 [&_.mat-mdc-button]:!min-w-11 [&_.mat-mdc-button]:!px-2.5 [&_.mat-mdc-button]:!rounded-full [&_app-control-popover_button]:!rounded-full [&_.mat-mdc-icon-button]:!w-11 bg-[var(--mat-sys-surface-container)] border-t border-[var(--mat-sys-outline-variant)] safe-area-pb">
+    <!-- Packed like every other bar: the scope controls from the left, the view switch at the right end -->
+    <div data-timeline-mobile-bar class="lg:hidden fixed bottom-0 left-0 right-0 z-50 ${MOBILE_BAR_ROW} [&_.mat-mdc-button-base]:!h-11 [&_.mat-mdc-button]:!min-w-11 [&_.mat-mdc-button]:!px-2.5 [&_.mat-mdc-button]:!rounded-full [&_app-control-popover_button]:!rounded-full bg-[var(--mat-sys-surface-container)] border-t border-[var(--mat-sys-outline-variant)] safe-area-pb">
       <ng-container [ngTemplateOutlet]="feedControls" [ngTemplateOutletContext]="{ compact: true }" />
       <span class="relative inline-flex">
         <ng-container [ngTemplateOutlet]="datesControl" />
@@ -202,8 +203,10 @@ function readDensityVisible(): boolean {
         }
       </span>
       <ng-container [ngTemplateOutlet]="densityToggle" />
-      <ng-container [ngTemplateOutlet]="viewToggle" />
       <ng-container [ngTemplateOutlet]="hiddenFilters" />
+      <div data-timeline-bar-end class="ml-auto flex shrink-0">
+        <ng-container [ngTemplateOutlet]="viewToggle" />
+      </div>
     </div>
 
     <div class="flex flex-1 flex-col px-4 pb-2 pt-2">

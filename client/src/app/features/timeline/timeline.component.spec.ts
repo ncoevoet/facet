@@ -482,6 +482,26 @@ describe('Timeline page-actions bar (rendered)', () => {
     expect(icon('timeline.calendar')).toBe('calendar_view_month');
   });
 
+  it('centres the glyph of every button whose label shows only from xl, in the bar and in the header', () => {
+    const fixture = setup({ year: '2026', month: '2' }, false);
+    store.viewFilterParams.set({ ...noneHiddenParams, hide_bursts: '1' }); fixture.detectChanges();
+    const root = fixture.nativeElement as HTMLElement;
+    const bar = root.querySelector('[data-timeline-mobile-bar]')!;
+    const xlLabelled = (scope: Element) => [...scope.querySelectorAll('button')].filter(button => button.querySelector('span.hidden')?.className.includes('xl:inline'));
+    expect(xlLabelled(bar).length).toBe(5);
+    for (const button of [...xlLabelled(bar), ...xlLabelled(renderBar())]) expect(button.className).toContain('max-xl:[&>mat-icon]:!m-0');
+  });
+
+  it('packs the bottom bar like the other bars, with the view switch at the right end', () => {
+    const fixture = setup({ year: '2026', month: '2' }, false);
+    const bar = (fixture.nativeElement as HTMLElement).querySelector('[data-timeline-mobile-bar]')!;
+    expect(bar.className).not.toContain('justify-around');
+    const end = bar.querySelector('[data-timeline-bar-end]')!;
+    expect(end.className).toContain('ml-auto');
+    expect(bar.lastElementChild).toBe(end);
+    expect([...end.querySelectorAll('button')].map(button => button.getAttribute('aria-label'))).toEqual(['timeline.photo_feed', 'timeline.calendar']);
+  });
+
   it('labels the density and Show all toggles from xl like the view and sort toggles', () => {
     setup();
     store.viewFilterParams.set({ ...noneHiddenParams, hide_bursts: '1' });

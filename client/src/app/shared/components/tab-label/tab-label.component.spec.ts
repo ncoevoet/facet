@@ -25,26 +25,29 @@ describe('TabLabelComponent', () => {
     await fixture.whenStable();
     fixture.detectChanges();
     const tooltip = fixture.debugElement.query(By.directive(MatTooltip)).injector.get(MatTooltip);
-    return { fixture, tooltip, root: fixture.nativeElement as HTMLElement };
+    const root = fixture.nativeElement as HTMLElement;
+    return { fixture, tooltip, root, name: root.querySelector('[data-tab-name]')! };
   }
 
-  it('keeps the name as the accessible text and hides it visually only below sm', async () => {
-    const { root } = await render(false);
+  it('below sm shows the icon alone, keeping the name as the accessible text and offering it as the tooltip', async () => {
+    const { root, name, tooltip } = await render(false);
     expect(root.querySelector('mat-icon')?.getAttribute('aria-hidden')).toBe('true');
-    const name = root.querySelector('[data-tab-name]')!;
     expect(name.textContent?.trim()).toBe('Correlations');
     expect(name.classList).toContain('max-sm:sr-only');
+    expect(name.classList).not.toContain('sr-only');
+    expect(tooltip.message).toBe('Correlations');
+    expect(tooltip.disabled).toBe(false);
+    // A phone has no hover: Material's long-press must stay on for the tooltip to be reachable.
+    expect(tooltip.touchGestures).not.toBe('off');
   });
 
-  it('offers the name as a tooltip only while the name is hidden', async () => {
-    const narrow = await render(false);
-    expect(narrow.tooltip.message).toBe('Correlations');
-    expect(narrow.tooltip.disabled).toBe(false);
-    const wide = await render(true);
-    expect(wide.tooltip.disabled).toBe(true);
+  it('from sm up shows the name and no tooltip', async () => {
+    const { name, tooltip } = await render(true);
+    expect(name.classList).not.toContain('sr-only');
+    expect(tooltip.disabled).toBe(true);
   });
 
-  it('shows a hint at every width instead of the name', async () => {
+  it('from sm up shows a hint in place of the visible name', async () => {
     const { fixture, tooltip } = await render(true);
     fixture.componentInstance.hint.set('Locked until 10 more comparisons');
     fixture.detectChanges();
@@ -52,5 +55,14 @@ describe('TabLabelComponent', () => {
     expect(tooltip.disabled).toBe(false);
     // Material sets pointer-events: none on a disabled tab; the label opts back in so the hint can show.
     expect((fixture.nativeElement as HTMLElement).querySelector('[data-tab-label]')!.classList).toContain('pointer-events-auto');
+  });
+
+  it('below sm names the tab above its hint, since the icon is all that shows', async () => {
+    const { fixture, tooltip } = await render(false);
+    fixture.componentInstance.hint.set('Locked until 10 more comparisons');
+    fixture.detectChanges();
+    expect(tooltip.message).toBe('Correlations\nLocked until 10 more comparisons');
+    expect(tooltip.tooltipClass).toBe('whitespace-pre-line');
+    expect(tooltip.disabled).toBe(false);
   });
 });

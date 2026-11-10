@@ -1,4 +1,4 @@
-import { afterNextRender, ChangeDetectionStrategy, Component, DestroyRef, inject, input } from '@angular/core';
+import { afterNextRender, ChangeDetectionStrategy, Component, computed, DestroyRef, inject, input } from '@angular/core';
 import { MatIconModule } from '@angular/material/icon';
 import { MatTooltipModule } from '@angular/material/tooltip';
 import { SM_BREAKPOINT_PX, useDesktopSignal } from '../../utils/media-query';
@@ -6,6 +6,7 @@ import { SM_BREAKPOINT_PX, useDesktopSignal } from '../../utils/media-query';
 /**
  * A page tab's icon and name. Below `sm` only the icon shows: the name stays the
  * tab's accessible name and becomes its tooltip, so the tabs fit a phone on one row.
+ * A hint replaces the tooltip from `sm` up; below it the name stays on the first line.
  */
 @Component({
   selector: 'app-tab-label',
@@ -13,7 +14,7 @@ import { SM_BREAKPOINT_PX, useDesktopSignal } from '../../utils/media-query';
   changeDetection: ChangeDetectionStrategy.OnPush,
   host: { class: 'inline-flex' },
   template: `
-    <span data-tab-label class="pointer-events-auto inline-flex items-center gap-2" [matTooltip]="hint() || label()" [matTooltipDisabled]="!hint() && wide()">
+    <span data-tab-label class="pointer-events-auto inline-flex items-center gap-2" [matTooltip]="tooltip()" matTooltipClass="whitespace-pre-line" [matTooltipDisabled]="!tooltip()">
       <mat-icon aria-hidden="true">{{ icon() }}</mat-icon>
       <span data-tab-name class="whitespace-nowrap max-sm:sr-only">{{ label() }}</span>
     </span>
@@ -23,10 +24,13 @@ export class TabLabelComponent {
   readonly icon = input.required<string>();
   /** The translated tab name. */
   readonly label = input.required<string>();
-  /** A tooltip shown at every width in place of the name, such as why the tab is disabled. */
+  /** A tooltip shown at every width, such as why the tab is disabled. */
   readonly hint = input('');
   private readonly breakpoint = useDesktopSignal({ breakpointPx: SM_BREAKPOINT_PX });
-  protected readonly wide = this.breakpoint.isDesktop;
+  protected readonly tooltip = computed(() => {
+    if (this.breakpoint.isDesktop()) return this.hint();
+    return this.hint() ? `${this.label()}\n${this.hint()}` : this.label();
+  });
 
   constructor() {
     afterNextRender(() => this.breakpoint.setup());

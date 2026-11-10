@@ -46,6 +46,7 @@ import { registerPageContext } from '../../core/agent/page-context.service';
 import { UserActivityJournal, activityName } from '../../core/agent/user-activity-journal.service';
 import { GalleryStore } from '../gallery/gallery.store';
 import { I18N, i18nKeys } from '../../core/i18n/keys';
+import { COMPACT_PAGE_TABS, TabLabelComponent } from '../../shared/components/tab-label/tab-label.component';
 
 interface PersonsResponse {
   persons: Person[];
@@ -276,6 +277,7 @@ export type NamingSort = 'faces' | 'recent';
     RouterLink,
     MatTabsModule,
     NgTemplateOutlet,
+    TabLabelComponent,
   ],
   changeDetection: ChangeDetectionStrategy.Eager,
   template: `
@@ -449,11 +451,11 @@ export type NamingSort = 'faces' | 'recent';
              the bar is cleared, it is a right-aligned row above the tabs, so a long translated label never covers a tab. -->
         <div class="relative">
         <app-face-update-control class="ml-auto mb-2 block w-fit empty:hidden" [class]="faceUpdateInPageClass()" panelMode="overlay" (reviewRequested)="reviewUpdatedFaces()" />
-        <mat-tab-group mat-stretch-tabs="false" mat-align-tabs="start" animationDuration="0ms"
+        <mat-tab-group [class]="compactTabs" mat-stretch-tabs="false" mat-align-tabs="start" animationDuration="0ms"
                        [selectedIndex]="tabIndex()" (selectedIndexChange)="selectTabIndex($event)">
           <mat-tab>
             <ng-template mat-tab-label>
-              <span data-tab="named">{{ I18N.manage_persons.named | translate }} ({{ total() }})</span>
+              <app-tab-label data-tab="named" icon="group" [label]="(I18N.manage_persons.named | translate) + ' (' + total() + ')'" />
             </ng-template>
             <div class="pt-4">
               <ng-container [ngTemplateOutlet]="namedPane" />
@@ -461,7 +463,7 @@ export type NamingSort = 'faces' | 'recent';
           </mat-tab>
           <mat-tab>
             <ng-template mat-tab-label>
-              <span data-tab="naming" [matTooltip]="I18N.manage_persons.needs_naming_help | translate">{{ I18N.manage_persons.needs_naming | translate }} ({{ needsNaming().length }})</span>
+              <app-tab-label data-tab="naming" icon="badge" [label]="(I18N.manage_persons.needs_naming | translate) + ' (' + needsNaming().length + ')'" [hint]="I18N.manage_persons.needs_naming_help | translate" />
             </ng-template>
             <div class="pt-4">
               @if (needsNamingSorted().length > 0) {
@@ -489,11 +491,11 @@ export type NamingSort = 'faces' | 'recent';
             </div>
           </mat-tab>
           <mat-tab>
-            <ng-template mat-tab-label><span data-tab="matches">{{ I18N.persons.review_queue.matches | translate }}</span></ng-template>
+            <ng-template mat-tab-label><app-tab-label data-tab="matches" icon="how_to_reg" [label]="I18N.persons.review_queue.matches | translate" /></ng-template>
             @if (tab() === 'matches') { <app-face-review-queue mode="matches" /> }
           </mat-tab>
           <mat-tab>
-            <ng-template mat-tab-label><span data-tab="unassigned">{{ I18N.persons.review_queue.unassigned | translate }}</span></ng-template>
+            <ng-template mat-tab-label><app-tab-label data-tab="unassigned" icon="person_off" [label]="I18N.persons.review_queue.unassigned | translate" /></ng-template>
             @if (tab() === 'unassigned') { <app-face-review-queue mode="unassigned" /> }
           </mat-tab>
         </mat-tab-group>
@@ -528,6 +530,7 @@ export type NamingSort = 'faces' | 'recent';
 })
 export class ManagePersonsComponent implements OnInit {
   protected readonly I18N = i18nKeys();
+  protected readonly compactTabs = COMPACT_PAGE_TABS;
   readonly auth = inject(AuthService);
   protected readonly store = inject(GalleryStore);
   private readonly api = inject(ApiService);
