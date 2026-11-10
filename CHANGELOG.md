@@ -18,6 +18,15 @@ All notable changes to Facet are documented in this file.
 - Captured rating Set/Clear and manual-tag Add/Remove/Replace/Clear previews disclose mixed values and exact targets, including matching folded members and whole-view exclusions. Account or access changes stop later write chunks; unrelated fields and AI tags are preserved.
 
 - Organization history asks before it restores (Restore…, then Restore or Cancel) and recovers from a conflict per entry. Processing and export receipts expose actual operation state, counts, cancellation and supported retry behavior.
+- **Keywords have a shared hierarchy.** The Content section of the **Find** tab lists the keyword tree under **Keyword hierarchy**: filter by a branch, and with edition access preview and apply renames, moves and deletions. Sidecars round-trip the hierarchy through `lr:hierarchicalSubject`, and export removes only stale Facet-owned paths.
+- **A RAW and its JPEG can be one photo.** The **RAW/JPEG photo** section of the photo page's **Related files** panel reviews and applies **Group files**, **Set primary** and **Ungroup files**, keeping each file's existing metadata.
+- **Failed scan files can be retried from the scan dialog.** **Scan Photos** lists **Recorded scans**; **Preview failed-file retry** shows exactly which files would be reprocessed, **Confirm retry** starts only those, and **Stop scan** ends the run it started.
+- **Update faces runs as a tracked job.** On Persons, **Update faces** shows progress and a receipt, survives closing the panel, and can be stopped. **Re-detect existing faces** (under **More face tools**) refreshes faces that already exist, and **Refresh person matches** repairs their person matches.
+- **Remove from Facet… takes photos out of the catalog without touching the files.** It is in the gallery **Actions** menu for an explicit selection and on the photo page for rejected photos. After confirmation the photos, previews, faces, tags, ratings and album membership are removed for all users; a later scan can add them again.
+- **Assistant filter proposals are reviewed before they apply.** When the assistant turns a request into filters, **Review suggested filters** shows editable criteria, the effect on the current view and any clause it could not translate; **Apply filters** applies them.
+- **Filter by missing data.** **No capture date** in the date range finds undated photos, and **Measurement availability** in the **Quality** tab includes or isolates photos with no stored value for a measurement.
+- **Recent collections.** Under the gallery header, **Recent collections** reopens the last ten searches and filter sets from page one, each described by its first criteria and non-default sort; **Clear history** empties it. The list lasts for the tab session only.
+- **Each page sets a translated browser-tab title** ("<page> · Facet") that follows a language switch, and pages without a visible heading get one for screen readers.
 
 ### Changed
 
@@ -118,6 +127,9 @@ All notable changes to Facet are documented in this file.
 - "Why this score?" is an icon button on the photo's AI score line, and About these measurements opens at the panel's width. Gallery list rows show 72 px thumbnails, the photo page's collection sidebar remembers its width, and Measurement availability is a standard collapsible filter section.
 - Review matches and Unassigned show faces as square tiles, ten per row at 1440 px instead of three cards, grouped in one panel per suggested person with that person's photo, a face count and Select all; faces with no suggested person come last. A click selects a tile, each tile's ⋮ menu holds the other actions, and Review N assignments moves to a bar at the bottom of the screen.
 - Review matches, Unassigned and the Ignored section of Persons load their next page as you scroll instead of behind **Load more**. A failed page stops loading and shows **Retry**, which resumes from that page instead of reloading the queue and dropping its selection.
+- **Exports preview before they write.** **Preview export** lists each file's destination and metadata, and **Confirm export** starts the job; a lost confirmation is checked with **Check receipt**. **Retry unfinished files** is now **Preview unfinished files**, with the same confirm step.
+- **Folders steps past a lone folder** that has nothing beside it when you open it, but not when you click a breadcrumb.
+- **Secondary text and filter-chip labels are no longer dimmed with opacity**, so they stay readable in light mode.
 
 ### Fixed
 
@@ -237,6 +249,8 @@ All notable changes to Facet are documented in this file.
 - **Share links say when they failed.** Generating or revoking a share link swallowed errors, leaving an empty dialog that read as "no link yet"; both now show the failure.
 - **Junk-sweep kind badges recover from partial batch failures.** After a mid-batch rejection failure the kind filter counts no longer overstate what remains.
 - **A rapid language switch no longer shows the old language.** Two quick switches raced: the slower translation response overwrote the newer one while the locale already reported it; a stale answer is now discarded.
+- **Capsules no longer read "No capsules available yet" after login on a password-protected install.** The empty list computed anonymously at startup was lent to every login until the cache expired (24 hours by default); an empty startup result is now ignored.
+- **The S (stack group) shortcut works while focus is in the culling darkroom.** The darkroom's own key handler stopped it from reaching the page outside stack mode.
 
 ### Security
 
