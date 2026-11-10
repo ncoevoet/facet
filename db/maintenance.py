@@ -12,6 +12,7 @@ import shutil
 import sqlite3
 from datetime import datetime
 from io import BytesIO
+from pathlib import Path
 
 from int_affinity import storable_int
 from db.connection import apply_pragmas
@@ -185,12 +186,16 @@ def _rotate_backups(db_path, base_dir, keep):
     (dot) naming, sorted by mtime so the two timestamp schemes still prune by
     age rather than by lexical order of their differing separators.
     """
-    db_name = os.path.basename(db_path)
-    patterns = (f"{db_name}.backup-*", f"{db_name}.backup.*")
-    backups = sorted(
-        (path for pat in patterns for path in glob.glob(os.path.join(base_dir, pat))),
-        key=os.path.getmtime,
-    )
+    prefix = glob.escape(os.path.join(base_dir, os.path.basename(db_path)))
+    patterns = (f"{prefix}.backup-*", f"{prefix}.backup.*")
+    snapshots = []
+    for pat in patterns:
+        for path in glob.glob(pat):
+            try:
+                snapshots.append((os.path.getmtime(path), path))
+            except FileNotFoundError:
+                pass  # Another completed backup may be rotating concurrently.
+    backups = [path for _, path in sorted(snapshots)]
     excess = backups[:-keep] if keep > 0 else backups
     for old in excess:
         try:
@@ -240,7 +245,7 @@ def backup_database(db_path='photo_scores_pro.db', keep=3, dest_dir=None, verbos
     timestamp = datetime.now().strftime('%Y%m%d-%H%M%S')
     backup_path = os.path.join(base_dir, f"{db_name}.backup-{timestamp}")
 
-    src = sqlite3.connect(f"file:{db_path}?mode=ro", uri=True)
+    src = sqlite3.connect(Path(db_path).resolve().as_uri() + "?mode=ro", uri=True)
     try:
         dst = sqlite3.connect(backup_path)
         try:

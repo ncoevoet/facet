@@ -19,6 +19,46 @@ def _make_db(path, rows):
 
 
 class TestBackupDatabase:
+    @pytest.mark.parametrize("filename,other_name", [("library?.db", "libraryA.db"), ("library[1].db", "library1.db")])
+    def test_rotation_matches_literal_path_and_preserves_other_libraries(self, tmp_path, filename, other_name):
+        if os.name == "nt" and "?" in filename:
+            pytest.skip("Windows filenames cannot contain a question mark")
+        directory = tmp_path / "backups[1]"
+        directory.mkdir()
+        db = directory / filename
+        _make_db(str(db), 2)
+        own_old = directory / f"{filename}.backup-20000101-000000"
+        other = directory / f"{other_name}.backup-20000101-000000"
+        own_old.write_bytes(b"older own snapshot")
+        other.write_bytes(b"unrelated snapshot")
+        os.utime(own_old, (1, 1))
+        os.utime(other, (1, 1))
+        backup = backup_database(str(db), keep=1, verbose=False)
+        assert not own_old.exists()
+        assert other.read_bytes() == b"unrelated snapshot"
+        with sqlite3.connect(backup) as conn:
+            assert conn.execute("SELECT COUNT(*) FROM t").fetchone()[0] == 2
+
+    @pytest.mark.parametrize("filename", ["library#one.db", "library?mode=rw.db", "library%23one.db", "相册 space.db"])
+    def test_backup_uses_the_literal_source_path(self, tmp_path, filename):
+        from db.schema import init_database
+
+        if os.name == "nt" and "?" in filename:
+            pytest.skip("Windows filenames cannot contain a question mark")
+        db = tmp_path / filename
+        init_database(str(db))
+        with sqlite3.connect(db) as conn:
+            conn.execute("INSERT INTO photos (path) VALUES (?)", ("/literal-source.jpg",))
+        # The decoded/truncated sibling must never be mistaken for the source.
+        decoy = tmp_path / filename.replace("%23", "#").split("?", 1)[0].split("#", 1)[0]
+        if decoy != db:
+            init_database(str(decoy))
+        before = db.read_bytes()
+        backup = backup_database(str(db), verbose=False)
+        with sqlite3.connect(backup) as conn:
+            assert conn.execute("SELECT path FROM photos").fetchall() == [("/literal-source.jpg",)]
+        assert db.read_bytes() == before
+
     def test_backup_is_a_faithful_copy(self, tmp_path):
         db = tmp_path / "photo_scores_pro.db"
         _make_db(str(db), 7)

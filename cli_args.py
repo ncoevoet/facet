@@ -108,7 +108,8 @@ Configuration:
                         help='Run specific pass only: quality, tags, composition, faces, embeddings, '
                              'quality-iaa, quality-face, quality-liqe, saliency')
     scan_group.add_argument('--dry-run', action='store_true',
-                        help='Preview without database writes: score sample photos, or with --import-sidecars show the import plan. '
+                        help='Preview scans, sidecar imports, moments, junk, silhouette flags or Immich rating sync without changing library data. '
+                             'Other writing commands reject --dry-run. '
                              'Outside commercial mode, on 12gb/16gb/24gb the aesthetic column shows n/a '
                              '(TOPIQ runs only in a real scan; commercial mode shows the Q-ReAlign score)')
     scan_group.add_argument('--dry-run-count', type=int, default=DEFAULT_DRY_RUN_COUNT,

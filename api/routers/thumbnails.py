@@ -44,8 +44,6 @@ _render_slots = threading.BoundedSemaphore(_RENDER_SLOTS)
 # Keep one slot available to JPEGs while slower formats decode.
 _nonjpeg_render_slots = threading.BoundedSemaphore(_RENDER_SLOTS - 1)
 _RENDER_WAIT_SECONDS = 5
-# Short, so the sharp render shows up once the original is back.
-_FALLBACK_MAX_AGE = 60
 
 # Native browser images need stable types even without an OS MIME registry.
 _BROWSER_IMAGE_MEDIA_TYPES = {
@@ -74,27 +72,16 @@ def _accepts_jpegxl(accept: str) -> bool:
     return False
 
 
-def _cached_image_response(image_bytes: bytes, request: Request,
-                           max_age: int = 31536000) -> Response:
-    """Build a cached JPEG response with ETag and conditional 304."""
-    etag = hashlib.md5(image_bytes).hexdigest()
-    if request.headers.get('if-none-match') == etag:
-        return Response(status_code=304)
-    return Response(
-        content=image_bytes,
-        media_type='image/jpeg',
-        headers={
-            'Cache-Control': f'public, max-age={max_age}',
-            'ETag': etag,
-        }
-    )
+def _private_image_headers(*, vary_accept: bool = False) -> dict[str, str]:
+    """User-library bytes may be reused only after a live authorization check."""
+    return {'Cache-Control': 'private, no-cache, must-revalidate',
+            'Vary': 'Authorization, Cookie, Accept' if vary_accept else 'Authorization, Cookie'}
 
 
-def _private_crop_response(image_bytes: bytes, request: Request) -> Response:
-    """Revalidate mutable private crops only after the caller's visibility check."""
+def _cached_image_response(image_bytes: bytes, request: Request) -> Response:
+    """Revalidate a private JPEG only after the caller's visibility check."""
     etag = hashlib.md5(image_bytes).hexdigest()
-    headers = {'Cache-Control': 'private, no-cache, must-revalidate',
-               'Vary': 'Authorization, Cookie', 'ETag': etag}
+    headers = {**_private_image_headers(), 'ETag': etag}
     if request.headers.get('if-none-match') == etag:
         return Response(status_code=304, headers=headers)
     return Response(content=image_bytes, media_type='image/jpeg', headers=headers)
@@ -338,7 +325,7 @@ def get_thumbnail(
             # the bytes depend on (mtime, sequence_kind) and the client's `v=`
             # query is the invalidation lever. A bad render never gets here.
             return _cached_image_response(rendered, request)
-        return _cached_image_response(row['thumbnail'], request, max_age=_FALLBACK_MAX_AGE)
+        return _cached_image_response(row['thumbnail'], request)
     return _cached_image_response(row['thumbnail'], request)
 
 
@@ -443,7 +430,7 @@ def face_thumbnail(
     face_bytes = _get_face_thumbnail_data(face_id, user)
     if face_bytes is None:
         return Response(content="Face not found", status_code=404)
-    return _private_crop_response(face_bytes, request)
+    return _cached_image_response(face_bytes, request)
 
 
 @router.get("/person_thumbnail/{person_id}")
@@ -473,7 +460,7 @@ def person_thumbnail(
     if face:
         face_bytes = _get_face_thumbnail_data(face['id'], user)
         if face_bytes:
-            return _private_crop_response(face_bytes, request)
+            return _cached_image_response(face_bytes, request)
     return Response(content="Person thumbnail not found", status_code=404)
 
 
@@ -482,11 +469,11 @@ def _stored_thumbnail_response(path, request, vary_accept=False):
     with get_db() as conn:
         row = conn.execute("SELECT thumbnail FROM photos WHERE path = ?", (path,)).fetchone()
     if row and row['thumbnail']:
-        response = _cached_image_response(row['thumbnail'], request, max_age=_FALLBACK_MAX_AGE)
+        response = _cached_image_response(row['thumbnail'], request)
     else:
         response = Response(content="Not found", status_code=404)
     if vary_accept:
-        response.headers['Vary'] = 'Accept'
+        response.headers['Vary'] = 'Authorization, Cookie, Accept'
     return response
 
 
@@ -559,7 +546,7 @@ def image(
         # progressive bitstream. Both representations vary on Accept.
         try:
             original = FileResponse(real_disk, media_type='image/jxl',
-                                    headers={'Vary': 'Accept'}, stat_result=os.stat(real_disk))
+                                    headers=_private_image_headers(vary_accept=True), stat_result=os.stat(real_disk))
         except OSError:
             if want_fallback:
                 return _stored_thumbnail_response(path, request, vary_accept=True)
@@ -568,7 +555,7 @@ def image(
             _bind_preview_etag(original, row['preview_revision'])
         if request.headers.get('if-none-match') == original.headers['etag']:
             return Response(status_code=304,
-                            headers={'ETag': original.headers['etag'], 'Vary': 'Accept'})
+                            headers={**_private_image_headers(vary_accept=True), 'ETag': original.headers['etag']})
         return original
 
     # Convert TIFF and JPEG XL to JPEG. Native browser formats below keep their original
@@ -581,7 +568,7 @@ def image(
                           if is_jxl else _convert_nonraw_cached(real_disk, mtime, quality, row['preview_revision']))
             response = _cached_image_response(jpeg_bytes, request)
             if is_jxl:
-                response.headers['Vary'] = 'Accept'
+                response.headers['Vary'] = 'Authorization, Cookie, Accept'
             return response
         except Exception:
             logger.exception("Failed to convert TIFF/JPEG XL file: %s", real_disk)
@@ -591,9 +578,11 @@ def image(
 
     try:
         original = FileResponse(real_disk, media_type=_BROWSER_IMAGE_MEDIA_TYPES.get(Path(real_disk).suffix.lower()),
-                                stat_result=os.stat(real_disk))
+                                stat_result=os.stat(real_disk), headers=_private_image_headers())
     except OSError:
         return _stored_thumbnail_response(path, request) if want_fallback else Response(status_code=404)
     if row['preview_revision']:
         _bind_preview_etag(original, row['preview_revision'])
+    if request.headers.get('if-none-match') == original.headers['etag']:
+        return Response(status_code=304, headers={**_private_image_headers(), 'ETag': original.headers['etag']})
     return original

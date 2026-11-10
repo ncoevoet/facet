@@ -18,7 +18,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from pydantic import BaseModel
 from starlette.responses import StreamingResponse
 
-from api.auth import EDITION_PASSWORD_KEY, CurrentUser, _is_open_install, _trusted_local_editing_enabled, create_access_token, decode_access_token, require_edition, require_scan_access, scan_access_refusal, scan_feature_enabled, trusted_local_for
+from api.auth import EDITION_PASSWORD_KEY, CurrentUser, _is_open_install, _match_password_generations, _trusted_local_editing_enabled, create_access_token, decode_access_token, require_edition, require_scan_access, scan_access_refusal, scan_feature_enabled, trusted_local_for
 from api.config import VIEWER_CONFIG, FACET_SCRIPT, _CONFIG_PATH, get_all_scan_directories, get_user_directories, invalidate_stats_cache, is_multi_user_enabled, server_scoring_config, _photo_types_cache
 from api.models.scan import (
     LibraryJobStartResponse,
@@ -365,6 +365,10 @@ async def scan_stream(
         HEARTBEAT_SECONDS = 15
         last_heartbeat = _time.monotonic()
         while True:
+            # Expiry limits when the short-lived token can open a connection;
+            # account/password revocation must also close an already open one.
+            if _match_password_generations(payload.copy()) is None:
+                break
             snapshot = _build_scan_snapshot(lines)
             current_output_len = len(_scan_state['output_lines'])
             current_progress = _scan_state.get('progress')

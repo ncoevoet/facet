@@ -76,6 +76,8 @@ Restart the viewer after setting `viewer.edition_password`: the config is not ho
 
 Login also sets the session token in an `HttpOnly` `SameSite=Lax` cookie, so thumbnails and the scan progress stream load on password-protected installs. The cookie is honored for read-only requests (GET/HEAD) only; edits still need the Bearer token. Logging out (`POST /api/auth/logout`) clears it.
 
+Library thumbnails, full images and face/person crops use private HTTP cache headers that require revalidation. They bypass the service worker, which no longer saves an offline thumbnail cache. Image URLs also receive a new random key when the credential session changes, preventing the viewer from reusing an earlier session's decoded images. Private photo history snapshots are usable only in their original session; Back after logout/login or a page reload rechecks access before displaying metadata. This does not erase image bytes or history already delivered to the browser. Public album shares and frame kiosks keep their separate access policies. An explicit server refusal of **Lock editing** leaves the current privileges visible and shows an error; an interrupted response must first reconcile its cookie, as described below.
+
 ### Multi-User Mode
 
 For a family NAS where each member has private photo folders. Add a `users` section to `scoring_config.json`:
@@ -112,6 +114,11 @@ python database.py --add-user alice --role superadmin --display-name "Alice"
 ```
 
 See [Configuration](CONFIGURATION.md#users) for the full reference.
+
+Changing an account's stored password hash or role, or deleting the account, invalidates its existing sessions once the server loads the new configuration. This includes image cookies, scan-stream tokens and the in-page assistant. Log in again after an account change; existing multi-user sessions also need one fresh login after this upgrade. Removing every user does not preserve an old administrator token. Rotating `viewer.password` still invalidates all sessions; rotating `viewer.edition_password` drops edition rights in single-user mode. Edition login/logout applies only to single-user mode; role-based accounts log out or have their role changed instead. Ordinary logout clears this browser's credentials rather than revoking an individual copied token.
+
+Login, edition changes and logout run in order within a tab so their image cookies and Bearer credentials cannot overtake one another; a stalled authentication request is aborted after 15 seconds. Browsers with Web Locks also coordinate these operations across tabs (HTTPS and localhost). On HTTP origins without Web Locks, simultaneous logins in different tabs follow completion order; the last completed login becomes the shared browser account. If a response fails after updating its image cookie, Facet reconciles that cookie with the confirmed Bearer session before showing the account again. If reconciliation and cleanup both fail, the account stays unconfirmed across reloads until a later retry succeeds.
+
 
 ### Roles
 

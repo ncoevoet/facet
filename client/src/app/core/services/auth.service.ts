@@ -1,9 +1,10 @@
 import { DestroyRef, Injectable, inject, signal, computed } from '@angular/core';
 import { HttpClient, HttpErrorResponse } from '@angular/common/http';
 import { Router } from '@angular/router';
-import { firstValueFrom } from 'rxjs';
+import { firstValueFrom, timeout, TimeoutError } from 'rxjs';
 import { clearReviewQueues, REVIEW_QUEUE_STORAGE_KEY } from './review-queue.storage';
 import { clearPersonAssignmentHistory } from './person-assignment-history.storage';
+import { resetPrivateImageSession } from '../../shared/utils/private-image-session';
 
 export interface AuthStatus {
   authenticated: boolean;
@@ -47,6 +48,8 @@ export type LoginOutcome = 'ok' | 'invalid' | 'unavailable' | 'rate_limited';
  *  login token is judged by the same clock — lock the user out of a working
  *  session with no server round-trip involved. */
 const CLOCK_SKEW_GRACE_MS = 5 * 60 * 1000;
+const AUTH_REQUEST_TIMEOUT_MS = 15_000;
+const AUTH_LOCK_TIMEOUT_MS = 60_000;
 
 /** True once the JWT's own `exp` has passed, plus the clock-skew grace. Verifying
  *  the signature is the server's business; this only stops the client presenting
@@ -71,8 +74,19 @@ export class AuthService {
   private router = inject(Router);
 
   private readonly TOKEN_KEY = 'facet_token';
+  private readonly COOKIE_UNCERTAINTY_KEY = 'facet_auth_cookie_uncertain';
   private pendingRevalidation: Promise<AuthStatus | null> | null = null;
   private pendingLoad: Promise<AuthStatus> | null = null;
+  private authEpoch = 0;
+  private statusRequest = 0;
+  private appliedStatusRequest = 0;
+  private cookieQueue: Promise<void> | null = null;
+  private pendingCookieMutations = 0;
+  private confirmedStatus: AuthStatus | null = null;
+  private cookieUncertain = false;
+  // Public installation mode keeps the retry form usable even when an unknown
+  // HttpOnly cookie prevents restoring any identity, including after a reload.
+  private readonly multiUserMode = signal(localStorage.getItem('facet_multi_user_mode') === '1');
 
   /** Reactive auth state */
   readonly status = signal<AuthStatus | null>(null);
@@ -91,7 +105,7 @@ export class AuthService {
   });
   readonly loginPasswordRequired = computed(() => this.status()?.login_password_required ?? false);
   readonly isSuperadmin = computed(() => this.status()?.user_role === 'superadmin');
-  readonly isMultiUser = computed(() => this.status()?.multi_user ?? false);
+  readonly isMultiUser = computed(() => this.status()?.multi_user ?? this.multiUserMode());
   /** Who may administer the installation, as `require_scan_access` decides: the
    *  superadmin in multi-user mode, edition access otherwise. */
   readonly isInstallAdmin = computed(() => this.isMultiUser() ? this.isSuperadmin() : this.isEdition());
@@ -104,8 +118,14 @@ export class AuthService {
     // rotated token no longer carries — an amber Edition icon over a session
     // the server 403s. The event never fires in the tab that wrote the value.
     const onStorage = (event: StorageEvent) => {
-      if (event.key === this.TOKEN_KEY) {
+      if (event.storageArea && event.storageArea !== localStorage) return;
+      if (event.key === this.COOKIE_UNCERTAINTY_KEY) {
+        this.cookieUncertain = event.newValue !== null;
+        this.invalidateSession();
+        if (!this.cookieUncertain) void this.revalidate();
+      } else if (event.key === this.TOKEN_KEY || event.key === null) {
         if (event.newValue === null) clearReviewQueues();
+        this.invalidateSession();
         void this.revalidate();
       } else if (event.key === REVIEW_QUEUE_STORAGE_KEY && event.newValue === null) clearReviewQueues();
     };
@@ -120,9 +140,59 @@ export class AuthService {
 
   /** Check auth status with the server */
   async checkStatus(): Promise<AuthStatus> {
-    const status = await firstValueFrom(this.http.get<AuthStatus>('/api/auth/status'));
-    this.status.set(status);
+    // Cookie mutations also affect <img> requests. Wait until they have settled
+    // before exposing an identity to guards or to account-dependent views.
+    while (this.cookieQueue) await this.cookieQueue;
+    if (this.hasUncertainCookie()) {
+      await this.mutateCookie(async () => {
+        if (this.hasUncertainCookie()) await this.reconcileCookie();
+      });
+      if (this.hasUncertainCookie()) throw new Error('Authentication cookie could not be reconciled; sign in again');
+    }
+    return this.refreshStatus();
+  }
+
+  private async refreshStatus(): Promise<AuthStatus> {
+    const epoch = this.authEpoch;
+    const token = localStorage.getItem(this.TOKEN_KEY);
+    const request = ++this.statusRequest;
+    const status = await firstValueFrom(
+      this.http.get<AuthStatus>('/api/auth/status').pipe(timeout(AUTH_REQUEST_TIMEOUT_MS)),
+    );
+    if (!this.isCurrentSession(epoch, token)) {
+      throw new Error('Authentication changed while loading status');
+    }
+    // Concurrent startup callers may finish in either order. An older result
+    // can satisfy a guard while the newer request is pending, but cannot undo
+    // a newer result that has already been applied.
+    if (request < this.appliedStatusRequest) {
+      const current = this.confirmedStatus ?? this.status();
+      if (current) return current;
+      throw new Error('Authentication status was superseded');
+    }
+    this.appliedStatusRequest = request;
+    this.multiUserMode.set(status.multi_user);
+    localStorage.setItem('facet_multi_user_mode', status.multi_user ? '1' : '0');
+    this.confirmedStatus = status;
+    if (!this.pendingCookieMutations) this.status.set(status);
     return status;
+  }
+
+  private isCurrentSession(epoch: number, token: string | null): boolean {
+    return epoch === this.authEpoch && token === localStorage.getItem(this.TOKEN_KEY);
+  }
+
+  /** Drop state and in-flight ownership whenever the shared credential changes.
+   * A late request may still finish, but cannot restore the previous account.
+   * CacheStorage cleanup does not clear the browser's HTTP cache. */
+  private invalidateSession(): void {
+    this.authEpoch++;
+    resetPrivateImageSession();
+    this.pendingLoad = null;
+    this.pendingRevalidation = null;
+    this.status.set(null);
+    this.confirmedStatus = null;
+    this.clearThumbnailCaches();
   }
 
   /** The cached status, or the one server load every caller shares while it is
@@ -132,7 +202,12 @@ export class AuthService {
   loadStatus(): Promise<AuthStatus> {
     const cached = this.status();
     if (cached) return Promise.resolve(cached);
-    this.pendingLoad ??= this.checkStatus().finally(() => { this.pendingLoad = null; });
+    if (!this.pendingLoad) {
+      const pending = this.checkStatus().finally(() => {
+        if (this.pendingLoad === pending) this.pendingLoad = null;
+      });
+      this.pendingLoad = pending;
+    }
     return this.pendingLoad;
   }
 
@@ -140,9 +215,14 @@ export class AuthService {
    *  so a burst of rejected requests costs a single round-trip. Never rejects:
    *  a failed reconciliation must not replace the error that triggered it. */
   revalidate(): Promise<AuthStatus | null> {
-    this.pendingRevalidation ??= this.checkStatus()
-      .catch(() => null)
-      .finally(() => { this.pendingRevalidation = null; });
+    if (!this.pendingRevalidation) {
+      const pending = this.checkStatus()
+        .catch(() => null)
+        .finally(() => {
+          if (this.pendingRevalidation === pending) this.pendingRevalidation = null;
+        });
+      this.pendingRevalidation = pending;
+    }
     return this.pendingRevalidation;
   }
 
@@ -151,10 +231,133 @@ export class AuthService {
    * they cannot drift on what "success" writes.
    */
   private async acceptToken(res: LoginResponse | undefined): Promise<LoginOutcome> {
-    if (!res?.access_token) return 'invalid';
+    if (!res?.access_token) {
+      await this.reconcileCookie();
+      return 'unavailable';
+    }
     localStorage.setItem(this.TOKEN_KEY, res.access_token);
-    await this.checkStatus();
+    this.markCookieUncertain(false);
+    this.invalidateSession();
+    await this.refreshStatus();
     return 'ok';
+  }
+
+  /** Serialize responses that set the HttpOnly image-auth cookie. Ignoring an
+   * obsolete JSON body cannot undo Set-Cookie, so every completed mutation must
+   * be applied before the next starts. Web Locks extend this order across tabs
+   * on secure origins; HTTP deployments retain the per-instance queue. */
+  private mutateCookie<T>(operation: (previous: AuthStatus | null) => Promise<T>): Promise<T> {
+    if (!this.pendingCookieMutations) {
+      this.confirmedStatus = this.status();
+      if (this.confirmedStatus) {
+        this.multiUserMode.set(this.confirmedStatus.multi_user);
+        localStorage.setItem('facet_multi_user_mode', this.confirmedStatus.multi_user ? '1' : '0');
+      }
+    }
+    this.pendingCookieMutations++;
+    this.status.set(null);
+    const run = async () => {
+      const apply = async () => {
+        const previous = this.confirmedStatus;
+        const token = localStorage.getItem(this.TOKEN_KEY);
+        this.invalidateSession();
+        const epoch = this.authEpoch;
+        const restorePrevious = () => {
+          if (!this.confirmedStatus && !this.hasUncertainCookie() && this.isCurrentSession(epoch, token)) {
+            this.confirmedStatus = previous;
+          }
+        };
+        try {
+          const result = await operation(previous);
+          restorePrevious();
+          return result;
+        } catch (error) {
+          restorePrevious();
+          throw error;
+        }
+      };
+      if (!navigator.locks) return apply();
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), AUTH_LOCK_TIMEOUT_MS);
+      try {
+        return await navigator.locks.request('facet-auth-cookie', { signal: controller.signal }, () => {
+          clearTimeout(timer);
+          return apply();
+        });
+      } finally {
+        clearTimeout(timer);
+      }
+    };
+    const pending = this.cookieQueue ? this.cookieQueue.then(run) : run();
+    const settled = pending.finally(() => {
+      this.pendingCookieMutations--;
+      if (!this.pendingCookieMutations) this.status.set(this.confirmedStatus);
+      if (this.cookieQueue === tail) this.cookieQueue = null;
+    });
+    const tail = settled.then(() => undefined, () => undefined);
+    this.cookieQueue = tail;
+    return settled;
+  }
+
+  private async postAuth<T>(url: string, body: object): Promise<T> {
+    // RxJS timeout unsubscribes from HttpClient, aborting the actual request
+    // before the queue/lock is released; a plain Promise race would not.
+    const wasUncertain = this.hasUncertainCookie();
+    this.markCookieUncertain(true);
+    try {
+      return await firstValueFrom(this.http.post<T>(url, body).pipe(timeout(AUTH_REQUEST_TIMEOUT_MS)));
+    } catch (error) {
+      // A transport/parse failure can happen after headers applied Set-Cookie.
+      // Only an explicit HTTP error response proves this auth route refused
+      // the request without issuing a new cookie.
+      if (!(error instanceof HttpErrorResponse) || error.status < 400) await this.reconcileCookie();
+      else if (!wasUncertain) this.markCookieUncertain(false);
+      throw error;
+    }
+  }
+
+  private hasUncertainCookie(): boolean {
+    return this.cookieUncertain || localStorage.getItem(this.COOKIE_UNCERTAINTY_KEY) !== null;
+  }
+
+  private markCookieUncertain(value: boolean): void {
+    this.cookieUncertain = value;
+    if (value) localStorage.setItem(this.COOKIE_UNCERTAINTY_KEY, '1');
+    else localStorage.removeItem(this.COOKIE_UNCERTAINTY_KEY);
+  }
+
+  private async reconcileCookie(): Promise<void> {
+    this.markCookieUncertain(true);
+    for (let attempt = 0; attempt < 2; attempt++) {
+      const token = this.token;
+      if (!token) break;
+      const epoch = this.authEpoch;
+      const storedToken = localStorage.getItem(this.TOKEN_KEY);
+      try {
+        // Re-establish the cookie from the known Bearer, without minting a new
+        // credential. Only a complete response confirms their identities match.
+        const response = await firstValueFrom(this.http.post('/api/auth/cookie', {}, {
+          headers: { Authorization: `Bearer ${token}` },
+          observe: 'response',
+        }).pipe(timeout(AUTH_REQUEST_TIMEOUT_MS)));
+        if (response.status !== 204) break;
+        if (!this.isCurrentSession(epoch, storedToken)) continue;
+        this.markCookieUncertain(false);
+        return;
+      } catch { break; /* Invalid or unconfirmed Bearer: clear the complete session. */ }
+    }
+    localStorage.removeItem(this.TOKEN_KEY);
+    clearPersonAssignmentHistory();
+    clearReviewQueues();
+    this.invalidateSession();
+    this.router.navigate(['/login']);
+    try {
+      // Stay inside the current mutation's lock. Do not recurse through
+      // postAuth: one bounded cleanup attempt is enough; failure must keep the
+      // identity unknown instead of re-authenticating from the uncertain cookie.
+      await firstValueFrom(this.http.post('/api/auth/logout', {}).pipe(timeout(AUTH_REQUEST_TIMEOUT_MS)));
+      this.markCookieUncertain(false);
+    } catch { /* An explicit successful login can reconcile a later retry. */ }
   }
 
   /**
@@ -165,8 +368,8 @@ export class AuthService {
    * the one thing it was not, and hid the only diagnostic the server produced.
    *
    * Status 0 counts too — an unreachable server, a dropped connection or a
-   * CORS failure never reached the password check either, so reporting it as
-   * bad credentials repeats the same conflation one layer down. The predicate
+   * CORS failure cannot establish whether the credentials were accepted, so
+   * reporting bad credentials repeats the same conflation. The predicate
    * is the one `retry.interceptor.ts` already uses for "the server, not the
    * request, is the problem".
    *
@@ -175,8 +378,9 @@ export class AuthService {
    * never bad credentials either.
    */
   private classifyLoginError(err: unknown): LoginOutcome {
+    if (err instanceof TimeoutError || (err instanceof DOMException && err.name === 'AbortError')) return 'unavailable';
     if (!(err instanceof HttpErrorResponse)) return 'invalid';
-    if (err.status === 0 || err.status >= 500) return 'unavailable';
+    if (err.status < 400 || err.status >= 500) return 'unavailable';
     return err.status === 429 ? 'rate_limited' : 'invalid';
   }
 
@@ -186,9 +390,9 @@ export class AuthService {
       const body: Record<string, string> = { password };
       if (username) body['username'] = username;
 
-      return await this.acceptToken(
-        await firstValueFrom(this.http.post<LoginResponse>('/api/auth/login', body)),
-      );
+      return await this.mutateCookie(async () => this.acceptToken(
+        await this.postAuth<LoginResponse>('/api/auth/login', body),
+      ));
     } catch (err) {
       return this.classifyLoginError(err);
     }
@@ -197,27 +401,33 @@ export class AuthService {
   /** Login for edition mode (legacy single-user) */
   async editionLogin(password: string): Promise<LoginOutcome> {
     try {
-      return await this.acceptToken(
-        await firstValueFrom(
-          this.http.post<LoginResponse>('/api/auth/edition/login', { password }),
-        ),
-      );
+      return await this.mutateCookie(async () => this.acceptToken(
+        await this.postAuth<LoginResponse>('/api/auth/edition/login', { password }),
+      ));
     } catch (err) {
       return this.classifyLoginError(err);
     }
   }
 
   /** Logout and navigate to login */
-  logout(): void {
-    // Clear the server-side HttpOnly auth cookie (image/GET fallback auth);
-    // fire-and-forget — local state is dropped regardless.
-    this.http.post('/api/auth/logout', {}).subscribe({ error: () => undefined });
+  logout(): Promise<void> {
+    // Hide the account immediately, then clear the cookie after every earlier
+    // cookie response. A pending login must not set its cookie after logout.
+    const clearingCookie = this.mutateCookie(async () => {
+      try {
+        await this.postAuth('/api/auth/logout', {});
+        this.markCookieUncertain(false);
+      } finally {
+        localStorage.removeItem(this.TOKEN_KEY);
+        this.invalidateSession();
+      }
+    }).catch(() => undefined);
     localStorage.removeItem(this.TOKEN_KEY);
     clearPersonAssignmentHistory();
     clearReviewQueues();
-    this.status.set(null);
-    this.clearThumbnailCaches();
+    this.invalidateSession();
     this.router.navigate(['/login']);
+    return clearingCookie;
   }
 
   /** Drop service-worker thumbnail caches so they can't leak across users
@@ -232,18 +442,25 @@ export class AuthService {
   }
 
   /** Drop edition privileges without navigating away */
-  async dropEdition(): Promise<void> {
+  async dropEdition(): Promise<boolean> {
     try {
-      const res = await firstValueFrom(
-        this.http.post<LoginResponse>('/api/auth/edition/logout', {}),
-      );
-      if (res?.access_token) {
+      return await this.mutateCookie(async previous => {
+        const res = await this.postAuth<LoginResponse>('/api/auth/edition/logout', {});
+        if (!res?.access_token) {
+          await this.reconcileCookie();
+          return false;
+        }
         localStorage.setItem(this.TOKEN_KEY, res.access_token);
-      }
+        this.markCookieUncertain(false);
+        this.invalidateSession();
+        this.confirmedStatus = previous ? { ...previous, edition_authenticated: false } : null;
+        return true;
+      });
     } catch {
-      // Network error — keep existing token rather than destroying the session
+      // No confirmed token swap: keep the actual rights and let the caller
+      // report the failed lock instead of claiming edition has been dropped.
+      return false;
     }
-    this.status.update(s => s ? { ...s, edition_authenticated: false } : s);
   }
 
   /** Check if a feature is enabled */

@@ -45,6 +45,7 @@ import * as L from 'leaflet';
 import { createLeafletMap } from '../../shared/leaflet';
 import { I18N, i18nKeys } from '../../core/i18n/keys';
 import { isPageShortcutBlocked, isTypingContext } from '../../shared/utils/keyboard';
+import { privateImageSessionKey } from '../../shared/utils/private-image-session';
 import { KeyboardMappingService } from '../../core/services/keyboard-mapping.service';
 import type { CategoryOverrideResult } from './category-override-dialog.component';
 import { StackNavigatorComponent } from './stack-navigator.component';
@@ -613,6 +614,7 @@ export class PhotoDetailComponent extends PhotoDetailBase implements OnInit {
   private memberRequest = 0;
   private memberPhoto: { photo: Photo; owner: string } | null = null;
   private readonly viewerOwner = this.auth.identity();
+  private readonly viewerSession = privateImageSessionKey();
 
   readonly photo = signal<Photo | null>(null);
   /** Bumped when the mark dialog adds or removes an object, so the object layer re-reads. */
@@ -816,18 +818,19 @@ export class PhotoDetailComponent extends PhotoDetailBase implements OnInit {
       if (path && path !== this.photo()?.path) void this.showPhotoAt(path);
     });
 
-    // Try router state (passed from gallery via navigate(..., { state }))
+    const path = this.route.snapshot.queryParamMap.get('path');
+    // History survives logout and even document reloads. Only a snapshot from
+    // this credential session and this route may bypass a fresh authorized read.
     const statePhoto = history.state?.['photo'] as Photo | undefined;
 
-    if (statePhoto) {
+    if (statePhoto?.path === path && history.state?.['photoSession'] === this.viewerSession) {
       this.photo.set(statePhoto);
     } else {
       // Fallback: load from API using query param
-      const path = this.route.snapshot.queryParamMap.get('path');
       if (path) {
         // The user may leave, or Back may move the address, while this loads; replacing keeps a dead entry out of history.
         const photo = await this.fetchPhoto(path).catch(() => undefined);
-        if (this.destroyRef.destroyed || this.viewerOwner !== this.auth.identity() || this.route.snapshot.queryParamMap.get('path') !== path) return;
+        if (this.destroyRef.destroyed || this.viewerOwner !== this.auth.identity() || this.viewerSession !== privateImageSessionKey() || this.route.snapshot.queryParamMap.get('path') !== path) return;
         if (photo) this.photo.set(photo);
         else this.router.navigate(['/'], { replaceUrl: true });
       } else {
@@ -852,7 +855,7 @@ export class PhotoDetailComponent extends PhotoDetailBase implements OnInit {
   }
 
   private async showPhotoAt(path: string): Promise<void> {
-    if (this.viewerOwner !== this.auth.identity() || (this.memberPhoto?.photo.path === path && !this.memberAllowed(path))) return;
+    if (this.viewerOwner !== this.auth.identity() || this.viewerSession !== privateImageSessionKey() || (this.memberPhoto?.photo.path === path && !this.memberAllowed(path))) return;
     // Store copy carries edits made since; history.state is the photo as opened.
     const context = this.stacks.context();
     const photo = (this.memberPhoto?.owner === this.auth.identity() && this.memberPhoto.photo.path === path ? this.memberPhoto.photo : null) ?? this.store.photos().find(p => p.path === path) ?? await this.fetchPhoto(path).catch(() => undefined);
@@ -874,7 +877,7 @@ export class PhotoDetailComponent extends PhotoDetailBase implements OnInit {
   }
 
   protected async openSetMember(path: string): Promise<void> {
-    if (this.viewerOwner !== this.auth.identity() || !this.memberAllowed(path) || this.photo()?.path === path) return;
+    if (this.viewerOwner !== this.auth.identity() || this.viewerSession !== privateImageSessionKey() || !this.memberAllowed(path) || this.photo()?.path === path) return;
     const sequence = ++this.memberRequest;
     const currentPath = this.photo()?.path;
     const context = this.stacks.context();
@@ -979,7 +982,7 @@ export class PhotoDetailComponent extends PhotoDetailBase implements OnInit {
     // Replace, so Escape (history back) leaves the photo page instead of stepping back through every photo.
     this.router.navigate(['/photo'], {
       queryParams: { path: next.path },
-      state: { photo: next },
+      state: { photo: next, photoSession: this.viewerSession },
       replaceUrl: true,
     });
     this.photo.set(next);
@@ -1134,7 +1137,7 @@ export class PhotoDetailComponent extends PhotoDetailBase implements OnInit {
       if (navigated || this.destroyRef.destroyed || this.photo()?.path !== previous.path) return;
       const target = this.store.photos().find(photo => photo.path === next?.path) ?? this.store.photos()[index] ?? this.store.photos()[0];
       if (!target) { this.router.navigate(['/']); return; }
-      this.router.navigate(['/photo'], { queryParams: { path: target.path }, state: { photo: target }, replaceUrl: true });
+      this.router.navigate(['/photo'], { queryParams: { path: target.path }, state: { photo: target, photoSession: this.viewerSession }, replaceUrl: true });
       this.photo.set(target);
       this.fullImageLoaded.set(false);
     } finally { navigation.unsubscribe(); }

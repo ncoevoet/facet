@@ -61,6 +61,64 @@ def _comparisons_create_sql(db_path):
 
 
 class TestComparisonsUserIdMigration:
+    @pytest.mark.parametrize("foreign_keys", [0, 1])
+    @pytest.mark.parametrize("phase", ["create", "copy", "drop", "rename"])
+    def test_failed_rebuild_rolls_back_every_phase(self, tmp_path, foreign_keys, phase):
+        from db.schema import _migrate_comparisons_user_id
+
+        db_path = _seed_old_comparisons_db(tmp_path)
+        with sqlite3.connect(db_path) as conn:
+            before = conn.execute("SELECT * FROM comparisons ORDER BY id").fetchall()
+            conn.execute(f"PRAGMA foreign_keys={foreign_keys}")
+            def authorize(action, first, second, _db, _trigger):
+                denied = ((phase == "create" and action == sqlite3.SQLITE_CREATE_TABLE and first == "comparisons_new")
+                          or (phase == "copy" and action == sqlite3.SQLITE_INSERT and first == "comparisons_new")
+                          or (phase == "drop" and action == sqlite3.SQLITE_DROP_TABLE and first == "comparisons")
+                          or (phase == "rename" and action == sqlite3.SQLITE_ALTER_TABLE and second == "comparisons_new"))
+                return sqlite3.SQLITE_DENY if denied else sqlite3.SQLITE_OK
+            conn.set_authorizer(authorize)
+            with pytest.raises(sqlite3.DatabaseError):
+                _migrate_comparisons_user_id(conn)
+            conn.set_authorizer(None)
+            assert conn.execute("PRAGMA foreign_keys").fetchone()[0] == foreign_keys
+        # Closing/reopening must not reveal a committed partial replacement.
+        with sqlite3.connect(db_path) as conn:
+            assert conn.execute("SELECT * FROM comparisons ORDER BY id").fetchall() == before
+            assert not conn.execute("SELECT 1 FROM sqlite_master WHERE name='comparisons_new'").fetchone()
+        init_database(db_path)
+        with sqlite3.connect(db_path) as conn:
+            assert conn.execute("SELECT * FROM comparisons ORDER BY id").fetchall() == before
+
+    def test_existing_recovery_table_is_preserved(self, tmp_path):
+        db_path = _seed_old_comparisons_db(tmp_path)
+        with sqlite3.connect(db_path) as conn:
+            conn.execute("CREATE TABLE comparisons_new AS SELECT * FROM comparisons")
+            conn.execute("DELETE FROM comparisons")
+        with pytest.raises(RuntimeError, match="comparisons_new"):
+            init_database(db_path)
+        with sqlite3.connect(db_path) as conn:
+            assert conn.execute("SELECT count(*) FROM comparisons_new").fetchone()[0] == 3
+            assert conn.execute("SELECT count(*) FROM comparisons").fetchone()[0] == 0
+
+    def test_cancellation_after_drop_restores_old_table(self, tmp_path):
+        from db.schema import _migrate_comparisons_user_id
+
+        class InterruptedConnection(sqlite3.Connection):
+            def execute(self, sql, *args):
+                if sql.startswith("ALTER TABLE comparisons_new"):
+                    raise KeyboardInterrupt()
+                return super().execute(sql, *args)
+
+        db_path = _seed_old_comparisons_db(tmp_path)
+        with sqlite3.connect(db_path, factory=InterruptedConnection) as conn:
+            conn.execute("PRAGMA foreign_keys=ON")
+            with pytest.raises(KeyboardInterrupt):
+                _migrate_comparisons_user_id(conn)
+            assert conn.execute("PRAGMA foreign_keys").fetchone()[0] == 1
+        with sqlite3.connect(db_path) as conn:
+            assert conn.execute("SELECT count(*) FROM comparisons").fetchone()[0] == 3
+            assert not conn.execute("SELECT 1 FROM sqlite_master WHERE name='comparisons_new'").fetchone()
+
     def test_migration_preserves_rows_and_adds_user_id_constraint(self, tmp_path):
         db_path = _seed_old_comparisons_db(tmp_path)
 
