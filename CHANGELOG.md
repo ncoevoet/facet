@@ -15,6 +15,10 @@ All notable changes to Facet are documented in this file.
 - **The remappable keyboard actions live in one registry** (`SHORTCUT_REGISTRY`: id, default key, page scope, label). The Customize shortcuts dialog, the saved-keymap loader and the `?` reference read from it, so a new action is one row. A key is now refused only when another action on the same page holds it; all seven current actions are live on the gallery, so nothing a user can do changes yet.
 - **`X` (or `0`) on a card inside a selection rejects the whole selection.** It rejected only the focused card, so rejecting ten selected photos meant ten trips; it now does what the selection bar's Reject does, with **Undo** when every selected photo is loaded and there are at most 500. Pressing `X` again while the batch saves does nothing, so a second batch cannot overwrite the first one's Undo. The rule is the context menu's: the focused card must be selected and the selection must hold two or more photos; otherwise `X` toggles the focused photo and advances as before. A whole-view selection asks for confirmation first, as the bar does.
 
+### Fixed
+
+- **Cover cards are sharp on high-density screens.** Capsules, Folders, Scenes, Timeline months and years, and Albums requested a 320 px thumbnail for every card, which a 2x screen stretches about twofold and the hover zoom enlarges further. Each cover now offers the 320 px and the stored 640 px thumbnail and the browser picks by card width and pixel density; Capsules covers also load lazily.
+
 ## [1.29.0] "Pamir" — 2026-11-10
 
 ### Added

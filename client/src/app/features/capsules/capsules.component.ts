@@ -13,7 +13,7 @@ import { HeaderSlotService } from '../../core/services/header-slot.service';
 import { CapsuleFiltersService } from './capsule-filters.service';
 import { TranslatePipe } from '../../shared/pipes/translate.pipe';
 import { DateRangeFilterComponent } from '../../shared/components/date-range-filter/date-range-filter.component';
-import { ThumbnailUrlPipe } from '../../shared/pipes/thumbnail-url.pipe';
+import { ThumbnailUrlPipe, ThumbnailSrcsetPipe } from '../../shared/pipes/thumbnail-url.pipe';
 import { InfiniteScrollDirective } from '../../shared/directives/infinite-scroll.directive';
 import { Photo, normalisePhotoFlagsAll } from '../../shared/models/photo.model';
 import { SlideshowComponent } from '../gallery/slideshow.component';
@@ -52,6 +52,7 @@ interface CapsulesResponse {
     MatSnackBarModule,
     TranslatePipe,
     ThumbnailUrlPipe,
+    ThumbnailSrcsetPipe,
     InfiniteScrollDirective,
     SlideshowComponent,
     DateRangeFilterComponent,
@@ -104,8 +105,8 @@ interface CapsulesResponse {
         >
           @if (capsule.cover_photo_path) {
             <div class="relative w-full aspect-[4/3] overflow-hidden">
-              <img [src]="capsule.cover_photo_path | thumbnailUrl:320:capsule.preview_revision"
-                   [alt]="capsule.title"
+              <img [src]="capsule.cover_photo_path | thumbnailUrl:320:capsule.preview_revision" [srcset]="capsule.cover_photo_path | thumbnailSrcset:capsule.preview_revision" sizes="(min-width: 1280px) 17vw, (min-width: 1024px) 20vw, (min-width: 768px) 25vw, (min-width: 640px) 34vw, 50vw"
+                   [alt]="capsule.title" loading="lazy" decoding="async"
                    class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" />
               <div class="absolute inset-x-0 top-0 z-[5] flex items-start gap-1 bg-gradient-to-b from-black/70 to-transparent px-2 pt-1.5 pb-4 pointer-events-none">
                 <span class="text-white text-xs font-medium truncate">{{ capsule.title_key | translate:capsule.title_params }}</span>

@@ -17,7 +17,7 @@ import { AuthService } from '../../core/services/auth.service';
 import { GalleryStore } from '../gallery/gallery.store';
 import { I18nService } from '../../core/services/i18n.service';
 import { TranslatePipe } from '../../shared/pipes/translate.pipe';
-import { ThumbnailUrlPipe, ImageUrlPipe } from '../../shared/pipes/thumbnail-url.pipe';
+import { ThumbnailUrlPipe, ThumbnailSrcsetPipe, ImageUrlPipe } from '../../shared/pipes/thumbnail-url.pipe';
 import { LoupeDirective } from '../../shared/directives/loupe.directive';
 import { createLoupeState } from '../../shared/utils/loupe-state';
 import { SceneDatePipe, MomentLabelPipe, MomentUncertainPipe } from './scenes.pipes';
@@ -67,6 +67,7 @@ interface ScenesResponse {
     MatTooltipModule,
     TranslatePipe,
     ThumbnailUrlPipe,
+    ThumbnailSrcsetPipe,
     ImageUrlPipe,
     LoupeDirective,
     SceneDatePipe,
@@ -136,7 +137,7 @@ interface ScenesResponse {
               @for (photo of scene.photos; track photo.path) {
                 <div class="group relative w-full aspect-[4/3] rounded-xl overflow-hidden border-2"
                      [ngClass]="photo.path === scene.best_path ? 'border-green-500' : 'border-[var(--mat-sys-outline-variant)]'">
-                  <img [src]="photo.path | thumbnailUrl:320:photo.preview_revision"
+                  <img [src]="photo.path | thumbnailUrl:320:photo.preview_revision" [srcset]="photo.path | thumbnailSrcset:photo.preview_revision" sizes="(min-width: 1280px) 17vw, (min-width: 1024px) 20vw, (min-width: 768px) 25vw, (min-width: 640px) 34vw, 50vw"
                        [appLoupe]="photo.path | imageUrl:true:photo.preview_revision"
                        [loupeActive]="loupeActive()"
                        [loupeZoom]="loupeZoom()"

@@ -18,7 +18,7 @@ import { AlbumService, Album } from '../../core/services/album.service';
 import { AuthService } from '../../core/services/auth.service';
 import { I18nService } from '../../core/services/i18n.service';
 import { TranslatePipe } from '../../shared/pipes/translate.pipe';
-import { ThumbnailUrlPipe } from '../../shared/pipes/thumbnail-url.pipe';
+import { ThumbnailUrlPipe, ThumbnailSrcsetPipe } from '../../shared/pipes/thumbnail-url.pipe';
 import { InfiniteScrollDirective } from '../../shared/directives/infinite-scroll.directive';
 import { CreateAlbumDialogComponent } from './create-album-dialog.component';
 import { EditAlbumDialogComponent } from './edit-album-dialog.component';
@@ -50,7 +50,7 @@ import { SelectTriggerLabelComponent } from '../../shared/components/select-trig
     RouterLink, MatButtonModule, MatIconModule, MatFormFieldModule, MatInputModule,
     MatSelectModule, MatDialogModule, MatTooltipModule,
     MatProgressSpinnerModule, MatMenuModule, MarkTonePipe, AlbumTypeIconPipe,
-    TranslatePipe, ThumbnailUrlPipe, InfiniteScrollDirective,
+    TranslatePipe, ThumbnailUrlPipe, ThumbnailSrcsetPipe, InfiniteScrollDirective,
   ],
   changeDetection: ChangeDetectionStrategy.Eager,
   template: `
@@ -117,7 +117,7 @@ import { SelectTriggerLabelComponent } from '../../shared/components/select-trig
            class="block min-w-0 cursor-pointer text-[var(--mat-sys-on-surface)] focus-visible:-outline-offset-2">
           @if (album.first_photo_path) {
             <div class="relative w-full aspect-[4/3] overflow-hidden">
-              <img [src]="album.first_photo_path | thumbnailUrl:320:album.preview_revision"
+              <img [src]="album.first_photo_path | thumbnailUrl:320:album.preview_revision" [srcset]="album.first_photo_path | thumbnailSrcset:album.preview_revision" sizes="(min-width: 1536px) 20vw, (min-width: 1024px) 25vw, (min-width: 640px) 34vw, 50vw"
                    alt=""
                    class="w-full h-full object-cover" />
             </div>
