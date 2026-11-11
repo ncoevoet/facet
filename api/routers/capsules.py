@@ -63,9 +63,31 @@ def _current_paths_clause(paths: list[str], user_id) -> tuple[str, list]:
             [*paths, *vis_params, *rejected_params])
 
 
+def _current_paths(conn, paths: list[str], user_id) -> list[str]:
+    where_sql, where_params = _current_paths_clause(paths, user_id)
+    found = {r["path"] for r in conn.execute(f"SELECT path FROM photos WHERE {where_sql}", where_params)}
+    return [p for p in paths if p in found]
+
+
 def _current_cover(capsule: dict, current: list[str]) -> Optional[str]:
     cover = capsule.get("cover_photo_path")
-    return cover if cover in current or not current else current[0]
+    return cover if cover in current else (current[0] if current else None)
+
+
+def _replace_stale_covers(conn, capsules: list[dict], summaries: list[dict], user_id) -> None:
+    """Swap a cover rejected since caching for the capsule's first current photo.
+
+    Only the covers are checked up front: a page's every path could pass
+    SQLite's 999-variable floor.
+    """
+    covers = [c["cover_photo_path"] for c in capsules if c.get("cover_photo_path")]
+    if not covers:
+        return
+    current = set(_current_paths(conn, covers, user_id))
+    for capsule, summary in zip(capsules, summaries):
+        if capsule.get("cover_photo_path") and capsule["cover_photo_path"] not in current:
+            summary["cover_photo_path"] = _current_cover(
+                capsule, _current_paths(conn, capsule["params"].get("paths", []) or [capsule["cover_photo_path"]], user_id))
 
 
 def _cache_key(user_id, date_from="", date_to=""):
@@ -165,6 +187,7 @@ def get_capsules(
     page_capsules = cached[start:end]
     summaries = [_capsule_summary(c) for c in page_capsules]
     with get_db() as conn:
+        _replace_stale_covers(conn, page_capsules, summaries, user_id)
         attach_preview_versions(conn, summaries, 'cover_photo_path')
 
     return {
@@ -261,9 +284,7 @@ def save_capsule_as_album(
         try:
             paths = capsule["params"].get("paths", [])
             if paths:
-                where_sql, where_params = _current_paths_clause(paths, user_id)
-                found = {r["path"] for r in conn.execute(f"SELECT path FROM photos WHERE {where_sql}", where_params)}
-                paths = [p for p in paths if p in found]
+                paths = _current_paths(conn, paths, user_id)
             if not paths:
                 raise HTTPException(status_code=400, detail="Capsule has no photos")
             cover_path = _current_cover(capsule, paths)

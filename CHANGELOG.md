@@ -17,7 +17,7 @@ All notable changes to Facet are documented in this file.
 
 ### Fixed
 
-- **Capsules leave out rejected photos.** Every capsule generator drew from the whole library, so a rejected photo could be a cover or play in the slideshow, and one whose file had been culled away played as its blurry stored thumbnail. Rejections are read per user in multi-user mode. A photo rejected after the capsule list was cached drops out of the slideshow and of **Save as album** at once, and the slideshow's count and cover follow it.
+- **Capsules leave out rejected photos.** Every capsule generator drew from the whole library, so a rejected photo could be a cover or play in the slideshow, and one whose file had been culled away played as its blurry stored thumbnail. Rejections are read per user in multi-user mode. A photo rejected after the capsule list was cached drops out of the slideshow and of **Save as album** at once, and stops being the card's cover.
 - **Capsule slideshows play in multi-user mode.** `GET /api/capsules/{id}/photos` selected the per-user rating columns without joining `user_preferences`, so every capsule answered 500.
 
 ## [1.29.0] "Pamir" — 2026-11-10

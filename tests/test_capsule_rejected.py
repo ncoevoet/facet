@@ -173,3 +173,26 @@ def test_save_as_album_leaves_out_a_reject_made_after_caching(edition_client, ca
             c.execute("DELETE FROM albums WHERE id = ?", [album_id])
     assert members == [KEPT]
     assert cover == KEPT
+
+
+@pytest.mark.parametrize("multi_user", [False, True])
+def test_list_swaps_a_cover_rejected_after_caching(edition_client, cached_capsule, multi_user):
+    cached_capsule("test", multi_user)
+    _reject_in_shared_db(multi_user, "test")
+
+    [card] = edition_client.get("/api/capsules").json()["capsules"]
+
+    assert card["cover_photo_path"] == KEPT
+
+
+def test_a_capsule_rejected_entirely_has_no_cover(edition_client, cached_capsule):
+    cached_capsule("test", False)
+    with _db() as c:
+        c.execute("UPDATE photos SET is_rejected = 1 WHERE path IN (?, ?)", [GONE, KEPT])
+
+    body = edition_client.get("/api/capsules/c1/photos").json()
+    [card] = edition_client.get("/api/capsules").json()["capsules"]
+
+    assert body["photos"] == [] and body["capsule"]["photo_count"] == 0
+    assert body["capsule"].get("cover_photo_path") is None
+    assert card.get("cover_photo_path") is None
