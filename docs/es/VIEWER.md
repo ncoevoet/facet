@@ -858,6 +858,8 @@ Facet genera cápsulas a partir de tu biblioteca:
 - **Favorites**: fotos favoritas agrupadas por año y estación
 - **Basadas en dimensiones**: por cámara, objetivo, categoría, patrón de composición, rango de distancia focal, hora del día, valoración por estrellas y combinaciones
 
+Las fotos que has rechazado nunca aparecen en una cápsula: ni como portada, ni en su presentación, ni en un álbum guardado a partir de ella. En modo multiusuario cuentan los rechazos de cada usuario.
+
 ### Pase de diapositivas
 
 Haz clic en la tarjeta de una cápsula para iniciar una presentación:

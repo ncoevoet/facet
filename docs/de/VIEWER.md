@@ -858,6 +858,8 @@ Facet erzeugt Kapseln aus Ihrer Bibliothek:
 - **Favoriten** — Favoriten, nach Jahr und Jahreszeit gruppiert
 - **Dimensionsbasiert** — nach Kamera, Objektiv, Kategorie, Kompositionsmuster, Brennweitenbereich, Tageszeit, Sternebewertung und Kombinationen
 
+Abgelehnte Fotos erscheinen nie in einer Kapsel: weder als Titelbild noch in der Slideshow noch in einem daraus gespeicherten Album. Im Mehrbenutzermodus zählen die eigenen Ablehnungen jedes Benutzers.
+
 ### Slideshow
 
 Klicken Sie auf eine Kapselkarte, um eine Diashow zu starten:

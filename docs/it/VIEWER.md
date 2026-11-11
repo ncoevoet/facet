@@ -857,6 +857,8 @@ Facet genera capsule dalla tua libreria:
 - **Preferiti** — foto preferite raggruppate per anno e stagione
 - **Basate su dimensione** — per fotocamera, obiettivo, categoria, modello compositivo, intervallo di lunghezza focale, ora del giorno, valutazione a stelle e combinazioni
 
+Le foto che hai scartato non compaiono mai in una capsula: né come copertina, né nella presentazione, né in un album salvato da essa. In modalità multiutente contano gli scarti di ciascun utente.
+
 ### Presentazione
 
 Clicca una scheda di capsula per avviare una presentazione:

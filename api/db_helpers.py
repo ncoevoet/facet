@@ -416,8 +416,9 @@ def hide_rejected_sql(user_id, table_alias: str = '') -> tuple[str, list]:
     """WHERE fragment and params excluding photos the user rejected.
 
     In multi-user mode rejections live only in ``user_preferences``. The subquery
-    is correlated rather than joined so the fragment drops into a query that
-    already joins ``user_preferences`` under its own alias.
+    is correlated rather than joined, unlike ``get_preference_columns`` (which
+    needs the caller to join ``user_preferences up``), so the fragment drops into
+    any query, including one that already joins that table under its own alias.
     """
     p = f"{table_alias}." if table_alias else ""
     if user_id and is_multi_user_enabled():
