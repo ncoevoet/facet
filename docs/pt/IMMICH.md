@@ -81,11 +81,12 @@ O Immich ≥ 3.0 permite restringir uma chave a alguns escopos. A sincronizaçã
 | `server.about` | Verificação de conectividade/autenticação do `--immich-test` |
 | `asset.read` | Resolve ativos por `originalPath` |
 | `asset.update` | Grava `rating` e `isFavorite` |
-| `album.read` | Encontra um álbum de melhores escolhas existente pelo nome |
+| `album.read` | Encontra o álbum de melhores escolhas pelo nome e lê a sua pertença |
 | `album.create` | Cria o álbum de melhores escolhas na primeira vez |
 | `albumAsset.create` | Adiciona fotos ao álbum de melhores escolhas |
+| `albumAsset.delete` | Remove fotos que caíram abaixo do limiar de melhores escolhas |
 
-Você pode dispensar os três escopos de álbum se `push.top_picks_album` estiver vazio. O Facet só toca em álbuns quando esse nome está definido.
+Você pode dispensar os quatro escopos de álbum se `push.top_picks_album` estiver vazio. O Facet só toca em álbuns quando esse nome está definido.
 
 O Facet envia a chave em um cabeçalho `x-api-key`. Coloque-a em `scoring_config.json`:
 
@@ -147,7 +148,7 @@ O que é enviado:
 - **Avaliações por estrelas de 1 a 5** → o `rating` do Immich. Uma foto sem avaliação não envia nada.
 - **Favoritos** → o `isFavorite` do Immich.
 - **Limpezas.** Se você avaliou uma foto, sincronizou e depois voltou a deixá-la sem avaliação, a próxima sincronização envia `rating: null` para que o Immich também a limpe. O Facet lembra o que enviou da última vez (em `stats_cache`) para isso. Ele envia `null`, nunca `0`: o Immich v3 rejeita `0`, e um lote rejeitado aborta toda a sincronização.
-- **Um álbum de melhores escolhas** (opcional), preenchido com as fotos avaliadas com pelo menos `push.top_picks_min_rating`, quando `push.top_picks_album` está definido.
+- **Um álbum de melhores escolhas** (opcional), quando `push.top_picks_album` está definido: fotos avaliadas com pelo menos `push.top_picks_min_rating` são membros, e um membro que caiu abaixo do limiar é removido numa sincronização global enquanto o Facet o consegue atribuir (uma foto eliminada ou o asset de outra aplicação fica como está); um membro existente nunca é readicionado.
 
 No modo multiusuário, `--immich-sync --user alice` envia as avaliações próprias da Alice (`user_preferences`) em vez das globais, e rastreia o estado de sincronização dela separadamente.
 
@@ -336,7 +337,7 @@ O bloco `immich` completo, com os padrões de fábrica:
 | `push.ratings` | `true` | Envia as avaliações por estrelas de 1 a 5 (e suas limpezas). |
 | `push.favorites` | `true` | Envia `isFavorite` (e suas limpezas). |
 | `push.rejected` | `false` | Envia `rating: -1` para fotos rejeitadas no Facet. Requer `push.ratings`. |
-| `push.top_picks_album` | `""` | Nome do álbum a preencher. Vazio significa que o Facet nunca toca em álbuns. |
+| `push.top_picks_album` | `""` | Nome do álbum a manter preenchido: membros abaixo de `push.top_picks_min_rating` são removidos numa sincronização global enquanto o Facet os consegue atribuir. Vazio significa que o Facet nunca toca em álbuns. |
 | `push.top_picks_min_rating` | `4` | Avaliação mínima por estrelas para esse álbum. |
 | `webhook.token_env` | `""` | Variável de ambiente que salva o segredo do webhook. Vazio desativa o endpoint. |
 | `webhook.header` | `"x-facet-token"` | Cabeçalho em que o Immich envia o token. |
@@ -367,7 +368,7 @@ Armadilhas comuns:
 
 - `Unsupported Immich URL scheme` — `url` precisa de `http://` ou `https://`.
 - `HTTP 401` — a chave de API está errada ou foi revogada.
-- `HTTP 403` — a chave não tem `server.about`. Recrie-a com os seis escopos acima.
+- `HTTP 403` — a chave não tem `server.about`. Recrie-a com os sete escopos acima.
 - Conexão recusada / timeout — a porta está errada, ou o Facet não consegue alcançar o container. Teste com `curl -H "x-api-key: …" http://immich.local:2283/api/server/about` a partir da máquina do Facet.
 
 ### O webhook retorna 404

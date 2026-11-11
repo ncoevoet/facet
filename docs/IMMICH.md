@@ -81,11 +81,12 @@ Immich ≥ 3.0 lets you limit a key to some scopes. Rating and favorite sync nee
 | `server.about` | `--immich-test` connectivity/auth check |
 | `asset.read` | Resolve assets by `originalPath` |
 | `asset.update` | Write `rating` and `isFavorite` |
-| `album.read` | Find an existing top-picks album by name |
+| `album.read` | Find the top-picks album by name and read its membership |
 | `album.create` | Create the top-picks album the first time |
 | `albumAsset.create` | Add photos to the top-picks album |
+| `albumAsset.delete` | Remove photos that dropped below the top-picks threshold |
 
-You can skip the three album scopes if `push.top_picks_album` is empty. Facet only touches albums when that name is set.
+You can skip the four album scopes if `push.top_picks_album` is empty. Facet only touches albums when that name is set.
 
 Facet sends the key in an `x-api-key` header. Put it in `scoring_config.json`:
 
@@ -147,7 +148,7 @@ What gets pushed:
 - **Star ratings 1–5** → Immich's `rating`. An unrated photo pushes nothing.
 - **Favorites** → Immich's `isFavorite`.
 - **Clears.** If you rated a photo, synced, then reset it to unrated, the next sync sends `rating: null` so Immich clears it too. Facet remembers what it last pushed (in `stats_cache`) for this. It sends `null`, never `0`: Immich v3 rejects `0`, and one rejected batch aborts the whole sync.
-- **A top-picks album** (optional), filled with photos rated at least `push.top_picks_min_rating`, when `push.top_picks_album` is set.
+- **A top-picks album** (optional), when `push.top_picks_album` is set: photos rated at least `push.top_picks_min_rating` are members, and a member that dropped below the threshold is removed again on a global sync while Facet can still attribute it (a deleted photo or another app's asset is left alone); an existing member is never re-added.
 
 In multi-user mode, `--immich-sync --user alice` pushes Alice's own ratings (`user_preferences`) instead of the global ones, and tracks her sync state separately.
 
@@ -336,7 +337,7 @@ The full `immich` block, with the shipped defaults:
 | `push.ratings` | `true` | Push star ratings 1–5 (and their clears). |
 | `push.favorites` | `true` | Push `isFavorite` (and its clears). |
 | `push.rejected` | `false` | Push `rating: -1` for photos rejected in Facet. Requires `push.ratings`. |
-| `push.top_picks_album` | `""` | Album name to fill. Empty means Facet never touches albums. |
+| `push.top_picks_album` | `""` | Album name to keep filled: members below `push.top_picks_min_rating` are removed on a global sync while Facet can attribute them. Empty means Facet never touches albums. |
 | `push.top_picks_min_rating` | `4` | Minimum star rating for that album. |
 | `webhook.token_env` | `""` | Environment variable holding the webhook secret. Empty disables the endpoint. |
 | `webhook.header` | `"x-facet-token"` | Header Immich sends the token in. |
@@ -367,7 +368,7 @@ Common traps:
 
 - `Unsupported Immich URL scheme` — `url` needs `http://` or `https://`.
 - `HTTP 401` — the API key is wrong or revoked.
-- `HTTP 403` — the key lacks `server.about`. Re-create it with the six scopes above.
+- `HTTP 403` — the key lacks `server.about`. Re-create it with the seven scopes above.
 - Connection refused / timeout — wrong port, or Facet cannot reach the container. Test with `curl -H "x-api-key: …" http://immich.local:2283/api/server/about` from the Facet machine.
 
 ### The webhook returns 404

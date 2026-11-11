@@ -81,11 +81,12 @@ Immich ≥ 3.0 erlaubt es, einen Schlüssel auf einzelne Scopes zu beschränken.
 | `server.about` | Konnektivitäts-/Auth-Prüfung durch `--immich-test` |
 | `asset.read` | Assets anhand von `originalPath` auflösen |
 | `asset.update` | `rating` und `isFavorite` schreiben |
-| `album.read` | Ein bestehendes Top-Picks-Album anhand des Namens finden |
+| `album.read` | Das Top-Picks-Album anhand des Namens finden und seine Mitglieder lesen |
 | `album.create` | Das Top-Picks-Album beim ersten Mal erstellen |
 | `albumAsset.create` | Fotos zum Top-Picks-Album hinzufügen |
+| `albumAsset.delete` | Fotos entfernen, die unter die Top-Picks-Schwelle gefallen sind |
 
-Die drei Album-Scopes können Sie weglassen, wenn `push.top_picks_album` leer ist. Facet rührt Alben nur an, wenn dieser Name gesetzt ist.
+Die vier Album-Scopes können Sie weglassen, wenn `push.top_picks_album` leer ist. Facet rührt Alben nur an, wenn dieser Name gesetzt ist.
 
 Facet sendet den Schlüssel im Header `x-api-key`. Tragen Sie ihn in `scoring_config.json` ein:
 
@@ -147,7 +148,7 @@ Was übertragen wird:
 - **Sternebewertungen 1–5** → Immichs `rating`. Ein unbewertetes Foto überträgt nichts.
 - **Favoriten** → Immichs `isFavorite`.
 - **Löschungen.** Wenn Sie ein Foto bewertet, synchronisiert und dann auf unbewertet zurückgesetzt haben, sendet die nächste Synchronisierung `rating: null`, damit Immich es ebenfalls löscht. Facet merkt sich dafür, was es zuletzt übertragen hat (in `stats_cache`). Es sendet `null`, nie `0`: Immich v3 lehnt `0` ab, und ein abgelehnter Batch bricht die gesamte Synchronisierung ab.
-- **Ein Top-Picks-Album** (optional), befüllt mit Fotos ab `push.top_picks_min_rating`, wenn `push.top_picks_album` gesetzt ist.
+- **Ein Top-Picks-Album** (optional), wenn `push.top_picks_album` gesetzt ist: Fotos ab `push.top_picks_min_rating` sind Mitglieder, und ein Mitglied unter der Schwelle wird bei einer globalen Synchronisation wieder entfernt, solange Facet es zuordnen kann (ein gelöschtes Foto oder der Asset einer anderen App bleibt unangetastet); ein bestehendes Mitglied wird nie neu hinzugefügt.
 
 Im Mehrbenutzermodus überträgt `--immich-sync --user alice` Alices eigene Bewertungen (`user_preferences`) statt der globalen und verfolgt ihren Synchronisierungszustand getrennt.
 
@@ -336,7 +337,7 @@ Der vollständige `immich`-Block, mit den mitgelieferten Standardwerten:
 | `push.ratings` | `true` | Sternebewertungen 1–5 übertragen (und ihre Löschungen). |
 | `push.favorites` | `true` | `isFavorite` übertragen (und dessen Löschungen). |
 | `push.rejected` | `false` | `rating: -1` für in Facet abgelehnte Fotos übertragen. Erfordert `push.ratings`. |
-| `push.top_picks_album` | `""` | Zu befüllender Albumname. Leer bedeutet, dass Facet Alben nie anrührt. |
+| `push.top_picks_album` | `""` | Albumname, der befüllt gehalten wird: Mitglieder unter `push.top_picks_min_rating` werden bei einer globalen Synchronisation entfernt, solange Facet sie zuordnen kann. Leer bedeutet, dass Facet Alben nie anrührt. |
 | `push.top_picks_min_rating` | `4` | Minimale Sternebewertung für dieses Album. |
 | `webhook.token_env` | `""` | Umgebungsvariable, die das Webhook-Geheimnis hält. Leer deaktiviert den Endpunkt. |
 | `webhook.header` | `"x-facet-token"` | Header, in dem Immich das Token sendet. |
@@ -367,7 +368,7 @@ Häufige Fallstricke:
 
 - `Unsupported Immich URL scheme` — `url` benötigt `http://` oder `https://`.
 - `HTTP 401` — der API-Schlüssel ist falsch oder wurde widerrufen.
-- `HTTP 403` — dem Schlüssel fehlt `server.about`. Erstellen Sie ihn mit den sechs Scopes oben neu.
+- `HTTP 403` — dem Schlüssel fehlt `server.about`. Erstellen Sie ihn mit den sieben Scopes oben neu.
 - Verbindung verweigert / Timeout — der Port ist falsch, oder Facet kann den Container nicht erreichen. Testen Sie mit `curl -H "x-api-key: …" http://immich.local:2283/api/server/about` von der Facet-Maschine aus.
 
 ### Der Webhook liefert 404

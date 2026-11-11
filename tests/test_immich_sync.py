@@ -1,5 +1,6 @@
 """Tests for the one-way Immich push (sync/immich.py) — HTTP transport fully mocked."""
 
+import json
 import sqlite3
 import threading
 
@@ -16,11 +17,14 @@ from sync.immich import (
 
 
 class FakeTransport:
-    def __init__(self, assets_by_path=None, albums=None, bulk_assets=None):
+    def __init__(self, assets_by_path=None, albums=None, bulk_assets=None, album_assets=None):
         self.assets_by_path = assets_by_path or {}
         # What the bulk-listing pass returns; None => same as assets_by_path.
         self.bulk_assets = bulk_assets
         self.albums = albums or []
+        # Current member ids per album id, as the GET /api/albums/:id read
+        # returns them; an album missing here reads as empty.
+        self.album_assets = album_assets
         self.requests = []
 
     def __call__(self, method, path, payload=None):
@@ -43,6 +47,12 @@ class FakeTransport:
             return self.albums
         if method == "POST" and path == "/api/albums":
             return {"id": "album-new"}
+        if method == "GET" and path.startswith("/api/albums/"):
+            album_id = path[len("/api/albums/"):]
+            members = self.album_assets.get(album_id) if self.album_assets is not None else []
+            return {"id": album_id, "assets": [{"id": aid} for aid in members or []]}
+        if method == "DELETE" and path.startswith("/api/albums/"):
+            return []
         if method == "PUT" and path.startswith("/api/albums/"):
             return []
         raise AssertionError(f"Unexpected request: {method} {path}")
@@ -1126,3 +1136,372 @@ def test_preview_preserves_delete_journal_and_pending_state(tmp_path, transport)
     assert summary['updated'] == 1
     assert transport.asset_updates() == [{'ids': ['id-a'], 'isFavorite': False, 'rating': 5}]
     assert load_pending_paths(db_path) == []
+
+
+def _variable_limit(db_path):
+    """SQLite's compile-time host-parameter ceiling; the tracked-state tests
+    size their fixtures just past it. Skips on pythons without ``getlimit``."""
+    conn = sqlite3.connect(db_path)
+    try:
+        return conn.getlimit(sqlite3.SQLITE_LIMIT_VARIABLE_NUMBER)
+    except AttributeError:
+        pytest.skip("sqlite3.Connection.getlimit unavailable")
+    finally:
+        conn.close()
+
+
+class TestLargeSyncedState:
+    """Every read of the tracked synced state chunks its path list.
+
+    Regression: ``_fetch_rating_rows`` built ONE ``IN (...)`` over the whole tracked
+    state. That state grows with the pushed half of the library and only
+    shrinks through a sync itself, so past SQLite's host-parameter limit the
+    sync raised before any network work — wedging every later run.
+    """
+
+    def test_fetch_rating_rows_chunks_past_the_host_parameter_limit(self, tmp_path):
+        db_path = make_db(tmp_path, [('/p/star.jpg', 5, 0, 0), ('/p/reset.jpg', 0, 0, 0)])
+        limit = _variable_limit(db_path)
+        stale = ['/p/reset.jpg'] + [f'/gone/{i}' for i in range(limit)]
+        conn = sqlite3.connect(db_path)
+        conn.row_factory = sqlite3.Row
+        try:
+            rows = sync_immich._fetch_rating_rows(conn, None, extra_paths=stale)
+        finally:
+            conn.close()
+        by_path = {row["path"]: row for row in rows}
+        assert len(rows) == 2
+        assert by_path["/p/star.jpg"]["star_rating"] == 5
+        # The reset photo is inactive in every clause; only the chunked
+        # stale-path reads can still see it, which keeps its clear pushable.
+        assert by_path["/p/reset.jpg"]["star_rating"] == 0
+
+    def test_the_whole_tracked_state_flows_through_the_chunked_fetch(
+            self, tmp_path, transport, monkeypatch):
+        db_path = make_db(tmp_path, [(f'/p/{i}.jpg', 5, 0, 0) for i in range(5)])
+        transport.assets_by_path = {f'/p/{i}.jpg': f'id-{i}' for i in range(5)}
+        sync_to_immich(db_path, make_config())
+
+        conn = sqlite3.connect(db_path)
+        conn.execute("UPDATE photos SET star_rating = 0")
+        conn.commit()
+        conn.close()
+
+        # A chunk size smaller than the state forces the chunked path; before
+        # the fix the whole state went out as one IN (...) regardless.
+        monkeypatch.setattr(sync_immich, "PATH_QUERY_CHUNK", 2)
+        summary = sync_to_immich(db_path, make_config())
+        assert summary["updated"] == 5
+        clears = [u for u in transport.asset_updates()
+                  if "rating" in u and u["rating"] is None]
+        assert len(clears) == 1
+        assert sorted(clears[0]["ids"]) == [f'id-{i}' for i in range(5)]
+
+    def test_gone_paths_are_pruned_from_the_tracked_state(self, tmp_path, transport):
+        db_path = make_db(tmp_path, [('/p/a.jpg', 5, 0, 0)])
+        transport.assets_by_path = {'/p/a.jpg': 'id-a'}
+        sync_to_immich(db_path, make_config())
+
+        # The photo leaves the library, a new one arrives in the same run.
+        conn = sqlite3.connect(db_path)
+        conn.execute("DELETE FROM photos WHERE path = '/p/a.jpg'")
+        conn.execute(
+            "INSERT INTO photos (path, filename, star_rating) VALUES ('/p/b.jpg', 'b.jpg', 4)")
+        conn.commit()
+        conn.close()
+        transport.assets_by_path['/p/b.jpg'] = 'id-b'
+
+        summary = sync_to_immich(db_path, make_config())
+        assert summary["updated"] == 1
+        with sqlite3.connect(db_path) as conn:
+            blob = conn.execute(
+                "SELECT value FROM stats_cache WHERE key = 'immich_synced_paths:global'"
+            ).fetchone()[0]
+        # The dead entry is gone; the live one is untouched.
+        assert json.loads(blob) == {'/p/b.jpg': {'rating': True, 'favorite': False}}
+
+    def test_dry_run_never_prunes_the_tracked_state(self, tmp_path, transport):
+        db_path = make_db(tmp_path, [('/p/a.jpg', 5, 0, 0)])
+        transport.assets_by_path = {'/p/a.jpg': 'id-a'}
+        sync_to_immich(db_path, make_config())
+        conn = sqlite3.connect(db_path)
+        conn.execute("DELETE FROM photos WHERE path = '/p/a.jpg'")
+        conn.commit()
+        conn.close()
+
+        sync_to_immich(db_path, make_config(), dry_run=True)
+        with sqlite3.connect(db_path) as conn:
+            blob = conn.execute(
+                "SELECT value FROM stats_cache WHERE key = 'immich_synced_paths:global'"
+            ).fetchone()[0]
+        assert json.loads(blob) == {'/p/a.jpg': {'rating': True, 'favorite': False}}
+
+
+class TestPendingBeyondTheHostParameterLimit:
+    """The webhook pending list is config-capped, but ``max_pending: 0`` means
+    unbounded — and ``_report_pending`` read it as one ``IN (...)`` too."""
+
+    def test_report_pending_chunks_a_growing_list(self, tmp_path):
+        db_path = make_db(tmp_path, [('/p/scored.jpg', 0, 0, 0)])
+        conn = sqlite3.connect(db_path)
+        conn.execute("UPDATE photos SET aggregate = 8.0 WHERE path = '/p/scored.jpg'")
+        conn.commit()
+        limit = _variable_limit(db_path)
+        conn.close()
+        record_pending_paths(db_path, ['/p/scored.jpg'] + [f'/x{i}' for i in range(limit)],
+                             max_pending=0)
+
+        remaining = sync_immich._report_pending(db_path, dry_run=False)
+
+        assert remaining == limit
+        kept = load_pending_paths(db_path)
+        assert len(kept) == limit
+        assert '/p/scored.jpg' not in kept
+
+
+class TestWebhookBatchedWrites:
+    """Assets sharing one payload write as ONE batched call (chunked like every
+    other write); a refused batch falls back to per-asset writes, keeping the
+    per-asset isolation the delivery contract promises."""
+
+    def test_identical_payloads_write_as_one_put(self, tmp_path, transport):
+        db_path = make_db(tmp_path, [('/p/a.jpg', 5, 0, 0), ('/p/b.jpg', 5, 0, 0),
+                                     ('/p/c.jpg', 5, 0, 0)])
+        with sqlite3.connect(db_path) as conn:
+            conn.execute("UPDATE photos SET aggregate = 8")
+        transport.assets_by_path = {'/p/a.jpg': 'id-a', '/p/b.jpg': 'id-b', '/p/c.jpg': 'id-c'}
+
+        results = push_photo_updates(db_path, make_config(), [
+            ('/p/a.jpg', 'id-a'), ('/p/b.jpg', 'id-b'), ('/p/c.jpg', 'id-c')])
+
+        assert [r for r, _ in results] == [RESULT_PUSHED] * 3
+        assert transport.asset_updates() == [{'ids': ['id-a', 'id-b', 'id-c'],
+                                              'rating': 5, 'isFavorite': False}]
+
+    def test_repeated_identical_entries_share_one_write(self, tmp_path, transport):
+        db_path = make_db(tmp_path, [('/p/a.jpg', 5, 0, 0)])
+        with sqlite3.connect(db_path) as conn:
+            conn.execute("UPDATE photos SET aggregate = 8")
+        transport.assets_by_path = {'/p/a.jpg': 'id-a'}
+
+        results = push_photo_updates(db_path, make_config(),
+                                     [('/p/a.jpg', 'id-a'), ('/p/a.jpg', 'id-a')])
+
+        assert [r for r, _ in results] == [RESULT_PUSHED, RESULT_PUSHED]
+        assert transport.asset_updates() == [{'ids': ['id-a'], 'rating': 5, 'isFavorite': False}]
+
+    def test_a_refused_batch_falls_back_to_per_asset_writes(self, tmp_path, monkeypatch):
+        import urllib.error
+
+        db_path = make_db(tmp_path, [('/p/boom.jpg', 5, 0, 0), ('/p/ok.jpg', 5, 0, 0)])
+        with sqlite3.connect(db_path) as conn:
+            conn.execute("UPDATE photos SET aggregate = 8")
+        puts = []
+
+        def flaky(_self, method, path, payload=None):
+            if method == "GET" and path.startswith("/api/assets/"):
+                asset_id = path.rsplit("/", 1)[-1]
+                return {"id": asset_id, "originalPath": f"/p/{asset_id[3:]}.jpg"}
+            if method == "POST" and path == "/api/search/metadata":
+                original_path = payload["originalPath"]
+                asset_id = 'id-' + original_path.rsplit('/', 1)[-1][:-4]
+                return {"assets": {"items": [{"id": asset_id, "originalPath": original_path}],
+                                   "nextPage": None}}
+            if method == "PUT" and path == "/api/assets":
+                puts.append(payload["ids"])
+                if len(payload["ids"]) > 1 or payload["ids"] == ['id-boom']:
+                    raise urllib.error.URLError("batch refused")
+                return None
+            raise AssertionError(f"Unexpected request: {method} {path}")
+
+        monkeypatch.setattr(ImmichClient, "_request", flaky)
+        results = push_photo_updates(db_path, make_config(), [
+            ('/p/boom.jpg', 'id-boom'), ('/p/ok.jpg', 'id-ok')])
+
+        assert results[0][0] == RESULT_FAILED
+        assert results[1] == (RESULT_PUSHED, None)
+        # The batch went out as ONE call carrying both ids before the fallback.
+        assert puts[0] == ['id-boom', 'id-ok']
+        assert puts[1:] == [['id-boom'], ['id-ok']]
+        with sqlite3.connect(db_path) as conn:
+            state = conn.execute(
+                "SELECT value FROM stats_cache WHERE key = 'immich_synced_paths:global'"
+            ).fetchone()[0]
+        assert '/p/ok.jpg' in state
+        assert '/p/boom.jpg' not in state
+
+
+class TestTopPicksMembership:
+    """The album mirrors the threshold: an existing member is never re-added,
+    members that dropped below it (or the whole album, if none remain) are
+    removed, and every album write is chunked."""
+
+    def _album_config(self, **overrides):
+        push = {"ratings": True, "favorites": True,
+                "top_picks_album": "Facet Top Picks", "top_picks_min_rating": 4}
+        push.update(overrides)
+        return make_config(push=push)
+
+    def test_existing_members_are_never_readded(self, tmp_path, transport):
+        db_path = make_db(tmp_path, [('/p/a.jpg', 5, 0, 0)])
+        transport.assets_by_path = {'/p/a.jpg': 'id-a'}
+        transport.albums = [{"albumName": "Facet Top Picks", "id": "al"}]
+        transport.album_assets = {'al': ['id-a']}
+
+        summary = sync_to_immich(db_path, self._album_config())
+
+        assert summary["albums_created"] == 0
+        assert [r for r in transport.requests
+                if r[0] == "PUT" and r[1].startswith("/api/albums/")] == []
+        assert [r for r in transport.requests if r[0] == "DELETE"] == []
+
+    def test_members_below_the_threshold_are_removed(self, tmp_path, transport):
+        db_path = make_db(tmp_path, [('/p/a.jpg', 5, 0, 0), ('/p/b.jpg', 5, 0, 0),
+                                     ('/p/c.jpg', 3, 0, 0)])
+        transport.assets_by_path = {'/p/a.jpg': 'id-a', '/p/b.jpg': 'id-b', '/p/c.jpg': 'id-c'}
+        transport.albums = [{"albumName": "Facet Top Picks", "id": "al"}]
+        transport.album_assets = {'al': ['id-a', 'id-b', 'id-c']}
+
+        sync_to_immich(db_path, self._album_config())
+
+        removes = [(p, payload) for m, p, payload in transport.requests
+                   if m == "DELETE" and p.startswith("/api/albums/")]
+        assert removes == [("/api/albums/al/assets", {"ids": ["id-c"]})]
+        assert [payload for m, p, payload in transport.requests
+                if m == "PUT" and p.startswith("/api/albums/")] == []
+
+    def test_an_album_drains_to_empty_when_nothing_qualifies(self, tmp_path, transport):
+        db_path = make_db(tmp_path, [('/p/a.jpg', 3, 0, 0)])
+        transport.assets_by_path = {'/p/a.jpg': 'id-a'}
+        transport.albums = [{"albumName": "Facet Top Picks", "id": "al"}]
+        transport.album_assets = {'al': ['id-a']}
+
+        summary = sync_to_immich(db_path, self._album_config())
+
+        assert summary["albums_created"] == 0
+        removes = [(p, payload) for m, p, payload in transport.requests
+                   if m == "DELETE" and p.startswith("/api/albums/")]
+        assert removes == [("/api/albums/al/assets", {"ids": ["id-a"]})]
+
+    def test_unreadable_membership_degrades_to_add_only(self, tmp_path, transport,
+                                                        monkeypatch):
+        db_path = make_db(tmp_path, [('/p/a.jpg', 5, 0, 0)])
+        transport.assets_by_path = {'/p/a.jpg': 'id-a'}
+        transport.albums = [{"albumName": "Facet Top Picks", "id": "al"}]
+        monkeypatch.setattr(ImmichClient, "album_asset_ids", lambda self, album_id: None)
+
+        sync_to_immich(db_path, self._album_config())
+
+        adds = [payload for m, p, payload in transport.requests
+                if m == "PUT" and p.startswith("/api/albums/")]
+        assert adds == [{"ids": ["id-a"]}]
+        assert [r for r in transport.requests if r[0] == "DELETE"] == []
+
+    def test_creation_carries_the_first_chunk_and_adds_the_rest(self, tmp_path, transport):
+        count = 600
+        db_path = make_db(tmp_path, [(f'/p/{i}.jpg', 5, 0, 0) for i in range(count)])
+        transport.assets_by_path = {f'/p/{i}.jpg': f'id-{i}' for i in range(count)}
+
+        summary = sync_to_immich(db_path, self._album_config())
+
+        assert summary["albums_created"] == 1
+        creates = [payload for m, p, payload in transport.requests
+                   if m == "POST" and p == "/api/albums"]
+        assert len(creates) == 1 and len(creates[0]["assetIds"]) == 500
+        adds = [(p, payload) for m, p, payload in transport.requests
+                if m == "PUT" and p.startswith("/api/albums/")]
+        assert [len(payload["ids"]) for _, payload in adds] == [100]
+        assert set(creates[0]["assetIds"]) | set(adds[0][1]["ids"]) == {f'id-{i}' for i in range(count)}
+
+    def test_additions_to_an_existing_album_are_chunked(self, tmp_path, transport):
+        count = 600
+        db_path = make_db(tmp_path, [(f'/p/{i}.jpg', 5, 0, 0) for i in range(count)])
+        transport.assets_by_path = {f'/p/{i}.jpg': f'id-{i}' for i in range(count)}
+        transport.albums = [{"albumName": "Facet Top Picks", "id": "al"}]
+        transport.album_assets = {'al': []}
+
+        summary = sync_to_immich(db_path, self._album_config())
+
+        assert summary["albums_created"] == 0
+        adds = [payload for m, p, payload in transport.requests
+                if m == "PUT" and p.startswith("/api/albums/")]
+        assert [len(payload["ids"]) for payload in adds] == [500, 100]
+        assert {a for payload in adds for a in payload["ids"]} == {f'id-{i}' for i in range(count)}
+
+    def test_a_member_facet_cannot_resolve_is_kept(self, tmp_path, transport):
+        # The photo still rates 5 in the library, but Immich has no asset for
+        # it this run. Removal must not treat "not resolved" as "below the
+        # threshold" — an identity problem must not evict a qualifying member.
+        db_path = make_db(tmp_path, [('/p/a.jpg', 5, 0, 0)])
+        transport.albums = [{"albumName": "Facet Top Picks", "id": "al"}]
+        transport.album_assets = {'al': ['id-a']}
+
+        summary = sync_to_immich(db_path, self._album_config())
+
+        assert summary["unmatched"] == 1
+        assert [r for r in transport.requests if r[0] == "DELETE"] == []
+        assert [r for r in transport.requests
+                if r[0] == "PUT" and r[1].startswith("/api/albums/")] == []
+
+    def test_a_member_whose_push_is_disabled_is_kept(self, tmp_path, transport):
+        # push.ratings=false: the 5-star row yields no payload at all, so it
+        # never resolves — and it must stay a member rather than drain out.
+        db_path = make_db(tmp_path, [('/p/a.jpg', 5, 0, 0)])
+        transport.albums = [{"albumName": "Facet Top Picks", "id": "al"}]
+        transport.album_assets = {'al': ['id-a']}
+
+        sync_to_immich(db_path, self._album_config(ratings=False))
+
+        assert [r for r in transport.requests if r[0] == "DELETE"] == []
+        assert [r for r in transport.requests
+                if r[0] == "PUT" and r[1].startswith("/api/albums/")] == []
+
+    def test_a_member_attributed_to_a_qualifying_row_is_kept(self, tmp_path, monkeypatch):
+        # A duplicate upload in Immich makes every resolution of this path an
+        # identity conflict, so the member never lands in the resolved
+        # qualifying set — but the proof loop can still attribute it (one
+        # observed path, mapped back to a row that still rates 5), which is
+        # exactly what must keep it in the album.
+        db_path = make_db(tmp_path, [('/p/a.jpg', 5, 0, 0)])
+        requests = []
+
+        def request(_self, method, path, payload=None):
+            requests.append((method, path, payload))
+            if method == "POST" and path == "/api/search/metadata":
+                return {"assets": {"items": [
+                    {"id": "one", "originalPath": "/p/a.jpg"},
+                    {"id": "two", "originalPath": "/p/a.jpg"}], "nextPage": None}}
+            if method == "GET" and path == "/api/albums":
+                return [{"albumName": "Facet Top Picks", "id": "al"}]
+            if method == "GET" and path.startswith("/api/albums/"):
+                return {"id": "al", "assets": [{"id": "one"}]}
+            return None
+
+        monkeypatch.setattr(ImmichClient, "_request", request)
+        summary = sync_to_immich(db_path, self._album_config())
+
+        assert summary["identity_conflicts"] == 1
+        assert [r for r in requests if r[0] == "DELETE"] == []
+        assert [r for r in requests
+                if r[0] == "PUT" and r[1].startswith("/api/albums/")] == []
+
+    def test_a_per_user_sync_never_removes_album_members(self, tmp_path, transport):
+        # The album name is global to the config, but a per-user sync's rows
+        # are that user's overlay: anything the other users (or the global
+        # columns) put in the album is unattributable to those rows, so the
+        # run must add only — never prune the others' picks away.
+        db_path = make_db(tmp_path, [('/p/a.jpg', 0, 0, 0), ('/p/b.jpg', 0, 0, 0)],
+                          user_rows=[('alice', '/p/a.jpg', 5, 1, 0)])
+        transport.assets_by_path = {'/p/a.jpg': 'id-a', '/p/b.jpg': 'id-b'}
+        transport.albums = [{"albumName": "Facet Top Picks", "id": "al"}]
+        transport.album_assets = {'al': ['id-a', 'id-b']}
+        config = self._album_config()
+        config["users"] = {"alice": {"role": "regular"}}
+
+        summary = sync_to_immich(db_path, config, user_id="alice")
+
+        assert summary["albums_created"] == 0
+        assert [r for r in transport.requests if r[0] == "DELETE"] == []
+        # id-a is Alice's own qualifying pick and already a member: no re-add.
+        assert [r for r in transport.requests
+                if r[0] == "PUT" and r[1].startswith("/api/albums/")] == []
