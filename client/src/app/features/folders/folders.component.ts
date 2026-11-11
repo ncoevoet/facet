@@ -11,7 +11,7 @@ import { ApiService } from '../../core/services/api.service';
 import { HeaderSlotService } from '../../core/services/header-slot.service';
 import { PageHelpService } from '../../core/services/page-help.service';
 import { TranslatePipe } from '../../shared/pipes/translate.pipe';
-import { ThumbnailUrlPipe } from '../../shared/pipes/thumbnail-url.pipe';
+import { ThumbnailUrlPipe, ThumbnailSrcsetPipe } from '../../shared/pipes/thumbnail-url.pipe';
 import { I18N, i18nKeys } from '../../core/i18n/keys';
 import { buildFolderBreadcrumbs, type FolderItem, type FoldersResponse } from './folders.util';
 import { GalleryStore } from '../gallery/gallery.store';
@@ -31,6 +31,7 @@ export const KEEP_CHAIN_STATE = 'foldersKeepChain';
     MatTooltipModule,
     TranslatePipe,
     ThumbnailUrlPipe,
+    ThumbnailSrcsetPipe,
   ],
   host: { class: 'block px-4 pt-4 pb-4' },
   changeDetection: ChangeDetectionStrategy.Eager,
@@ -82,7 +83,7 @@ export const KEEP_CHAIN_STATE = 'foldersKeepChain';
             (click)="openFolder(folder)">
             @if (folder.cover_photo_path) {
               <div class="relative w-full aspect-[4/3] overflow-hidden">
-                <img [src]="folder.cover_photo_path | thumbnailUrl:320:folder.preview_revision"
+                <img [src]="folder.cover_photo_path | thumbnailUrl:320:folder.preview_revision" [srcset]="folder.cover_photo_path | thumbnailSrcset:folder.preview_revision" sizes="(min-width: 1280px) 17vw, (min-width: 1024px) 20vw, (min-width: 768px) 25vw, (min-width: 640px) 34vw, 50vw"
                      [alt]="folder.name"
                      loading="lazy"
                      class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" />

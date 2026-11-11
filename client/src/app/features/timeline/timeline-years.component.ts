@@ -4,7 +4,7 @@ import { MatIconModule } from '@angular/material/icon';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { TimelineCollectionReader } from './timeline-collection-reader';
 import { TranslatePipe } from '../../shared/pipes/translate.pipe';
-import { ThumbnailUrlPipe } from '../../shared/pipes/thumbnail-url.pipe';
+import { ThumbnailUrlPipe, ThumbnailSrcsetPipe } from '../../shared/pipes/thumbnail-url.pipe';
 import { TimelineFiltersService } from './timeline-filters.service';
 import { GalleryStore, type ViewFilterParams } from '../gallery/gallery.store';
 import { i18nKeys } from '../../core/i18n/keys';
@@ -20,7 +20,7 @@ interface YearSummary {
 @Component({
   selector: 'app-timeline-years',
   standalone: true,
-  imports: [TimelineLoadFailureComponent, DecimalPipe, MatIconModule, MatProgressSpinnerModule, TranslatePipe, ThumbnailUrlPipe],
+  imports: [TimelineLoadFailureComponent, DecimalPipe, MatIconModule, MatProgressSpinnerModule, TranslatePipe, ThumbnailUrlPipe, ThumbnailSrcsetPipe],
   changeDetection: ChangeDetectionStrategy.Eager,
   template: `
     @if (loading() && years().length === 0) {
@@ -46,7 +46,7 @@ interface YearSummary {
           (click)="yearSelected.emit(y.year)">
           @if (y.hero_photo_path) {
             <div class="relative w-full aspect-[4/3] overflow-hidden">
-              <img [src]="y.hero_photo_path | thumbnailUrl:320:y.preview_revision"
+              <img [src]="y.hero_photo_path | thumbnailUrl:320:y.preview_revision" [srcset]="y.hero_photo_path | thumbnailSrcset:y.preview_revision" sizes="(min-width: 1280px) 17vw, (min-width: 1024px) 20vw, (min-width: 768px) 25vw, (min-width: 640px) 34vw, 50vw"
                    [alt]="y.year"
                    class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" />
               <div class="absolute inset-x-0 top-0 z-[5] flex items-start gap-1 bg-gradient-to-b from-black/70 to-transparent px-2 pt-1.5 pb-4 pointer-events-none">

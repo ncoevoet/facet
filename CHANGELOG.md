@@ -17,7 +17,7 @@ All notable changes to Facet are documented in this file.
 
 ### Fixed
 
-- **Capsule covers are sharp.** A card requested a 320 px thumbnail, which a grid card on a high-density screen stretches about twofold and the hover zoom enlarges further; it now loads the stored thumbnail, lazily.
+- **Cover cards are sharp on high-density screens.** Capsules, Folders, Scenes, Timeline months and years, and Albums requested a 320 px thumbnail for every card, which a 2x screen stretches about twofold and the hover zoom enlarges further. Each cover now offers the 320 px and the stored 640 px thumbnail and the browser picks by card width and pixel density; Capsules covers also load lazily.
 
 ## [1.29.0] "Pamir" — 2026-11-10
 
