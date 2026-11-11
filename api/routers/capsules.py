@@ -17,6 +17,7 @@ from api.db_helpers import (
     build_photo_select_columns,
     sanitize_float_values,
     get_visibility_clause,
+    hide_rejected_sql,
     split_photo_tags,
     attach_person_data_async,
     format_date,
@@ -187,6 +188,8 @@ async def get_capsule_photos(
             inner_cols = ", ".join(select_cols)
 
             vis_sql, vis_params = get_visibility_clause(user_id)
+            # Capsules are cached for hours; drop a photo rejected since then.
+            rejected_sql, rejected_params = hide_rejected_sql(user_id)
 
             placeholders = ",".join(["?"] * len(paths))
             query = f"""
@@ -194,8 +197,9 @@ async def get_capsule_photos(
                 FROM photos
                 WHERE path IN ({placeholders})
                   AND {vis_sql}
+                  AND {rejected_sql}
             """
-            cur = await conn.execute(query, paths + vis_params)
+            cur = await conn.execute(query, paths + list(vis_params) + rejected_params)
             rows = await cur.fetchall()
             await cur.close()
 
