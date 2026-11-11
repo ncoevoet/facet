@@ -104,8 +104,8 @@ interface CapsulesResponse {
         >
           @if (capsule.cover_photo_path) {
             <div class="relative w-full aspect-[4/3] overflow-hidden">
-              <img [src]="capsule.cover_photo_path | thumbnailUrl:320:capsule.preview_revision"
-                   [alt]="capsule.title"
+              <img [src]="capsule.cover_photo_path | thumbnailUrl:640:capsule.preview_revision"
+                   [alt]="capsule.title" loading="lazy" decoding="async"
                    class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" />
               <div class="absolute inset-x-0 top-0 z-[5] flex items-start gap-1 bg-gradient-to-b from-black/70 to-transparent px-2 pt-1.5 pb-4 pointer-events-none">
                 <span class="text-white text-xs font-medium truncate">{{ capsule.title_key | translate:capsule.title_params }}</span>
