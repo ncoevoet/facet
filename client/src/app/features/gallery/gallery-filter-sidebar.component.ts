@@ -399,16 +399,18 @@ type RatingOption = 'any' | '1' | '2' | '3' | '4' | '5' | 'zero';
       @if (store.config()?.features?.show_semantic_search) {
         <div class="relative">
         <!-- The help sits on the header row as a sibling: a button inside the header would toggle the panel. -->
-        <app-context-help data-section-help="semantic" class="absolute right-10 top-1.5 z-10 pointer-coarse:top-0" [iconOnly]="true" [label]="I18N.gallery.semantic_search_help" [keys]="semanticHelp" />
+        <app-context-help data-section-help="semantic" class="absolute end-10 top-1.5 z-10 pointer-coarse:top-0" [iconOnly]="true" [label]="I18N.gallery.semantic_search_help" [keys]="semanticHelp" />
         @let openSemantic = sectionStates() | sectionOpen:'semantic':false:activeView();
         <mat-expansion-panel class="!mb-1" [expanded]="openSemantic"
                              (opened)="onSectionToggle('semantic', true)"
                              (closed)="onSectionToggle('semantic', false)"
                              [style.background-color]="openSemantic ? 'var(--mat-sys-surface-container)' : null">
-          <mat-expansion-panel-header class="!px-2 [&_.mat-content]:pe-9">
-            <mat-panel-title class="flex items-center gap-2">
-              <mat-icon class="!text-xl !w-5 !h-5 !leading-none opacity-80">image_search</mat-icon>
-              {{ I18N.gallery.sidebar.semantic_search | translate }}
+          <mat-expansion-panel-header class="!px-2 [&_.mat-content]:pe-11">
+            <mat-panel-title class="flex min-w-0 items-center gap-2">
+              <mat-icon class="!text-xl !w-5 !h-5 !leading-none opacity-80 shrink-0">image_search</mat-icon>
+              @let semanticTitle = I18N.gallery.sidebar.semantic_search | translate;
+              <!-- The help icon sits on the right of this row: a long title is cut with an ellipsis, the tooltip carries it whole. -->
+              <span class="min-w-0 truncate" [matTooltip]="semanticTitle">{{ semanticTitle }}</span>
             </mat-panel-title>
           </mat-expansion-panel-header>
           <div class="flex min-w-0 flex-col gap-1 pb-1" data-semantic-search>
@@ -596,18 +598,19 @@ type RatingOption = 'any' | '1' | '2' | '3' | '4' | '5' | 'zero';
           @case ('tag_rules') {
       <!-- Tag rules -->
         <div class="relative">
-        <app-context-help data-section-help="tag_rules" class="absolute right-10 top-1.5 z-10 pointer-coarse:top-0" [iconOnly]="true" [label]="I18N.gallery.tag_groups.help" [keys]="tagRulesHelp" />
+        <app-context-help data-section-help="tag_rules" class="absolute end-10 top-1.5 z-10 pointer-coarse:top-0" [iconOnly]="true" [label]="I18N.gallery.tag_groups.help" [keys]="tagRulesHelp" />
         @let tagRulesPanelOpen = activeView() || tagRulesOpen();
         <mat-expansion-panel class="!mb-1" [expanded]="tagRulesPanelOpen"
                              (opened)="onTagRulesToggle(true)"
                              (closed)="onTagRulesToggle(false)"
                              [style.background-color]="tagRulesPanelOpen ? 'var(--mat-sys-surface-container)' : null">
-          <mat-expansion-panel-header class="!px-2 [&_.mat-content]:pe-9">
-            <mat-panel-title class="flex items-center gap-2">
-              <mat-icon class="!text-xl !w-5 !h-5 !leading-none opacity-80">sell</mat-icon>
-              {{ I18N.gallery.tag_groups.title | translate }}
+          <mat-expansion-panel-header class="!px-2 [&_.mat-content]:pe-11">
+            <mat-panel-title class="flex min-w-0 items-center gap-2">
+              <mat-icon class="!text-xl !w-5 !h-5 !leading-none opacity-80 shrink-0">sell</mat-icon>
+              @let tagRulesTitle = I18N.gallery.tag_groups.title | translate;
+              <span class="min-w-0 truncate" [matTooltip]="tagRulesTitle">{{ tagRulesTitle }}</span>
               @if (sectionActiveCounts()['tag_rules']) {
-                <span class="text-xs rounded-full min-w-[1.25rem] h-5 px-1.5 flex items-center justify-center bg-[var(--mat-sys-primary)] text-[var(--mat-sys-on-primary)] leading-none">{{ sectionActiveCounts()['tag_rules'] }}</span>
+                <span class="shrink-0 text-xs rounded-full min-w-[1.25rem] h-5 px-1.5 flex items-center justify-center bg-[var(--mat-sys-primary)] text-[var(--mat-sys-on-primary)] leading-none">{{ sectionActiveCounts()['tag_rules'] }}</span>
               }
             </mat-panel-title>
           </mat-expansion-panel-header>

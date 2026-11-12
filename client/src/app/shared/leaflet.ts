@@ -46,6 +46,9 @@ function sameSpec(a: TileSpec, b: TileSpec): boolean {
   return a.url === b.url && a.attribution === b.attribution && a.maxZoom === b.maxZoom;
 }
 
+/** Where a map opens when it has no point to show yet (Paris). */
+export const DEFAULT_MAP_CENTER = { lat: 48.8566, lng: 2.3522 } as const;
+
 /**
  * Create a Leaflet map with the chosen tiles (OSM unless told otherwise).
  *

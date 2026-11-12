@@ -47,6 +47,7 @@ import { UserActivityJournal, activityName } from '../../core/agent/user-activit
 import { GalleryStore } from '../gallery/gallery.store';
 import { I18N, i18nKeys } from '../../core/i18n/keys';
 import { COMPACT_PAGE_TABS, TabLabelComponent } from '../../shared/components/tab-label/tab-label.component';
+import { captureSession } from '../../shared/utils/auth-session';
 
 interface PersonsResponse {
   persons: Person[];
@@ -564,12 +565,12 @@ export class ManagePersonsComponent implements OnInit {
 
   protected reviewUpdatedFaces(): void {
     if (!this.auth.isEdition() || this.router.currentNavigation()) return;
-    const owner = this.auth.identity(), token = this.auth.token, focused = document.activeElement;
+    const sameSession = captureSession(this.auth), focused = document.activeElement;
     if (this.tab() === 'matches') this.reviewQueue()?.reload();
     void this.selectTab('matches').then(completed => {
       if (!completed || this.destroyRef.destroyed) return;
       afterNextRender(() => {
-        if (!this.destroyRef.destroyed && owner === this.auth.identity() && token === this.auth.token && this.auth.isEdition()
+        if (!this.destroyRef.destroyed && sameSession() && this.auth.isEdition()
           && this.tab() === 'matches' && this.router.url.split('?')[0] === '/persons' && !this.router.currentNavigation()
           && (document.activeElement === focused || document.activeElement === document.body)) this.reviewQueue()?.focus();
       }, { injector: this.injector });
@@ -865,9 +866,8 @@ export class ManagePersonsComponent implements OnInit {
   async loadPersons(reset: boolean): Promise<void> {
     if (this.destroyRef.destroyed) return;
     const generation = ++this.personsLoadGeneration;
-    const owner = this.auth.identity(), token = this.auth.token;
-    const current = () => !this.destroyRef.destroyed && generation === this.personsLoadGeneration
-      && owner === this.auth.identity() && token === this.auth.token;
+    const sameSession = captureSession(this.auth);
+    const current = () => !this.destroyRef.destroyed && generation === this.personsLoadGeneration && sameSession();
     if (reset) {
       this.page = 1;
       this.persons.set([]);

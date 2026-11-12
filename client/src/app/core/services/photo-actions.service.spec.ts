@@ -268,6 +268,8 @@ describe('photo refresh dismissal with a real Material dialog', () => {
         const run = ref.componentInstance.run();
         http.expectOne('/api/photos/refresh').flush({ refreshed: ['/a.jpg'], failed: [{ path: '/b.jpg', reason: 'failed' }] });
         await run;
+        // A refreshed photo may have gained or lost GPS, so the Map link is re-checked.
+        http.expectOne('/api/photos/map/count').flush({ count: 0 });
       }
       document.querySelector('mat-dialog-container h2')!.dispatchEvent(new KeyboardEvent('keydown',
         { key: 'Escape', keyCode: 27, bubbles: true, cancelable: true }));

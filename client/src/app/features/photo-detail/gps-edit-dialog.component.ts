@@ -10,11 +10,12 @@ import { firstValueFrom, Subject, takeUntil } from 'rxjs';
 import { AuthService } from '../../core/services/auth.service';
 import { StalenessGuardFactory } from '../../core/services/staleness-guard.service';
 import * as L from 'leaflet';
-import { createLeafletMap, setMapSource } from '../../shared/leaflet';
+import { createLeafletMap, DEFAULT_MAP_CENTER, setMapSource } from '../../shared/leaflet';
 import { MapSourcePreferences } from '../../core/services/map-source-preferences.service';
 import type { components } from '../../core/api/schema';
 import { GalleryStore } from '../gallery/gallery.store';
 import { ApiService } from '../../core/services/api.service';
+import { GeoPhotosService } from '../../core/services/geo-photos.service';
 import { I18nService } from '../../core/services/i18n.service';
 import { TranslatePipe } from '../../shared/pipes/translate.pipe';
 import { FixedPipe } from '../../shared/pipes/fixed.pipe';
@@ -26,8 +27,6 @@ import { googleMapsSearchUrl, isResolvableMapsLink, openStreetMapUrl, parseGoogl
 
 /** The keyCode browsers report for a keydown the IME is still processing. */
 const IME_PROCESS_KEY_CODE = 229;
-/** Where the map opens when there is no point yet. */
-const DEFAULT_CENTER: LatLng = { lat: 48.8566, lng: 2.3522 };
 
 export interface GpsEditDialogData {
   path: string;
@@ -182,6 +181,7 @@ export class GpsEditDialogComponent {
   private readonly owner = this.auth.identity();
   private readonly api = inject(ApiService);
   private readonly store = inject(GalleryStore);
+  private readonly geoPhotos = inject(GeoPhotosService);
   private readonly dialogRef = inject(MatDialogRef<GpsEditDialogComponent>);
   private readonly destroyRef = inject(DestroyRef);
   private readonly staleness = inject(StalenessGuardFactory).create(this.destroyRef, { onNavigate: () => this.invalidateOwner() });
@@ -441,13 +441,13 @@ export class GpsEditDialogComponent {
       return { lat: this.data.lat, lng: this.data.lng };
     }
     const center = this.map?.getCenter().wrap();
-    return center ? { lat: center.lat, lng: center.lng } : DEFAULT_CENTER;
+    return center ? { lat: center.lat, lng: center.lng } : DEFAULT_MAP_CENTER;
   }
 
   private initMap(): void {
     const container = this.mapContainer().nativeElement;
-    const lat = this.selectedLat() ?? DEFAULT_CENTER.lat;
-    const lng = this.selectedLng() ?? DEFAULT_CENTER.lng;
+    const lat = this.selectedLat() ?? DEFAULT_MAP_CENTER.lat;
+    const lng = this.selectedLng() ?? DEFAULT_MAP_CENTER.lng;
     const zoom = this.selectedLat() !== null ? 13 : 5;
 
     this.map = createLeafletMap(container, undefined, () => { if (this.current()) this.mapFailed.set(true); },
@@ -601,6 +601,7 @@ export class GpsEditDialogComponent {
       if (!this.sessionCurrent()) return;
       this.store.patchPhoto(this.data.path, { gps_latitude: result.gps_latitude, gps_longitude: result.gps_longitude, gps_manually_set: 0 });
       void this.store.refreshPaths(null);
+      void this.geoPhotos.refresh();
       if (this.current()) this.dialogRef.close({ ...result, gps_manually_set: 0 });
     } catch {
       if (!this.current()) return;
@@ -637,6 +638,7 @@ export class GpsEditDialogComponent {
       if (!this.sessionCurrent()) return;
       this.data.onBatchApplied?.();
       void this.store.refreshPaths(null);
+      void this.geoPhotos.refresh();
       this.snackBar.open(this.i18n.t(result.changed === 1 ? I18N.photo_detail.gps.batch_applied : I18N.photo_detail.gps.batch_applied_plural, { changed: result.changed, skipped: result.skipped }), '', { duration: 4000 });
       if (this.current()) this.dialogRef.close(result);
     } catch {
@@ -661,6 +663,7 @@ export class GpsEditDialogComponent {
       if (!this.sessionCurrent()) return;
       this.store.patchPhoto(body.path, { gps_latitude: result.gps_latitude, gps_longitude: result.gps_longitude, gps_manually_set: 1 });
       void this.store.refreshPaths(null);
+      void this.geoPhotos.refresh();
       if (this.current()) this.dialogRef.close(result);
     } catch {
       if (!this.current()) return;

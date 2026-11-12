@@ -5,7 +5,7 @@ import { MatButtonModule } from '@angular/material/button';
 import { MatSliderModule } from '@angular/material/slider';
 import { TranslatePipe } from '../../shared/pipes/translate.pipe';
 import * as L from 'leaflet';
-import { createLeafletMap } from '../../shared/leaflet';
+import { createLeafletMap, DEFAULT_MAP_CENTER } from '../../shared/leaflet';
 import { MapSourcePreferences } from '../../core/services/map-source-preferences.service';
 import { GalleryStore } from './gallery.store';
 import { i18nKeys } from '../../core/i18n/keys';
@@ -66,8 +66,8 @@ export class GpsFilterMapDialogComponent implements OnInit {
 
   private initMap(): void {
     const container = this.mapContainer().nativeElement;
-    const lat = this.selectedLat() ?? 48.8566;
-    const lng = this.selectedLng() ?? 2.3522;
+    const lat = this.selectedLat() ?? DEFAULT_MAP_CENTER.lat;
+    const lng = this.selectedLng() ?? DEFAULT_MAP_CENTER.lng;
     const zoom = this.selectedLat() ? 10 : 5;
 
     this.map = createLeafletMap(container, undefined, undefined, this.mapSource.tiles(this.store.config())).setView([lat, lng], zoom);

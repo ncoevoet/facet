@@ -1,5 +1,5 @@
 import { Injectable, computed, effect, inject } from '@angular/core';
-import { AuthService, type AuthStatus } from '../../core/services/auth.service';
+import { AuthService } from '../../core/services/auth.service';
 import type { Photo } from '../../shared/models/photo.model';
 import { GalleryStore } from '../gallery/gallery.store';
 
@@ -17,8 +17,7 @@ export interface TimelinePage {
 
 export interface TimelineSnapshot extends TimelinePage {
   scope: string;
-  owner: AuthStatus;
-  /** The key, not `owner`: a same-session revalidation replaces the status object and may null it briefly. */
+  /** The key, not the status object: a same-session revalidation replaces it and may null it briefly. */
   session: string;
   token: string | null;
   scrollTop: number;
