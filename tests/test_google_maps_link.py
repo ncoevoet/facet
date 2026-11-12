@@ -38,6 +38,8 @@ def test_free_text_pairs(text, expected):
     '32°61\'0"N 116°0\'0"W',  # minutes out of range
     '32°0\'0"N 116°0\'0"N',  # two latitudes
     '1, 2, 3', 'NaN, 1', '32.6064,', 'x' * 3000,
+    # Full-width digits: the browser parser reads ASCII digits only, so must this one.
+    '\uff13\uff12.\uff16, -116.3', '\uff13\uff12\u00b0N 116\u00b0W',
 ])
 def test_free_text_refused(text):
     assert gml.parse_pair(text) is None
@@ -215,6 +217,42 @@ def test_oversize_location_is_not_followed(hops):
     assert exc.value.code == 'no_coordinates'
     assert requested == ['https://maps.app.goo.gl/abc']
 
+
+def test_location_the_parser_cannot_read_is_not_followed(hops):
+    # Longer than parse_url reads, so it could only ever be fetched, never parsed.
+    requested, script = hops
+    location = PIN_URL + '&x=' + 'x' * gml.MAX_INPUT
+    script['https://maps.app.goo.gl/abc'] = (302, location)
+    with pytest.raises(maps_link.LinkError) as exc:
+        maps_link.resolve('https://maps.app.goo.gl/abc')
+    assert exc.value.code == 'no_coordinates'
+    assert requested == ['https://maps.app.goo.gl/abc']
+
+
+def test_relative_location_joined_past_the_parser_limit_is_not_followed(hops):
+    requested, script = hops
+    start = 'https://maps.app.goo.gl/' + 'a' * 1500
+    script[start] = (302, '?q=32.6,-116.3&x=' + 'x' * 1000)
+    with pytest.raises(maps_link.LinkError) as exc:
+        maps_link.resolve(start)
+    assert exc.value.code == 'no_coordinates'
+    assert requested == [start]
+
+
+@pytest.mark.parametrize('extra', [0, 1], ids=['at_limit', 'one_past'])
+def test_joined_location_is_read_up_to_the_parser_limit(hops, extra):
+    requested, script = hops
+    start = 'https://maps.app.goo.gl/abc'
+    absolute = PIN_URL + '&x='
+    location = absolute + 'x' * (gml.MAX_INPUT + extra - len(absolute))
+    script[start] = (302, location)
+    if extra:
+        with pytest.raises(maps_link.LinkError) as exc:
+            maps_link.resolve(start)
+        assert exc.value.code == 'no_coordinates'
+    else:
+        assert maps_link.resolve(start) == (32.6064, -116.3239)
+    assert requested == [start]
 
 def test_hop_limit(hops):
     requested, script = hops

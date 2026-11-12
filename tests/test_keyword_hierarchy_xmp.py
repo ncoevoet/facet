@@ -119,6 +119,13 @@ def test_legacy_facet_packet_without_hierarchy_state_skips_generated_category_an
             image.write_bytes(b'fixture')
             conn.execute('INSERT INTO photos(path,category) VALUES(?,?)', (str(image), 'portrait'))
         conn.commit()
+        preview = import_sidecars(conn, fields=['keywords'], dry_run=True)
+        by_path = {entry['path']: entry['diagnostics'] for entry in preview['entries']}
+        # The legacy rule cannot tell a typed path from a generated one, so each one it sets aside is reported.
+        assert [d for d in by_path[str(legacy)] if d['reason'] == 'legacy_generated_path'] == [
+            {'field': 'hierarchy', 'value': 'Category|portrait', 'reason': 'legacy_generated_path'},
+            {'field': 'hierarchy', 'value': 'People|Alice', 'reason': 'legacy_generated_path'}]
+        assert not [d for d in by_path.get(str(foreign), []) if d['reason'] == 'legacy_generated_path']
         import_sidecars(conn, fields=['keywords'])
         assert [item['exported_path'] for item in photo_hierarchies(conn, str(legacy))] == ['Places|Coast']
         # Another editor's packet carries no Facet marker: its Category| path is the user's.

@@ -19,6 +19,9 @@ from db import get_connection
 logger = logging.getLogger("facet.scan_state")
 VIEWER_JOB_ID_ENV = 'FACET_SCAN_JOB_ID'
 JOB_PHASES = frozenset({'scoring', 'bursts', 'sequences', 'tagging', 'moments', 'junk', 'vec', 'done'})
+# Failures kept for retry while the bookkeeping database stays unwritable;
+# beyond this the newest are dropped and the run is reported as failed.
+MAX_PENDING_FAILURES = 10_000
 
 
 def viewer_job_id():
@@ -42,6 +45,7 @@ class ScanRun:
         self.run_id = run_id
         self._lock = threading.Lock()
         self._pending_failures = []
+        self._dropped_failures = 0
         self._processed = 0
         self._last_flush = 0.0
 
@@ -81,6 +85,7 @@ class ScanRun:
             failures = self._pending_failures
             self._pending_failures = []
             processed = self._processed
+        committed = False
         try:
             with get_connection(self.db_path, row_factory=False) as conn:
                 if failures:
@@ -106,11 +111,19 @@ class ScanRun:
                     (processed, self.run_id, self.run_id),
                 )
                 conn.commit()
+                committed = True
         except Exception as e:
-            # Re-queue the drained failures ahead of newer ones so a later flush
-            # retries them; a lost heartbeat is simply overwritten by the next.
-            with self._lock:
-                self._pending_failures[:0] = failures
+            if not committed:
+                # Re-queue the drained failures ahead of newer ones so a later
+                # flush retries them; a lost heartbeat is simply overwritten by
+                # the next. Once committed they are stored, and a retry would
+                # append their error text a second time.
+                with self._lock:
+                    self._pending_failures[:0] = failures
+                    overflow = len(self._pending_failures) - MAX_PENDING_FAILURES
+                    if overflow > 0:
+                        del self._pending_failures[MAX_PENDING_FAILURES:]
+                        self._dropped_failures += overflow
             logger.warning("Scan bookkeeping flush failed: %s", e)
 
     def finish(self, status='completed'):
@@ -119,7 +132,7 @@ class ScanRun:
         # Failure records still pending after the final flush are lost, and a
         # captured retry must not then erase its source receipts.
         with self._lock:
-            persisted = not self._pending_failures
+            persisted = not self._pending_failures and not self._dropped_failures
         if status == 'completed' and not persisted:
             status = 'failed'
         try:
