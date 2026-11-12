@@ -38,6 +38,8 @@ def test_free_text_pairs(text, expected):
     '32°61\'0"N 116°0\'0"W',  # minutes out of range
     '32°0\'0"N 116°0\'0"N',  # two latitudes
     '1, 2, 3', 'NaN, 1', '32.6064,', 'x' * 3000,
+    # Full-width digits: the browser parser reads ASCII digits only, so must this one.
+    '\uff13\uff12.\uff16, -116.3', '\uff13\uff12\u00b0N 116\u00b0W',
 ])
 def test_free_text_refused(text):
     assert gml.parse_pair(text) is None
@@ -210,6 +212,17 @@ def test_deadline_passed_between_hops(monkeypatch, hops):
 def test_oversize_location_is_not_followed(hops):
     requested, script = hops
     script['https://maps.app.goo.gl/abc'] = (302, 'https://www.google.com/maps/' + 'x' * 5000)
+    with pytest.raises(maps_link.LinkError) as exc:
+        maps_link.resolve('https://maps.app.goo.gl/abc')
+    assert exc.value.code == 'no_coordinates'
+    assert requested == ['https://maps.app.goo.gl/abc']
+
+
+def test_location_the_parser_cannot_read_is_not_followed(hops):
+    # Longer than parse_url reads, so it could only ever be fetched, never parsed.
+    requested, script = hops
+    location = PIN_URL + '&x=' + 'x' * gml.MAX_INPUT
+    script['https://maps.app.goo.gl/abc'] = (302, location)
     with pytest.raises(maps_link.LinkError) as exc:
         maps_link.resolve('https://maps.app.goo.gl/abc')
     assert exc.value.code == 'no_coordinates'
