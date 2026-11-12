@@ -36,6 +36,25 @@ VALID_COMPOSITION_PATTERNS = [
     'horizontal', 'vertical', 'diagonal', 'symmetric', 'curved',
     'radial', 'vanishing_point', 'pattern', 'fill_frame'
 ]
+def delete_foreign_key_violations(conn: sqlite3.Connection):
+    """Delete the rows ``PRAGMA foreign_key_check`` reports on a CASCADE key.
+
+    Such a row is what the cascade would have removed had its parent been
+    deleted with foreign keys enforced. A row broken on a RESTRICT key (the
+    keyword hierarchy) is user structure, not debris, and is left for a human.
+    Deleting an orphan can orphan its own children when enforcement is off,
+    hence the repeat until nothing deletable remains.
+    """
+    for _ in range(10):
+        deleted = 0
+        for table, rowid, _parent, fkid in conn.execute('PRAGMA main.foreign_key_check').fetchall():
+            on_delete = {row[0]: row[6] for row in conn.execute(f'PRAGMA main.foreign_key_list("{table}")')}
+            if rowid is not None and on_delete.get(fkid, '').upper() == 'CASCADE':
+                deleted += conn.execute(f'DELETE FROM "{table}" WHERE rowid = ?', (rowid,)).rowcount
+        if not deleted:
+            return
+
+
 class DatabaseValidator:
     """Validates Facet database for consistency issues."""
 
@@ -594,6 +613,24 @@ class DatabaseValidator:
 
         self.results.append(result3)
         self._print_result(result3)
+
+        # Check 4: every declared foreign key, the same check the viewer export
+        # runs (db/maintenance.py) and refuses on.
+        result4 = ValidationResult(
+            "foreign_key_violations",
+            "Rows whose foreign key references a missing parent row"
+        )
+        result4.fixable = True
+        result4.fix_function = delete_foreign_key_violations
+
+        for table, rowid, parent, _fkid in conn.execute('PRAGMA main.foreign_key_check').fetchmany(100):
+            result4.add_issue(
+                {'table': table, 'rowid': rowid, 'parent': parent},
+                f"{table} rowid={rowid} -> missing {parent}"
+            )
+
+        self.results.append(result4)
+        self._print_result(result4)
 
     def _check_statistical_outliers(self, conn: sqlite3.Connection):
         """Check for statistical outliers in score columns."""

@@ -486,7 +486,7 @@ python /opt/facet/viewer.py      # 仍然读取 /opt/facet/scoring_config.json�
 | `python validate_db.py --report-only` | 只报告，不询问确认 |
 | `python validate_db.py --db custom.db` | 校验自定义数据库 |
 
-检查项：评分范围、人脸指标、BLOB 损坏、特征向量长度、孤立人脸、统计离群值。
+检查项：评分范围、人脸指标、BLOB 损坏、特征向量长度、孤立人脸、外键指向不存在行的记录、统计离群值。查看器数据库导出会拒绝含有此类记录的数据库；修复会删除它们，但关键词层级中的记录除外，留给你自行处理。
 
 交互式修复和 `--auto-fix` 都会获取照片库锁，并在写入前重新检查问题。交互模式会先等待你的初次确认，再获取锁。照片库被占用时以 75 退出；锁无法使用时以 1 退出。`--report-only` 和拒绝修复不需要修复锁。
 

@@ -324,9 +324,13 @@ def _check_viewer_integrity(conn):
 
 
 def _check_viewer_foreign_keys(conn):
-    violations = conn.execute('PRAGMA main.foreign_key_check').fetchmany(3)
-    if violations:
-        raise sqlite3.IntegrityError(f'Viewer export foreign key validation failed: {violations}')
+    tables = sorted({row[0] for row in conn.execute('PRAGMA main.foreign_key_check')})
+    if tables:
+        raise sqlite3.IntegrityError(
+            f'Viewer export foreign key validation failed: rows in {", ".join(tables)} '
+            'reference a missing parent row. Run `python validate_db.py --db <source database>` '
+            'to review and remove them, then export again.'
+        )
 
 
 def _validate_viewer_copy(conn):

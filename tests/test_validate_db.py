@@ -2,8 +2,10 @@
 
 import sqlite3
 
+import pytest
+
 from db.schema import init_database
-from validation.database_validator import DatabaseValidator
+from validation.database_validator import DatabaseValidator, delete_foreign_key_violations
 
 
 class _FakeCursor:
@@ -117,3 +119,44 @@ class TestDataTypeCorruption:
 
         result = next(r for r in validator.results if r.check_name == "text_in_numeric_columns")
         assert not result.has_issues
+
+
+class TestForeignKeyViolations:
+    """The generic foreign-key check the viewer export refuses on."""
+
+    @staticmethod
+    def _seed_orphans(db):
+        init_database(str(db))
+        conn = sqlite3.connect(str(db))
+        conn.execute("PRAGMA foreign_keys = OFF")
+        conn.execute(
+            "INSERT INTO faces (photo_path, face_index, embedding, is_manual, manual_review_required) "
+            "VALUES ('/gone.jpg', 0, x'00', 0, 0)"
+        )
+        conn.execute("INSERT INTO keyword_nodes (id, parent_id, name, name_key) VALUES ('n1', 'missing', 'A', 'a')")
+        conn.commit()
+        return conn
+
+    def test_orphans_are_reported(self, tmp_path):
+        conn = self._seed_orphans(tmp_path / "t.db")
+        validator = DatabaseValidator(str(tmp_path / "t.db"))
+        validator._check_referential_integrity(conn)
+        result = next(r for r in validator.results if r.check_name == "foreign_key_violations")
+        assert result.fixable
+        assert sorted(issue['record']['table'] for issue in result.issues) == ['faces', 'keyword_nodes']
+
+    def test_fix_deletes_cascade_orphans_and_keeps_restrict_ones(self, tmp_path):
+        conn = self._seed_orphans(tmp_path / "t.db")
+        delete_foreign_key_violations(conn)
+        assert conn.execute("SELECT COUNT(*) FROM faces").fetchone() == (0,)
+        assert [row[0] for row in conn.execute("PRAGMA main.foreign_key_check")] == ['keyword_nodes']
+
+
+def test_viewer_export_names_the_tables_and_the_repair(tmp_path):
+    from db.maintenance import _check_viewer_foreign_keys
+
+    conn = TestForeignKeyViolations._seed_orphans(tmp_path / "t.db")
+    with pytest.raises(sqlite3.IntegrityError) as exc:
+        _check_viewer_foreign_keys(conn)
+    assert 'faces, keyword_nodes' in str(exc.value)
+    assert 'validate_db.py' in str(exc.value)

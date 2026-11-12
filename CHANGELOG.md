@@ -17,6 +17,7 @@ All notable changes to Facet are documented in this file.
 
 ### Fixed
 
+- **A viewer DB export blocked by orphaned rows says what to do.** One row whose parent is gone, such as a face whose photo was deleted, made every export fail with a bare list of row ids. The error now names the tables and points to `python validate_db.py`, which gains a check for every foreign key and a fix that deletes those rows (a keyword-hierarchy row is reported but left alone).
 - **Cover cards are sharp on high-density screens.** Capsules, Folders, Scenes, Timeline months and years, and Albums requested a 320 px thumbnail for every card, which a 2x screen stretches about twofold and the hover zoom enlarges further. Each cover now offers the 320 px and the stored 640 px thumbnail and the browser picks by card width and pixel density; Capsules covers also load lazily.
 
 ## [1.29.0] "Pamir" — 2026-11-10

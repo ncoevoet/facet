@@ -486,7 +486,7 @@ Il passaggio di tagging al termine di una scansione viene saltato quando `taggin
 | `python validate_db.py --report-only` | Riporta senza chiedere conferma |
 | `python validate_db.py --db custom.db` | Valida un database personalizzato |
 
-Controlli: intervalli dei punteggi, metriche dei volti, corruzione dei BLOB, dimensioni degli embedding, volti orfani, valori statistici anomali.
+Controlli: intervalli dei punteggi, metriche dei volti, corruzione dei BLOB, dimensioni degli embedding, volti orfani, righe la cui chiave esterna punta a una riga mancante, valori statistici anomali. L'esportazione del database del visualizzatore rifiuta un database con tali righe; la correzione le elimina, tranne una riga della gerarchia delle parole chiave, che lascia a te da risolvere.
 
 Sia le riparazioni interattive sia `--auto-fix` prendono il blocco della libreria e ricontrollano i problemi prima di scrivere. La modalità interattiva attende la tua conferma iniziale prima di prendere il blocco. Una libreria occupata termina con 75; un blocco inutilizzabile con 1. `--report-only` e il rifiuto delle riparazioni non richiedono il blocco di riparazione.
 
