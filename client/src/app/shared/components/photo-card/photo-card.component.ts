@@ -399,13 +399,13 @@ const DEFAULT_CLIPPING_BADGE_PERCENT = 5;
         <!-- Hover overlay (image area only, md+ only, disabled when tooltip hidden) -->
         <div class="absolute inset-x-0 top-0 bottom-0 opacity-0 transition-opacity flex flex-col justify-between pointer-events-none z-10 md:group-hover/img:opacity-100 md:group-hover/img:pointer-events-auto">
           <!-- Top row: the configured hover actions, in the user's order -->
-          <div class="flex justify-end items-center gap-1 p-1.5">
+          <div class="flex flex-wrap justify-end items-center gap-1 p-1.5">
             @for (id of visibleActions(); track id) {
               @switch (id) {
                 @case ('similar') {
                   <button
                     [attr.tabindex]="innerTabIndex()"
-                    class="w-7 h-7 rounded-full bg-black/50 inline-flex items-center justify-center hover:bg-black/80 transition-colors text-white cursor-pointer"
+                    class="w-7 h-7 shrink-0 rounded-full bg-black/50 inline-flex items-center justify-center hover:bg-black/80 transition-colors text-white cursor-pointer"
                     [matMenuTriggerFor]="similarMenu"
                     [matTooltip]="'similar.find_similar' | translate"
                     [attr.aria-label]="'similar.find_similar' | translate"
@@ -430,7 +430,7 @@ const DEFAULT_CLIPPING_BADGE_PERCENT = 5;
                 @default {
                   <button
                     [attr.tabindex]="innerTabIndex()"
-                    class="w-7 h-7 rounded-full bg-black/50 inline-flex items-center justify-center hover:bg-black/80 transition-colors text-white cursor-pointer"
+                    class="w-7 h-7 shrink-0 rounded-full bg-black/50 inline-flex items-center justify-center hover:bg-black/80 transition-colors text-white cursor-pointer"
                     [matTooltip]="CARD_ACTION_META[id].labelKey | translate"
                     [attr.aria-label]="CARD_ACTION_META[id].labelKey | translate"
                     (click)="dispatchAction(id); $event.stopPropagation()">
@@ -448,7 +448,7 @@ const DEFAULT_CLIPPING_BADGE_PERCENT = 5;
               @if (config()?.features?.show_rating_controls) {
                 <button
                   [attr.tabindex]="innerTabIndex()"
-                  class="relative w-7 h-7 rounded-full inline-flex items-center justify-center hover:bg-white/20 transition-colors text-yellow-400 cursor-pointer"
+                  class="relative w-7 h-7 shrink-0 rounded-full inline-flex items-center justify-center hover:bg-white/20 transition-colors text-yellow-400 cursor-pointer"
                   [matTooltip]="'rating.set_rating' | translate"
                   [attr.aria-label]="'rating.set_rating' | translate"
                   (click)="cycleStarRating(); $event.stopPropagation()"
@@ -464,7 +464,7 @@ const DEFAULT_CLIPPING_BADGE_PERCENT = 5;
                 @if (!photo().star_rating) {
                   <button
                     [attr.tabindex]="innerTabIndex()"
-                    class="w-7 h-7 rounded-full inline-flex items-center justify-center hover:bg-white/20 transition-colors cursor-pointer"
+                    class="w-7 h-7 shrink-0 rounded-full inline-flex items-center justify-center hover:bg-white/20 transition-colors cursor-pointer"
                     [class.text-red-400]="photo().is_rejected"
                     [class.text-white]="!photo().is_rejected"
                     [matTooltip]="(photo().is_rejected ? 'rating.unmark_rejected' : 'rating.mark_rejected') | translate"
@@ -477,7 +477,7 @@ const DEFAULT_CLIPPING_BADGE_PERCENT = 5;
                 }
                 <button
                   [attr.tabindex]="innerTabIndex()"
-                  class="w-7 h-7 rounded-full inline-flex items-center justify-center hover:bg-white/20 transition-colors cursor-pointer"
+                  class="w-7 h-7 shrink-0 rounded-full inline-flex items-center justify-center hover:bg-white/20 transition-colors cursor-pointer"
                   [class.text-red-400]="photo().is_favorite"
                   [class.text-white]="!photo().is_favorite"
                   [matTooltip]="(photo().is_favorite ? 'rating.remove_favorite' : 'rating.add_favorite') | translate"

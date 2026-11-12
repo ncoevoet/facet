@@ -260,7 +260,7 @@ export class ComparisonComponent {
       // The service outlives the page. Reset on leaving, never on entering, so what ui_show_comparison set for this visit survives the navigation it triggers.
       this.compareFilters.strategy.set(DEFAULT_COMPARE_STRATEGY);
       this.pageHelp.setDescription(null);
-      this.compareFilters.activeTab.set(0);
+      this.compareFilters.activeTab.set(COMPARE_TAB_INDEX.weights);
       const tpl = this.compareToolbar();
       if (tpl) this.headerSlot.clear(tpl);
     });

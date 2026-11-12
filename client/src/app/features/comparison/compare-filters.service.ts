@@ -13,6 +13,7 @@ export class CompareFiltersService {
   readonly selectedCategory = signal<string>('');
   /** Pair-selection strategy of the A/B tab; kept here so a UI tool can set it without touching the page. */
   readonly strategy = signal<string>(DEFAULT_COMPARE_STRATEGY);
-  /** Tab shown by the comparison page; the page writes it on every tab change, a UI tool may set it. */
-  readonly activeTab = signal<number>(0);
+  /** Tab shown by the comparison page; the page writes it on every tab change, a UI tool may set it.
+   *  It opens on Weights, the page's main task, which needs no comparisons first. */
+  readonly activeTab = signal<number>(COMPARE_TAB_INDEX.weights);
 }

@@ -329,3 +329,10 @@ app-gallery-view-controls .mat-mdc-button:not(:disabled) {
     flex-shrink: 0;
   }
 }
+
+// OpenStreetMap serves light tiles only. In the dark theme, invert them and turn the
+// hues back so water stays blue: no second tile host, and markers are untouched
+// because they live in the marker pane, not the tile pane.
+html:not(.light-mode) .leaflet-tile-pane {
+  filter: invert(1) hue-rotate(180deg) brightness(0.95) contrast(0.9);
+}

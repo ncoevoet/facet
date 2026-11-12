@@ -38,7 +38,7 @@ let nextPopover = 0;
       <section [id]="panelId" tabindex="-1" role="dialog" aria-modal="true" [attr.aria-label]="label()"
                cdkTrapFocus [cdkTrapFocusAutoCapture]="true" (keydown)="onKeydown($event)"
                [class.w-80]="overlayWidth() === undefined" [class.w-full]="overlayWidth() !== undefined"
-               class="flex max-h-[min(75dvh,44rem)] max-w-[calc(100vw-1rem)] flex-col overflow-hidden rounded-lg border border-[var(--mat-sys-outline-variant)] bg-[var(--mat-sys-surface-container)] text-[var(--mat-sys-on-surface)] shadow-xl">
+               class="flex max-h-[calc(100dvh-96px)] max-w-[calc(100vw-1rem)] flex-col overflow-hidden rounded-lg border border-[var(--mat-sys-outline-variant)] bg-[var(--mat-sys-surface-container)] text-[var(--mat-sys-on-surface)] shadow-xl">
         <header class="flex shrink-0 items-center gap-2 border-b border-[var(--mat-sys-outline-variant)] px-3 py-1">
           <span class="min-w-0 flex-1 text-sm font-medium">{{ label() }}</span>
           <button type="button" cdkFocusInitial class="flex h-11 w-11 shrink-0 cursor-pointer items-center justify-center rounded hover:bg-[var(--mat-sys-surface-container-high)]"
