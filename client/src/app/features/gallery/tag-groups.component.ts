@@ -87,7 +87,7 @@ export class TagGroupsComponent {
 
   private readonly context = createGalleryFilterContext({
     authChanged: () => { this.drafts.set(EMPTY_DRAFTS); this.error.set(null); },
-    navigationStarted: () => this.drafts.set(EMPTY_DRAFTS),
+    navigationStarted: () => { this.drafts.set(EMPTY_DRAFTS); this.error.set(null); },
   });
 
   protected setDraft(group: TagQueryGroup, value: string): void {
@@ -137,6 +137,7 @@ export class TagGroupsComponent {
   protected clear(): void {
     if (!this.context.current()) return;
     void this.store.updateFilter('tag_groups', '');
+    this.error.set(null);
     // The Clear button leaves with the rules; an invalid set only renders its inputs afterwards.
     // Focusing the row opens its suggestions, which nobody asked for: close them again.
     afterNextRender({ write: () => {
