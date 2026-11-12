@@ -3245,7 +3245,10 @@
     "date_from": "从",
     "date_to": "至",
     "no_gps_title": "没有带位置的照片",
-    "no_gps_hint": "当前范围内的照片都没有 GPS 坐标。打开一张照片，用其位置面板标注地点——标注后会显示在这里。"
+    "no_gps_hint": "当前范围内的照片都没有 GPS 坐标。打开一张照片，用其位置面板标注地点——标注后会显示在这里。",
+    "basemap": "地图来源",
+    "basemap_osm": "OpenStreetMap",
+    "basemap_custom": "自定义源"
   },
   "photo_detail": {
     "copy_image": "复制图像",
@@ -3367,7 +3370,8 @@
       "maps_moved": "图钉已移到 {lat}, {lng}。请确认后保存。",
       "maps_unrecognized": "未找到坐标。请粘贴 Google 地图链接，或在 Google 地图中右键点击地图并复制数字。",
       "maps_unreachable": "无法打开该链接。请检查网络连接，或改为复制坐标。",
-      "maps_pick": "在 Google 地图上选择"
+      "maps_pick": "在 Google 地图上选择",
+      "osm_pick": "在 OpenStreetMap 中打开"
     },
     "distribution": {
       "scope": "分布范围",

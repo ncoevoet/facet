@@ -3245,7 +3245,10 @@
     "date_from": "De",
     "date_to": "Até",
     "no_gps_title": "Nenhuma foto com localização",
-    "no_gps_hint": "Nada no escopo carrega coordenadas GPS. Abra uma foto e use o painel de localização dela para situá-la — fotos situadas aparecem aqui."
+    "no_gps_hint": "Nada no escopo carrega coordenadas GPS. Abra uma foto e use o painel de localização dela para situá-la — fotos situadas aparecem aqui.",
+    "basemap": "Fonte do mapa",
+    "basemap_osm": "OpenStreetMap",
+    "basemap_custom": "Fonte personalizada"
   },
   "photo_detail": {
     "copy_image": "Copiar imagem",
@@ -3367,7 +3370,8 @@
       "maps_moved": "Alfinete movido para {lat}, {lng}. Confira e salve.",
       "maps_unrecognized": "Nenhuma coordenada encontrada. Cole um link do Google Maps, ou clique com o botão direito no mapa do Google Maps e copie os números.",
       "maps_unreachable": "Não foi possível abrir o link. Verifique a conexão ou copie as coordenadas.",
-      "maps_pick": "Escolher no Google Maps"
+      "maps_pick": "Escolher no Google Maps",
+      "osm_pick": "Abrir no OpenStreetMap"
     },
     "distribution": {
       "scope": "Escopo da distribuição",

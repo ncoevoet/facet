@@ -1618,6 +1618,9 @@ Visualizzazione e comportamento della galleria web.
 | `edition_password` | `""` | Password per sbloccare la modalità di modifica; vuoto = sola lettura (eccetto con `trusted_local_editing`) |
 | `trusted_local_editing` | `false` | Concede i diritti di modifica a un browser sullo stesso computer, senza password. Vedi [Modifica locale attendibile](#modifica-locale-attendibile) |
 | `place_search_url` | `"https://photon.komoot.io/api"` | Endpoint Photon per la ricerca **Cerca online** della galleria; `""` la disattiva. Vedi [Ricerca online di luoghi](#ricerca-online-di-luoghi) |
+| `map_tile_url` | `""` | Tile di base auto-ospitate per le superfici mappa; `""` mantiene il predefinito OpenStreetMap. Percorso stesso-origine (es. `/tiles/{z}/{x}/{y}.png`) o `https://` — `http://` viene rifiutato, la CSP consente solo 'self' e immagini https |
+| `map_tile_attribution` | `""` | Riga di attribuzione mostrata per le tile personalizzate (HTML consentito; configurata dall'operatore, quindi attendibile). Vuoto mostra un'etichetta generica auto-ospitata |
+| `map_tile_max_zoom` | `19` | Livello di zoom massimo servito dal server di tile personalizzato |
 | **comparison_mode** | | |
 | `min_comparisons_for_optimization` | `50` | Confronti decisivi (pareggi esclusi) necessari in una categoria prima che vengano suggeriti i pesi |
 | `pair_selection_strategy` | `"learning"` | Strategia di coppia: `learning`, `uncertainty`, `boundary`, `active`, `random` |

@@ -58,7 +58,8 @@ import { GalleryStore } from '../gallery/gallery.store';
 import { aspectOf } from '../gallery/gallery-rows.util';
 import { setScopePatch } from '../gallery/gallery-filters.util';
 import * as L from 'leaflet';
-import { createLeafletMap } from '../../shared/leaflet';
+import { createLeafletMap, OSM_TILES } from '../../shared/leaflet';
+import { MapSourcePreferences } from '../../core/services/map-source-preferences.service';
 import { I18N, i18nKeys } from '../../core/i18n/keys';
 import { isPageShortcutBlocked } from '../../shared/utils/keyboard';
 import { privateImageSessionKey } from '../../shared/utils/private-image-session';
@@ -719,6 +720,7 @@ export class PhotoDetailComponent extends PhotoDetailBase implements OnInit {
   private readonly journal = inject(UserActivityJournal);
   private readonly keymap = inject(KeyboardMappingService);
   private readonly stacks = inject(PhotoStackService);
+  private readonly mapSource = inject(MapSourcePreferences);
   private readonly stackNavigator = viewChild(StackNavigatorComponent);
   private readonly faceLayer = viewChild(PhotoFaceLayerComponent);
   private readonly personMenu = viewChild(PersonFaceMenuComponent);
@@ -983,6 +985,7 @@ export class PhotoDetailComponent extends PhotoDetailBase implements OnInit {
   private locationMapEffect = effect(() => {
     const container = this.locationMapContainer();
     const p = this.photo();
+    const tiles = this.mapSource.tiles(this.store.config());
     if (this.locationMapTimeout !== null) {
       clearTimeout(this.locationMapTimeout);
       this.locationMapTimeout = null;
@@ -998,12 +1001,14 @@ export class PhotoDetailComponent extends PhotoDetailBase implements OnInit {
       if (this.destroyRef.destroyed || this.locationMapContainer()?.nativeElement !== container.nativeElement || this.photo()?.path !== p.path) return;
       const map = createLeafletMap(container.nativeElement, {
         zoomControl: false,
-        attributionControl: false,
+        // The static preview hides the attribution row for the default OSM
+        // layer; a source that requires visible attribution shows it.
+        attributionControl: tiles.url !== OSM_TILES.url,
         dragging: false,
         scrollWheelZoom: false,
         doubleClickZoom: false,
         touchZoom: false,
-      }).setView([p.gps_latitude!, p.gps_longitude!], 13);
+      }, undefined, tiles).setView([p.gps_latitude!, p.gps_longitude!], 13);
 
       L.marker([p.gps_latitude!, p.gps_longitude!]).addTo(map);
       this.locationMap = map;

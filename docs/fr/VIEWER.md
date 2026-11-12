@@ -795,7 +795,7 @@ python facet.py --extract-gps    # Extrait lat/lng GPS de l'EXIF vers la base de
 
 Les nouvelles photos obtiennent leurs coordonnées pendant la notation.
 
-Ouvrez `/map`. Contrôlé par `viewer.features.show_map` (par défaut : `true`). Les fonds de carte viennent d'OpenStreetMap et nécessitent une connexion internet, même dans l'application installée. En mode sombre, les tuiles sont affichées inversées pour s'accorder au thème.
+Ouvrez `/map`. Contrôlé par `viewer.features.show_map` (par défaut : `true`). Le fond de carte OpenStreetMap par défaut nécessite une connexion internet, même dans l'application installée ; une source auto-hébergée même-origine n'en a pas besoin. Avec `viewer.map_tile_url` configuré, un bouton **Source de la carte** sur la carte bascule entre OpenStreetMap et vos tuiles auto-hébergées (le choix est mémorisé par navigateur, et le même commutateur apparaît au-dessus de la carte du dialogue de localisation). OpenStreetMap trace exactement les coordonnées WGS-84 que porte le GPS EXIF — ce qui compte en Chine continentale, où les fonds commerciaux décalent les repères du datum GCJ-02. Contrôlé par `viewer.features.show_map` (par défaut : `true`). En mode sombre, les tuiles sont affichées inversées pour s'accorder au thème.
 
 ### Lieux enregistrés et GPS manuel
 
@@ -831,13 +831,14 @@ Utilisez **Adresse ou établissement → Rechercher en ligne** pour chercher un 
 La boîte de localisation (une photo, ou **Définir le lieu** pour une sélection ou toute une vue d'album) accepte aussi des points venant de Google Maps. Rien n'est enregistré avant de cliquer sur **Enregistrer** (ou de prévisualiser puis appliquer un lot), comme pour tout autre point.
 
 - **Choisir sur Google Maps** ouvre Google Maps dans un nouvel onglet sur l'épingle actuelle, sinon sur la première photo géolocalisée de la sélection, sinon au centre de la carte. Trouvez l'endroit et copiez-le.
+- **Ouvrir dans OpenStreetMap** ouvre openstreetmap.org au même point, avec un repère sur les coordonnées — le fond de carte plus complet en Chine continentale, tracé sur le même WGS-84 que celui des coordonnées GPS.
 - **Lien Google Maps ou coordonnées** : collez, puis appuyez sur Entrée ou cliquez sur **Aller au point**. L'épingle se place sur le point pour vérification. Formats acceptés :
   - la paire que Google copie au clic droit sur la carte, p. ex. `32.6064, -116.3239` (un espace au lieu de la virgule fonctionne aussi) ;
   - degrés, minutes, secondes comme `32°36'23.0"N 116°19'26.0"W` ;
   - une URL Google Maps complète. L'épingle posée (`!3d…!4d…`) l'emporte sur une valeur `q=`, `query=`, `ll=` ou `center=`, qui l'emporte sur le centre de vue `@lat,lon` ;
   - un lien court (`maps.app.goo.gl/…`, `goo.gl/maps/…`). Le navigateur ne peut pas les ouvrir ; la galerie suit donc la redirection (`POST /api/geo/resolve_maps_link`, mode édition uniquement).
 - La résolution des liens courts ne contacte que `maps.app.goo.gl`, `goo.gl`, `maps.google.com`, `www.google.com` et `google.com` en HTTPS, sur des adresses publiques uniquement, avec au plus 5 redirections en 5 secondes, sans jamais lire le corps d'une page. Tout autre hôte est refusé sans requête. Les liens ne sont pas journalisés.
-- Facet n'utilise ni API Google, ni clé d'API, ni tuiles Google : les conditions de Google interdisent ses tuiles dans une autre carte, la carte de la boîte reste donc OpenStreetMap.
+- Facet n'utilise ni API Google, ni clé d'API, ni tuiles Google : les conditions de Google interdisent ses tuiles dans une autre carte, la carte de la boîte n'est donc jamais celle de Google — elle reste OpenStreetMap ou affiche les tuiles auto-hébergées de l'opérateur quand `viewer.map_tile_url` est configuré.
 
 ## Capsules
 

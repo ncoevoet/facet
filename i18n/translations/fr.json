@@ -3245,7 +3245,10 @@
     "date_from": "Du",
     "date_to": "Au",
     "no_gps_title": "Aucune photo avec un lieu",
-    "no_gps_hint": "Rien dans le périmètre ne porte de coordonnées GPS. Ouvrez une photo et utilisez son panneau Lieu pour la placer — les photos placées apparaissent ici."
+    "no_gps_hint": "Rien dans le périmètre ne porte de coordonnées GPS. Ouvrez une photo et utilisez son panneau Lieu pour la placer — les photos placées apparaissent ici.",
+    "basemap": "Source de la carte",
+    "basemap_osm": "OpenStreetMap",
+    "basemap_custom": "Source personnalisée"
   },
   "photo_detail": {
     "copy_image": "Copier l’image",
@@ -3367,7 +3370,8 @@
       "maps_moved": "Épingle placée sur {lat}, {lng}. Vérifiez, puis enregistrez.",
       "maps_unrecognized": "Aucune coordonnée trouvée. Collez un lien Google Maps, ou faites un clic droit sur la carte dans Google Maps et copiez les nombres.",
       "maps_unreachable": "Impossible d’ouvrir le lien. Vérifiez la connexion, ou copiez plutôt les coordonnées.",
-      "maps_pick": "Choisir sur Google Maps"
+      "maps_pick": "Choisir sur Google Maps",
+      "osm_pick": "Ouvrir dans OpenStreetMap"
     },
     "distribution": {
       "scope": "Portée de la distribution",

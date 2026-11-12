@@ -2,6 +2,7 @@ import type { Mock } from 'vitest';
 import { TestBed } from '@angular/core/testing';
 import { MatDialogRef, MAT_DIALOG_DATA } from '@angular/material/dialog';
 import type { GpsFilterMapDialogComponent } from './gps-filter-map-dialog.component';
+import { GalleryStore } from './gallery.store';
 
 // Mock Leaflet via vi.doMock + dynamic import: the unit-test builder wraps
 // spec modules, which defeats vi.mock hoisting and can leak the real Leaflet. The
@@ -28,6 +29,9 @@ describe('GpsFilterMapDialogComponent', () => {
         GpsFilterMapDialogComponentClass,
         { provide: MatDialogRef, useValue: mockDialogRef },
         { provide: MAT_DIALOG_DATA, useValue: data },
+        // The basemap reads the startup config through the store; a stub keeps
+        // the real store's auth-driven constructor effects out of this spec.
+        { provide: GalleryStore, useValue: { config: () => ({}) } },
       ],
     });
     component = TestBed.inject(GpsFilterMapDialogComponentClass);

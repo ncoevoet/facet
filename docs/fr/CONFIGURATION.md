@@ -1614,6 +1614,9 @@ Affichage et comportement de la galerie web.
 | `edition_password` | `""` | Mot de passe pour déverrouiller le mode édition ; vide = lecture seule (sauf sous `trusted_local_editing`) |
 | `trusted_local_editing` | `false` | Accorde les droits d'édition à un navigateur du même ordinateur, sans mot de passe. Voir [Édition locale de confiance](#édition-locale-de-confiance) |
 | `place_search_url` | `"https://photon.komoot.io/api"` | Point d'accès Photon pour la recherche **Rechercher en ligne** de la galerie ; `""` la désactive. Voir [Recherche de lieux en ligne](#recherche-en-ligne-de-lieux) |
+| `map_tile_url` | `""` | Tuiles de fond auto-hébergées pour les surfaces cartographiques ; `""` conserve la valeur par défaut OpenStreetMap. Chemin même-origine (p. ex. `/tiles/{z}/{x}/{y}.png`) ou `https://` — `http://` est refusé, la CSP n'autorise que 'self' et les images https |
+| `map_tile_attribution` | `""` | Ligne d'attribution affichée pour les tuiles personnalisées (HTML autorisé ; configuré par l'opérateur, donc fiable). Vide affiche un libellé générique auto-hébergé |
+| `map_tile_max_zoom` | `19` | Niveau de zoom maximum servi par le serveur de tuiles personnalisé |
 | **comparison_mode** | | |
 | `min_comparisons_for_optimization` | `50` | Comparaisons décisives (égalités exclues) nécessaires dans une catégorie avant de suggérer des poids |
 | `pair_selection_strategy` | `"learning"` | Stratégie de paires : `learning`, `uncertainty`, `boundary`, `active`, `random` |
