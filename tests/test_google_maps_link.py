@@ -229,6 +229,16 @@ def test_location_the_parser_cannot_read_is_not_followed(hops):
     assert requested == ['https://maps.app.goo.gl/abc']
 
 
+def test_relative_location_joined_past_the_parser_limit_is_not_followed(hops):
+    requested, script = hops
+    start = 'https://maps.app.goo.gl/' + 'a' * 1500
+    script[start] = (302, '?q=32.6,-116.3&x=' + 'x' * 1000)
+    with pytest.raises(maps_link.LinkError) as exc:
+        maps_link.resolve(start)
+    assert exc.value.code == 'no_coordinates'
+    assert requested == [start]
+
+
 def test_hop_limit(hops):
     requested, script = hops
     for i in range(10):

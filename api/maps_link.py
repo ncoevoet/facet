@@ -196,6 +196,10 @@ def resolve(url: str) -> tuple[float, float]:
         if status not in _REDIRECTS or not location or len(location) > _MAX_LOCATION:
             raise LinkError('no_coordinates')
         current = urljoin(target, location)
+        # A relative Location joined to a long target can outgrow what
+        # parse_url reads; such a URL could only be fetched, never read.
+        if len(current) > google_maps_link.MAX_INPUT:
+            raise LinkError('no_coordinates')
     pair = google_maps_link.parse_url(current)
     if pair:
         return pair
