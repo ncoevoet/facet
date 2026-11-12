@@ -17,7 +17,7 @@ import { routes } from '../../app.routes';
 import { CULL_DEFAULT_STRICTNESS, CULL_PROFILE_KEY, CULL_STRICTNESS_KEY } from '../../features/gallery/culling.store';
 import { DEFAULT_FILTERS, SMART_ALBUM_EXCLUDE_KEYS } from '../../features/gallery/gallery-filters.util';
 import { CONTRACT_TO_CLIENT_KEY, applicableActions, capCullingSnapshot, createUiToolHandlers } from './ui-tool-handlers';
-import { CompareFiltersService } from '../../features/comparison/compare-filters.service';
+import { COMPARE_TAB_INDEX, CompareFiltersService } from '../../features/comparison/compare-filters.service';
 import { ViewActionRegistry } from './view-action-registry.service';
 import { CONNECT_ASSISTANT_DIALOG_ID, PageContextService } from './page-context.service';
 import { MatBottomSheet } from '@angular/material/bottom-sheet';
@@ -1630,7 +1630,7 @@ describe('UI tool registry and handlers', () => {
       expect(navigate).not.toHaveBeenCalled();
       expect(filters.selectedCategory()).toBe('');
       expect(filters.strategy()).toBe('');
-      expect(filters.activeTab()).toBe(0);
+      expect(filters.activeTab()).toBe(COMPARE_TAB_INDEX.weights);
     });
 
     it('an unconfirmed flipped plan group also blocks leaving, until it is confirmed', async () => {

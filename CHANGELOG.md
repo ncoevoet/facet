@@ -12,11 +12,17 @@ All notable changes to Facet are documented in this file.
 
 ### Changed
 
+- **Weight Tuning (`/compare`) opens on the Weights tab**, the page's main task, instead of Snapshots.
+- **The map uses dark tiles in the dark theme.** OpenStreetMap's light tiles are inverted in the browser, with their hues turned back, so no second tile host is contacted; pins and the selection outline are unchanged.
 - **The remappable keyboard actions live in one registry** (`SHORTCUT_REGISTRY`: id, default key, page scope, label). The Customize shortcuts dialog, the saved-keymap loader and the `?` reference read from it, so a new action is one row. A key is now refused only when another action on the same page holds it; all seven current actions are live on the gallery, so nothing a user can do changes yet.
 - **`X` (or `0`) on a card inside a selection rejects the whole selection.** It rejected only the focused card, so rejecting ten selected photos meant ten trips; it now does what the selection bar's Reject does, with **Undo** when every selected photo is loaded and there are at most 500. Pressing `X` again while the batch saves does nothing, so a second batch cannot overwrite the first one's Undo. The rule is the context menu's: the focused card must be selected and the selection must hold two or more photos; otherwise `X` toggles the focused photo and advances as before. A whole-view selection asks for confirmation first, as the bar does.
 
 ### Fixed
 
+- **Small controls meet the 24 px minimum target size.** Gallery card hover buttons no longer shrink below 28 px on narrow tiles (the row wraps instead), and the photo page's tag chips and **+ Tag** are at least 24 px tall.
+- **A camera or lens name cut short on a `/stats` Gear chart can be read in full.** On narrow screens the names on the chart's left edge are shortened, and only the bars showed a tooltip. Pointing at or tapping a name now opens its bar's tooltip, which carries the full name.
+- **The details rail is tinted in light mode.** It sat on Material's lightest surface, plain white for every accent, so it did not stand apart from the page; it now uses the accent's low container as dark mode does. Tooltips stay white for contrast.
+- **Layout leftovers from the 1.29.0 redesign.** The `/folders` breadcrumb no longer shows a vertical scrollbar: it now leaves room for its buttons' 48 px touch targets and focus rings instead of letting them overflow. Filter popovers such as Review may grow to the window height less 96 px instead of 75% of it. The culling page has the same 16 px inset as the other pages, instead of 8 px on phones and 12 px above.
 - **Cover cards are sharp on high-density screens.** Capsules, Folders, Scenes, Timeline months and years, and Albums requested a 320 px thumbnail for every card, which a 2x screen stretches about twofold and the hover zoom enlarges further. Each cover now offers the 320 px and the stored 640 px thumbnail and the browser picks by card width and pixel density; Capsules covers also load lazily.
 
 ## [1.29.0] "Pamir" — 2026-11-10

@@ -32,6 +32,16 @@ export function truncatedLegendLabels(chart: Chart): LegendItem[] {
   return base.map(item => ({ ...item, text: truncateLegendLabel(item.text) }));
 }
 
+/** Index of the bar whose y-axis label lies under (x, y), in canvas CSS pixels; null outside the label column. */
+export function axisLabelIndexAt(chart: Pick<Chart, 'chartArea' | 'scales' | 'data'>, x: number, y: number): number | null {
+  const area = chart.chartArea;
+  const scale = chart.scales['y'];
+  if (!area || !scale || x < 0 || x >= area.left || y < area.top || y > area.bottom) return null;
+  // `|| 0` folds the -0 that Math.round gives just above the first row's centre.
+  const index = Math.round(Number(scale.getValueForPixel(y))) || 0;
+  return index >= 0 && index < (chart.data.labels?.length ?? 0) ? index : null;
+}
+
 export interface GearItem {
   name: string;
   count: number;
@@ -117,7 +127,7 @@ const GEAR_METRIC_OPTIONS = [
           <p class="py-6 text-center text-[var(--mat-sys-on-surface-variant)]">{{ 'stats.no_data' | translate }}</p>
         } @else {
           <div [style.height.px]="sortedItems() | chartHeight">
-            <canvas #chartCanvas aria-hidden="true"></canvas>
+            <canvas #chartCanvas aria-hidden="true" (pointermove)="showAxisLabelTooltip($event)" (pointerdown)="showAxisLabelTooltip($event)"></canvas>
           </div>
             <details class="mt-3 text-sm text-[var(--mat-sys-on-surface-variant)]">
               <summary class="min-h-11 cursor-pointer content-center">{{ 'stats.show_chart_data' | translate }}</summary>
@@ -289,6 +299,25 @@ export class GearChartCardComponent {
     });
 
     this.destroyRef.onDestroy(() => this.destroyChart());
+  }
+
+  /**
+   * Chart.js shows its tooltip only inside the plot area, so a camera name cut short on the y axis
+   * had no way to show in full. Pointing at or tapping the label opens the bar's own tooltip,
+   * whose title is the full name.
+   */
+  protected showAxisLabelTooltip(event: PointerEvent): void {
+    const chart = this.chart;
+    if (!chart || chart.options.indexAxis !== 'y') return;
+    const rect = (event.currentTarget as HTMLCanvasElement).getBoundingClientRect();
+    const x = event.clientX - rect.left;
+    const y = event.clientY - rect.top;
+    const index = axisLabelIndexAt(chart, x, y);
+    if (index === null || chart.tooltip?.getActiveElements()[0]?.index === index) return;
+    const active = [{ datasetIndex: 0, index }];
+    chart.setActiveElements(active);
+    chart.tooltip?.setActiveElements(active, { x, y });
+    chart.update();
   }
 
   /** Export the card's gear rows as a CSV file. */
