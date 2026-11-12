@@ -405,7 +405,7 @@ type RatingOption = 'any' | '1' | '2' | '3' | '4' | '5' | 'zero';
                              (opened)="onSectionToggle('semantic', true)"
                              (closed)="onSectionToggle('semantic', false)"
                              [style.background-color]="openSemantic ? 'var(--mat-sys-surface-container)' : null">
-          <mat-expansion-panel-header class="!px-2 [&_.mat-content]:pe-9">
+          <mat-expansion-panel-header class="!px-2 [&_.mat-content]:pe-11">
             <mat-panel-title class="flex items-center gap-2">
               <mat-icon class="!text-xl !w-5 !h-5 !leading-none opacity-80">image_search</mat-icon>
               {{ I18N.gallery.sidebar.semantic_search | translate }}
@@ -602,7 +602,7 @@ type RatingOption = 'any' | '1' | '2' | '3' | '4' | '5' | 'zero';
                              (opened)="onTagRulesToggle(true)"
                              (closed)="onTagRulesToggle(false)"
                              [style.background-color]="tagRulesPanelOpen ? 'var(--mat-sys-surface-container)' : null">
-          <mat-expansion-panel-header class="!px-2 [&_.mat-content]:pe-9">
+          <mat-expansion-panel-header class="!px-2 [&_.mat-content]:pe-11">
             <mat-panel-title class="flex items-center gap-2">
               <mat-icon class="!text-xl !w-5 !h-5 !leading-none opacity-80">sell</mat-icon>
               {{ I18N.gallery.tag_groups.title | translate }}
