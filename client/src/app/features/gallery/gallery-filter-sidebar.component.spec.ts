@@ -1001,8 +1001,12 @@ describe('GalleryFilterSidebarComponent', () => {
     });
 
     describe('tab content', () => {
+      // The title text without its leading icon's ligature, which a title wrapped in its own
+      // element is no longer separated from by whitespace.
       const titles = () => Array.from((fixture.nativeElement as HTMLElement).querySelectorAll('mat-panel-title'))
-        .map(t => t.textContent!.trim());
+        .map(t => Array.from(t.childNodes)
+          .filter(node => node.nodeType !== Node.COMMENT_NODE && node.nodeName !== 'MAT-ICON')
+          .map(node => node.textContent).join('').trim());
 
       it.each(['quality', 'technical', 'subject'] as const)('gives every %s metric row its own tooltip and slider description', tab => {
         const help = I18N.gallery.sidebar.metric_help as Record<string, string>;
@@ -1072,7 +1076,7 @@ describe('GalleryFilterSidebarComponent', () => {
       it('gives tag rules their own Find section, after Content, with a help button on its header row', () => {
         store['tags'].set([{ value: 'sea', count: 3 }]);
         settle();
-        const order = titles().map(title => title.replace(/^\S+\s*/, ''));
+        const order = titles();
         expect(order.indexOf('gallery.tag_groups.title')).toBe(order.indexOf('gallery.sidebar.content') + 1);
         const rules = panelByTitle('gallery.tag_groups.title')!;
         expect(rules.querySelector('app-tag-groups')).toBeTruthy();

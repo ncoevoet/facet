@@ -9,6 +9,9 @@ L.Icon.Default.mergeOptions({
   shadowUrl: '/leaflet-images/marker-shadow.png',
 });
 
+/** Where a map opens when it has no point to show yet (Paris). */
+export const DEFAULT_MAP_CENTER = { lat: 48.8566, lng: 2.3522 } as const;
+
 /**
  * Create a Leaflet map with the standard OSM tile layer.
  *

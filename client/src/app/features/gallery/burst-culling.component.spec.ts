@@ -4440,6 +4440,27 @@ describe('BurstCullingComponent modals (rendered)', () => {
     expect(event.defaultPrevented).toBe(true);
   });
 
+  it('leaves S to the page when the open group cannot be stacked', () => {
+    openDarkroom();
+    store.groups.set([{ ...store.groups()[0], photos: store.groups()[0].photos.map(p => ({ ...p, sequence_kind: 'bracket' })) }]);
+    fixture.detectChanges();
+    const stack = vi.spyOn(component, 'stackGroup');
+    const event = new KeyboardEvent('keydown', { key: 's', bubbles: true, cancelable: true });
+    document.dispatchEvent(event);
+    expect(event.defaultPrevented).toBe(false);
+    expect(stack).not.toHaveBeenCalled();
+  });
+
+  it('leaves S to the page for a read-only user', () => {
+    (TestBed.inject(AuthService) as unknown as { isEdition: () => boolean }).isEdition = () => false;
+    openDarkroom();
+    const stack = vi.spyOn(component, 'stackGroup');
+    const event = new KeyboardEvent('keydown', { key: 's', bubbles: true, cancelable: true });
+    document.dispatchEvent(event);
+    expect(event.defaultPrevented).toBe(false);
+    expect(stack).not.toHaveBeenCalled();
+  });
+
   it('leaves native Inspect activation keys alone in stack mode instead of stacking', () => {
     openDarkroom();
     store.mode.set('stacks');

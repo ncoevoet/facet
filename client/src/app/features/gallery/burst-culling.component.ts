@@ -3254,6 +3254,8 @@ export class BurstCullingComponent implements OnDestroy {
     if (this.shortcutsBlocked(event)) return;
     const group = this.lightboxGroup() ?? (this.stacksMode() ? this.visibleGroups()[this.selectedGroupIndex()] : null);
     if (!group || isTypingContext(event)) return;
+    // Same rule as the Stack button: a key that would do nothing is left to the page.
+    if (!this.auth.isEdition() || (!this.stacksMode() && !canStackGroup(group))) return;
     event.preventDefault();
     void this.stackGroup(group);
   }
