@@ -3245,7 +3245,10 @@
     "date_from": "Da",
     "date_to": "A",
     "no_gps_title": "Nessuna foto con posizione",
-    "no_gps_hint": "Nulla nell'ambito porta coordinate GPS. Apri una foto e usa il suo pannello Posizione per posizionarla — le foto posizionate appaiono qui."
+    "no_gps_hint": "Nulla nell'ambito porta coordinate GPS. Apri una foto e usa il suo pannello Posizione per posizionarla — le foto posizionate appaiono qui.",
+    "basemap": "Sorgente della mappa",
+    "basemap_osm": "OpenStreetMap",
+    "basemap_custom": "Sorgente personalizzata"
   },
   "photo_detail": {
     "copy_image": "Copia immagine",
@@ -3367,7 +3370,8 @@
       "maps_moved": "Segnaposto spostato su {lat}, {lng}. Controlla, poi salva.",
       "maps_unrecognized": "Nessuna coordinata trovata. Incolla un link di Google Maps, oppure fai clic destro sulla mappa in Google Maps e copia i numeri.",
       "maps_unreachable": "Impossibile aprire il link. Controlla la connessione o copia invece le coordinate.",
-      "maps_pick": "Scegli su Google Maps"
+      "maps_pick": "Scegli su Google Maps",
+      "osm_pick": "Apri in OpenStreetMap"
     },
     "distribution": {
       "scope": "Ambito della distribuzione",

@@ -1616,6 +1616,9 @@ Visualización y comportamiento de la galería web.
 | `edition_password` | `""` | Contraseña para desbloquear el modo edición; vacío = solo lectura (salvo bajo `trusted_local_editing`) |
 | `trusted_local_editing` | `false` | Concede derechos de edición, sin contraseña, a un navegador del mismo equipo. Consulta [Edición local de confianza](#edición-local-de-confianza) |
 | `place_search_url` | `"https://photon.komoot.io/api"` | Endpoint de Photon para la búsqueda **Buscar en línea** de la galería; `""` la desactiva. Véase [Búsqueda de lugares en línea](#búsqueda-de-lugares-en-línea) |
+| `map_tile_url` | `""` | Teselas de mapa base autoalojadas para las superficies de mapa; `""` mantiene el OpenStreetMap por defecto. Ruta del mismo origen (p. ej. `/tiles/{z}/{x}/{y}.png`) o `https://` — `http://` se rechaza, la CSP solo permite 'self' e imágenes https |
+| `map_tile_attribution` | `""` | Línea de atribución mostrada para las teselas propias (HTML permitido; la configura el operador, así que es de confianza). Vacío muestra una etiqueta genérica de autoalojado |
+| `map_tile_max_zoom` | `19` | Nivel máximo de zoom que sirve el servidor de teselas propio |
 | **comparison_mode** | | |
 | `min_comparisons_for_optimization` | `50` | Comparaciones decisivas (sin contar empates) necesarias en una categoría antes de sugerir pesos |
 | `pair_selection_strategy` | `"learning"` | Estrategia de pares: `learning`, `uncertainty`, `boundary`, `active`, `random` |

@@ -136,3 +136,10 @@ export function isResolvableMapsLink(text: string): boolean {
 export function googleMapsSearchUrl(point: LatLng): string {
   return `https://www.google.com/maps/search/?api=1&query=${point.lat.toFixed(6)},${point.lng.toFixed(6)}`;
 }
+
+/** OpenStreetMap opened on a point, in a new tab: a marker at the coordinates
+ *  and the view centred on them, at zoom 17 (street level). Same WGS-84 the
+ *  GPS coordinates already carry — no datum shift on either side. */
+export function openStreetMapUrl(point: LatLng): string {
+  return `https://www.openstreetmap.org/?mlat=${point.lat.toFixed(6)}&mlon=${point.lng.toFixed(6)}#map=17/${point.lat.toFixed(6)}/${point.lng.toFixed(6)}`;
+}
