@@ -241,7 +241,7 @@ const SET_KIND_TOGGLE: Record<string, keyof HiddenFilterFlags> = {
         @if (detailsRailVisible()) {
           <!-- Deselect stays put above the scrolling details; the tooltip
                background covers the whole rail instead of a rounded card. -->
-          <div class="flex flex-col h-full bg-[var(--facet-tooltip-bg)]" data-details-rail tabindex="-1" (keydown.escape)="onRailEscape($event)"
+          <div class="flex flex-col h-full bg-[var(--facet-rail-bg)]" data-details-rail tabindex="-1" (keydown.escape)="onRailEscape($event)"
                (focusout)="onGridFocusOut($event)">
             <header class="flex items-center gap-2 px-4 py-2 border-b border-[var(--mat-sys-outline-variant)] shrink-0">
               <div class="min-w-0 flex-1">

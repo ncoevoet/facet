@@ -23,12 +23,12 @@ from urllib.parse import parse_qsl, unquote, urlsplit
 
 MAX_INPUT = 2048
 
-_NUM = r'[-+]?\d{1,3}(?:\.\d+)?'
+_NUM = r'[-+]?[0-9]{1,3}(?:\.[0-9]+)?'
 _DECIMAL_PAIR = re.compile(rf'^\s*({_NUM})\s*(?:,|;|\s)\s*({_NUM})\s*$')
 _DMS_PART = (
-    r'(\d{1,3}(?:\.\d+)?)\s*°\s*'
-    r'(?:(\d{1,2}(?:\.\d+)?)\s*[\'′’]\s*)?'
-    r'(?:(\d{1,2}(?:\.\d+)?)\s*(?:"|″|”|\'\'|′′)\s*)?'
+    r'([0-9]{1,3}(?:\.[0-9]+)?)\s*°\s*'
+    r'(?:([0-9]{1,2}(?:\.[0-9]+)?)\s*[\'′’]\s*)?'
+    r'(?:([0-9]{1,2}(?:\.[0-9]+)?)\s*(?:"|″|”|\'\'|′′)\s*)?'
     r'([NSEWnsew])'
 )
 _DMS_PAIR = re.compile(rf'^\s*{_DMS_PART}\s*,?\s*{_DMS_PART}\s*$')

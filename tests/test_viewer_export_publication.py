@@ -611,3 +611,26 @@ def test_incremental_foreign_key_violation_rolls_back_the_sync(tmp_path):
     with pytest.raises(sqlite3.IntegrityError, match='foreign key validation'):
         maintenance.export_viewer_db(str(source), str(output), verbose=False)
     assert _photo_paths(output) == {'/photo.jpg'}
+
+
+def _orphan_tag(path):
+    with closing(sqlite3.connect(path)) as conn, conn:
+        conn.execute("PRAGMA foreign_keys = OFF")
+        conn.execute("INSERT INTO photo_tags (photo_path, tag) VALUES ('/gone.jpg', 'sky')")
+
+
+@pytest.mark.parametrize('incremental', [True, False], ids=['incremental', 'full'])
+def test_orphaned_row_names_the_table_and_the_databases_to_inspect(tmp_path, incremental):
+    library = tmp_path / 'my library'
+    library.mkdir()
+    source, output = library / 'source.db', library / 'viewer.db'
+    _library(source)
+    if incremental:
+        maintenance.export_viewer_db(str(source), str(output), verbose=False)
+    _orphan_tag(source)
+    with pytest.raises(sqlite3.IntegrityError) as exc:
+        maintenance.export_viewer_db(str(source), str(output), force=not incremental, verbose=False)
+    message = str(exc.value)
+    assert 'foreign key validation failed: rows in photo_tags reference' in message
+    assert f"--db '{source}'" in message
+    assert (f"--db '{output}'" in message) == incremental

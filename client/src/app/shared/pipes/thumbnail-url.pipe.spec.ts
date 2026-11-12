@@ -2,7 +2,7 @@ import { ChangeDetectionStrategy, Component } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import { privateImageCacheKey, resetPrivateImageSession } from '../utils/private-image-session';
 import { ThumbnailUrlPipe, ImageUrlPipe, FaceThumbnailUrlPipe, PersonThumbnailUrlPipe,
-  thumbnailUrl, imageUrl, faceThumbnailUrl, personThumbnailUrl } from './thumbnail-url.pipe';
+  thumbnailUrl, thumbnailSrcset, imageUrl, faceThumbnailUrl, personThumbnailUrl } from './thumbnail-url.pipe';
 
 @Component({
   imports: [ThumbnailUrlPipe, ImageUrlPipe, FaceThumbnailUrlPipe, PersonThumbnailUrlPipe],
@@ -132,6 +132,20 @@ describe('explicit thumbnail preview revisions', () => {
     expect(sharp.searchParams.get('ngsw-bypass')).toBe('1');
     expect(pipe.transform(path, 160, null)).toBe(pipe.transform(path, 160));
     expect(pipe.transform(path, 160)).toContain('ngsw-bypass');
+  });
+});
+
+describe('thumbnailSrcset', () => {
+  it('offers the 320 px resize and the stored thumbnail, each a parseable candidate', () => {
+    // A comma or space left raw in a URL would split the srcset into bogus candidates.
+    const candidates = thumbnailSrcset('/photos/a, b.jpg', 'r1').split(', ').map((c) => c.split(' '));
+    expect(candidates.map(([, w]) => w)).toEqual(['320w', '640w']);
+    for (const [url, w] of candidates) {
+      const parsed = new URL(url, 'http://facet.test');
+      expect(parsed.searchParams.get('path')).toBe('/photos/a, b.jpg');
+      expect(parsed.searchParams.get('size')).toBe(w.slice(0, -1));
+      expect(parsed.searchParams.get('preview')).toBe('r1');
+    }
   });
 });
 

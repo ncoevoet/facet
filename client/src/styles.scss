@@ -59,6 +59,7 @@ html {
   --facet-tooltip-text-muted: var(--mat-sys-outline);
   --facet-tooltip-text-title: var(--mat-sys-on-surface);
   --facet-tooltip-divider: var(--mat-sys-outline-variant);
+  --facet-rail-bg: var(--facet-tooltip-bg);
 }
 
 // Theme variants (color only — typography and density inherited from base)
@@ -158,6 +159,9 @@ html.light-mode {
   --facet-accent-badge: color-mix(in srgb, var(--facet-accent-dim) 50%, transparent);
   // Light tooltips sit on the lightest surface; the other tooltip roles are inherited from html.
   --facet-tooltip-bg: color-mix(in srgb, var(--mat-sys-surface-container-lowest) 97%, transparent);
+  // The details rail takes the accent-tinted low container instead, so it stands apart
+  // from the white page as it does in dark mode; tooltips keep the white for contrast.
+  --facet-rail-bg: color-mix(in srgb, var(--mat-sys-surface-container-low) 97%, transparent);
 }
 
 // Light mode + color theme overrides
@@ -328,4 +332,11 @@ app-gallery-view-controls .mat-mdc-button:not(:disabled) {
     line-height: 1 !important;
     flex-shrink: 0;
   }
+}
+
+// OpenStreetMap serves light tiles only. In the dark theme, invert them and turn the
+// hues back so water stays blue: no second tile host, and markers are untouched
+// because they live in the marker pane, not the tile pane.
+html:not(.light-mode) .leaflet-tile-pane {
+  filter: invert(1) hue-rotate(180deg) brightness(0.95) contrast(0.9);
 }

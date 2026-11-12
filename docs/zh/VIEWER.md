@@ -795,7 +795,7 @@ python facet.py --extract-gps    # 从 EXIF 中提取 GPS 经纬度写入数据�
 
 新照片在评分过程中就会得到坐标。
 
-通过 `/map` 访问。由 `viewer.features.show_map` 控制（默认：`true`）。地图底图来自 OpenStreetMap，需要联网，即使在已安装的应用中也是如此。
+通过 `/map` 访问。由 `viewer.features.show_map` 控制（默认：`true`）。地图底图来自 OpenStreetMap，需要联网，即使在已安装的应用中也是如此。深色模式下底图会反色显示，与主题保持一致。
 
 ### 已保存地点与手动 GPS
 
@@ -1140,7 +1140,7 @@ Facet 会为每张照片标注它所描绘的活动。默认的 **general** 词�
 
 ## 两两比较模式
 
-通过每次判断两张照片来给照片排序；投票会用于权重调优。打开 `/compare`（顶栏的“比较”按钮）。需要非空的 `edition_password`（单用户）或 `admin`／`superadmin` 角色（多用户）。
+通过每次判断两张照片来给照片排序；投票会用于权重调优。打开 `/compare`（顶栏的“比较”按钮）。需要非空的 `edition_password`（单用户）或 `admin`／`superadmin` 角色（多用户）。页面打开时显示**权重**标签页。
 
 ### A/B 比较标签页
 

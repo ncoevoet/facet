@@ -9,6 +9,7 @@ import hashlib
 import json
 import logging
 import os
+import shlex
 import shutil
 import sqlite3
 import tempfile
@@ -323,15 +324,38 @@ def _check_viewer_integrity(conn):
         raise sqlite3.DatabaseError(f'Viewer export validation failed: {result[:3]}')
 
 
-def _check_viewer_foreign_keys(conn):
-    violations = conn.execute('PRAGMA main.foreign_key_check').fetchmany(3)
-    if violations:
-        raise sqlite3.IntegrityError(f'Viewer export foreign key validation failed: {violations}')
+def _foreign_key_tables(conn, schema):
+    return {row[0] for row in conn.execute(f'PRAGMA {schema}.foreign_key_check')}
 
 
-def _validate_viewer_copy(conn):
+def _foreign_key_error(tables, databases):
+    """The refusal for rows whose parent is missing.
+
+    ``databases`` are the files the rows can have come from, named in the error
+    so the user knows what to inspect: the source for a full export, and also
+    the viewer database itself for an incremental one, which keeps viewer-owned
+    rows the source never had.
+    """
+    listing = ' '.join(
+        f'`python validate_db.py --report-only --db {shlex.quote(os.path.abspath(path))}`' for path in databases
+    )
+    return sqlite3.IntegrityError(
+        f'Viewer export foreign key validation failed: rows in {", ".join(sorted(tables))} '
+        f'reference a missing parent row. Find them with {listing}, '
+        'then repair or delete them and export again.'
+    )
+
+
+def _check_viewer_foreign_keys(conn, databases):
+    """Refuse an export holding rows whose parent is missing."""
+    tables = _foreign_key_tables(conn, 'main')
+    if tables:
+        raise _foreign_key_error(tables, databases)
+
+
+def _validate_viewer_copy(conn, source_db):
     _check_viewer_integrity(conn)
-    _check_viewer_foreign_keys(conn)
+    _check_viewer_foreign_keys(conn, (source_db,))
 
 
 def _rotate_backups(db_path, base_dir, keep):
@@ -826,8 +850,18 @@ def _incremental_update_viewer_db(source_db, output_path, thumbnail_size, verbos
             if verbose:
                 logger.info("  Running ANALYZE...")
             dest_conn.execute("ANALYZE main")
-            _check_viewer_foreign_keys(dest_conn)
+            _check_viewer_foreign_keys(dest_conn, (source_db, output_path))
             dest_conn.commit()
+        except sqlite3.IntegrityError as ex:
+            dest_conn.rollback()
+            # With foreign_keys=ON the sync's own write of an orphaned row fails
+            # first, with SQLite's bare message; name the tables instead.
+            if 'FOREIGN KEY constraint failed' not in str(ex):
+                raise
+            tables = _foreign_key_tables(dest_conn, 'src') | _foreign_key_tables(dest_conn, 'main')
+            if not tables:
+                raise
+            raise _foreign_key_error(tables, (source_db, output_path)) from ex
         except BaseException:
             dest_conn.rollback()
             raise
@@ -1369,7 +1403,7 @@ def export_viewer_db(source_db='photo_scores_pro.db', output_path=None, thumbnai
                 if verbose:
                     logger.info("  Copying database...")
                 _sqlite_backup(src_conn, dst_conn, pages=-1)
-                _prepare_full_viewer_copy(dst_conn, thumbnail_size, verbose)
+                _prepare_full_viewer_copy(dst_conn, thumbnail_size, verbose, source_db)
 
         # Check again before publishing: never open an alias of the source for writing.
         _check_export_paths(source_db, output_path)
@@ -1401,7 +1435,7 @@ def export_viewer_db(source_db='photo_scores_pro.db', output_path=None, thumbnai
     return source_size, output_size
 
 
-def _prepare_full_viewer_copy(dst_conn, thumbnail_size, verbose):
+def _prepare_full_viewer_copy(dst_conn, thumbnail_size, verbose, source_db):
     """Sanitize only the private copy; the public destination is untouched here."""
     from PIL import Image
     from db.keyword_hierarchy_sync import reset_viewer_hierarchy_authority
@@ -1578,7 +1612,7 @@ def _prepare_full_viewer_copy(dst_conn, thumbnail_size, verbose):
         logger.info("  Running ANALYZE...")
     dst_conn.execute("ANALYZE")
     dst_conn.commit()
-    _validate_viewer_copy(dst_conn)
+    _validate_viewer_copy(dst_conn, source_db)
 
 
 # Rows are claimed by the current blob format, not by "the column is NULL":

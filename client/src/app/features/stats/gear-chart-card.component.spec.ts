@@ -2,7 +2,7 @@ import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { NoopAnimationsModule } from '@angular/platform-browser/animations';
 import { Pipe, PipeTransform, signal } from '@angular/core';
 import { I18nService } from '../../core/services/i18n.service';
-import { GearChartCardComponent, GearItem, truncateLegendLabel } from './gear-chart-card.component';
+import { axisLabelIndexAt, GearChartCardComponent, GearItem, truncateLegendLabel } from './gear-chart-card.component';
 import { TranslatePipe } from '../../shared/pipes/translate.pipe';
 
 @Pipe({
@@ -187,5 +187,26 @@ describe('truncateLegendLabel', () => {
   it('keeps a label of exactly the limit', () => {
     const exact = 'x'.repeat(24);
     expect(truncateLegendLabel(exact)).toBe(exact);
+  });
+});
+
+describe('axisLabelIndexAt', () => {
+  // A 3-row horizontal bar chart whose plot area starts 100 px in; each row is 50 px tall.
+  const chart = {
+    chartArea: { left: 100, top: 10, right: 300, bottom: 160 },
+    scales: { y: { getValueForPixel: (y: number) => (y - 10) / 50 - 0.5 } },
+    data: { labels: ['Canon EOS R5 Mark II', 'Nikon Z8', 'Sony A7 IV'] },
+  } as unknown as Parameters<typeof axisLabelIndexAt>[0];
+
+  it('maps a point on a label to that row', () => {
+    expect(axisLabelIndexAt(chart, 40, 30)).toBe(0);
+    expect(axisLabelIndexAt(chart, 40, 85)).toBe(1);
+    expect(axisLabelIndexAt(chart, 99, 150)).toBe(2);
+  });
+
+  it('ignores the plot area, where Chart.js shows the tooltip itself, and points beside the rows', () => {
+    expect(axisLabelIndexAt(chart, 100, 30)).toBeNull();
+    expect(axisLabelIndexAt(chart, 40, 5)).toBeNull();
+    expect(axisLabelIndexAt(chart, 40, 170)).toBeNull();
   });
 });

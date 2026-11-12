@@ -9,6 +9,7 @@ import { Subject } from 'rxjs';
 import { ApiService } from '../../core/services/api.service';
 import { AuthService, AuthStatus } from '../../core/services/auth.service';
 import { I18nService } from '../../core/services/i18n.service';
+import { GeoPhotosService } from '../../core/services/geo-photos.service';
 import { I18N } from '../../core/i18n/keys';
 import { GalleryStore } from '../gallery/gallery.store';
 import type { GpsEditDialogComponent, GpsEditDialogData } from './gps-edit-dialog.component';
@@ -69,6 +70,8 @@ describe('GPS dialog rendered controls and HTTP ownership', () => {
         provideHttpClient(), provideHttpClientTesting(), ApiService, AuthService, I18nService,
         { provide: MAT_DIALOG_DATA, useValue: data }, { provide: MatDialogRef, useValue: dialog },
         { provide: Router, useValue: router }, { provide: GalleryStore, useValue: store },
+        // The Map-link re-check is covered by gps-edit-dialog.component.spec; keep it off this HTTP log.
+        { provide: GeoPhotosService, useValue: { refresh: vi.fn() } },
       ],
     });
     TestBed.overrideProvider(MatSnackBar, { useValue: snack });

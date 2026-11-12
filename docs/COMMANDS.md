@@ -486,7 +486,7 @@ The tagging step at the end of a scan is skipped when `tagging.enabled` is `fals
 | `python validate_db.py --report-only` | Report without prompting |
 | `python validate_db.py --db custom.db` | Validate a custom database |
 
-Checks: score ranges, face metrics, BLOB corruption, embedding sizes, orphaned faces, statistical outliers.
+Checks: score ranges, face metrics, BLOB corruption, embedding sizes, orphaned faces, rows whose foreign key points at a missing row, statistical outliers. The viewer DB export refuses a database with such rows. This check lists each such row and deletes none; only orphaned faces, which the orphaned-faces check covers too, are removed by `--auto-fix`. Most of those tables hold ratings, comparisons or albums, which a path correction can reconnect and a deletion would lose.
 
 Both interactive repairs and `--auto-fix` take the library lock and check the issues again before writing. Interactive mode waits for your initial confirmation before taking the lock. A busy library exits 75; an unusable lock exits 1. `--report-only` and declining repairs do not need the repair lock.
 

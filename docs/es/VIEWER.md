@@ -796,7 +796,7 @@ python facet.py --extract-gps    # Extract GPS lat/lng from EXIF into database
 
 Las fotos nuevas obtienen sus coordenadas durante la puntuación.
 
-Abre `/map`. Se controla con `viewer.features.show_map` (por defecto: `true`). Los fondos del mapa proceden de OpenStreetMap y necesitan conexión a internet, incluso en la aplicación instalada.
+Abre `/map`. Se controla con `viewer.features.show_map` (por defecto: `true`). Los fondos del mapa proceden de OpenStreetMap y necesitan conexión a internet, incluso en la aplicación instalada. En modo oscuro, los mosaicos se muestran invertidos para ajustarse al tema.
 
 ### Lugares guardados y GPS manual
 
@@ -1141,7 +1141,7 @@ Se controla con `viewer.features.show_junk_sweep` (por defecto: `true`).
 
 ## Modo de comparación por pares
 
-Clasifica fotos juzgándolas de dos en dos; los votos alimentan el ajuste de pesos. Abre `/compare` (botón Comparar en la cabecera). Requiere un `edition_password` no vacío (un solo usuario) o el rol `admin`/`superadmin` (multiusuario).
+Clasifica fotos juzgándolas de dos en dos; los votos alimentan el ajuste de pesos. Abre `/compare` (botón Comparar en la cabecera). Requiere un `edition_password` no vacío (un solo usuario) o el rol `admin`/`superadmin` (multiusuario). La página se abre en la pestaña **Pesos**.
 
 ### Pestaña Comparación A/B
 

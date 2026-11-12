@@ -71,6 +71,7 @@ import { PersonFaceMenuComponent } from '../persons/person-face-menu.component';
 import {
   FaceBoxMode, FACE_BOX_MODE_ICONS, FACE_BOX_MODE_LABELS, nextFaceBoxMode, readFaceBoxMode, writeFaceBoxMode,
 } from './face-box-mode';
+import { captureSession } from '../../shared/utils/auth-session';
 
 interface PhotoTagOrigin {
   owner: string;
@@ -497,14 +498,14 @@ function inDetectedSet(photo: Photo): boolean {
                 <div class="flex gap-1.5 flex-wrap items-center">
                   @for (tag of p.tags_list; track tag) {
                     <span data-testid="ai-tag-chip" class="inline-flex min-w-0 max-w-full">
-                      <button class="inline-flex items-center max-sm:min-h-11 pointer-coarse:min-h-11 max-sm:min-w-11 pointer-coarse:min-w-11 max-w-full [overflow-wrap:anywhere] text-left px-2 py-0.5 bg-[var(--facet-accent-badge)] text-[var(--facet-accent-text)] rounded-full text-xs cursor-pointer hover:opacity-80 transition-opacity"
+                      <button class="inline-flex items-center min-h-6 max-sm:min-h-11 pointer-coarse:min-h-11 max-sm:min-w-11 pointer-coarse:min-w-11 max-w-full [overflow-wrap:anywhere] text-left px-2 py-0.5 bg-[var(--facet-accent-badge)] text-[var(--facet-accent-text)] rounded-full text-xs cursor-pointer hover:opacity-80 transition-opacity"
                               [matMenuTriggerFor]="tagNavigationMenu" [matMenuTriggerData]="{ tag: tag }">{{ tag }}</button>
                     </span>
                   }
                   @for (tag of p.manual_tags; track tag) {
                     <span data-testid="manual-tag-chip"
                           class="inline-flex min-w-0 max-w-full items-center rounded-full border border-dashed border-[var(--facet-accent-text)] text-[var(--facet-accent-text)] text-xs">
-                      <button class="inline-flex items-center max-sm:min-h-11 pointer-coarse:min-h-11 max-sm:min-w-11 pointer-coarse:min-w-11 min-w-0 gap-1 pl-2 pr-2 py-0.5 cursor-pointer hover:opacity-80 transition-opacity"
+                      <button class="inline-flex items-center min-h-6 max-sm:min-h-11 pointer-coarse:min-h-11 max-sm:min-w-11 pointer-coarse:min-w-11 min-w-0 gap-1 pl-2 pr-2 py-0.5 cursor-pointer hover:opacity-80 transition-opacity"
                               [attr.title]="I18N.manual_tags.manual | translate"
                               [matMenuTriggerFor]="tagNavigationMenu" [matMenuTriggerData]="{ tag: tag }">
                         <mat-icon class="!text-xs !w-3 !h-3 !leading-3" aria-hidden="true">sell</mat-icon>
@@ -522,7 +523,7 @@ function inDetectedSet(photo: Photo): boolean {
                     </span>
                   }
                   @if (auth.isEdition() && !tagInputOpen()) {
-                    <button type="button" data-add-tag class="inline-flex items-center gap-0.5 rounded-full border border-dashed border-[var(--mat-sys-outline)] px-2 py-0.5 text-xs text-[var(--mat-sys-on-surface-variant)] cursor-pointer hover:bg-[var(--mat-sys-surface-container-high)] max-sm:min-h-11 pointer-coarse:min-h-11"
+                    <button type="button" data-add-tag class="inline-flex min-h-6 items-center gap-0.5 rounded-full border border-dashed border-[var(--mat-sys-outline)] px-2 py-0.5 text-xs text-[var(--mat-sys-on-surface-variant)] cursor-pointer hover:bg-[var(--mat-sys-surface-container-high)] max-sm:min-h-11 pointer-coarse:min-h-11"
                             [attr.aria-label]="I18N.manual_tags.add | translate" (click)="openTagInput()">
                       <mat-icon class="!text-sm !w-3.5 !h-3.5 !leading-3.5" aria-hidden="true">add</mat-icon>{{ I18N.manual_tags.tag_label | translate }}
                     </button>
@@ -1454,13 +1455,6 @@ export class PhotoDetailComponent extends PhotoDetailBase implements OnInit {
     } finally { guard.dispose(); }
   }
 
-  /** Accepted writes may repair the gallery after this view is destroyed, but never another session. */
-  private captureSession(): () => boolean {
-    const owner = this.auth.identity();
-    const token = this.auth.token;
-    return () => owner === this.auth.identity() && token === this.auth.token;
-  }
-
   private isCurrentViewer(): boolean {
     return !this.destroyRef.destroyed && this.viewerOwner === this.auth.identity() && this.viewerSession === privateImageSessionKey();
   }
@@ -1470,7 +1464,7 @@ export class PhotoDetailComponent extends PhotoDetailBase implements OnInit {
     if (!p || p.path !== path) return;
     const newRating = p.star_rating === rating ? 0 : rating;
     if (p.logical_review) { await this.saveLogicalReview(p, { rating: newRating }); return; }
-    const sameSession = this.captureSession();
+    const sameSession = captureSession(this.auth);
     try {
       await firstValueFrom(this.api.post('/photo/set_rating', { photo_path: path, rating: newRating }));
       // A confirmed write still repairs the same session's gallery after navigation.
@@ -1495,7 +1489,7 @@ export class PhotoDetailComponent extends PhotoDetailBase implements OnInit {
     if (!p || this.reviewSaving) return;
     this.reviewSaving = true;
     const isOrigin = this.store.captureReviewView();
-    const sameSession = this.captureSession();
+    const sameSession = captureSession(this.auth);
     const photos = this.store.photos();
     const index = photos.findIndex(photo => photo.path === p.path);
     const next = photos[index + 1];
@@ -1540,7 +1534,7 @@ export class PhotoDetailComponent extends PhotoDetailBase implements OnInit {
     const p = this.photo();
     if (!p || p.path !== path) return;
     if (p.logical_review) { await this.saveLogicalReview(p, 'favorite'); return; }
-    const sameSession = this.captureSession();
+    const sameSession = captureSession(this.auth);
     try {
       const res = await firstValueFrom(this.api.post<{ is_favorite: boolean; is_rejected: boolean | null }>('/photo/toggle_favorite', { photo_path: path }));
       if (!sameSession()) return;
@@ -1560,7 +1554,7 @@ export class PhotoDetailComponent extends PhotoDetailBase implements OnInit {
     const p = this.photo();
     if (!p || p.path !== path) return;
     const isOrigin = this.store.captureReviewView();
-    const sameSession = this.captureSession();
+    const sameSession = captureSession(this.auth);
     const photos = this.store.photos();
     const index = photos.findIndex(photo => photo.path === p.path);
     const next = photos[index + 1];
@@ -1762,7 +1756,7 @@ export class PhotoDetailComponent extends PhotoDetailBase implements OnInit {
       });
       ref.afterClosed().subscribe(async result => {
         if (!result || !current()) return;
-        const sameSession = this.captureSession();
+        const sameSession = captureSession(this.auth);
         const res = await this.photoActions.deletePhotos([p.path], result);
         if (!res || !sameSession()) return;
         // `removed_missing` counts as deleted for this surface: the row is

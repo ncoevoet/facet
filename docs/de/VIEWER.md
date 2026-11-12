@@ -796,7 +796,7 @@ python facet.py --extract-gps    # GPS-Breite/Länge aus EXIF in die Datenbank e
 
 Neue Fotos erhalten ihre Koordinaten beim Bewerten.
 
-Öffnen Sie `/map`. Gesteuert über `viewer.features.show_map` (Standard: `true`). Kartenhintergründe stammen von OpenStreetMap und benötigen eine Internetverbindung, auch in der installierten App.
+Öffnen Sie `/map`. Gesteuert über `viewer.features.show_map` (Standard: `true`). Kartenhintergründe stammen von OpenStreetMap und benötigen eine Internetverbindung, auch in der installierten App. Im dunklen Modus werden die Kacheln invertiert angezeigt, passend zum Design.
 
 ### Gespeicherte Orte und manuelles GPS
 
@@ -1141,7 +1141,7 @@ Gesteuert über `viewer.features.show_junk_sweep` (Standard: `true`).
 
 ## Paarweiser Vergleichsmodus
 
-Ordnen Sie Fotos, indem Sie jeweils zwei beurteilen; die Stimmen fließen in die Gewichtsabstimmung ein. Öffnen Sie `/compare` (Schaltfläche Vergleichen in der Kopfzeile). Erfordert ein nicht leeres `edition_password` (Einzelbenutzer) oder die Rolle `admin`/`superadmin` (Mehrbenutzer).
+Ordnen Sie Fotos, indem Sie jeweils zwei beurteilen; die Stimmen fließen in die Gewichtsabstimmung ein. Öffnen Sie `/compare` (Schaltfläche Vergleichen in der Kopfzeile). Erfordert ein nicht leeres `edition_password` (Einzelbenutzer) oder die Rolle `admin`/`superadmin` (Mehrbenutzer). Die Seite öffnet sich auf dem Tab **Gewichte**.
 
 ### Tab „A/B-Vergleich“
 

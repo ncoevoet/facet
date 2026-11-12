@@ -4,7 +4,7 @@ import { MatIconModule } from '@angular/material/icon';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { TimelineCollectionReader } from './timeline-collection-reader';
 import { TranslatePipe } from '../../shared/pipes/translate.pipe';
-import { ThumbnailUrlPipe } from '../../shared/pipes/thumbnail-url.pipe';
+import { ThumbnailUrlPipe, ThumbnailSrcsetPipe } from '../../shared/pipes/thumbnail-url.pipe';
 import { TimelineDatePipe } from './timeline-date.pipe';
 import { TimelineFiltersService } from './timeline-filters.service';
 import { GalleryStore, type ViewFilterParams } from '../gallery/gallery.store';
@@ -21,7 +21,7 @@ interface MonthSummary {
 @Component({
   selector: 'app-timeline-months',
   standalone: true,
-  imports: [TimelineLoadFailureComponent, DecimalPipe, MatIconModule, MatProgressSpinnerModule, TranslatePipe, ThumbnailUrlPipe, TimelineDatePipe],
+  imports: [TimelineLoadFailureComponent, DecimalPipe, MatIconModule, MatProgressSpinnerModule, TranslatePipe, ThumbnailUrlPipe, ThumbnailSrcsetPipe, TimelineDatePipe],
   changeDetection: ChangeDetectionStrategy.Eager,
   template: `
     @if (loading() && months().length === 0) {
@@ -47,7 +47,7 @@ interface MonthSummary {
           (click)="monthSelected.emit(m.month)">
           @if (m.hero_photo_path) {
             <div class="relative w-full aspect-[4/3] overflow-hidden">
-              <img [src]="m.hero_photo_path | thumbnailUrl:320:m.preview_revision"
+              <img [src]="m.hero_photo_path | thumbnailUrl:320:m.preview_revision" [srcset]="m.hero_photo_path | thumbnailSrcset:m.preview_revision" sizes="(min-width: 1280px) 17vw, (min-width: 1024px) 20vw, (min-width: 768px) 25vw, (min-width: 640px) 34vw, 50vw"
                    [alt]="m.month"
                    class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" />
               <div class="absolute inset-x-0 top-0 z-[5] flex items-start gap-1 bg-gradient-to-b from-black/70 to-transparent px-2 pt-1.5 pb-4 pointer-events-none">
