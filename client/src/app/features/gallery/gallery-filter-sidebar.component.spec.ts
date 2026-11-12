@@ -884,6 +884,18 @@ describe('GalleryFilterSidebarComponent', () => {
         expect(items.map(link => link.querySelector('[data-filter-tab-label]')!.textContent!.trim())).toEqual(names);
       });
 
+      it('keeps touch panning on every tooltip host the sidebar scrolls over, on every tab', () => {
+        // A tooltip left on its default touch gestures sets touch-action: none on its host on a phone,
+        // so a swipe starting there would not scroll the sidebar.
+        const hosts = new Set<MatTooltip>();
+        for (const tab of links()) {
+          tab.click(); settle();
+          for (const d of fixture.debugElement.queryAll(By.directive(MatTooltip))) hosts.add(d.injector.get(MatTooltip));
+        }
+        expect(hosts.size).toBeGreaterThan(links().length);
+        expect([...hosts].filter(tip => tip.touchGestures !== 'off').map(tip => tip.message)).toEqual([]);
+      });
+
       it('names a tab with its active count and puts the count on the icon as a corner badge', () => {
         setFilters({ camera: 'Sony', lens: 'FE' });
         const source = links()[1];

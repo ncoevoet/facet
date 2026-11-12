@@ -161,7 +161,7 @@ export function formatStatsMonth(period: string, locale: string): string {
           </mat-card-header>
           <mat-card-content class="!pt-4">
             <div class="overflow-x-auto">
-              <table class="w-full min-w-[700px] border-collapse text-xs">
+              <table class="w-full min-w-[640px] border-collapse text-xs">
                 <thead>
                   <tr>
                     <th class="p-1 text-[var(--mat-sys-on-surface-variant)] text-left w-12"></th>
