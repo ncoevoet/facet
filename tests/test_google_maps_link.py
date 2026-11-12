@@ -457,7 +457,7 @@ def test_browser_host_list_matches_the_server_allowlist():
     import re
     from pathlib import Path
 
-    source = (Path(__file__).resolve().parents[1] / 'client/src/app/shared/utils/google-maps-link.ts').read_text()
+    source = (Path(__file__).resolve().parents[1] / 'client/src/app/shared/utils/google-maps-link.ts').read_text(encoding='utf-8')
     match = re.search(r'RESOLVABLE_MAPS_HOSTS: readonly string\[\] = (\[[^\]]*\]);', source)
     assert match, 'RESOLVABLE_MAPS_HOSTS not found in google-maps-link.ts'
     assert frozenset(ast.literal_eval(match.group(1))) == maps_link.ALLOWED_HOSTS
