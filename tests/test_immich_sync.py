@@ -30,6 +30,10 @@ class FakeTransport:
     def __call__(self, method, path, payload=None):
         self.requests.append((method, path, payload))
         if method == "POST" and path == "/api/search/metadata":
+            if "albumIds" in payload:
+                members = self.album_assets.get(payload["albumIds"][0]) if self.album_assets else []
+                items = [{"id": aid} for aid in members or []]
+                return {"assets": {"items": items, "nextPage": None}}
             if "originalPath" in payload:
                 asset_id = self.assets_by_path.get(payload["originalPath"])
                 items = [{"id": asset_id, "originalPath": payload["originalPath"]}] if asset_id else []
@@ -144,7 +148,9 @@ class TestPathMapping:
         summary = sync_to_immich(db_path, make_config())
         assert summary == {"matched": 0, "unmatched": 1, "updated": 0,
                            "skipped_unrated": 0, "albums_created": 0,
-                           "webhook_pending": 0, "identity_conflicts": 0}
+                           "webhook_pending": 0, "identity_conflicts": 0,
+                           "album_added": 0, "album_removed": 0,
+                           "album_remove_failed": 0}
 
 
 class TestPayloadGrouping:
@@ -1505,3 +1511,125 @@ class TestTopPicksMembership:
         # id-a is Alice's own qualifying pick and already a member: no re-add.
         assert [r for r in transport.requests
                 if r[0] == "PUT" and r[1].startswith("/api/albums/")] == []
+
+
+class TestAlbumFailureIsolation:
+    """The album step cannot cost the sync its ratings or its tracked state.
+
+    Regression (found by the maintainer running the branch): a key that may
+    add to albums but not remove from them answered the membership DELETE
+    with 403 AFTER the asset PUTs and BEFORE the tracked-state write — the
+    sync aborted, the state never advanced, and every later run re-pushed
+    into the same 403 for as long as a removal was due. The state is now
+    committed before the album step, and the membership read and the removal
+    degrade to counts instead of raising.
+    """
+
+    def _album_setup(self, tmp_path, transport):
+        db_path = make_db(tmp_path, [('/p/a.jpg', 5, 0, 0), ('/p/c.jpg', 3, 0, 0)])
+        transport.assets_by_path = {'/p/a.jpg': 'id-a', '/p/c.jpg': 'id-c'}
+        transport.albums = [{"albumName": "Facet Top Picks", "id": "al"}]
+        transport.album_assets = {'al': ['id-a', 'id-c']}
+        return db_path
+
+    def test_a_delete_403_no_longer_wedges_the_sync(self, tmp_path, transport, monkeypatch):
+        import urllib.error
+        db_path = self._album_setup(tmp_path, transport)
+
+        def forbidden_delete(_self, method, path, payload=None):
+            if method == "DELETE" and path.startswith("/api/albums/"):
+                raise urllib.error.HTTPError(path, 403, "Forbidden", None, None)
+            return transport(method, path, payload)
+
+        monkeypatch.setattr(ImmichClient, "_request", forbidden_delete)
+
+        summary = sync_to_immich(db_path, _rejecting_config(top_picks_album="Facet Top Picks"))
+
+        # The sync completes; the ratings reached Immich and the tracked
+        # state ADVANCED despite the refused removal.
+        assert summary["updated"] == 2
+        assert summary["album_removed"] == 0
+        assert summary["album_remove_failed"] == 1
+        with sqlite3.connect(db_path) as conn:
+            state = conn.execute(
+                "SELECT value FROM stats_cache WHERE key = 'immich_synced_paths:global'"
+            ).fetchone()[0]
+        assert '/p/a.jpg' in state and '/p/c.jpg' in state
+        # A follow-up sync is not stuck re-pushing into the 403.
+        transport.requests.clear()
+        summary2 = sync_to_immich(db_path, _rejecting_config(top_picks_album="Facet Top Picks"))
+        assert summary2["album_remove_failed"] == 1
+        assert summary2["updated"] == 2
+
+    def test_a_membership_read_403_degrades_to_add_only(self, tmp_path, transport, monkeypatch):
+        import urllib.error
+        db_path = self._album_setup(tmp_path, transport)
+
+        def forbidden_read(_self, method, path, payload=None):
+            if method == "POST" and path == "/api/search/metadata" and "albumIds" in payload:
+                raise urllib.error.HTTPError(path, 403, "Forbidden", None, None)
+            return transport(method, path, payload)
+
+        monkeypatch.setattr(ImmichClient, "_request", forbidden_read)
+
+        summary = sync_to_immich(db_path, _rejecting_config(top_picks_album="Facet Top Picks"))
+
+        assert summary["album_remove_failed"] == 0
+        adds = [payload for m, p, payload in transport.requests
+                if m == "PUT" and p.startswith("/api/albums/")]
+        assert adds == [{"ids": ["id-a"]}]  # add-only: id-c is below the threshold
+        with sqlite3.connect(db_path) as conn:
+            state = conn.execute(
+                "SELECT value FROM stats_cache WHERE key = 'immich_synced_paths:global'"
+            ).fetchone()[0]
+        assert '/p/a.jpg' in state
+
+    def test_dry_run_previews_album_removals_without_writing(self, tmp_path, transport):
+        db_path = self._album_setup(tmp_path, transport)
+
+        summary = sync_to_immich(db_path, _rejecting_config(top_picks_album="Facet Top Picks"),
+                                 dry_run=True)
+
+        # id-c provably sits below the threshold: the plan says one removal,
+        # and the dry run issues no album writes at all.
+        assert summary["album_removed"] == 1
+        assert summary["album_added"] == 0
+        assert summary["albums_created"] == 0
+        assert [r for r in transport.requests if r[0] == "DELETE"] == []
+        assert [r for r in transport.requests
+                if r[0] == "PUT" and r[1].startswith("/api/albums/")] == []
+
+    def test_summary_counts_album_adds_and_removals(self, tmp_path, transport):
+        db_path = make_db(tmp_path, [('/p/a.jpg', 5, 0, 0), ('/p/b.jpg', 5, 0, 0),
+                                     ('/p/c.jpg', 3, 0, 0)])
+        transport.assets_by_path = {'/p/a.jpg': 'id-a', '/p/b.jpg': 'id-b', '/p/c.jpg': 'id-c'}
+        transport.albums = [{"albumName": "Facet Top Picks", "id": "al"}]
+        transport.album_assets = {'al': ['id-a', 'id-c']}
+
+        summary = sync_to_immich(db_path, _rejecting_config(top_picks_album="Facet Top Picks"))
+
+        # id-a stays a member (no re-add), id-b newly qualifies (added),
+        # id-c provably dropped below the threshold (removed).
+        assert summary["album_added"] == 1
+        assert summary["album_removed"] == 1
+        assert summary["album_remove_failed"] == 0
+
+
+class TestAlbumMembershipRead:
+    """/albums/:id stopped serving the asset list on current Immich; the
+    membership diff must ride the same paged metadata search as everything
+    else, filtered by albumIds."""
+
+    def test_membership_read_uses_the_albumids_search(self, tmp_path, transport):
+        db_path = make_db(tmp_path, [('/p/a.jpg', 5, 0, 0), ('/p/c.jpg', 3, 0, 0)])
+        transport.assets_by_path = {'/p/a.jpg': 'id-a', '/p/c.jpg': 'id-c'}
+        transport.albums = [{"albumName": "Facet Top Picks", "id": "al"}]
+        transport.album_assets = {'al': ['id-a', 'id-c']}
+
+        sync_to_immich(db_path, _rejecting_config(top_picks_album="Facet Top Picks"))
+
+        searches = [payload for m, p, payload in transport.requests
+                    if m == "POST" and p == "/api/search/metadata" and "albumIds" in payload]
+        assert searches, "the membership read never hit the albumIds search"
+        assert all(s["albumIds"] == ["al"] for s in searches)
+        assert all("originalPath" not in s for s in searches)

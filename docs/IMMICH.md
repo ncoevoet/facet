@@ -86,7 +86,7 @@ Immich ≥ 3.0 lets you limit a key to some scopes. Rating and favorite sync nee
 | `albumAsset.create` | Add photos to the top-picks album |
 | `albumAsset.delete` | Remove photos that dropped below the top-picks threshold |
 
-You can skip the four album scopes if `push.top_picks_album` is empty. Facet only touches albums when that name is set.
+You can skip the four album scopes if `push.top_picks_album` is empty. Facet only touches albums when that name is set. A key without `albumAsset.delete` still syncs: refused removals are skipped and counted in the sync summary, and the dry run previews them.
 
 Facet sends the key in an `x-api-key` header. Put it in `scoring_config.json`:
 

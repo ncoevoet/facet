@@ -86,7 +86,7 @@ Immich ≥ 3.0 允许把密钥限定在某些权限范围内。星级和收藏�
 | `albumAsset.create` | 把照片添加到精选照片相册 |
 | `albumAsset.delete` | 移除评分跌破精选阈值的照片 |
 
-如果 `push.top_picks_album` 为空，就可以省略四个相册范围。只有设置了这个名称，Facet 才会碰相册。
+如果 `push.top_picks_album` 为空，就可以省略四个相册范围。只有设置了这个名称，Facet 才会碰相册。 缺少 `albumAsset.delete` 时同步仍会继续：被拒绝的移除会跳过并计入同步摘要，试运行也会预览它们。
 
 Facet 以 `x-api-key` 请求头发送密钥。把它放进 `scoring_config.json`：
 

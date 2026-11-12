@@ -86,7 +86,7 @@ Immich ≥ 3.0 erlaubt es, einen Schlüssel auf einzelne Scopes zu beschränken.
 | `albumAsset.create` | Fotos zum Top-Picks-Album hinzufügen |
 | `albumAsset.delete` | Fotos entfernen, die unter die Top-Picks-Schwelle gefallen sind |
 
-Die vier Album-Scopes können Sie weglassen, wenn `push.top_picks_album` leer ist. Facet rührt Alben nur an, wenn dieser Name gesetzt ist.
+Die vier Album-Scopes können Sie weglassen, wenn `push.top_picks_album` leer ist. Facet rührt Alben nur an, wenn dieser Name gesetzt ist. Ohne `albumAsset.delete` synchronisiert sie weiterhin: verweigerte Entfernungen werden übersprungen und in der Sync-Zusammenfassung gezählt, die Trockenlauf zeigt sie vor.
 
 Facet sendet den Schlüssel im Header `x-api-key`. Tragen Sie ihn in `scoring_config.json` ein:
 

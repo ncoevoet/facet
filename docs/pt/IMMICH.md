@@ -86,7 +86,7 @@ O Immich ≥ 3.0 permite restringir uma chave a alguns escopos. A sincronizaçã
 | `albumAsset.create` | Adiciona fotos ao álbum de melhores escolhas |
 | `albumAsset.delete` | Remove fotos que caíram abaixo do limiar de melhores escolhas |
 
-Você pode dispensar os quatro escopos de álbum se `push.top_picks_album` estiver vazio. O Facet só toca em álbuns quando esse nome está definido.
+Você pode dispensar os quatro escopos de álbum se `push.top_picks_album` estiver vazio. O Facet só toca em álbuns quando esse nome está definido. Sem `albumAsset.delete`, a sincronização continua: remoções recusadas são ignoradas e contadas no resumo, e a simulação as previsualiza.
 
 O Facet envia a chave em um cabeçalho `x-api-key`. Coloque-a em `scoring_config.json`:
 

@@ -86,7 +86,7 @@ Immich ≥ 3.0 permette di limitare una chiave ad alcuni scope. La sincronizzazi
 | `albumAsset.create` | Aggiunge foto all'album delle scelte migliori |
 | `albumAsset.delete` | Rimuove le foto scese sotto la soglia delle scelte migliori |
 
-Puoi saltare i quattro scope degli album se `push.top_picks_album` è vuoto. Facet tocca gli album solo quando quel nome è impostato.
+Puoi saltare i quattro scope degli album se `push.top_picks_album` è vuoto. Facet tocca gli album solo quando quel nome è impostato. Senza `albumAsset.delete` la sincronizzazione continua: le rimozioni rifiutate vengono saltate e contate nel riepilogo, e la prova a secco le mostra in anteprima.
 
 Facet invia la chiave in un'intestazione `x-api-key`. Inseriscila in `scoring_config.json`:
 

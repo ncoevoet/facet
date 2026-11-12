@@ -86,7 +86,7 @@ Immich ≥ 3.0 permet de restreindre une clé à certaines portées. La synchron
 | `albumAsset.create` | Ajouter des photos à l'album de coups de cœur |
 | `albumAsset.delete` | Retirer les photos repassées sous le seuil des coups de cœur |
 
-Vous pouvez omettre les quatre portées d'album si `push.top_picks_album` est vide. Facet ne touche aux albums que lorsque ce nom est défini.
+Vous pouvez omettre les quatre portées d'album si `push.top_picks_album` est vide. Facet ne touche aux albums que lorsque ce nom est défini. Sans `albumAsset.delete`, la synchronisation continue : les retraits refusés sont ignorés et comptabilisés dans le résumé, et la simulation les prévisualise.
 
 Facet envoie la clé dans un en-tête `x-api-key`. Placez-la dans `scoring_config.json` :
 

@@ -169,27 +169,18 @@ class ImmichClient:
         """Every ``originalPath`` this operation has seen for *asset_id*."""
         return set(self._paths_by_id.get(asset_id, ()))
 
-    def _iter_assets(self, original_path: str | None = None):
-        """Read every legacy page, including stacked assets; fail on bad cursors."""
+    def _iter_search_pages(self, payload: dict[str, object]):
+        """Yield the raw items of a paged ``POST /search/metadata`` read;
+        fail on malformed pages or non-advancing cursors."""
         page = 1
         while True:
-            payload: dict[str, int | bool | str] = {"page": page, "withStacked": True}
-            if original_path is not None:
-                payload["originalPath"] = original_path
-            data = self._request("POST", "/api/search/metadata", payload) or {}
+            data = self._request("POST", "/api/search/metadata", {**payload, "page": page}) or {}
             if not isinstance(data, dict) or not isinstance(data.get("assets"), dict):
                 raise AssetIdentityError("Immich returned an invalid search response")
             assets = data["assets"]
             if not isinstance(assets.get("items"), list):
                 raise AssetIdentityError("Immich returned an invalid asset list")
-            for item in assets["items"]:
-                if not isinstance(item, dict) or not isinstance(item.get("id"), str) or not item["id"]:
-                    raise AssetIdentityError("Immich returned an asset without a valid id")
-                if not isinstance(item.get("originalPath"), str) or not item["originalPath"]:
-                    raise AssetIdentityError("Immich returned an asset without originalPath")
-                if self._in_scope(item):
-                    self._observe_asset(item)
-                    yield item
+            yield from assets["items"]
             next_page = assets.get("nextPage")
             if next_page is None:
                 return
@@ -204,6 +195,20 @@ class ImmichClient:
             if next_page <= page:
                 raise AssetIdentityError("Immich returned non-advancing pagination")
             page = next_page
+
+    def _iter_assets(self, original_path: str | None = None):
+        """Read every page, including stacked assets; fail on bad cursors."""
+        payload: dict[str, object] = {"withStacked": True}
+        if original_path is not None:
+            payload["originalPath"] = original_path
+        for item in self._iter_search_pages(payload):
+            if not isinstance(item, dict) or not isinstance(item.get("id"), str) or not item["id"]:
+                raise AssetIdentityError("Immich returned an asset without a valid id")
+            if not isinstance(item.get("originalPath"), str) or not item["originalPath"]:
+                raise AssetIdentityError("Immich returned an asset without originalPath")
+            if self._in_scope(item):
+                self._observe_asset(item)
+                yield item
 
     def search_asset_id(self, original_path: str) -> str | None:
         """Resolve exactly one matching path across ALL pages, never the first hit."""
@@ -262,22 +267,22 @@ class ImmichClient:
     def album_asset_ids(self, album_id: str) -> list[str] | None:
         """Current member ids of an album, or ``None`` when the read is unusable.
 
-        The membership diff needs the whole list, so a partially malformed
+        ``GET /albums/:id`` no longer carries the asset list on current Immich
+        (the response is counts and dates only), so membership comes from the
+        same paged metadata search the asset resolution uses, filtered by
+        ``albumIds``. The diff needs the whole list, so a partially malformed
         response counts as no information at all rather than partial truth:
         the caller degrades to add-only instead of removing on bad data.
         """
-        album = self._request("GET", f"/api/albums/{quote(album_id, safe='')}")
-        if not isinstance(album, dict):
+        try:
+            ids = []
+            for item in self._iter_search_pages({"albumIds": [album_id], "withStacked": True}):
+                if not isinstance(item, dict) or not isinstance(item.get("id"), str) or not item["id"]:
+                    return None
+                ids.append(item["id"])
+            return ids
+        except AssetIdentityError:
             return None
-        assets = album.get("assets")
-        if not isinstance(assets, list):
-            return None
-        ids = []
-        for item in assets:
-            if not isinstance(item, dict) or not isinstance(item.get("id"), str) or not item["id"]:
-                return None
-            ids.append(item["id"])
-        return ids
 
 
 def _effective_rating(star_rating) -> int | None:
@@ -642,9 +647,11 @@ def sync_to_immich(db_path, config: dict, user_id: str | None = None,
 
     Returns a summary dict: ``matched`` / ``unmatched`` / ``updated`` /
     ``skipped_unrated`` / ``identity_conflicts`` / ``albums_created`` /
+    ``album_added`` / ``album_removed`` / ``album_remove_failed`` /
     ``webhook_pending``. Conflicts are refused, not counted as matched. With
-    *dry_run* the assets are still resolved (read-only requests) but nothing
-    is written.
+    *dry_run* the assets and the album plan are still resolved (read-only
+    requests) but nothing is written: ``album_added`` / ``album_removed``
+    report what a real run would do.
     """
     immich_cfg = config.get("immich", {})
     client = _make_client(immich_cfg)
@@ -661,7 +668,8 @@ def sync_to_immich(db_path, config: dict, user_id: str | None = None,
                                   push_rejected=push_rejected)
     summary = {"matched": 0, "unmatched": 0, "updated": 0,
                "skipped_unrated": 0, "albums_created": 0, "webhook_pending": 0,
-               "identity_conflicts": 0}
+               "identity_conflicts": 0, "album_added": 0, "album_removed": 0,
+               "album_remove_failed": 0}
     groups: dict[tuple, list[str]] = {}
     album_asset_ids: list[str] = []
     unmatched_paths: list[str] = []
@@ -737,13 +745,51 @@ def sync_to_immich(db_path, config: dict, user_id: str | None = None,
             if not dry_run:
                 client.update_assets(ids, dict(key))
             summary["updated"] += len(ids)
-        if album_name and not dry_run:
+        if not dry_run:
+            # The tracked state is committed BEFORE the album step: the
+            # ratings and favourites above are pushed, so an album hiccup
+            # (a key without the delete scope, a mid-step network drop) must
+            # cost at most the album work, never a re-push of everything on
+            # the next run. Only rows actually confirmed pushed
+            # (matched_paths) advance the tracked state; an unmatched row
+            # keeps its prior entry so the next sync retries it instead of
+            # losing the clear. Re-read inside the serialized write: the pass
+            # above is network-bound, so a webhook delivery may have advanced
+            # the blob since, and writing back the snapshot taken before it
+            # would drop that delivery's entries.
+            with _state_write(db_path) as write_conn:
+                current = _load_synced_state(write_conn, scope)
+                new_state = dict(current)
+                for facet_path, _, fields, _, _ in resolvable:
+                    if facet_path not in matched_paths:
+                        continue
+                    active = _active_state(fields)
+                    if active["rating"] or active["favorite"]:
+                        new_state[facet_path] = active
+                    else:
+                        new_state.pop(facet_path, None)
+                # A photo deleted from Facet can never push another clear, so
+                # its tracked entry is dead weight: drop it here, or the blob
+                # grows without bound and wedges the chunked fetch above.
+                alive = _existing_paths(write_conn, new_state)
+                pruned = {p: v for p, v in new_state.items() if p in alive}
+                if len(pruned) < len(new_state):
+                    logger.info("Dropped %d gone path(s) from the Immich synced state",
+                                len(new_state) - len(pruned))
+                if pruned != current:
+                    _save_synced_state(write_conn, scope, pruned)
+        if album_name:
             album_asset_ids = list(dict.fromkeys(album_asset_ids))
             album_id = client.find_album_id(album_name)
             created = False
             if album_id:
-                current_members = client.album_asset_ids(album_id)
-            elif album_asset_ids:
+                try:
+                    current_members = client.album_asset_ids(album_id)
+                except PUSH_ERRORS as e:
+                    current_members = None
+                    logger.warning("Could not read membership of album %s (%s); "
+                                   "adding without pruning", album_name, e)
+            elif album_asset_ids and not dry_run:
                 # The create call carries the first chunk; the remainder goes
                 # through the chunked add like every other album write.
                 album_id = client.create_album(album_name, album_asset_ids[:UPDATE_CHUNK])
@@ -753,9 +799,10 @@ def sync_to_immich(db_path, config: dict, user_id: str | None = None,
                     client.add_album_assets(album_id, album_asset_ids[UPDATE_CHUNK:])
             else:
                 current_members = None  # nothing qualifies, no album to create
+            to_add: list[str] = []
+            to_remove: list[str] = []
             if album_id and not created:
                 to_add = album_asset_ids
-                to_remove: list[str] = []
                 if current_members is None:
                     logger.warning("Could not read membership of album %s; "
                                    "adding without pruning", album_name)
@@ -791,42 +838,35 @@ def sync_to_immich(db_path, config: dict, user_id: str | None = None,
                                 to_remove.append(asset_id)
                     else:
                         to_add = [a for a in album_asset_ids if a not in have]
-                if to_add:
-                    client.add_album_assets(album_id, to_add)
-                if to_remove:
-                    client.remove_album_assets(album_id, to_remove)
-                    logger.info("Removed %d asset(s) no longer rated at or above the "
-                                "top-picks threshold from %s", len(to_remove), album_name)
-            if created:
+                if dry_run:
+                    summary["album_added"] = len(to_add)
+                    summary["album_removed"] = len(to_remove)
+                else:
+                    if to_add:
+                        client.add_album_assets(album_id, to_add)
+                        summary["album_added"] = len(to_add)
+                    if to_remove:
+                        try:
+                            client.remove_album_assets(album_id, to_remove)
+                            summary["album_removed"] = len(to_remove)
+                            logger.info("Removed %d asset(s) no longer rated at or above the "
+                                        "top-picks threshold from %s", len(to_remove), album_name)
+                        except PUSH_ERRORS as e:
+                            # The ratings are pushed and recorded; a refused
+                            # removal (an API key without the delete scope,
+                            # say) must not fail the sync — it is counted so
+                            # the operator sees the album drifted less than
+                            # the threshold asks.
+                            summary["album_remove_failed"] = len(to_remove)
+                            logger.warning("Could not remove %d asset(s) from %s: %s",
+                                           len(to_remove), album_name, e)
+            elif created:
+                summary["album_added"] = len(album_asset_ids)
                 summary["albums_created"] = 1
-        if not dry_run:
-            # Only rows actually confirmed pushed (matched_paths) advance the
-            # tracked state; an unmatched row keeps its prior entry so the next
-            # sync retries it instead of losing the clear. Re-read inside the
-            # serialized write: the pass above is network-bound, so a webhook
-            # delivery may have advanced the blob since, and writing back the
-            # snapshot taken before it would drop that delivery's entries.
-            with _state_write(db_path) as write_conn:
-                current = _load_synced_state(write_conn, scope)
-                new_state = dict(current)
-                for facet_path, _, fields, _, _ in resolvable:
-                    if facet_path not in matched_paths:
-                        continue
-                    active = _active_state(fields)
-                    if active["rating"] or active["favorite"]:
-                        new_state[facet_path] = active
-                    else:
-                        new_state.pop(facet_path, None)
-                # A photo deleted from Facet can never push another clear, so
-                # its tracked entry is dead weight: drop it here, or the blob
-                # grows without bound and wedges the chunked fetch above.
-                alive = _existing_paths(write_conn, new_state)
-                pruned = {p: v for p, v in new_state.items() if p in alive}
-                if len(pruned) < len(new_state):
-                    logger.info("Dropped %d gone path(s) from the Immich synced state",
-                                len(new_state) - len(pruned))
-                if pruned != current:
-                    _save_synced_state(write_conn, scope, pruned)
+            elif album_asset_ids and dry_run:
+                # A dry run would create the album with the full qualifying
+                # set; report that plan without the create.
+                summary["album_added"] = len(album_asset_ids)
     except (urllib_error.URLError, TimeoutError) as e:
         setattr(e, "partial_summary", dict(summary))
         raise

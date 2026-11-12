@@ -86,7 +86,7 @@ Immich ≥ 3.0 permite limitar una clave a ciertos ámbitos. La sincronización 
 | `albumAsset.create` | Añadir fotos al álbum de mejores fotos |
 | `albumAsset.delete` | Eliminar las fotos que caigan por debajo del umbral de mejores fotos |
 
-Puedes omitir los cuatro ámbitos de álbum si `push.top_picks_album` está vacío. Facet solo toca los álbumes cuando ese nombre está definido.
+Puedes omitir los cuatro ámbitos de álbum si `push.top_picks_album` está vacío. Facet solo toca los álbumes cuando ese nombre está definido. Sin `albumAsset.delete` la sincronización continúa: las eliminaciones rechazadas se omiten y se cuentan en el resumen, y la simulación las previsualiza.
 
 Facet envía la clave en una cabecera `x-api-key`. Ponla en `scoring_config.json`:
 
