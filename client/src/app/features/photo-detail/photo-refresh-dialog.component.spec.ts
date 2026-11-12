@@ -6,24 +6,28 @@ import { MAT_DIALOG_DATA, MatDialogRef } from '@angular/material/dialog';
 import { Subject } from 'rxjs';
 import { AuthService } from '../../core/services/auth.service';
 import { I18nService } from '../../core/services/i18n.service';
+import { GeoPhotosService } from '../../core/services/geo-photos.service';
 import { PhotoRefreshDialogComponent } from './photo-refresh-dialog.component';
 
 describe('PhotoRefreshDialogComponent HTTP workflow', () => {
   let owner: ReturnType<typeof signal<string>>;
   let edition: ReturnType<typeof signal<boolean>>;
   let close: ReturnType<typeof vi.fn>;
+  let geoRefresh: ReturnType<typeof vi.fn>;
   let http: HttpTestingController;
   let fixture: ReturnType<typeof TestBed.createComponent<PhotoRefreshDialogComponent>>;
   beforeEach(() => {
     owner = signal('alice');
     edition = signal(true);
     close = vi.fn();
+    geoRefresh = vi.fn();
     TestBed.configureTestingModule({
       imports: [PhotoRefreshDialogComponent],
       providers: [provideHttpClient(), provideHttpClientTesting(),
         { provide: MAT_DIALOG_DATA, useValue: ['/a.jpg', '/b.jpg'] },
         { provide: AuthService, useValue: { identity: owner, isEdition: edition } },
         { provide: I18nService, useValue: { t: (key: string) => key, translations: () => ({}) } },
+        { provide: GeoPhotosService, useValue: { refresh: geoRefresh } },
         { provide: MatDialogRef, useValue: { close, beforeClosed: () => new Subject<void>() } },
       ],
     });
@@ -51,6 +55,8 @@ describe('PhotoRefreshDialogComponent HTTP workflow', () => {
     await fixture.whenStable(); fixture.detectChanges();
     expect(fixture.componentInstance.completed()).toEqual(['/a.jpg', '/b.jpg']);
     expect(start.disabled).toBe(true);
+    // Re-read EXIF can add or drop GPS, so each run that refreshed a photo re-checks the Map link.
+    expect(geoRefresh).toHaveBeenCalledTimes(2);
   });
 
   it('does not start twice while the first request is in flight', async () => {

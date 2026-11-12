@@ -14,6 +14,7 @@ import { createLeafletMap, DEFAULT_MAP_CENTER } from '../../shared/leaflet';
 import type { components } from '../../core/api/schema';
 import { GalleryStore } from '../gallery/gallery.store';
 import { ApiService } from '../../core/services/api.service';
+import { GeoPhotosService } from '../../core/services/geo-photos.service';
 import { I18nService } from '../../core/services/i18n.service';
 import { TranslatePipe } from '../../shared/pipes/translate.pipe';
 import { FixedPipe } from '../../shared/pipes/fixed.pipe';
@@ -169,6 +170,7 @@ export class GpsEditDialogComponent {
   private readonly owner = this.auth.identity();
   private readonly api = inject(ApiService);
   private readonly store = inject(GalleryStore);
+  private readonly geoPhotos = inject(GeoPhotosService);
   private readonly dialogRef = inject(MatDialogRef<GpsEditDialogComponent>);
   private readonly destroyRef = inject(DestroyRef);
   private readonly staleness = inject(StalenessGuardFactory).create(this.destroyRef, { onNavigate: () => this.invalidateOwner() });
@@ -574,6 +576,7 @@ export class GpsEditDialogComponent {
       if (!this.sessionCurrent()) return;
       this.store.patchPhoto(this.data.path, { gps_latitude: result.gps_latitude, gps_longitude: result.gps_longitude, gps_manually_set: 0 });
       void this.store.refreshPaths(null);
+      void this.geoPhotos.refresh();
       if (this.current()) this.dialogRef.close({ ...result, gps_manually_set: 0 });
     } catch {
       if (!this.current()) return;
@@ -610,6 +613,7 @@ export class GpsEditDialogComponent {
       if (!this.sessionCurrent()) return;
       this.data.onBatchApplied?.();
       void this.store.refreshPaths(null);
+      void this.geoPhotos.refresh();
       this.snackBar.open(this.i18n.t(result.changed === 1 ? I18N.photo_detail.gps.batch_applied : I18N.photo_detail.gps.batch_applied_plural, { changed: result.changed, skipped: result.skipped }), '', { duration: 4000 });
       if (this.current()) this.dialogRef.close(result);
     } catch {
@@ -634,6 +638,7 @@ export class GpsEditDialogComponent {
       if (!this.sessionCurrent()) return;
       this.store.patchPhoto(body.path, { gps_latitude: result.gps_latitude, gps_longitude: result.gps_longitude, gps_manually_set: 1 });
       void this.store.refreshPaths(null);
+      void this.geoPhotos.refresh();
       if (this.current()) this.dialogRef.close(result);
     } catch {
       if (!this.current()) return;

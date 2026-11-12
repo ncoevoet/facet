@@ -18,6 +18,7 @@ All notable changes to Facet are documented in this file.
 ### Fixed
 
 - **A refused face assignment no longer reads as uncertain.** When the review queue's first assignment request was refused outright (a 4xx, such as a target person renamed or deleted since the preview), the queue said some changes may have completed; nothing had, and it now says the review changed. A failure after an earlier request committed still reads as uncertain.
+- **The Map link appears as soon as the first photo gets a location.** The app checked for geotagged photos once at startup, so setting the first location, in the photo page or for a selection, left Map out of the navigation until a reload, and clearing the last one left it in. Those edits, and a photo refresh that re-reads EXIF, now re-check it. A scan or an assistant adding locations still shows the link only after a reload.
 - **`S` in the culling darkroom no longer swallows the key when it cannot stack.** For a read-only account, or a group of one photo or holding bracket or panorama frames, the key did nothing yet was still kept from the page; it is now left alone, as the hidden Stack button implies.
 - **Cover cards are sharp on high-density screens.** Capsules, Folders, Scenes, Timeline months and years, and Albums requested a 320 px thumbnail for every card, which a 2x screen stretches about twofold and the hover zoom enlarges further. Each cover now offers the 320 px and the stored 640 px thumbnail and the browser picks by card width and pixel density; Capsules covers also load lazily.
 

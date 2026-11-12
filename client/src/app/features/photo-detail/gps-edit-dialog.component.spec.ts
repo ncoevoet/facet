@@ -15,6 +15,7 @@ import { makePhoto } from '../../../testing/photo.fixture';
 import { MatDialogRef, MAT_DIALOG_DATA } from '@angular/material/dialog';
 import { MatSnackBar } from '@angular/material/snack-bar';
 import { ApiService } from '../../core/services/api.service';
+import { GeoPhotosService } from '../../core/services/geo-photos.service';
 import { I18nService } from '../../core/services/i18n.service';
 import type { GpsEditDialogComponent, GpsEditDialogData, SavedPlace } from './gps-edit-dialog.component';
 
@@ -32,6 +33,7 @@ describe('GpsEditDialogComponent', () => {
   let mockApi: { put: Mock; get: Mock; post: Mock; delete: Mock };
   let mockStore: { patchPhoto: Mock; filters: Mock; loadPhotos: Mock; refreshPaths: Mock; config: Mock };
   let mockSnackBar: { open: Mock };
+  let mockGeoPhotos: { refresh: Mock };
   const navigation = new Subject<NavigationStart>();
   const closing = new Subject<void>();
   const authStatus = signal({ authenticated: true, edition_authenticated: true, user_id: 'editor' });
@@ -49,6 +51,7 @@ describe('GpsEditDialogComponent', () => {
     mockApi = { put: vi.fn(() => of({ gps_latitude: data.lat, gps_longitude: data.lng })), get: vi.fn(() => of({ places, recent: [] })), post: vi.fn(), delete: vi.fn() };
     mockStore = { patchPhoto: vi.fn(), filters: vi.fn(() => ({ no_gps: '' })), loadPhotos: vi.fn(), refreshPaths: vi.fn(), config: vi.fn(() => ({ place_search_enabled: true })) };
     mockSnackBar = { open: vi.fn() };
+    mockGeoPhotos = { refresh: vi.fn() };
 
     TestBed.configureTestingModule({
       imports: [GpsEditDialogComponentClass],
@@ -60,6 +63,7 @@ describe('GpsEditDialogComponent', () => {
         { provide: ApiService, useValue: mockApi },
         { provide: AuthService, useValue: { identity, status: authStatus, isEdition: () => authStatus().edition_authenticated } },
         { provide: GalleryStore, useValue: mockStore },
+        { provide: GeoPhotosService, useValue: mockGeoPhotos },
         { provide: MatSnackBar, useValue: mockSnackBar },
         { provide: I18nService, useValue: { t: (k: string) => k, translations: () => ({}) } },
       ],
@@ -292,11 +296,14 @@ describe('GpsEditDialogComponent', () => {
       if (mode === 'batch') expect(mockApi.post).toHaveBeenLastCalledWith('/photos/batch_gps', expect.objectContaining({ preview: false, preview_token: 't' }));
       if (publishes) {
         expect(mockStore.refreshPaths).toHaveBeenCalledExactlyOnceWith(null);
+        // The shell's Map link follows the write without a reload.
+        expect(mockGeoPhotos.refresh).toHaveBeenCalledTimes(1);
         if (mode !== 'batch') expect(mockStore.patchPhoto).toHaveBeenCalledTimes(1);
         if (mode === 'batch') expect(applied).toHaveBeenCalledTimes(1);
         return;
       }
       expect(mockStore.patchPhoto).not.toHaveBeenCalled(); expect(mockStore.refreshPaths).not.toHaveBeenCalled();
+      expect(mockGeoPhotos.refresh).not.toHaveBeenCalled();
       if (mode === 'batch') expect(applied).not.toHaveBeenCalled();
       expect(mockSnackBar.open).not.toHaveBeenCalled();
     });
