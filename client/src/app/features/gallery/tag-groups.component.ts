@@ -34,12 +34,13 @@ const EMPTY_DRAFTS: Record<TagQueryGroup, string> = { any: '', all: '', none: ''
                   <button matChipRemove type="button" [attr.aria-label]="I18N.gallery.tag_groups.remove | translate:{ name: tag }"><mat-icon>cancel</mat-icon></button>
                 </mat-chip-row>
               }
-              <input #ruleInput #trigger="matAutocompleteTrigger" data-tag-rule-input autocomplete="off" [maxLength]="nameLimit * 2"
+              <input #ruleInput data-tag-rule-input autocomplete="off" [maxLength]="nameLimit * 2"
                      [placeholder]="I18N.gallery.tag_groups.name | translate"
                      [matChipInputFor]="grid" [matChipInputSeparatorKeyCodes]="noSeparators" [matAutocomplete]="auto"
                      [attr.aria-describedby]="error() === row.id ? 'tag-rule-hint tag-rule-enter tag-rule-error' : 'tag-rule-hint tag-rule-enter'"
+                     [attr.aria-invalid]="error() === row.id || null"
                      [value]="drafts()[row.id]" (input)="setDraft(row.id, $any($event.target).value)"
-                     (keydown.enter)="add(row.id, $event, trigger)" />
+                     (keydown.enter)="add(row.id, $event)" />
             </mat-chip-grid>
             <mat-autocomplete #auto="matAutocomplete" (optionSelected)="pick(row.id, $event, ruleInput)">
               @for (tag of suggestions()[row.id]; track tag.value) {
@@ -93,10 +94,10 @@ export class TagGroupsComponent {
     this.drafts.update(drafts => ({ ...drafts, [group]: value }));
   }
 
-  protected add(group: TagQueryGroup, event: Event, trigger: MatAutocompleteTrigger): void {
+  protected add(group: TagQueryGroup, event: Event): void {
     if (event instanceof KeyboardEvent && (event.isComposing || event.repeat || event.keyCode === 229)) return;
     // Enter on a highlighted suggestion is the autocomplete's pick, never the typed text as well.
-    if (event.defaultPrevented || trigger.activeOption) return;
+    if (event.defaultPrevented) return;
     event.preventDefault();
     this.commit(group, this.drafts()[group]);
   }
@@ -137,6 +138,10 @@ export class TagGroupsComponent {
     if (!this.context.current()) return;
     void this.store.updateFilter('tag_groups', '');
     // The Clear button leaves with the rules; an invalid set only renders its inputs afterwards.
-    afterNextRender({ write: () => this.ruleInputs()[0]?.nativeElement.focus() }, { injector: this.injector });
+    // Focusing the row opens its suggestions, which nobody asked for: close them again.
+    afterNextRender({ write: () => {
+      this.ruleInputs()[0]?.nativeElement.focus();
+      this.triggers()[0]?.closePanel();
+    } }, { injector: this.injector });
   }
 }

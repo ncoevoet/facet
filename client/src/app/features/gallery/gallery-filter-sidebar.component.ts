@@ -341,7 +341,7 @@ type RatingOption = 'any' | '1' | '2' | '3' | '4' | '5' | 'zero';
              class="[&_.mdc-tab]:!min-w-0 [&_.mdc-tab]:!px-1 [&_.mdc-tab--active_mat-icon]:!text-[var(--mat-sys-primary)]">
           @for (tab of tabItems(); track tab.id) {
             <button type="button" mat-tab-link [active]="tab.active" (click)="selectTab(tab.id)"
-               [matTooltip]="tab.labelKey | translate"
+               [matTooltip]="tab.labelKey | translate" matTooltipTouchGestures="off"
                [attr.aria-label]="tab.count ? (I18N.gallery.sidebar.tabs.active_count | translate:{ label: (tab.labelKey | translate), count: tab.count }) : (tab.labelKey | translate)">
               <span class="inline-flex flex-col items-center gap-0.5 min-w-0 py-1">
                 <span class="inline-flex h-6 items-center justify-center gap-1">
@@ -410,7 +410,7 @@ type RatingOption = 'any' | '1' | '2' | '3' | '4' | '5' | 'zero';
               <mat-icon class="!text-xl !w-5 !h-5 !leading-none opacity-80 shrink-0">image_search</mat-icon>
               @let semanticTitle = I18N.gallery.sidebar.semantic_search | translate;
               <!-- The help icon sits on the right of this row: a long title is cut with an ellipsis, the tooltip carries it whole. -->
-              <span class="min-w-0 truncate" [matTooltip]="semanticTitle">{{ semanticTitle }}</span>
+              <span class="min-w-0 truncate" [matTooltip]="semanticTitle" matTooltipTouchGestures="off">{{ semanticTitle }}</span>
             </mat-panel-title>
           </mat-expansion-panel-header>
           <div class="flex min-w-0 flex-col gap-1 pb-1" data-semantic-search>
@@ -608,7 +608,7 @@ type RatingOption = 'any' | '1' | '2' | '3' | '4' | '5' | 'zero';
             <mat-panel-title class="flex min-w-0 items-center gap-2">
               <mat-icon class="!text-xl !w-5 !h-5 !leading-none opacity-80 shrink-0">sell</mat-icon>
               @let tagRulesTitle = I18N.gallery.tag_groups.title | translate;
-              <span class="min-w-0 truncate" [matTooltip]="tagRulesTitle">{{ tagRulesTitle }}</span>
+              <span class="min-w-0 truncate" [matTooltip]="tagRulesTitle" matTooltipTouchGestures="off">{{ tagRulesTitle }}</span>
               @if (sectionActiveCounts()['tag_rules']) {
                 <span class="shrink-0 text-xs rounded-full min-w-[1.25rem] h-5 px-1.5 flex items-center justify-center bg-[var(--mat-sys-primary)] text-[var(--mat-sys-on-primary)] leading-none">{{ sectionActiveCounts()['tag_rules'] }}</span>
               }

@@ -32,6 +32,9 @@ All notable changes to Facet are documented in this file.
 - **The details rail is tinted in light mode.** It sat on Material's lightest surface, plain white for every accent, so it did not stand apart from the page; it now uses the accent's low container as dark mode does. Tooltips stay white for contrast.
 - **Layout leftovers from the 1.29.0 redesign.** The `/folders` breadcrumb no longer shows a vertical scrollbar: it now leaves room for its buttons' 48 px touch targets and focus rings instead of letting them overflow. Filter popovers such as Review may grow to the window height less 96 px instead of 75% of it. The culling page has the same 16 px inset as the other pages, instead of 8 px on phones and 12 px above.
 - **Cover cards are sharp on high-density screens.** Capsules, Folders, Scenes, Timeline months and years, and Albums requested a 320 px thumbnail for every card, which a 2x screen stretches about twofold and the hover zoom enlarges further. Each cover now offers the 320 px and the stored 640 px thumbnail and the browser picks by card width and pixel density; Capsules covers also load lazily.
+- **Tag rules behave for keyboard and screen-reader users.** A refused rule name now marks its field invalid (`aria-invalid`) while the error shows, where only the message announced it; and **Clear** returns focus to the first rule field without opening its suggestion list.
+- **The filter sidebar scrolls on a phone when the swipe starts on a tab or a section title.** Their tooltips blocked touch panning on those elements; on touch screens they no longer open, and the tabs and titles still carry their full names for screen readers.
+- **The `/stats` hour heatmap fits a 768 px window.** It asked for 700 px in a 696 px card and scrolled 4 px sideways; it now asks only for the width its 24 columns need, and still scrolls inside its card on a phone.
 
 ## [1.29.0] "Pamir" — 2026-11-10
 
