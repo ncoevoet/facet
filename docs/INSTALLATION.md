@@ -127,6 +127,25 @@ docker compose down                                      # stop it
 
 To start again, re-run the `docker compose … up -d` line you used above.
 
+To scan from the browser instead, declare the folder in `./facet-config/scoring_config.json`.
+Add these keys to its `viewer` block, beside the `edition_password` already there:
+
+```json
+{
+  "viewer": {
+    "scan_directories": ["/data/photos"],
+    "features": {
+      "show_scan_button": true
+    }
+  }
+}
+```
+
+Use the path inside the container (`/data/photos`), not the host path. Run
+`docker compose restart facet`, then unlock editing in the user menu with the edition
+password. **Scan photos to get started** then appears on the empty gallery. See
+[Scan Trigger](VIEWER.md#scan-trigger).
+
 ## Install without Docker
 
 ### Linux

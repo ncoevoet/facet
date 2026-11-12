@@ -8,7 +8,7 @@ import { ApiService } from '../../core/services/api.service';
 import { AuthService } from '../../core/services/auth.service';
 import { I18nService } from '../../core/services/i18n.service';
 import { GalleryStore } from '../gallery/gallery.store';
-import { CompareFiltersService } from './compare-filters.service';
+import { COMPARE_TAB_INDEX, CompareFiltersService } from './compare-filters.service';
 import { ComparisonComponent } from './comparison.component';
 import { ComparisonWeightsTabComponent } from './comparison-weights-tab.component';
 import { ComparisonSnapshotsTabComponent } from './comparison-snapshots-tab.component';
@@ -98,6 +98,12 @@ describe('ComparisonComponent', () => {
       compareFilters.strategy.set('boundary');
       TestBed.resetTestingModule();
       expect(compareFilters.strategy()).toBe('');
+    });
+
+    it('reopens on the Weights tab next visit, whichever tab this visit ended on', () => {
+      compareFilters.activeTab.set(COMPARE_TAB_INDEX.ab);
+      TestBed.resetTestingModule();
+      expect(compareFilters.activeTab()).toBe(COMPARE_TAB_INDEX.weights);
     });
   });
 

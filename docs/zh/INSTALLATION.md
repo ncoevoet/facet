@@ -126,6 +126,24 @@ docker compose down                                      # 停止运行
 
 想再次启动，重新执行你上面用过的那一行 `docker compose … up -d` 即可。
 
+若想改为在浏览器中扫描，请在 `./facet-config/scoring_config.json` 中声明该文件夹。
+把这些键加到它的 `viewer` 块里，放在已有的 `edition_password` 旁边：
+
+```json
+{
+  "viewer": {
+    "scan_directories": ["/data/photos"],
+    "features": {
+      "show_scan_button": true
+    }
+  }
+}
+```
+
+请使用容器内的路径（`/data/photos`），而不是宿主机路径。运行
+`docker compose restart facet`，然后在用户菜单中用编辑密码解锁编辑。空照片库中随即会出现
+**扫描照片以开始使用**。参见 [触发扫描](VIEWER.md#触发扫描)。
+
 ## 不使用 Docker 安装
 
 ### Linux

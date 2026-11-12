@@ -12,6 +12,8 @@ All notable changes to Facet are documented in this file.
 
 ### Changed
 
+- **Weight Tuning (`/compare`) opens on the Weights tab**, the page's main task, instead of Snapshots.
+- **The map uses dark tiles in the dark theme.** OpenStreetMap's light tiles are inverted in the browser, with their hues turned back, so no second tile host is contacted; pins and the selection outline are unchanged.
 - **The remappable keyboard actions live in one registry** (`SHORTCUT_REGISTRY`: id, default key, page scope, label). The Customize shortcuts dialog, the saved-keymap loader and the `?` reference read from it, so a new action is one row. A key is now refused only when another action on the same page holds it; all seven current actions are live on the gallery, so nothing a user can do changes yet.
 - **`X` (or `0`) on a card inside a selection rejects the whole selection.** It rejected only the focused card, so rejecting ten selected photos meant ten trips; it now does what the selection bar's Reject does, with **Undo** when every selected photo is loaded and there are at most 500. Pressing `X` again while the batch saves does nothing, so a second batch cannot overwrite the first one's Undo. The rule is the context menu's: the focused card must be selected and the selection must hold two or more photos; otherwise `X` toggles the focused photo and advances as before. A whole-view selection asks for confirmation first, as the bar does.
 
@@ -21,6 +23,10 @@ All notable changes to Facet are documented in this file.
 - **Long filter section titles no longer run under the help button.** In the filter sidebar, the Semantic search and Tag rules headers carry a help button on the right; a long title, as in some translations, is now cut with an ellipsis before it, and its tooltip shows it whole.
 - **The Map link appears as soon as the first photo gets a location.** The app checked for geotagged photos once at startup, so setting the first location, in the photo page or for a selection, left Map out of the navigation until a reload, and clearing the last one left it in. Those edits, and a photo refresh that re-reads EXIF, now re-check it. A scan or an assistant adding locations still shows the link only after a reload.
 - **`S` in the culling darkroom no longer swallows the key when it cannot stack.** For a read-only account, or a group of one photo or holding bracket or panorama frames, the key did nothing yet was still kept from the page; it is now left alone, as the hidden Stack button implies.
+- **Small controls meet the 24 px minimum target size.** Gallery card hover buttons no longer shrink below 28 px on narrow tiles (the row wraps instead), and the photo page's tag chips and **+ Tag** are at least 24 px tall.
+- **A camera or lens name cut short on a `/stats` Gear chart can be read in full.** On narrow screens the names on the chart's left edge are shortened, and only the bars showed a tooltip. Pointing at or tapping a name now opens its bar's tooltip, which carries the full name.
+- **The details rail is tinted in light mode.** It sat on Material's lightest surface, plain white for every accent, so it did not stand apart from the page; it now uses the accent's low container as dark mode does. Tooltips stay white for contrast.
+- **Layout leftovers from the 1.29.0 redesign.** The `/folders` breadcrumb no longer shows a vertical scrollbar: it now leaves room for its buttons' 48 px touch targets and focus rings instead of letting them overflow. Filter popovers such as Review may grow to the window height less 96 px instead of 75% of it. The culling page has the same 16 px inset as the other pages, instead of 8 px on phones and 12 px above.
 - **Cover cards are sharp on high-density screens.** Capsules, Folders, Scenes, Timeline months and years, and Albums requested a 320 px thumbnail for every card, which a 2x screen stretches about twofold and the hover zoom enlarges further. Each cover now offers the 320 px and the stored 640 px thumbnail and the browser picks by card width and pixel density; Capsules covers also load lazily.
 
 ## [1.29.0] "Pamir" — 2026-11-10
@@ -284,6 +290,10 @@ All notable changes to Facet are documented in this file.
 - **Rate-limited login and proofing answers carry `Retry-After`**, so a locked-out client knows when its window resets.
 - **Immich webhook deliveries stop walking the payload at the delivery cap** instead of visiting every entry of an oversized body.
 - **Dependency bump closing the open Dependabot alert, not reachable in a running install.** `minimatch` 11.0.5 under `typescript-eslint`'s parser (GHSA-g3hv-75wg-m249, a DoS through amplified glob patterns), forced through `overrides` because every `@typescript-eslint/typescript-estree` release up to 8.72.2 asks for `^10.2.2`. It is lint tooling only and ships in no install or image.
+
+### Fixed
+
+- **The Docker install guide shows how to scan from the browser.** Its everyday commands gave only the command-line scan, so a Docker user looking for a Scan button found an empty gallery. It now lists the two `viewer` keys to add (`scan_directories`, `features.show_scan_button`) and the restart, in all seven languages (#510).
 
 ## [1.28.0] "f/64" — 2026-11-05
 
