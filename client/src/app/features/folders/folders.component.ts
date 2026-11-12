@@ -41,7 +41,7 @@ export const KEEP_CHAIN_STATE = 'foldersKeepChain';
          below lg the same template renders here as a sticky row. Always rendered, so its
          height is constant while the lone-folder redirect hops resolve. -->
     <ng-template #foldersToolbar>
-      <nav class="flex items-center gap-1 text-sm min-w-0 overflow-x-auto overflow-y-hidden whitespace-nowrap" [attr.aria-label]="I18N.folders.title | translate">
+      <nav class="flex items-center gap-1 text-sm min-w-0 overflow-x-auto py-1.5 whitespace-nowrap" [attr.aria-label]="I18N.folders.title | translate">
         <button mat-button class="!min-w-0 !px-2 shrink-0" (click)="navigateTo('')">
           <mat-icon class="!text-base !w-4 !h-4 !leading-4 mr-1">home</mat-icon>
           {{ I18N.folders.root | translate }}

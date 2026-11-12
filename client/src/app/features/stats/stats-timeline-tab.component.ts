@@ -155,11 +155,11 @@ export function formatStatsMonth(period: string, locale: string): string {
       </div>
 
       @if (heatmapRows().length > 0) {
-        <mat-card class="min-w-0">
+        <mat-card>
           <mat-card-header>
             <mat-card-title role="heading" aria-level="2">{{ I18N.stats.charts.hours_heatmap | translate }}</mat-card-title>
           </mat-card-header>
-          <mat-card-content class="!pt-4 min-w-0">
+          <mat-card-content class="!pt-4">
             <div class="overflow-x-auto">
               <table class="w-full min-w-[700px] border-collapse text-xs">
                 <thead>

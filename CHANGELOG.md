@@ -20,7 +20,7 @@ All notable changes to Facet are documented in this file.
 ### Fixed
 
 - **Small controls meet the 24 px minimum target size.** Gallery card hover buttons no longer shrink below 28 px on narrow tiles (the row wraps instead), and the photo page's tag chips and **+ Tag** are at least 24 px tall.
-- **Layout leftovers from the 1.29.0 redesign.** The `/folders` breadcrumb no longer shows a vertical scrollbar, the `/stats` hours heatmap no longer scrolls the page sideways at 768 px, and filter popovers such as Review may grow to the window height less 96 px instead of 75% of it.
+- **Layout leftovers from the 1.29.0 redesign.** The `/folders` breadcrumb no longer shows a vertical scrollbar: it now leaves room for its buttons' 48 px touch targets and focus rings instead of letting them overflow. Filter popovers such as Review may grow to the window height less 96 px instead of 75% of it.
 - **Cover cards are sharp on high-density screens.** Capsules, Folders, Scenes, Timeline months and years, and Albums requested a 320 px thumbnail for every card, which a 2x screen stretches about twofold and the hover zoom enlarges further. Each cover now offers the 320 px and the stored 640 px thumbnail and the browser picks by card width and pixel density; Capsules covers also load lazily.
 
 ## [1.29.0] "Pamir" — 2026-11-10
