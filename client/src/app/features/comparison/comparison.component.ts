@@ -17,7 +17,7 @@ import { PageHelpService } from '../../core/services/page-help.service';
 import { GalleryStore } from '../gallery/gallery.store';
 import { HeaderSlotService } from '../../core/services/header-slot.service';
 import { TranslatePipe } from '../../shared/pipes/translate.pipe';
-import { COMPARE_TAB_INDEX, CompareFiltersService, DEFAULT_COMPARE_STRATEGY } from './compare-filters.service';
+import { COMPARE_TAB_INDEX, CompareFiltersService, DEFAULT_COMPARE_STRATEGY, DEFAULT_COMPARE_TAB } from './compare-filters.service';
 import { registerPageContext } from '../../core/agent/page-context.service';
 import { ComparisonWeightsTabComponent } from './comparison-weights-tab.component';
 import { ComparisonSnapshotsTabComponent } from './comparison-snapshots-tab.component';
@@ -260,7 +260,7 @@ export class ComparisonComponent {
       // The service outlives the page. Reset on leaving, never on entering, so what ui_show_comparison set for this visit survives the navigation it triggers.
       this.compareFilters.strategy.set(DEFAULT_COMPARE_STRATEGY);
       this.pageHelp.setDescription(null);
-      this.compareFilters.activeTab.set(COMPARE_TAB_INDEX.weights);
+      this.compareFilters.activeTab.set(DEFAULT_COMPARE_TAB);
       const tpl = this.compareToolbar();
       if (tpl) this.headerSlot.clear(tpl);
     });
