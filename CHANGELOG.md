@@ -12,6 +12,10 @@ All notable changes to Facet are documented in this file.
 - **Rate-limited login and proofing answers carry `Retry-After`**, so a locked-out client knows when its window resets.
 - **Immich webhook deliveries stop walking the payload at the delivery cap** instead of visiting every entry of an oversized body.
 
+### Fixed
+
+- **The Docker install guide shows how to scan from the browser.** Its everyday commands gave only the command-line scan, so a Docker user looking for a Scan button found an empty gallery. It now lists the two `viewer` keys to add (`scan_directories`, `features.show_scan_button`) and the restart, in all seven languages (#510).
+
 ## [1.28.0] "f/64" — 2026-11-05
 
 ### Added

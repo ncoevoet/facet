@@ -127,6 +127,25 @@ docker compose down                                      # pare o serviço
 
 Para iniciar de novo, execute novamente a linha `docker compose … up -d` que você usou acima.
 
+Para escanear pelo navegador, declare a pasta em `./facet-config/scoring_config.json`.
+Adicione estas chaves ao bloco `viewer` dele, ao lado do `edition_password` que já está lá:
+
+```json
+{
+  "viewer": {
+    "scan_directories": ["/data/photos"],
+    "features": {
+      "show_scan_button": true
+    }
+  }
+}
+```
+
+Use o caminho dentro do contêiner (`/data/photos`), não o do host. Execute
+`docker compose restart facet` e desbloqueie a edição no menu do usuário com a senha de
+edição. **Escaneie fotos para começar** aparece então na galeria vazia. Veja
+[Disparo de Varredura](VIEWER.md#disparo-de-varredura).
+
 ## Instalar sem Docker
 
 ### Linux

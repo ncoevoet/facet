@@ -127,6 +127,26 @@ docker compose down                                      # fermalo
 
 Per riavviarlo, riesegui la riga `docker compose … up -d` che hai usato sopra.
 
+Per avviare la scansione dal browser, dichiara invece la cartella in
+`./facet-config/scoring_config.json`. Aggiungi queste chiavi al suo blocco `viewer`, accanto
+alla `edition_password` già presente:
+
+```json
+{
+  "viewer": {
+    "scan_directories": ["/data/photos"],
+    "features": {
+      "show_scan_button": true
+    }
+  }
+}
+```
+
+Usa il percorso dentro il container (`/data/photos`), non quello dell'host. Esegui
+`docker compose restart facet`, poi sblocca la modifica nel menu utente con la password di
+modifica. Nella galleria vuota compare allora **Scansiona le foto per iniziare**. Vedi
+[Avvio scansione](VIEWER.md#avvio-scansione).
+
 ## Installa senza Docker
 
 ### Linux
