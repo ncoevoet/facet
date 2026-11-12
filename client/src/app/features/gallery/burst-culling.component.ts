@@ -230,7 +230,7 @@ interface SceneSummary {
     CdkTrapFocus,
   ],
   template: `
-    <div #cullingPage class="px-2 pt-2 md:px-3 md:pt-3 w-full h-full flex flex-col">
+    <div #cullingPage class="px-4 pt-4 w-full h-full flex flex-col">
       <!-- Header (sticky: only the group list below scrolls) -->
       <!-- The toolbar projects into the global header on lg+ (HeaderSlotService) and
            renders as a fixed bottom bar on small screens (same #cullToolbar template).
@@ -574,7 +574,7 @@ interface SceneSummary {
       }
 
       <!-- Scrollable group list; the header above stays fixed -->
-      <div class="flex-1 min-h-0 overflow-y-auto -mx-2 px-2 md:-mx-3 md:px-3 pb-4 max-lg:pb-[calc(var(--cull-bar-h)+1rem)]" data-culling-scroll
+      <div class="flex-1 min-h-0 overflow-y-auto -mx-4 px-4 pb-4 max-lg:pb-[calc(var(--cull-bar-h)+1rem)]" data-culling-scroll
            [style.--cull-bar-h]="barHeight() + 'px'">
       <!-- Content -->
       @if (cull.loading()) {

@@ -1,5 +1,5 @@
 import { TestBed } from '@angular/core/testing';
-import { CompareFiltersService } from './compare-filters.service';
+import { COMPARE_TAB_INDEX, CompareFiltersService } from './compare-filters.service';
 
 describe('CompareFiltersService', () => {
   let service: CompareFiltersService;
@@ -36,8 +36,8 @@ describe('CompareFiltersService', () => {
     expect(service.selectedCategory()).toBe('');
   });
 
-  it('defaults the strategy to the server-configured one (empty) and the tab to the first one', () => {
+  it('defaults the strategy to the server-configured one (empty) and the tab to Weights', () => {
     expect(service.strategy()).toBe('');
-    expect(service.activeTab()).toBe(0);
+    expect(service.activeTab()).toBe(COMPARE_TAB_INDEX.weights);
   });
 });
