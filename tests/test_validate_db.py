@@ -1,5 +1,7 @@
 """Tests for DatabaseValidator structural integrity check (validation/database_validator.py)."""
 
+import os
+import shlex
 import sqlite3
 
 import pytest
@@ -156,8 +158,10 @@ def test_viewer_export_names_the_tables_and_the_databases_to_inspect(tmp_path):
 
     conn = TestForeignKeyViolations._seed_orphans(tmp_path / "t.db")
     with pytest.raises(sqlite3.IntegrityError) as exc:
-        _check_viewer_foreign_keys(conn, ('/lib/photo_scores.db', '/lib/viewer.db'))
+        _check_viewer_foreign_keys(conn, (str(tmp_path / 'photo_scores.db'), str(tmp_path / 'viewer.db')))
     message = str(exc.value)
     assert 'faces, keyword_nodes' in message
-    assert 'validate_db.py --report-only --db /lib/photo_scores.db' in message
-    assert 'validate_db.py --report-only --db /lib/viewer.db' in message
+    # Absolute paths in the platform's own form: D:\\... on Windows, /... elsewhere.
+    for name in ('photo_scores.db', 'viewer.db'):
+        path = shlex.quote(os.path.abspath(tmp_path / name))
+        assert f'validate_db.py --report-only --db {path}' in message
