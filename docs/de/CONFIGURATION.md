@@ -1622,6 +1622,9 @@ Anzeige und Verhalten der Web-Galerie.
 | `edition_password` | `""` | Passwort zum Freischalten des Editionsmodus; leer = schreibgeschützt (außer unter `trusted_local_editing`) |
 | `trusted_local_editing` | `false` | Gewährt einem Browser auf demselben Rechner Editionsrechte ohne Passwort. Siehe [Vertrauenswürdige lokale Bearbeitung](#vertrauenswürdige-lokale-bearbeitung) |
 | `place_search_url` | `"https://photon.komoot.io/api"` | Photon-Endpunkt für die Galerie-Suche **Online suchen**; `""` deaktiviert sie. Siehe [Online-Ortssuche](#online-ortssuche) |
+| `map_tile_url` | `""` | Selbst gehostete Basiskacheln für die Kartenflächen; `""` belässt den OpenStreetMap-Standard. Gleich-origin-Pfad (z. B. `/tiles/{z}/{x}/{y}.png`) oder `https://` — `http://` wird abgelehnt, die CSP erlaubt nur 'self' und https-Bilder |
+| `map_tile_attribution` | `""` | Namensnennung für die eigenen Kacheln (HTML erlaubt; vom Betreiber gesetzt, also vertrauenswürdig). Leer zeigt eine allgemeine Selbst-gehostet-Beschriftung |
+| `map_tile_max_zoom` | `19` | Maximale Zoomstufe des eigenen Kachel-Servers |
 | **comparison_mode** | | |
 | `min_comparisons_for_optimization` | `50` | Entscheidende Vergleiche (Gleichstände zählen nicht), die in einer Kategorie nötig sind, bevor Gewichte vorgeschlagen werden |
 | `pair_selection_strategy` | `"learning"` | Paarstrategie: `learning`, `uncertainty`, `boundary`, `active`, `random` |

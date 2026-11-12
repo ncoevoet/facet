@@ -3285,6 +3285,9 @@ export const I18N = {
     date_to: "map.date_to",
     no_gps_title: "map.no_gps_title",
     no_gps_hint: "map.no_gps_hint",
+    basemap: "map.basemap",
+    basemap_osm: "map.basemap_osm",
+    basemap_custom: "map.basemap_custom",
   },
   photo_detail: {
     copy_image: "photo_detail.copy_image",
@@ -3407,6 +3410,7 @@ export const I18N = {
       maps_unrecognized: "photo_detail.gps.maps_unrecognized",
       maps_unreachable: "photo_detail.gps.maps_unreachable",
       maps_pick: "photo_detail.gps.maps_pick",
+      osm_pick: "photo_detail.gps.osm_pick",
     },
     distribution: {
       scope: "photo_detail.distribution.scope",

@@ -3446,6 +3446,9 @@
   },
   "viewer": {
     "place_search_url": "https://photon.komoot.io/api",
+    "map_tile_url": "",
+    "map_tile_attribution": "",
+    "map_tile_max_zoom": 19,
     "password": "",
     "default_category": "",
     "edition_password": "",

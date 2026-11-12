@@ -797,7 +797,7 @@ python facet.py --extract-gps    # Extract GPS lat/lng from EXIF into database
 
 New photos get their coordinates during scoring.
 
-Open `/map`. Controlled by `viewer.features.show_map` (default: `true`). Map backgrounds come from OpenStreetMap and need an internet connection, even in the installed app. In dark mode the tiles are shown inverted, so the map matches the theme.
+Open `/map`. Controlled by `viewer.features.show_map` (default: `true`). The default OpenStreetMap background needs an internet connection, even in the installed app; a same-origin self-hosted source does not. With `viewer.map_tile_url` configured, a **Map source** button on the map switches between OpenStreetMap and your self-hosted tiles (the choice is stored per browser, and the same switch appears above the location dialog's map). OpenStreetMap plots the WGS-84 coordinates EXIF GPS carries exactly, which matters inside mainland China where commercial basemaps shift pins by the GCJ-02 datum. In dark mode the tiles are shown inverted, so the map matches the theme.
 
 ### Saved places and manual GPS
 
@@ -833,13 +833,14 @@ Use **Address or business → Search online** to look up a place with Photon (Op
 The location dialog (one photo, or **Set location** for a selection or a whole album view) also takes points from Google Maps. Nothing is saved until you click **Save** (or preview and apply a batch), as with any other point.
 
 - **Pick on Google Maps** opens Google Maps in a new tab at the current pin, else at the first geotagged photo of the selection, else at the map's centre. Find the spot there and copy it.
+- **Open in OpenStreetMap** opens openstreetmap.org at the same point, with a marker on the coordinates — the fuller basemap inside mainland China, plotted on the same WGS-84 the GPS coordinates carry.
 - **Google Maps link or coordinates**: paste, then press Enter or click **Go to point**. The pin moves to the point for you to check. Accepted:
   - the pair Google copies when you right-click the map, e.g. `32.6064, -116.3239` (a space instead of the comma works too);
   - degrees, minutes, seconds such as `32°36'23.0"N 116°19'26.0"W`;
   - a full Google Maps URL. The dropped pin (`!3d…!4d…`) wins over a `q=`, `query=`, `ll=` or `center=` value, which wins over the `@lat,lon` view centre;
   - a short link (`maps.app.goo.gl/…`, `goo.gl/maps/…`). The browser cannot open these, so the viewer follows the redirect (`POST /api/geo/resolve_maps_link`, edition only).
 - The short-link lookup only requests `maps.app.goo.gl`, `goo.gl`, `maps.google.com`, `www.google.com` and `google.com` over HTTPS, at public addresses only, at most 5 redirects within 5 seconds, and never reads a page body. Any other host is refused without a request. Links are not logged.
-- Facet uses no Google API, API key or Google map tiles: Google's terms do not allow its tiles inside another map, so the dialog's map stays OpenStreetMap.
+- Facet uses no Google API, API key or Google map tiles: Google's terms do not allow its tiles inside another map, so the dialog's map is never Google's — it stays OpenStreetMap, or shows the operator's self-hosted tiles when `viewer.map_tile_url` is configured.
 
 ## Capsules
 

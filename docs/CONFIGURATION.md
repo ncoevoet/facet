@@ -1614,6 +1614,9 @@ Web gallery display and behavior.
 | `edition_password` | `""` | Password to unlock edition mode; empty = read-only (except under `trusted_local_editing`) |
 | `trusted_local_editing` | `false` | Grant edition rights to a browser on the same computer, without a password. See [Trusted Local Editing](#trusted-local-editing) |
 | `place_search_url` | `"https://photon.komoot.io/api"` | Photon endpoint for the gallery's **Search online** lookup; `""` disables it. See [Online place search](#online-place-search) |
+| `map_tile_url` | `""` | Self-hosted basemap tiles for the map surfaces; `""` keeps the OpenStreetMap default. Same-origin path (e.g. `/tiles/{z}/{x}/{y}.png`) or `https://` — `http://` is refused, the CSP only permits 'self' and https images |
+| `map_tile_attribution` | `""` | Attribution line shown for the custom tiles (HTML allowed; operator-configured, so trusted). Empty shows a generic self-hosted label |
+| `map_tile_max_zoom` | `19` | Maximum zoom level the custom tile server serves |
 | **comparison_mode** | | |
 | `min_comparisons_for_optimization` | `50` | Decisive comparisons (ties excluded) needed in a category before weights are suggested |
 | `pair_selection_strategy` | `"learning"` | Pair strategy: `learning`, `uncertainty`, `boundary`, `active`, `random` |

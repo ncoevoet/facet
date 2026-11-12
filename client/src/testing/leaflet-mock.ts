@@ -53,6 +53,7 @@ export const leafletMockMap = {
   getCenter: vi.fn(() => ({ wrap: () => ({ lat: 47.5, lng: 5 }) })),
   on: vi.fn(),
   off: vi.fn(),
+  removeLayer: vi.fn(),
   remove: vi.fn(),
   invalidateSize: vi.fn(),
 };

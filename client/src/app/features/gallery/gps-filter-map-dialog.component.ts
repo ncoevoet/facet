@@ -6,6 +6,8 @@ import { MatSliderModule } from '@angular/material/slider';
 import { TranslatePipe } from '../../shared/pipes/translate.pipe';
 import * as L from 'leaflet';
 import { createLeafletMap, DEFAULT_MAP_CENTER } from '../../shared/leaflet';
+import { MapSourcePreferences } from '../../core/services/map-source-preferences.service';
+import { GalleryStore } from './gallery.store';
 import { i18nKeys } from '../../core/i18n/keys';
 
 export interface GpsFilterData {
@@ -45,6 +47,8 @@ export class GpsFilterMapDialogComponent implements OnInit {
   protected readonly I18N = i18nKeys();
   private readonly dialogRef = inject(MatDialogRef<GpsFilterMapDialogComponent>);
   private readonly destroyRef = inject(DestroyRef);
+  private readonly mapSource = inject(MapSourcePreferences);
+  private readonly store = inject(GalleryStore);
   readonly data: GpsFilterData = inject(MAT_DIALOG_DATA) ?? {};
   private readonly mapContainer = viewChild.required<ElementRef<HTMLDivElement>>('mapContainer');
 
@@ -66,7 +70,7 @@ export class GpsFilterMapDialogComponent implements OnInit {
     const lng = this.selectedLng() ?? DEFAULT_MAP_CENTER.lng;
     const zoom = this.selectedLat() ? 10 : 5;
 
-    this.map = createLeafletMap(container).setView([lat, lng], zoom);
+    this.map = createLeafletMap(container, undefined, undefined, this.mapSource.tiles(this.store.config())).setView([lat, lng], zoom);
 
     if (this.selectedLat() && this.selectedLng()) {
       this.placeMarker(this.selectedLat()!, this.selectedLng()!);

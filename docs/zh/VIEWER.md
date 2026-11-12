@@ -795,7 +795,7 @@ python facet.py --extract-gps    # 从 EXIF 中提取 GPS 经纬度写入数据�
 
 新照片在评分过程中就会得到坐标。
 
-通过 `/map` 访问。由 `viewer.features.show_map` 控制（默认：`true`）。地图底图来自 OpenStreetMap，需要联网，即使在已安装的应用中也是如此。深色模式下底图会反色显示，与主题保持一致。
+通过 `/map` 访问。由 `viewer.features.show_map` 控制（默认：`true`）。默认的 OpenStreetMap 底图需要联网，即使在已安装的应用中也是如此；同源的自托管源则不需要。配置 `viewer.map_tile_url` 后，地图上的「地图来源」按钮可在 OpenStreetMap 与你的自托管瓦片之间切换（选择按浏览器记忆，定位对话框地图上方也有同一开关）。OpenStreetMap 能精确落点 EXIF GPS 携带的 WGS-84 坐标——这在中国大陆尤为重要，商业底图会按 GCJ-02 datum 使标记偏移。深色模式下瓦片会反色显示，使地图与主题一致。
 
 ### 已保存地点与手动 GPS
 
@@ -831,13 +831,14 @@ python facet.py --extract-gps    # 从 EXIF 中提取 GPS 经纬度写入数据�
 位置对话框（单张照片，或对选中照片、整个相册视图使用**设置位置**）也可以使用来自 Google 地图的点。与其他点一样，点击**保存**（或预览并应用批量更改）之前不会保存任何内容。
 
 - **在 Google 地图上选择**会在新标签页中打开 Google 地图：定位到当前图钉；若无图钉，则定位到所选照片中第一张带位置的照片；否则定位到地图中心。在那里找到地点并复制。
+- **在 OpenStreetMap 中打开** 在 openstreetmap.org 上打开同一点并在坐标处放置标记——中国大陆数据更全的底图，且与 GPS 坐标同为 WGS-84，无偏移。
 - **Google 地图链接或坐标**：粘贴后按回车或点击**前往该点**。图钉会移动到该点供你确认。支持：
   - 在地图上右键时 Google 复制的坐标对，例如 `32.6064, -116.3239`（用空格代替逗号也可以）；
   - 度分秒格式，例如 `32°36'23.0"N 116°19'26.0"W`；
   - 完整的 Google 地图网址。放置的图钉（`!3d…!4d…`）优先于 `q=`、`query=`、`ll=` 或 `center=` 的值，后者又优先于视图中心 `@lat,lon`；
   - 短链接（`maps.app.goo.gl/…`、`goo.gl/maps/…`）。浏览器无法打开这类链接，因此由图库跟随重定向（`POST /api/geo/resolve_maps_link`，仅限编辑模式）。
 - 短链接解析只通过 HTTPS 访问 `maps.app.goo.gl`、`goo.gl`、`maps.google.com`、`www.google.com` 和 `google.com`，只访问公网地址，5 秒内最多 5 次重定向，且从不读取页面正文。其他主机一律拒绝，不发出请求。链接不会被记录。
-- Facet 不使用任何 Google API、API 密钥或 Google 地图瓦片：Google 的条款不允许在其他地图中使用其瓦片，因此对话框中的地图仍是 OpenStreetMap。
+- Facet 不使用任何 Google API、API 密钥或 Google 地图瓦片：Google 的条款不允许在其他地图中使用其瓦片，因此对话框中的地图绝不会是 Google 的——它保持 OpenStreetMap，或在配置 `viewer.map_tile_url` 后显示运维者的自托管瓦片。
 
 ## 照片胶囊
 

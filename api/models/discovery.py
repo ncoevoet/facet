@@ -129,6 +129,14 @@ class ViewerConfigResponse(BaseModel):
     moment_confidence_min: Any
     notification_duration_ms: Any
     place_search_enabled: bool
+    # The operator's self-hosted basemap, empty when Facet should stay on the
+    # OpenStreetMap default. ``map_tile_url`` is either a same-origin path
+    # (served by the same reverse proxy) or an https:// URL; an http://
+    # absolute URL is refused at config load because the CSP only permits
+    # 'self' and https images.
+    map_tile_url: str = ""
+    map_tile_attribution: str = ""
+    map_tile_max_zoom: int = 19
     search_threshold_default: float
     translation_target_language: str
     is_multi_user: bool

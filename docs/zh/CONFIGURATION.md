@@ -1611,6 +1611,9 @@ python facet.py --recompute-tags-vlm   # 用 VLM 标签模型重新打标签
 | `edition_password` | `""` | 解锁编辑模式的密码；留空 = 只读（`trusted_local_editing` 下除外） |
 | `trusted_local_editing` | `false` | 无需密码，即授予同一台计算机上的浏览器编辑权限。参见[受信任的本地编辑](#受信任的本地编辑) |
 | `place_search_url` | `"https://photon.komoot.io/api"` | 照片库**在线搜索**所用的 Photon 端点；`""` 表示关闭。参见[在线地点搜索](#在线地点搜索) |
+| `map_tile_url` | `""` | 地图各界面使用的自托管底图瓦片；`""` 保持 OpenStreetMap 默认。可为同源路径（如 `/tiles/{z}/{x}/{y}.png`）或 `https://` —— `http://` 会被拒绝，CSP 只允许 'self' 与 https 图片 |
+| `map_tile_attribution` | `""` | 自定义瓦片显示的署名行（可含 HTML；由运维配置，属受信内容）。为空显示通用的自托管署名 |
+| `map_tile_max_zoom` | `19` | 自定义瓦片服务器支持的最大缩放级别 |
 | **comparison_mode** | | |
 | `min_comparisons_for_optimization` | `50` | 建议权重之前，该类别所需的最少决定性比较次数（平局不计） |
 | `pair_selection_strategy` | `"learning"` | 配对策略：`learning`、`uncertainty`、`boundary`、`active`、`random` |

@@ -145,6 +145,9 @@ describe('rendered literal tag rule editor', () => {
     await fixture.whenStable();
     expect(filters().tag_groups).toBe('');
     expect(document.activeElement).toBe(row('any').querySelector('[data-tag-rule-input]'));
+    // Focus lands on the row without popping its suggestion list open again.
+    expect(row('any').querySelector('[data-tag-rule-input]')!.getAttribute('aria-expanded')).toBe('false');
+    expect(overlay().querySelector('mat-option')).toBeNull();
   });
 
   it('announces invalid names and recovers invalid saved rules with a single clear', async () => {
@@ -152,6 +155,8 @@ describe('rendered literal tag rule editor', () => {
     expect(update).not.toHaveBeenCalled();
     expect(row('any').querySelector('[data-tag-rule-input]')!.getAttribute('aria-describedby')).toContain('tag-rule-error');
     expect(row('all').querySelector('[data-tag-rule-input]')!.getAttribute('aria-describedby')).not.toContain('tag-rule-error');
+    expect(row('any').querySelector('[data-tag-rule-input]')!.getAttribute('aria-invalid')).toBe('true');
+    expect(row('all').querySelector('[data-tag-rule-input]')!.hasAttribute('aria-invalid')).toBe(false);
     expect(root.querySelector('#tag-rule-error')!.getAttribute('role')).toBe('alert');
     filters.update(current => ({ ...current, tag_groups: '{"any":true}' })); fixture.detectChanges();
     expect(root.querySelector('[data-tag-rule-input]')).toBeNull();
@@ -159,6 +164,9 @@ describe('rendered literal tag rule editor', () => {
     await fixture.whenStable();
     expect(update).toHaveBeenCalledExactlyOnceWith('tag_groups', '');
     expect(document.activeElement).toBe(row('any').querySelector('[data-tag-rule-input]'));
+    // The refusal left with the rules it was about, so the rebuilt row is not announced as invalid.
+    expect(root.querySelector('#tag-rule-error')).toBeNull();
+    expect(row('any').querySelector('[data-tag-rule-input]')!.hasAttribute('aria-invalid')).toBe(false);
   });
 
   it('does not add while Enter is repeating or composing a tag name', () => {

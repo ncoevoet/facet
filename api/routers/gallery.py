@@ -7,9 +7,11 @@ import json
 import asyncio
 import logging
 import math
+import re
 import sqlite3
 import unicodedata
 from typing import NoReturn, Optional, Any
+from urllib.parse import urlparse
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from pydantic import ValidationError
 
@@ -2095,6 +2097,59 @@ def api_config(user: Optional[CurrentUser] = Depends(get_optional_user)):
     from utils.version import build_label, current_version
     from api.types import QUALITY_LEVELS, TYPE_LABELS, available_sort_options, populated_gated_cols, unavailable_columns
 
+    def _map_tile_url() -> str:
+        """The operator's ``viewer.map_tile_url``, or '' for the OSM default.
+
+        The CSP permits tile images from 'self' and https: only, so an
+        http:// absolute URL would silently render a grey map in the browser
+        — refuse it here where the misconfiguration is visible, and keep
+        same-origin paths (a tile server behind the same reverse proxy) and
+        https:// URLs. Leaflet interpolates only {s}/{z}/{x}/{y}; a URL
+        without the three coordinate placeholders throws synchronously in
+        every browser instead of failing per tile, so it is refused too.
+        """
+        url = str(VIEWER_CONFIG.get('map_tile_url', '') or '').strip()
+        if not url:
+            return ''
+        placeholders = set(re.findall(r'\{ *([\w_ -]+) *\}', url))
+        # Leaflet interpolates only its own template variables, throws
+        # synchronously on an unknown one, and cannot render without the three
+        # coordinate placeholders — both shapes kill the whole map surface.
+        known = {'s', 'z', 'x', 'y', 'r'}
+        if not placeholders <= known or not {'z', 'x', 'y'} <= placeholders:
+            logger.warning("viewer.map_tile_url must interpolate exactly Leaflet's variables "
+                           "{s}/{r}/{z}/{x}/{y}, always including {z}/{x}/{y}; got %r", url)
+            return ''
+        if url.startswith('/') and not url.startswith('//'):
+            return url
+        if urlparse(url).scheme == 'https' and urlparse(url).netloc and '@' not in urlparse(url).netloc:
+            return url
+        logger.warning("viewer.map_tile_url must be a same-origin path starting with a single '/' "
+                       "or an https:// URL (the CSP blocks other image sources); got %r", url)
+        return ''
+
+    def _map_tile_attribution() -> str:
+        """``viewer.map_tile_attribution``, guarded like its siblings: the
+        JSON-schema string constraint is advisory, and a non-string value
+        would fail the /api/config response model on every request."""
+        raw = VIEWER_CONFIG.get('map_tile_attribution', '')
+        if isinstance(raw, str):
+            return raw
+        logger.warning("viewer.map_tile_attribution must be a string; got %r", raw)
+        return ''
+
+    def _map_tile_max_zoom() -> int:
+        """``viewer.map_tile_max_zoom``, guarded like the URL: the JSON-schema
+        integer constraint is advisory, and an unparseable value would 500 the
+        SPA's startup endpoint on every request. Clamped to Leaflet's sane range;
+        JSON booleans are ints to Python (``int(True) == 1``) and rejected."""
+        raw = VIEWER_CONFIG.get('map_tile_max_zoom', 19)
+        # json.load accepts NaN/Infinity, and int() of those raises.
+        if isinstance(raw, bool) or not isinstance(raw, (int, float)) or not math.isfinite(raw):
+            logger.warning("viewer.map_tile_max_zoom must be an integer; got %r", raw)
+            return 19
+        return max(0, min(int(raw), 30))
+
     features = dict(VIEWER_CONFIG.get('features', {}))
     with get_db() as conn:
         populated_scores = populated_gated_cols(conn)
@@ -2146,6 +2201,9 @@ def api_config(user: Optional[CurrentUser] = Depends(get_optional_user)):
         'notification_duration_ms': VIEWER_CONFIG.get('notification_duration_ms', 2000),
         'search_threshold_default': search_threshold_default(),
         'place_search_enabled': bool(place_search_endpoint()),
+        'map_tile_url': _map_tile_url(),
+        'map_tile_attribution': _map_tile_attribution(),
+        'map_tile_max_zoom': _map_tile_max_zoom(),
         'translation_target_language': _FULL_CONFIG.get('translation', {}).get('target_language', ''),
         'is_multi_user': is_multi_user_enabled(),
         'edition_enabled': is_edition_enabled(),

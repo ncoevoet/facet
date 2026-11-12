@@ -796,7 +796,7 @@ python facet.py --extract-gps    # Extract GPS lat/lng from EXIF into database
 
 Las fotos nuevas obtienen sus coordenadas durante la puntuación.
 
-Abre `/map`. Se controla con `viewer.features.show_map` (por defecto: `true`). Los fondos del mapa proceden de OpenStreetMap y necesitan conexión a internet, incluso en la aplicación instalada. En modo oscuro, los mosaicos se muestran invertidos para ajustarse al tema.
+Abre `/map`. Se controla con `viewer.features.show_map` (por defecto: `true`). El fondo por defecto de OpenStreetMap necesita conexión a internet, incluso en la aplicación instalada; una fuente propia del mismo origen no. Con `viewer.map_tile_url` configurado, un botón **Fuente del mapa** en el mapa alterna entre OpenStreetMap y tus teselas autoalojadas (la elección se guarda por navegador, y el mismo conmutador aparece sobre el mapa del diálogo de ubicación). OpenStreetMap dibuja exactamente las coordenadas WGS-84 que lleva el GPS EXIF, lo que importa en la China continental, donde los mapas base comerciales desplazan los pines por el datum GCJ-02. En modo oscuro, los mosaicos se muestran invertidos para ajustarse al tema.
 
 ### Lugares guardados y GPS manual
 
@@ -832,13 +832,14 @@ Usa **Dirección o negocio → Buscar en línea** para buscar un lugar con Photo
 El diálogo de ubicación (una foto, o **Asignar ubicación** para una selección o toda una vista de álbum) también acepta puntos de Google Maps. No se guarda nada hasta pulsar **Guardar** (o previsualizar y aplicar un lote), como con cualquier otro punto.
 
 - **Elegir en Google Maps** abre Google Maps en una pestaña nueva en el pin actual; si no hay, en la primera foto geolocalizada de la selección; si no, en el centro del mapa. Busca el sitio allí y cópialo.
+- **Abrir en OpenStreetMap** abre openstreetmap.org en el mismo punto, con un marcador en las coordenadas: el mapa base más completo en la China continental, trazado sobre el mismo WGS-84 que llevan las coordenadas GPS.
 - **Enlace de Google Maps o coordenadas**: pega y pulsa Intro o haz clic en **Ir al punto**. El pin se mueve al punto para que lo revises. Se acepta:
   - el par que Google copia al hacer clic derecho en el mapa, p. ej. `32.6064, -116.3239` (también vale un espacio en lugar de la coma);
   - grados, minutos y segundos como `32°36'23.0"N 116°19'26.0"W`;
   - una URL completa de Google Maps. El pin colocado (`!3d…!4d…`) prevalece sobre un valor `q=`, `query=`, `ll=` o `center=`, que prevalece sobre el centro de la vista `@lat,lon`;
   - un enlace corto (`maps.app.goo.gl/…`, `goo.gl/maps/…`). El navegador no puede abrirlos, así que la galería sigue la redirección (`POST /api/geo/resolve_maps_link`, solo en modo edición).
 - La resolución de enlaces cortos solo consulta `maps.app.goo.gl`, `goo.gl`, `maps.google.com`, `www.google.com` y `google.com` por HTTPS, solo en direcciones públicas, con un máximo de 5 redirecciones en 5 segundos, y nunca lee el cuerpo de una página. Cualquier otro host se rechaza sin petición. Los enlaces no se registran.
-- Facet no usa ninguna API de Google, clave de API ni teselas de Google: los términos de Google no permiten sus teselas dentro de otro mapa, por eso el mapa del diálogo sigue siendo OpenStreetMap.
+- Facet no usa ninguna API de Google, clave de API ni teselas de Google: los términos de Google no permiten sus teselas dentro de otro mapa, por eso el mapa del diálogo nunca es de Google — sigue siendo OpenStreetMap o muestra las teselas autoalojadas del operador cuando `viewer.map_tile_url` está configurado.
 
 ## Cápsulas
 

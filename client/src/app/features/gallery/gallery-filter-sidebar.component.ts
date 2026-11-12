@@ -13,7 +13,7 @@ import { MatButtonModule } from '@angular/material/button';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatCheckboxModule } from '@angular/material/checkbox';
 import { MatInputModule } from '@angular/material/input';
-import { MatTooltip, MatTooltipModule } from '@angular/material/tooltip';
+import { MAT_TOOLTIP_DEFAULT_OPTIONS, MatTooltip, MatTooltipModule } from '@angular/material/tooltip';
 import { HelpTooltipDirective } from '../../shared/directives/help-tooltip.directive';
 import { MatExpansionModule } from '@angular/material/expansion';
 import { MatTabsModule } from '@angular/material/tabs';
@@ -234,6 +234,13 @@ type RatingOption = 'any' | '1' | '2' | '3' | '4' | '5' | 'zero';
   selector: 'app-gallery-filter-sidebar',
   standalone: true,
   host: { class: 'contents' },
+  // A tooltip on its default touch gestures sets touch-action: none on its host on a phone, so a
+  // swipe that starts on a tab, a title or any help button would not scroll the sidebar. Every
+  // tooltip in here, including those of child components, keeps native panning instead.
+  providers: [{
+    provide: MAT_TOOLTIP_DEFAULT_OPTIONS,
+    useFactory: () => ({ ...inject(MAT_TOOLTIP_DEFAULT_OPTIONS, { skipSelf: true }), touchGestures: 'off' }),
+  }],
   imports: [
     ContextHelpComponent,
     MarkTonePipe,

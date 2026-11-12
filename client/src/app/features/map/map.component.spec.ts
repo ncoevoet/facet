@@ -1,10 +1,12 @@
 import { TestBed } from '@angular/core/testing';
+import { signal } from '@angular/core';
 import type { Mock } from 'vitest';
 import { of, throwError, Subject } from 'rxjs';
 import { ApiService } from '../../core/services/api.service';
 import { I18nService } from '../../core/services/i18n.service';
 import { PageContextService } from '../../core/agent/page-context.service';
 import { MapFiltersService } from './map-filters.service';
+import { GalleryStore } from '../gallery/gallery.store';
 
 // Mock Leaflet before importing the component. vi.doMock + dynamic import is
 // used instead of vi.mock because the unit-test builder wraps spec modules,
@@ -27,6 +29,9 @@ describe('MapComponent', () => {
   let MapComponent: typeof import('./map.component').MapComponent;
   let component: any;
   let mockApi: { get: Mock; thumbnailUrl: Mock };
+  // The production config IS a signal; the stub must be one too, so the
+  // basemap effect re-runs when the config arrives after the map init'ed.
+  let cfg: ReturnType<typeof signal<{ map_tile_url?: string } | null>>;
 
   // Explicit hook timeout above the default 10s: under full-suite load, many
   // workers resolving dynamic import() chunks concurrently can contend for
@@ -44,12 +49,17 @@ describe('MapComponent', () => {
       get: vi.fn(() => of({ clusters: [], photos: [] })),
       thumbnailUrl: vi.fn((path: string, size?: number) => `/thumbnail?path=${path}&size=${size}`),
     };
+    // The basemap reads the startup config through the store; a signal stub
+    // keeps the real store's auth-driven constructor effects out of this spec
+    // while still exercising the config-arrives-late reactivity.
+    cfg = signal<{ map_tile_url?: string } | null>({});
 
     TestBed.configureTestingModule({
       providers: [
         MapComponent,
         { provide: ApiService, useValue: mockApi },
         { provide: I18nService, useValue: { t: (k: string) => k, translations: () => ({}), locale: () => 'en' } },
+        { provide: GalleryStore, useValue: { config: () => cfg() } },
       ],
     });
     component = TestBed.inject(MapComponent);
@@ -57,6 +67,10 @@ describe('MapComponent', () => {
     Object.defineProperty(component, 'mapContainer', {
       value: () => ({ nativeElement: document.createElement('div') }),
     });
+  });
+
+  afterEach(() => {
+    localStorage.removeItem('facet_map_source');
   });
 
   afterEach(() => {
@@ -107,6 +121,38 @@ describe('MapComponent', () => {
       expect(tileUrl.origin).toBe('https://tile.openstreetmap.org');
       expect(mockMap.setView).toHaveBeenCalledWith([0, 0], 2);
       expect(mockMap.on).toHaveBeenCalledWith('moveend', expect.any(Function));
+    });
+
+    it('swaps only the tile layer when the basemap choice changes', () => {
+      const L = leafletMock;
+      component.initMap();
+      const callsBefore = (L.tileLayer as Mock).mock.calls.length;
+
+      component.mapSource.set('custom');
+      TestBed.tick();
+      // Nothing configured yet: the choice falls back to OSM, no swap happens.
+      expect(mockMap.removeLayer).not.toHaveBeenCalled();
+
+      // The config arrives after the map is up — the persisted 'custom' choice
+      // must pick it up without any further user action.
+      cfg.set({ map_tile_url: 'https://tiles.example/{z}/{x}/{y}.png' });
+      TestBed.tick();
+      expect(mockMap.removeLayer).toHaveBeenCalledWith(mockTileLayer);
+      expect((L.tileLayer as Mock).mock.calls.length).toBe(callsBefore + 1);
+      const [url] = (L.tileLayer as Mock).mock.calls.at(-1) as [string];
+      expect(url).toBe('https://tiles.example/{z}/{x}/{y}.png');
+    });
+
+    it('shows the source control only once a tile URL is configured', () => {
+      const fixture = TestBed.createComponent(MapComponent);
+      fixture.detectChanges();
+      const root = fixture.nativeElement as HTMLElement;
+      expect(root.querySelector('[data-map-source]')).toBeNull();
+
+      cfg.set({ map_tile_url: 'https://tiles.example/{z}/{x}/{y}.png' });
+      fixture.detectChanges();
+      expect(root.querySelector('[data-map-source]')).not.toBeNull();
+      fixture.destroy();
     });
 
     it('fits all authorized photo coordinates, including a single-location zoom cap', async () => {
@@ -390,15 +436,18 @@ describe('MapComponent', () => {
 
 describe('MapComponent dates control', () => {
   let MapComponent: typeof import('./map.component').MapComponent;
+  let stubConfig: { map_tile_url?: string };
   beforeAll(async () => {
     ({ MapComponent } = await import('./map.component'));
   }, 20000);
   beforeEach(() => {
     resetLeafletMock();
+    stubConfig = {};
     TestBed.configureTestingModule({
       providers: [
         { provide: ApiService, useValue: { get: vi.fn(() => of({ clusters: [], photos: [] })), thumbnailUrl: vi.fn(() => '') } },
         { provide: I18nService, useValue: { t: (k: string) => k, translations: () => ({}), locale: () => 'en' } },
+        { provide: GalleryStore, useValue: { config: () => stubConfig } },
       ],
     });
   });
@@ -409,8 +458,11 @@ describe('MapComponent dates control', () => {
     const root = fixture.nativeElement as HTMLElement;
     expect(root.querySelector('details')).toBeNull();
     const wrapper = root.querySelector<HTMLElement>('[data-map-dates]')!;
-    expect(wrapper.classList.contains('z-[1001]')).toBe(true);
-    expect(getComputedStyle(wrapper).position === 'absolute' || wrapper.classList.contains('absolute')).toBe(true);
+    // The dates pill and the basemap pill share one floating row above the
+    // Leaflet panes; the row carries the stacking, the pill sits inside it.
+    const float = wrapper.parentElement!;
+    expect(float.classList.contains('z-[1001]')).toBe(true);
+    expect(float.classList.contains('absolute')).toBe(true);
     const trigger = wrapper.querySelector<HTMLButtonElement>('app-control-popover button')!;
     expect(trigger.querySelector('mat-icon')!.textContent!.trim()).toBe('date_range');
     trigger.click(); fixture.detectChanges();
