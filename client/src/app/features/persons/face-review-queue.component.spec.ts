@@ -3,6 +3,7 @@ import { TestBed, type ComponentFixture } from '@angular/core/testing';
 import { By } from '@angular/platform-browser';
 import { provideRouter, Router, NavigationStart, NavigationEnd, NavigationCancel, NavigationCancellationCode, type Event } from '@angular/router';
 import { MatDialog } from '@angular/material/dialog';
+import { HttpErrorResponse } from '@angular/common/http';
 import { of, Subject, throwError } from 'rxjs';
 import type { Mock } from 'vitest';
 import { ApiService } from '../../core/services/api.service';
@@ -263,6 +264,29 @@ describe('FaceReviewQueueComponent', () => {
     expect(root.textContent).toContain('persons.review_queue.uncertain');
     expect(root.querySelectorAll('[data-review-face]')).toHaveLength(0);
     expect(root.querySelector<HTMLButtonElement>('[data-queue-reload]')?.disabled).toBe(false);
+    fixture.destroy(); root.remove();
+  });
+
+  it('reads a 4xx on the first assignment as refused, not uncertain, and still requires a read', async () => {
+    const { fixture, root, api } = await render();
+    api.post.mockReturnValueOnce(throwError(() => new HttpErrorResponse({ status: 409 })));
+    select(root); fixture.detectChanges(); preview(root); fixture.detectChanges();
+    root.querySelector<HTMLButtonElement>('[data-confirm-assignment]')!.click();
+    await fixture.whenStable(); fixture.detectChanges();
+    expect(root.textContent).toContain('persons.review_queue.changed');
+    expect(root.textContent).not.toContain('persons.review_queue.uncertain');
+    expect(root.querySelector<HTMLButtonElement>('[data-review-selected]')?.disabled).toBe(true);
+    expect(api.post).toHaveBeenCalledTimes(1);
+    fixture.destroy(); root.remove();
+  });
+
+  it('keeps a 4xx after an earlier group committed uncertain', async () => {
+    const { fixture, root, api } = await render();
+    api.post.mockReturnValueOnce(of(assigned)).mockReturnValueOnce(throwError(() => new HttpErrorResponse({ status: 409 })));
+    select(root); fixture.detectChanges(); preview(root); fixture.detectChanges();
+    root.querySelector<HTMLButtonElement>('[data-confirm-assignment]')!.click();
+    await fixture.whenStable(); fixture.detectChanges();
+    expect(root.textContent).toContain('persons.review_queue.uncertain');
     fixture.destroy(); root.remove();
   });
 

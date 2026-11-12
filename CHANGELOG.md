@@ -17,6 +17,7 @@ All notable changes to Facet are documented in this file.
 
 ### Fixed
 
+- **A refused face assignment no longer reads as uncertain.** When the review queue's first assignment request was refused outright (a 4xx, such as a face that changed since the preview), the queue said some changes may have completed; nothing had, and it now says the review changed. A failure after an earlier request committed still reads as uncertain.
 - **Cover cards are sharp on high-density screens.** Capsules, Folders, Scenes, Timeline months and years, and Albums requested a 320 px thumbnail for every card, which a 2x screen stretches about twofold and the hover zoom enlarges further. Each cover now offers the 320 px and the stored 640 px thumbnail and the browser picks by card width and pixel density; Capsules covers also load lazily.
 
 ## [1.29.0] "Pamir" — 2026-11-10
