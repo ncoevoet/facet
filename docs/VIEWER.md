@@ -860,6 +860,8 @@ Facet generates capsules from your library:
 - **Favorites** — favorited photos grouped by year and season
 - **Dimension-based** — by camera, lens, category, composition pattern, focal length range, time of day, star rating, and combinations
 
+Photos you have rejected never appear in a capsule: not as its cover, not in its slideshow and not in an album saved from it. In multi-user mode, each user's own rejections count.
+
 ### Slideshow
 
 Click a capsule card to start a slideshow:

@@ -858,6 +858,8 @@ Facet génère des capsules à partir de votre bibliothèque :
 - **Favoris** — photos favorites regroupées par année et saison
 - **Par dimension** — par appareil, objectif, catégorie, motif de composition, plage de focale, moment de la journée, note en étoiles, et leurs combinaisons
 
+Les photos que vous avez rejetées n'apparaissent jamais dans une capsule : ni en couverture, ni dans son diaporama, ni dans un album enregistré à partir d'elle. En mode multi-utilisateur, ce sont les rejets de chaque utilisateur qui comptent.
+
 ### Diaporama
 
 Cliquez sur une carte de capsule pour lancer un diaporama :

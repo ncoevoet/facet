@@ -16,7 +16,9 @@ from api.database import get_async_db, get_db
 from api.db_helpers import (
     build_photo_select_columns,
     sanitize_float_values,
+    get_photos_from_clause,
     get_visibility_clause,
+    hide_rejected_sql,
     split_photo_tags,
     attach_person_data_async,
     format_date,
@@ -46,6 +48,46 @@ def _capsule_summary(capsule: dict) -> dict:
         "photo_count": capsule["photo_count"],
         "icon": capsule["icon"],
     }
+
+
+def _current_paths_clause(paths: list[str], user_id) -> tuple[str, list]:
+    """WHERE clause keeping the cached capsule paths the user may still see.
+
+    The capsule list is cached for hours, so a photo rejected since must be
+    dropped at read time by everything that serves the cached paths.
+    """
+    vis_sql, vis_params = get_visibility_clause(user_id)
+    rejected_sql, rejected_params = hide_rejected_sql(user_id)
+    placeholders = ",".join(["?"] * len(paths))
+    return (f"path IN ({placeholders}) AND {vis_sql} AND {rejected_sql}",
+            [*paths, *vis_params, *rejected_params])
+
+
+def _current_paths(conn, paths: list[str], user_id) -> list[str]:
+    where_sql, where_params = _current_paths_clause(paths, user_id)
+    found = {r["path"] for r in conn.execute(f"SELECT path FROM photos WHERE {where_sql}", where_params)}
+    return [p for p in paths if p in found]
+
+
+def _current_cover(capsule: dict, current: list[str]) -> Optional[str]:
+    cover = capsule.get("cover_photo_path")
+    return cover if cover in current else (current[0] if current else None)
+
+
+def _replace_stale_covers(conn, capsules: list[dict], summaries: list[dict], user_id) -> None:
+    """Swap a cover rejected since caching for the capsule's first current photo.
+
+    Only the covers are checked up front: a page's every path could pass
+    SQLite's 999-variable floor.
+    """
+    covers = [c["cover_photo_path"] for c in capsules if c.get("cover_photo_path")]
+    if not covers:
+        return
+    current = set(_current_paths(conn, covers, user_id))
+    for capsule, summary in zip(capsules, summaries):
+        if capsule.get("cover_photo_path") and capsule["cover_photo_path"] not in current:
+            summary["cover_photo_path"] = _current_cover(
+                capsule, _current_paths(conn, capsule["params"].get("paths", []) or [capsule["cover_photo_path"]], user_id))
 
 
 def _cache_key(user_id, date_from="", date_to=""):
@@ -145,6 +187,7 @@ def get_capsules(
     page_capsules = cached[start:end]
     summaries = [_capsule_summary(c) for c in page_capsules]
     with get_db() as conn:
+        _replace_stale_covers(conn, page_capsules, summaries, user_id)
         attach_preview_versions(conn, summaries, 'cover_photo_path')
 
     return {
@@ -186,16 +229,11 @@ async def get_capsule_photos(
             select_cols = build_photo_select_columns(conn=None, user_id=user_id)
             inner_cols = ", ".join(select_cols)
 
-            vis_sql, vis_params = get_visibility_clause(user_id)
-
-            placeholders = ",".join(["?"] * len(paths))
-            query = f"""
-                SELECT {inner_cols}
-                FROM photos
-                WHERE path IN ({placeholders})
-                  AND {vis_sql}
-            """
-            cur = await conn.execute(query, paths + vis_params)
+            # The multi-user select columns read `up.*`, so join what the gallery joins.
+            from_sql, from_params = get_photos_from_clause(user_id)
+            where_sql, where_params = _current_paths_clause(paths, user_id)
+            cur = await conn.execute(f"SELECT {inner_cols} FROM {from_sql} WHERE {where_sql}",
+                                     from_params + where_params)
             rows = await cur.fetchall()
             await cur.close()
 
@@ -214,10 +252,10 @@ async def get_capsule_photos(
             path_order = {p: i for i, p in enumerate(paths)}
             photos.sort(key=lambda p: path_order.get(p.get("path"), 999999))
 
-            return {
-                "photos": photos,
-                "capsule": _capsule_summary(capsule),
-            }
+            current = [p["path"] for p in photos]
+            summary = {**_capsule_summary(capsule), "photo_count": len(current),
+                       "cover_photo_path": _current_cover(capsule, current)}
+            return {"photos": photos, "capsule": summary}
 
     except HTTPException:
         raise
@@ -239,16 +277,17 @@ def save_capsule_as_album(
     date_to = _validate_date(date_to)
     capsule = _resolve_capsule(capsule_id, user_id, date_from=date_from, date_to=date_to)
 
-    paths = capsule["params"].get("paths", [])
-    if not paths:
-        raise HTTPException(status_code=400, detail="Capsule has no photos")
-
     name = capsule["title"]
     description = capsule.get("subtitle", "")
-    cover_path = capsule.get("cover_photo_path")
 
     with get_db() as conn:
         try:
+            paths = capsule["params"].get("paths", [])
+            if paths:
+                paths = _current_paths(conn, paths, user_id)
+            if not paths:
+                raise HTTPException(status_code=400, detail="Capsule has no photos")
+            cover_path = _current_cover(capsule, paths)
             cursor = conn.execute(
                 """INSERT INTO albums (user_id, name, description, is_smart, cover_photo_path)
                    VALUES (?, ?, ?, 0, ?)""",

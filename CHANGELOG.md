@@ -36,6 +36,8 @@ All notable changes to Facet are documented in this file.
 - **Tag rules behave for keyboard and screen-reader users.** A refused rule name now marks its field invalid (`aria-invalid`) while the error shows, where only the message announced it; and **Clear** returns focus to the first rule field without opening its suggestion list.
 - **The filter sidebar scrolls on a phone wherever the swipe starts.** A tab, a section title, a metric name, a button or a checkbox carrying a tooltip blocked touch panning when the swipe began on it. In the sidebar those tooltips no longer open on touch screens, so a metric's explanation is no longer shown on a long press there; screen readers still read it, and every control keeps its accessible name.
 - **The `/stats` hour heatmap fits a 768 px window.** It asked for 700 px in a 696 px card and scrolled 4 px sideways; it now asks only for the width its 24 columns need, and still scrolls inside its card on a phone.
+- **Capsules leave out rejected photos.** Every capsule generator drew from the whole library, so a rejected photo could be a cover or play in the slideshow, and one whose file had been culled away played as its blurry stored thumbnail. Rejections are read per user in multi-user mode. A photo rejected after the capsule list was cached drops out of the slideshow and of **Save as album** at once, and stops being the card's cover.
+- **Capsule slideshows play in multi-user mode.** `GET /api/capsules/{id}/photos` selected the per-user rating columns without joining `user_preferences`, so every capsule answered 500.
 
 ## [1.29.0] "Pamir" — 2026-11-10
 
