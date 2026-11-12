@@ -282,6 +282,20 @@ describe('FaceReviewQueueComponent', () => {
     fixture.destroy(); root.remove();
   });
 
+  it.each([
+    ['a 5xx', new HttpErrorResponse({ status: 503 })],
+    ['a lost connection', new HttpErrorResponse({ status: 0 })],
+  ])('keeps %s on the first assignment uncertain, since the write may have landed', async (_label, failure) => {
+    const { fixture, root, api } = await render();
+    api.post.mockReturnValueOnce(throwError(() => failure));
+    select(root); fixture.detectChanges(); preview(root); fixture.detectChanges();
+    root.querySelector<HTMLButtonElement>('[data-confirm-assignment]')!.click();
+    await fixture.whenStable(); fixture.detectChanges();
+    expect(root.textContent).toContain('persons.review_queue.uncertain');
+    expect(root.textContent).not.toContain('persons.review_queue.changed');
+    fixture.destroy(); root.remove();
+  });
+
   it('keeps a 4xx after an earlier group committed uncertain', async () => {
     const { fixture, root, api } = await render();
     api.post.mockReturnValueOnce(of(assigned)).mockReturnValueOnce(throwError(() => new HttpErrorResponse({ status: 409 })));

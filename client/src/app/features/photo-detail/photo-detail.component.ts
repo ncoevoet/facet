@@ -1455,7 +1455,6 @@ export class PhotoDetailComponent extends PhotoDetailBase implements OnInit {
     } finally { guard.dispose(); }
   }
 
-  /** Accepted writes may repair the gallery after this view is destroyed, but never another session. */
   private isCurrentViewer(): boolean {
     return !this.destroyRef.destroyed && this.viewerOwner === this.auth.identity() && this.viewerSession === privateImageSessionKey();
   }
