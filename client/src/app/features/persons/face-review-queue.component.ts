@@ -489,7 +489,7 @@ export class FaceReviewQueueComponent {
     const plan = this.pending(), guard = this.planGuard;
     if (!plan || !guard?.current() || this.busy()) return;
     this.busy.set(true); this.error.set(false); this.receipt.set({ assigned: 0, skipped: 0, reasons: [] });
-    let committed = false;
+    let committed = false, failed = false;
     try {
       for (const group of this.planGroups()) {
         if (!guard.current()) return;
@@ -517,6 +517,7 @@ export class FaceReviewQueueComponent {
       if (guard.current()) { this.pending.set(null); this.selected.set(new Set()); if ((this.receipt()?.skipped ?? 0) > 0) { this.changed.set(true); this.error.set(true); } }
     } catch (error) {
       // A 4xx before any chunk committed is a known outcome: nothing was assigned.
+      failed = true;
       const refused = !committed && isDefinitiveRejection(error);
       if (guard.current()) { this.error.set(true); this.changed.set(refused); this.uncertain.set(!refused); this.pending.set(null); }
     } finally {
@@ -524,7 +525,7 @@ export class FaceReviewQueueComponent {
         this.busy.set(false);
         if (!guard.current()) { this.pending.set(null); this.faces.set([]); this.selected.set(new Set()); this.total.set(0); this.error.set(true); this.uncertain.set(true); }
         // Move to the outcome, so it scrolls into view and is announced: the alert after a failure, else the receipt.
-        else afterNextRender(() => { if (guard.current() && !this.pending()) ((this.uncertain() ? this.queueAlert() : this.receiptStatus())?.nativeElement ?? this.host.nativeElement).focus(); }, { injector: this.injector });
+        else afterNextRender(() => { if (guard.current() && !this.pending()) ((failed || this.uncertain() ? this.queueAlert() : this.receiptStatus())?.nativeElement ?? this.host.nativeElement).focus(); }, { injector: this.injector });
         this.planGuard = null;
       }
       guard.dispose();

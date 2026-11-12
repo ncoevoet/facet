@@ -277,6 +277,8 @@ describe('FaceReviewQueueComponent', () => {
     expect(root.textContent).not.toContain('persons.review_queue.uncertain');
     expect(root.querySelector<HTMLButtonElement>('[data-review-selected]')?.disabled).toBe(true);
     expect(api.post).toHaveBeenCalledTimes(1);
+    flushRender(fixture);
+    expect(document.activeElement?.getAttribute('role')).toBe('alert');
     fixture.destroy(); root.remove();
   });
 
