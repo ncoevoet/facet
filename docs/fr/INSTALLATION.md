@@ -127,6 +127,26 @@ docker compose down                                      # l'arrêter
 
 Pour redémarrer, relancez la ligne `docker compose … up -d` utilisée ci-dessus.
 
+Pour lancer le scan depuis le navigateur, déclarez plutôt le dossier dans
+`./facet-config/scoring_config.json`. Ajoutez ces clés à son bloc `viewer`, à côté du
+`edition_password` déjà présent :
+
+```json
+{
+  "viewer": {
+    "scan_directories": ["/data/photos"],
+    "features": {
+      "show_scan_button": true
+    }
+  }
+}
+```
+
+Indiquez le chemin vu depuis le conteneur (`/data/photos`), pas celui de l'hôte. Lancez
+`docker compose restart facet`, puis déverrouillez l'édition dans le menu utilisateur avec
+le mot de passe d'édition. **Lancer un scan pour commencer** apparaît alors dans la galerie
+vide. Voir [Déclenchement d'un scan](VIEWER.md#déclenchement-dun-scan).
+
 ## Installer sans Docker
 
 ### Linux

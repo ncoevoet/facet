@@ -281,6 +281,10 @@ All notable changes to Facet are documented in this file.
 - **Immich webhook deliveries stop walking the payload at the delivery cap** instead of visiting every entry of an oversized body.
 - **Dependency bump closing the open Dependabot alert, not reachable in a running install.** `minimatch` 11.0.5 under `typescript-eslint`'s parser (GHSA-g3hv-75wg-m249, a DoS through amplified glob patterns), forced through `overrides` because every `@typescript-eslint/typescript-estree` release up to 8.72.2 asks for `^10.2.2`. It is lint tooling only and ships in no install or image.
 
+### Fixed
+
+- **The Docker install guide shows how to scan from the browser.** Its everyday commands gave only the command-line scan, so a Docker user looking for a Scan button found an empty gallery. It now lists the two `viewer` keys to add (`scan_directories`, `features.show_scan_button`) and the restart, in all seven languages (#510).
+
 ## [1.28.0] "f/64" — 2026-11-05
 
 ### Added
