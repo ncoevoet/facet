@@ -71,6 +71,7 @@ import { PersonFaceMenuComponent } from '../persons/person-face-menu.component';
 import {
   FaceBoxMode, FACE_BOX_MODE_ICONS, FACE_BOX_MODE_LABELS, nextFaceBoxMode, readFaceBoxMode, writeFaceBoxMode,
 } from './face-box-mode';
+import { captureSession } from '../../shared/utils/auth-session';
 
 interface PhotoTagOrigin {
   owner: string;
@@ -1455,12 +1456,6 @@ export class PhotoDetailComponent extends PhotoDetailBase implements OnInit {
   }
 
   /** Accepted writes may repair the gallery after this view is destroyed, but never another session. */
-  private captureSession(): () => boolean {
-    const owner = this.auth.identity();
-    const token = this.auth.token;
-    return () => owner === this.auth.identity() && token === this.auth.token;
-  }
-
   private isCurrentViewer(): boolean {
     return !this.destroyRef.destroyed && this.viewerOwner === this.auth.identity() && this.viewerSession === privateImageSessionKey();
   }
@@ -1470,7 +1465,7 @@ export class PhotoDetailComponent extends PhotoDetailBase implements OnInit {
     if (!p || p.path !== path) return;
     const newRating = p.star_rating === rating ? 0 : rating;
     if (p.logical_review) { await this.saveLogicalReview(p, { rating: newRating }); return; }
-    const sameSession = this.captureSession();
+    const sameSession = captureSession(this.auth);
     try {
       await firstValueFrom(this.api.post('/photo/set_rating', { photo_path: path, rating: newRating }));
       // A confirmed write still repairs the same session's gallery after navigation.
@@ -1495,7 +1490,7 @@ export class PhotoDetailComponent extends PhotoDetailBase implements OnInit {
     if (!p || this.reviewSaving) return;
     this.reviewSaving = true;
     const isOrigin = this.store.captureReviewView();
-    const sameSession = this.captureSession();
+    const sameSession = captureSession(this.auth);
     const photos = this.store.photos();
     const index = photos.findIndex(photo => photo.path === p.path);
     const next = photos[index + 1];
@@ -1540,7 +1535,7 @@ export class PhotoDetailComponent extends PhotoDetailBase implements OnInit {
     const p = this.photo();
     if (!p || p.path !== path) return;
     if (p.logical_review) { await this.saveLogicalReview(p, 'favorite'); return; }
-    const sameSession = this.captureSession();
+    const sameSession = captureSession(this.auth);
     try {
       const res = await firstValueFrom(this.api.post<{ is_favorite: boolean; is_rejected: boolean | null }>('/photo/toggle_favorite', { photo_path: path }));
       if (!sameSession()) return;
@@ -1560,7 +1555,7 @@ export class PhotoDetailComponent extends PhotoDetailBase implements OnInit {
     const p = this.photo();
     if (!p || p.path !== path) return;
     const isOrigin = this.store.captureReviewView();
-    const sameSession = this.captureSession();
+    const sameSession = captureSession(this.auth);
     const photos = this.store.photos();
     const index = photos.findIndex(photo => photo.path === p.path);
     const next = photos[index + 1];
@@ -1762,7 +1757,7 @@ export class PhotoDetailComponent extends PhotoDetailBase implements OnInit {
       });
       ref.afterClosed().subscribe(async result => {
         if (!result || !current()) return;
-        const sameSession = this.captureSession();
+        const sameSession = captureSession(this.auth);
         const res = await this.photoActions.deletePhotos([p.path], result);
         if (!res || !sameSession()) return;
         // `removed_missing` counts as deleted for this surface: the row is
