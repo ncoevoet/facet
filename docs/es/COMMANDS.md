@@ -486,7 +486,7 @@ El paso de etiquetado al final de un escaneo se omite cuando `tagging.enabled` e
 | `python validate_db.py --report-only` | Informa sin pedir confirmación |
 | `python validate_db.py --db custom.db` | Valida una base de datos personalizada |
 
-Comprueba: rangos de puntuación, métricas faciales, corrupción de BLOB, tamaños de embeddings, rostros huérfanos, valores atípicos estadísticos.
+Comprueba: rangos de puntuación, métricas faciales, corrupción de BLOB, tamaños de embeddings, rostros huérfanos, filas cuya clave foránea apunta a una fila inexistente, valores atípicos estadísticos. La exportación de la base del visor rechaza una base con esas filas. Esta comprobación enumera cada una de esas filas y no borra ninguna; solo los rostros huérfanos, que también cubre la comprobación de rostros huérfanos, se eliminan con `--auto-fix`. La mayoría de esas tablas guardan valoraciones, comparaciones o álbumes, que una corrección de ruta puede volver a vincular y que un borrado perdería.
 
 Tanto las reparaciones interactivas como `--auto-fix` toman el bloqueo de la biblioteca y vuelven a comprobar los problemas antes de escribir. El modo interactivo espera tu confirmación inicial antes de tomar el bloqueo. Una biblioteca ocupada termina con 75; un bloqueo inutilizable, con 1. `--report-only` y rechazar las reparaciones no necesitan el bloqueo de reparación.
 
