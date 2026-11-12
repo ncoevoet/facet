@@ -5,7 +5,7 @@ import sqlite3
 import pytest
 
 from db.schema import init_database
-from validation.database_validator import DatabaseValidator, delete_foreign_key_violations
+from validation.database_validator import DatabaseValidator
 
 
 class _FakeCursor:
@@ -129,34 +129,32 @@ class TestForeignKeyViolations:
         init_database(str(db))
         conn = sqlite3.connect(str(db))
         conn.execute("PRAGMA foreign_keys = OFF")
-        conn.execute(
-            "INSERT INTO faces (photo_path, face_index, embedding, is_manual, manual_review_required) "
-            "VALUES ('/gone.jpg', 0, x'00', 0, 0)"
-        )
+        for index in range(2):
+            conn.execute(
+                "INSERT INTO faces (photo_path, face_index, embedding, is_manual, manual_review_required) "
+                "VALUES ('/gone.jpg', ?, x'00', 0, 0)", (index,)
+            )
         conn.execute("INSERT INTO keyword_nodes (id, parent_id, name, name_key) VALUES ('n1', 'missing', 'A', 'a')")
         conn.commit()
         return conn
 
-    def test_orphans_are_reported(self, tmp_path):
+    def test_orphans_are_counted_per_table_and_never_deleted(self, tmp_path):
         conn = self._seed_orphans(tmp_path / "t.db")
         validator = DatabaseValidator(str(tmp_path / "t.db"))
         validator._check_referential_integrity(conn)
         result = next(r for r in validator.results if r.check_name == "foreign_key_violations")
-        assert result.fixable
-        assert sorted(issue['record']['table'] for issue in result.issues) == ['faces', 'keyword_nodes']
-
-    def test_fix_deletes_cascade_orphans_and_keeps_restrict_ones(self, tmp_path):
-        conn = self._seed_orphans(tmp_path / "t.db")
-        delete_foreign_key_violations(conn)
-        assert conn.execute("SELECT COUNT(*) FROM faces").fetchone() == (0,)
-        assert [row[0] for row in conn.execute("PRAGMA main.foreign_key_check")] == ['keyword_nodes']
+        assert not result.fixable
+        assert [(i['record']['table'], i['record']['rows']) for i in result.issues] == [('faces', 2), ('keyword_nodes', 1)]
+        assert conn.execute("SELECT COUNT(*) FROM faces").fetchone() == (2,)
 
 
-def test_viewer_export_names_the_tables_and_the_repair(tmp_path):
+def test_viewer_export_names_the_tables_and_the_databases_to_inspect(tmp_path):
     from db.maintenance import _check_viewer_foreign_keys
 
     conn = TestForeignKeyViolations._seed_orphans(tmp_path / "t.db")
     with pytest.raises(sqlite3.IntegrityError) as exc:
-        _check_viewer_foreign_keys(conn)
-    assert 'faces, keyword_nodes' in str(exc.value)
-    assert 'validate_db.py' in str(exc.value)
+        _check_viewer_foreign_keys(conn, ('/lib/photo_scores.db', '/lib/viewer.db'))
+    message = str(exc.value)
+    assert 'faces, keyword_nodes' in message
+    assert 'validate_db.py --report-only --db /lib/photo_scores.db' in message
+    assert 'validate_db.py --report-only --db /lib/viewer.db' in message
