@@ -386,7 +386,7 @@
           @if (store.config()?.version; as version) {
             <mat-divider />
             <!-- Click copies the version and build, for a bug report or a test note. -->
-            <button mat-menu-item data-copy-version (click)="copyVersion()"
+            <button mat-menu-item (click)="copyVersion()"
               [matTooltip]="I18N.ui.buttons.copy | translate" matTooltipPosition="left">
               <mat-icon>content_copy</mat-icon>
               <span class="text-xs opacity-60">

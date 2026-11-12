@@ -448,3 +448,16 @@ def test_declared_422_covers_both_wire_shapes(edition_client, hops):
     assert coded.status_code == invalid.status_code == 422
     assert isinstance(coded.json()['detail'], str)
     assert isinstance(invalid.json()['detail'], list)
+
+
+def test_browser_host_list_matches_the_server_allowlist():
+    # The server list is the security boundary; the browser copy only decides
+    # when to offer the server round trip, and must not drift from it.
+    import ast
+    import re
+    from pathlib import Path
+
+    source = (Path(__file__).resolve().parents[1] / 'client/src/app/shared/utils/google-maps-link.ts').read_text()
+    match = re.search(r'RESOLVABLE_MAPS_HOSTS: readonly string\[\] = (\[[^\]]*\]);', source)
+    assert match, 'RESOLVABLE_MAPS_HOSTS not found in google-maps-link.ts'
+    assert frozenset(ast.literal_eval(match.group(1))) == maps_link.ALLOWED_HOSTS

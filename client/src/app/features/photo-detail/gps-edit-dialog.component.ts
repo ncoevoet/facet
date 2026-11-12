@@ -10,7 +10,7 @@ import { firstValueFrom, Subject, takeUntil } from 'rxjs';
 import { AuthService } from '../../core/services/auth.service';
 import { StalenessGuardFactory } from '../../core/services/staleness-guard.service';
 import * as L from 'leaflet';
-import { createLeafletMap } from '../../shared/leaflet';
+import { createLeafletMap, DEFAULT_MAP_CENTER } from '../../shared/leaflet';
 import type { components } from '../../core/api/schema';
 import { GalleryStore } from '../gallery/gallery.store';
 import { ApiService } from '../../core/services/api.service';
@@ -25,8 +25,6 @@ import { googleMapsSearchUrl, isResolvableMapsLink, parseGoogleMapsInput, type L
 
 /** The keyCode browsers report for a keydown the IME is still processing. */
 const IME_PROCESS_KEY_CODE = 229;
-/** Where the map opens when there is no point yet. */
-const DEFAULT_CENTER: LatLng = { lat: 48.8566, lng: 2.3522 };
 
 export interface GpsEditDialogData {
   path: string;
@@ -417,13 +415,13 @@ export class GpsEditDialogComponent {
       return { lat: this.data.lat, lng: this.data.lng };
     }
     const center = this.map?.getCenter().wrap();
-    return center ? { lat: center.lat, lng: center.lng } : DEFAULT_CENTER;
+    return center ? { lat: center.lat, lng: center.lng } : DEFAULT_MAP_CENTER;
   }
 
   private initMap(): void {
     const container = this.mapContainer().nativeElement;
-    const lat = this.selectedLat() ?? DEFAULT_CENTER.lat;
-    const lng = this.selectedLng() ?? DEFAULT_CENTER.lng;
+    const lat = this.selectedLat() ?? DEFAULT_MAP_CENTER.lat;
+    const lng = this.selectedLng() ?? DEFAULT_MAP_CENTER.lng;
     const zoom = this.selectedLat() !== null ? 13 : 5;
 
     this.map = createLeafletMap(container, undefined, () => { if (this.current()) this.mapFailed.set(true); }).setView([lat, lng], zoom);

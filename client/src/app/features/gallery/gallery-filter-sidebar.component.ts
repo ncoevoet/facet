@@ -399,7 +399,7 @@ type RatingOption = 'any' | '1' | '2' | '3' | '4' | '5' | 'zero';
       @if (store.config()?.features?.show_semantic_search) {
         <div class="relative">
         <!-- The help sits on the header row as a sibling: a button inside the header would toggle the panel. -->
-        <app-context-help data-section-help="semantic" class="absolute right-10 top-1.5 z-10 pointer-coarse:top-0" [iconOnly]="true" [label]="I18N.gallery.semantic_search_help" [keys]="semanticHelp" />
+        <app-context-help data-section-help="semantic" class="absolute end-10 top-1.5 z-10 pointer-coarse:top-0" [iconOnly]="true" [label]="I18N.gallery.semantic_search_help" [keys]="semanticHelp" />
         @let openSemantic = sectionStates() | sectionOpen:'semantic':false:activeView();
         <mat-expansion-panel class="!mb-1" [expanded]="openSemantic"
                              (opened)="onSectionToggle('semantic', true)"
@@ -596,7 +596,7 @@ type RatingOption = 'any' | '1' | '2' | '3' | '4' | '5' | 'zero';
           @case ('tag_rules') {
       <!-- Tag rules -->
         <div class="relative">
-        <app-context-help data-section-help="tag_rules" class="absolute right-10 top-1.5 z-10 pointer-coarse:top-0" [iconOnly]="true" [label]="I18N.gallery.tag_groups.help" [keys]="tagRulesHelp" />
+        <app-context-help data-section-help="tag_rules" class="absolute end-10 top-1.5 z-10 pointer-coarse:top-0" [iconOnly]="true" [label]="I18N.gallery.tag_groups.help" [keys]="tagRulesHelp" />
         @let tagRulesPanelOpen = activeView() || tagRulesOpen();
         <mat-expansion-panel class="!mb-1" [expanded]="tagRulesPanelOpen"
                              (opened)="onTagRulesToggle(true)"

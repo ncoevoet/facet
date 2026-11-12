@@ -157,9 +157,9 @@ export class TimelineFeedComponent {
   }
 
   private readonly remember = (): void => {
-    const context = this.context; const owner = this.auth.status();
-    if (!context || !owner || this.error() || this.loading() || !this.current(context, this.generation)) return;
-    this.cache.save({ ...context, owner, groups: this.groups(), next_cursor: this.nextCursor(), has_more: this.hasMore(),
+    const context = this.context;
+    if (!context || !this.auth.status() || this.error() || this.loading() || !this.current(context, this.generation)) return;
+    this.cache.save({ ...context, groups: this.groups(), next_cursor: this.nextCursor(), has_more: this.hasMore(),
       scrollTop: this.scrollOwner?.scrollTop ?? 0 });
   };
 
