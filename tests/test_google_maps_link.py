@@ -239,6 +239,21 @@ def test_relative_location_joined_past_the_parser_limit_is_not_followed(hops):
     assert requested == [start]
 
 
+@pytest.mark.parametrize('extra', [0, 1], ids=['at_limit', 'one_past'])
+def test_joined_location_is_read_up_to_the_parser_limit(hops, extra):
+    requested, script = hops
+    start = 'https://maps.app.goo.gl/abc'
+    absolute = PIN_URL + '&x='
+    location = absolute + 'x' * (gml.MAX_INPUT + extra - len(absolute))
+    script[start] = (302, location)
+    if extra:
+        with pytest.raises(maps_link.LinkError) as exc:
+            maps_link.resolve(start)
+        assert exc.value.code == 'no_coordinates'
+    else:
+        assert maps_link.resolve(start) == (32.6064, -116.3239)
+    assert requested == [start]
+
 def test_hop_limit(hops):
     requested, script = hops
     for i in range(10):

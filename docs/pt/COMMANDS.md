@@ -486,7 +486,7 @@ O passo de marcação ao fim de um escaneamento é pulado quando `tagging.enable
 | `python validate_db.py --report-only` | Relata sem perguntar |
 | `python validate_db.py --db custom.db` | Valida um banco de dados personalizado |
 
-Verificações: intervalos de pontuação, métricas de rostos, corrupção de BLOB, tamanhos de embeddings, rostos órfãos, linhas cuja chave estrangeira aponta para uma linha inexistente, valores atípicos estatísticos. A exportação da base do visualizador recusa uma base com essas linhas. Elas são contadas por tabela e nunca corrigidas automaticamente: a maioria dessas tabelas guarda avaliações, comparações ou álbuns, que uma correção de caminho pode religar e que uma exclusão perderia.
+Verificações: intervalos de pontuação, métricas de rostos, corrupção de BLOB, tamanhos de embeddings, rostos órfãos, linhas cuja chave estrangeira aponta para uma linha inexistente, valores atípicos estatísticos. A exportação da base do visualizador recusa uma base com essas linhas. Esta verificação lista cada uma dessas linhas e não exclui nenhuma; só os rostos órfãos, que a verificação de rostos órfãos também cobre, são removidos por `--auto-fix`. A maioria dessas tabelas guarda avaliações, comparações ou álbuns, que uma correção de caminho pode religar e que uma exclusão perderia.
 
 Tanto os reparos interativos quanto o `--auto-fix` pegam o bloqueio da biblioteca e verificam os problemas novamente antes de gravar. O modo interativo espera a sua confirmação inicial antes de pegar o bloqueio. Uma biblioteca ocupada termina com 75; um bloqueio inutilizável, com 1. `--report-only` e recusar os reparos não precisam do bloqueio de reparo.
 

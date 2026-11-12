@@ -486,7 +486,7 @@ L'étape d'étiquetage en fin d'analyse est ignorée quand `tagging.enabled` vau
 | `python validate_db.py --report-only` | Rapporte sans demander de confirmation |
 | `python validate_db.py --db custom.db` | Valide une base de données personnalisée |
 
-Vérifications : plages de scores, métriques de visages, corruption de BLOB, tailles d'embeddings, visages orphelins, lignes dont la clé étrangère désigne une ligne absente, valeurs statistiques aberrantes. L'export de la base du visualiseur refuse une base qui contient de telles lignes. Elles sont comptées par table et jamais corrigées automatiquement : la plupart de ces tables contiennent des notes, des comparaisons ou des albums, qu'une correction de chemin peut rattacher et qu'une suppression perdrait.
+Vérifications : plages de scores, métriques de visages, corruption de BLOB, tailles d'embeddings, visages orphelins, lignes dont la clé étrangère désigne une ligne absente, valeurs statistiques aberrantes. L'export de la base du visualiseur refuse une base qui contient de telles lignes. Cette vérification liste chacune de ces lignes et n'en supprime aucune ; seuls les visages orphelins, que la vérification des visages orphelins couvre aussi, sont supprimés par `--auto-fix`. La plupart de ces tables contiennent des notes, des comparaisons ou des albums, qu'une correction de chemin peut rattacher et qu'une suppression perdrait.
 
 Les réparations interactives comme `--auto-fix` prennent le verrou de la bibliothèque et revérifient les problèmes avant d'écrire. Le mode interactif attend votre confirmation initiale avant de prendre le verrou. Une bibliothèque occupée renvoie 75 ; un verrou inutilisable renvoie 1. `--report-only` et le refus des réparations n'ont pas besoin du verrou de réparation.
 

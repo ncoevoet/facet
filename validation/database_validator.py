@@ -4,7 +4,6 @@ Database consistency validation for Facet.
 
 import logging
 import sqlite3
-from collections import Counter
 from typing import Any, Dict, List
 
 
@@ -605,12 +604,10 @@ class DatabaseValidator:
             "foreign_key_violations",
             "Rows whose foreign key references a missing parent row"
         )
-        counts = Counter((table, parent) for table, _rowid, parent, _fkid
-                         in conn.execute('PRAGMA main.foreign_key_check'))
-        for (table, parent), count in sorted(counts.items()):
+        for table, rowid, parent, _fkid in conn.execute('PRAGMA main.foreign_key_check'):
             result4.add_issue(
-                {'filename': table, 'table': table, 'parent': parent, 'rows': count},
-                f"{count} row(s) reference a missing {parent} row"
+                {'filename': f'{table} rowid {rowid}', 'table': table, 'rowid': rowid, 'parent': parent},
+                f"references a missing {parent} row"
             )
 
         self.results.append(result4)

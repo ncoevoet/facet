@@ -138,13 +138,16 @@ class TestForeignKeyViolations:
         conn.commit()
         return conn
 
-    def test_orphans_are_counted_per_table_and_never_deleted(self, tmp_path):
+    def test_orphans_are_reported_per_row_and_never_deleted(self, tmp_path):
         conn = self._seed_orphans(tmp_path / "t.db")
         validator = DatabaseValidator(str(tmp_path / "t.db"))
         validator._check_referential_integrity(conn)
         result = next(r for r in validator.results if r.check_name == "foreign_key_violations")
         assert not result.fixable
-        assert [(i['record']['table'], i['record']['rows']) for i in result.issues] == [('faces', 2), ('keyword_nodes', 1)]
+        assert result.count == 3
+        assert sorted((i['record']['table'], i['record']['parent']) for i in result.issues) == [
+            ('faces', 'photos'), ('faces', 'photos'), ('keyword_nodes', 'keyword_nodes')]
+        assert all(i['record']['rowid'] is not None for i in result.issues)
         assert conn.execute("SELECT COUNT(*) FROM faces").fetchone() == (2,)
 
 
