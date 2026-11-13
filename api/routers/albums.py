@@ -89,6 +89,11 @@ def _get_user_id(user):
     return user.user_id if user else None
 
 
+def _may_open_album(album, user_id):
+    """The album-ownership rule: only the owner on an access-controlled install, anyone otherwise."""
+    return not is_access_controlled_install() or album['user_id'] == user_id
+
+
 def _check_album_access(conn, album_id, user_id):
     """Fetch album and verify ownership. Returns album row or raises 404/403.
 
@@ -101,7 +106,7 @@ def _check_album_access(conn, album_id, user_id):
     album = conn.execute("SELECT * FROM albums WHERE id = ?", (album_id,)).fetchone()
     if not album:
         raise HTTPException(status_code=404, detail="Album not found")
-    if is_access_controlled_install() and album['user_id'] != user_id:
+    if not _may_open_album(album, user_id):
         raise HTTPException(status_code=403, detail="Access denied")
     return album
 
@@ -113,7 +118,7 @@ async def _check_album_access_async(conn, album_id, user_id):
     await cur.close()
     if not album:
         raise HTTPException(status_code=404, detail="Album not found")
-    if is_access_controlled_install() and album['user_id'] != user_id:
+    if not _may_open_album(album, user_id):
         raise HTTPException(status_code=403, detail="Access denied")
     return album
 
@@ -456,7 +461,6 @@ def photo_albums(
         raise HTTPException(status_code=404, detail="Photo not found")
     source, source_params = get_photos_from_clause(user.user_id)
     visibility, visibility_params = get_visibility_clause(user.user_id)
-    owner_sql, owner_params = ("WHERE user_id = ?", [user.user_id]) if is_access_controlled_install() else ("", [])
     try:
         with get_db() as conn:
             conn.execute("BEGIN")
@@ -469,9 +473,11 @@ def photo_albums(
                 "SELECT album_id FROM album_photos WHERE photo_path = ?", (path,)).fetchall()}
             albums = []
             for album in conn.execute(
-                f"SELECT id, name, is_smart, smart_filter_json, user_id FROM albums {owner_sql} "
-                "ORDER BY name COLLATE NOCASE, id", owner_params,
+                "SELECT id, name, is_smart, smart_filter_json, user_id FROM albums "
+                "ORDER BY name COLLATE NOCASE, id",
             ).fetchall():
+                if not _may_open_album(album, user.user_id):
+                    continue
                 if album['is_smart'] and album['smart_filter_json']:
                     try:
                         member = _photo_in_album(conn, album, path)
@@ -759,7 +765,7 @@ def _photo_in_album(conn, album_row, path):
         from api.routers.gallery import _build_gallery_where
         owner_id = album_row['user_id']
         saved_filters = _normalize_smart_filters(json.loads(album_row['smart_filter_json']))
-        where_clauses, sql_params = _build_gallery_where(saved_filters, conn, user_id=owner_id)
+        where_clauses, sql_params = _build_gallery_where(saved_filters, conn, user_id=owner_id, single_photo=True)
         from_clause, from_params = get_photos_from_clause(owner_id)
         where_str = f" WHERE {' AND '.join(list(where_clauses) + ['path = ?'])}"
         row = conn.execute(

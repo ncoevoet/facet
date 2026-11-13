@@ -130,11 +130,15 @@ def test_manual_tag_companion_keeps_exact_literal_input_and_share_exclusion(tmp_
             "INSERT INTO photo_manual_tags(photo_path,tag,source) VALUES(?,?,'user')",
             ("/manual", term),
         )
-        for include_manual, expected in ((True, {"/manual"}), (False, set())):
+        for include_manual, expected, correlated in (
+            (True, {"/manual"}, False), (False, set(), False),
+            (True, {"/manual"}, True), (False, set(), True),
+        ):
             clauses = []
             parameters = []
             gallery._apply_search_filter(
-                clauses, parameters, term, connection, include_manual=include_manual
+                clauses, parameters, term, connection, include_manual=include_manual,
+                correlated=correlated,
             )
             assert {
                 row[0]
