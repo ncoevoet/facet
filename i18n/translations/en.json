@@ -115,7 +115,8 @@
     "light_mode": "Light mode",
     "version": "Facet {version}",
     "display_menu": "Display",
-    "jobs_diagnostics": "Jobs & diagnostics"
+    "jobs_diagnostics": "Jobs & diagnostics",
+    "copy_failed": "Copy failed"
   },
   "dialog": {
     "cancel": "Cancel",
@@ -3079,7 +3080,8 @@
       "reject_sequence_title": "Reject these sequence frames?",
       "reject_sequence_body": "Of these {count} photos, {sequence_count} belong to {kinds} sets whose frames normally stay together. Rejecting them overrides that default. No files are deleted. You can still cancel the pending confirmation before it is saved.",
       "reject_sequence_confirm": "Reject all these photos"
-    }
+    },
+    "error_external_changes": "Could not fetch external changes to the culling feed."
   },
   "scenes": {
     "title": "Scenes",
@@ -3324,7 +3326,8 @@
     "no_gps_hint": "Nothing in scope carries GPS coordinates. Open a photo and use its Location panel to place it — placed photos appear here.",
     "basemap": "Map source",
     "basemap_osm": "OpenStreetMap",
-    "basemap_custom": "Custom source"
+    "basemap_custom": "Custom source",
+    "load_failed": "Could not load the map photos. Pan or zoom to retry."
   },
   "photo_detail": {
     "copy_image": "Copy image",
@@ -3855,7 +3858,9 @@
       "stored": "Stored render histogram",
       "thumbnail": "Thumbnail estimate",
       "note": "This curve describes a rendered image, not RAW sensor values. Clipping markers use stored measurements when available; thumbnail sampling cannot establish sensor clipping."
-    }
+    },
+    "unavailable": "Histogram unavailable",
+    "retry": "Retry"
   },
   "manual_faces": {
     "same_person_overlap": "This box overlaps another manual box assigned to the same person. Check whether you meant to edit the existing box.",

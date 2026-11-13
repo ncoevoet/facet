@@ -40,6 +40,20 @@ describe('ComparisonWeightsTabComponent', () => {
     component = TestBed.inject(ComparisonWeightsTabComponent);
   });
 
+  describe('loadWeightImpact', () => {
+    it('a failed correlations fetch tells the user instead of leaving the panel blank', async () => {
+      compareFilters.selectedCategory.set('portrait');
+      mockApi.get.mockImplementation((url: string) =>
+        url === '/stats/categories/correlations'
+          ? throwError(() => new Error('boom'))
+          : of({}));
+      const tab = TestBed.inject(ComparisonWeightsTabComponent);
+      await tab.loadWeightImpact();
+
+      expect(mockSnackBar.open).toHaveBeenCalledWith('comparison.error_loading_weights', '', { duration: 4000 });
+    });
+  });
+
   describe('unavailableWeights', () => {
     beforeEach(() => {
       component.weights.set({ aesthetic_percent: 30, liqe_percent: 7, aesthetic_iaa_percent: 2, face_quality_iqa_percent: 0 });

@@ -92,7 +92,12 @@ export class GallerySelectionActions {
     const paths = explicitPaths
       ?? await this.resolveSelectionPaths(I18N.gallery.selection.view_scope_copy_message);
     if (!paths?.length) return;
-    await copyLines(paths.map(basename));
+    try {
+      await copyLines(paths.map(basename));
+    } catch {
+      this.snackBar.open(this.i18n.t(I18N.ui.copy_failed), '', { duration: 3000 });
+      return;
+    }
     this.snackBar.open(this.i18n.t(I18N.gallery.selection.copied), '', { duration: 2000 });
   }
 

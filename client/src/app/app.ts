@@ -197,7 +197,11 @@ export class App implements OnInit {
     if (!config?.version) return;
     const label = this.i18n.t(I18N.ui.version, { version: config.version });
     const text = config.build ? `${label} (${config.build})` : label;
-    if (await copyText(text)) this.snackBar.open(this.i18n.t(I18N.notifications.copied), '', { duration: 2000 });
+    if (await copyText(text)) {
+      this.snackBar.open(this.i18n.t(I18N.notifications.copied), '', { duration: 2000 });
+    } else {
+      this.snackBar.open(this.i18n.t(I18N.ui.copy_failed), '', { duration: 3000 });
+    }
   }
   private helpSections(): ShortcutSection[] {
     const url = this.url();

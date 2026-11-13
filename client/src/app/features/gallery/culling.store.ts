@@ -1688,6 +1688,10 @@ export class CullingStore {
         for (const photo of response.photos) fresh.set(photo.path, photo);
       }
     } catch {
+      // One transient failure must not wedge the chain (the next batch still
+      // lands), but it cannot be silent either: the user keeps making
+      // decisions on rows an assistant write may have changed.
+      this.notice$.next({ key: 'culling.error_external_changes', duration: 4000 });
       return;
     }
     if (gen !== this.loadGenerationId) return;

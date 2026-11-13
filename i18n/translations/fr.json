@@ -90,7 +90,8 @@
     "light_mode": "Mode clair",
     "version": "Facet {version}",
     "display_menu": "Affichage",
-    "jobs_diagnostics": "Tâches et diagnostics"
+    "jobs_diagnostics": "Tâches et diagnostics",
+    "copy_failed": "Échec de la copie"
   },
   "dialog": {
     "cancel": "Annuler",
@@ -3054,7 +3055,8 @@
       "reject_sequence_title": "Rejeter ces images de séquence ?",
       "reject_sequence_body": "Sur ces {count} photos, {sequence_count} appartiennent à des ensembles {kinds} dont les images restent normalement ensemble. Les rejeter remplace ce comportement par défaut. Aucun fichier n’est supprimé. Vous pouvez encore annuler la confirmation en attente avant son enregistrement.",
       "reject_sequence_confirm": "Rejeter toutes ces photos"
-    }
+    },
+    "error_external_changes": "Impossible de récupérer les modifications externes du flux de sélection."
   },
   "scenes": {
     "title": "Scènes",
@@ -3299,7 +3301,8 @@
     "no_gps_hint": "Rien dans le périmètre ne porte de coordonnées GPS. Ouvrez une photo et utilisez son panneau Lieu pour la placer — les photos placées apparaissent ici.",
     "basemap": "Source de la carte",
     "basemap_osm": "OpenStreetMap",
-    "basemap_custom": "Source personnalisée"
+    "basemap_custom": "Source personnalisée",
+    "load_failed": "Impossible de charger les photos de la carte. Déplacez ou zoomez pour réessayer."
   },
   "photo_detail": {
     "copy_image": "Copier l’image",
@@ -3830,7 +3833,9 @@
       "stored": "Histogramme du rendu enregistré",
       "thumbnail": "Estimation de la miniature",
       "note": "Cette courbe décrit une image rendue, pas les valeurs RAW du capteur. Les repères d’écrêtage utilisent les mesures enregistrées lorsqu’elles sont disponibles ; l’échantillonnage d’une miniature ne permet pas d’établir l’écrêtage du capteur."
-    }
+    },
+    "unavailable": "Histogramme indisponible",
+    "retry": "Réessayer"
   },
   "manual_faces": {
     "title": "Marquer un visage manquant ou un objet / Gérer les marques",

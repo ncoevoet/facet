@@ -3996,6 +3996,13 @@ describe('GalleryStore optimistic mutations', () => {
       expect(refresh).not.toHaveBeenCalled();
     });
 
+    it('unassignPerson failure tells the user instead of leaving a silent chip', async () => {
+      apiPost.mockReturnValue(throwError(() => new Error('offline')));
+      snackOpen.mockClear();
+      await store.unassignPerson('/a.jpg', 9);
+      expect(snackOpen).toHaveBeenCalledTimes(1);
+    });
+
     it('applies the real naming refresh while preserving selection on an unrelated row', async () => {
       const get = TestBed.inject(ApiService).get as Mock;
       apiPost.mockReturnValue(of({}));
