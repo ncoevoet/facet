@@ -9,11 +9,14 @@ from PIL import Image
 from api.database import get_db
 
 
-def _source(tmp_path, color='red'):
+def _source(tmp_path, color='red', **tags):
     path = tmp_path / 'image.jpg'
     exif = Image.Exif()
     exif[272] = 'Fresh Camera'
     exif[34665] = {36867: '2024:01:02 03:04:05', 34855: 640}
+    for tag, value in tags.get('ifd0', {}).items():
+        exif[tag] = value
+    exif[34665].update(tags.get('exif_ifd', {}))
     Image.new('RGB', (800, 600), color).save(path, exif=exif)
     return str(path)
 
@@ -53,13 +56,16 @@ def test_refresh_reads_real_exif_and_preview_without_scoring_or_source_write(edi
 
 
 def test_refresh_fills_file_size_and_extra_exif_fields(edition_client, seed_photos_prefix, tmp_path):
-    path = _source(tmp_path)
+    # Artist 315, Copyright 33432 (IFD0); Flash 37385, MeteringMode 37383, WhiteBalance 41987 (Exif IFD).
+    path = _source(tmp_path, ifd0={315: 'Jane Doe', 33432: '(c) 2024 Jane'},
+                   exif_ifd={37385: 1, 37383: 5, 41987: 1})
     _seed(seed_photos_prefix, path)
     assert _row(path)['file_size'] is None
     assert edition_client.post('/api/photos/refresh', json={'paths': [path]}).json()['refreshed'] == [path]
     after = _row(path)
     assert after['file_size'] == os.path.getsize(path)
-    assert after['artist'] is None and after['flash'] is None
+    assert (after['artist'], after['copyright']) == ('Jane Doe', '(c) 2024 Jane')
+    assert (after['flash'], after['metering_mode'], after['white_balance']) == (1, 5, 1)
 
 
 def test_refresh_preserves_manual_date_gps_and_refreshes_token_even_same_thumbnail(edition_client, seed_photos_prefix, tmp_path):

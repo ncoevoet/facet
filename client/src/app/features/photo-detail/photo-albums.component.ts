@@ -1,16 +1,10 @@
 import { ChangeDetectionStrategy, Component, effect, untracked } from '@angular/core';
 import { RouterLink } from '@angular/router';
 import { MatIconModule } from '@angular/material/icon';
+import type { PhotoAlbum } from '../../core/api/types';
 import { I18N } from '../../core/i18n/keys';
 import { TranslatePipe } from '../../shared/pipes/translate.pipe';
 import { PhotoPanelReader } from './photo-panel-reader';
-
-/** One album the photo belongs to, as `GET /api/photo/albums` lists it. */
-export interface PhotoAlbum {
-  id: number;
-  name: string;
-  is_smart: boolean;
-}
 
 /** The albums containing a photo, read as soon as the photo shows (no panel to open); renders nothing when there are none. */
 @Component({

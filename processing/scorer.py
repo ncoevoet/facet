@@ -37,6 +37,7 @@ from db.schema import FACES_UPSERT_SQL, IQA_SCAN_FINGERPRINT_SQL, face_upsert_ro
 from db.scoring_overrides import get_photo_scoring_overrides
 from db.tags import sync_photo_tags
 from db.vec import sync_vec_batch
+from exiftool.exiftool_batch import EXIF_CODE_DOMAINS, EXIF_META_COLUMNS, EXPOSURE_COMPENSATION_MAX_EV, clean_exif_text
 from processing.progress import emit_progress
 from utils.histogram import unpack_histogram
 from utils.image_bounds import LIQE_MIN_SHORT_SIDE, liqe_input_too_small
@@ -306,18 +307,6 @@ _EXIF_NUMERIC_FIELDS = (
 _EXIF_INT_FIELDS = ('iso', 'flash', 'white_balance', 'metering_mode', 'file_size')
 
 
-_EXIF_META_COLUMNS = (
-    'file_size', 'exposure_compensation', 'flash', 'white_balance', 'metering_mode',
-    'artist', 'copyright',
-)
-
-_EXIF_DOMAINS = {
-    'flash': range(0, 128),
-    'white_balance': (0, 1),
-    'metering_mode': (0, 1, 2, 3, 4, 5, 6, 255),
-}
-
-
 def _stat_size(image_path):
     """File size in bytes for the exifread / Pillow fallbacks (exiftool reports its own)."""
     try:
@@ -329,11 +318,11 @@ def _stat_size(image_path):
 
 def _clamp_exif_domains(exif_data):
     """Null the coded EXIF fields that fall outside the standard EXIF domain."""
-    for key, allowed in _EXIF_DOMAINS.items():
+    for key, allowed in EXIF_CODE_DOMAINS.items():
         if exif_data.get(key) not in allowed:
             exif_data[key] = None
     value = exif_data.get('exposure_compensation')
-    if value is not None and not -15 <= value <= 15:
+    if value is not None and not -EXPOSURE_COMPENSATION_MAX_EV <= value <= EXPOSURE_COMPENSATION_MAX_EV:
         exif_data['exposure_compensation'] = None
     return exif_data
 
@@ -2912,7 +2901,7 @@ class Facet:
                         pass
                 for column, tag in (('artist', 'Image Artist'), ('copyright', 'Image Copyright')):
                     if tag in tags:
-                        exif_data[column] = str(tags[tag]).replace('\x00', '; ').strip() or None
+                        exif_data[column] = clean_exif_text(str(tags[tag]))
                 exif_data['file_size'] = _stat_size(image_path)
                 _clamp_exif_domains(exif_data)
                 if exif_data['camera_model']:
@@ -2958,7 +2947,7 @@ class Facet:
                         except (TypeError, ValueError, ZeroDivisionError):
                             pass
                     elif decoded in ('Artist', 'Copyright'):
-                        exif_data[decoded.lower()] = str(value).replace('\x00', '; ').strip() or None
+                        exif_data[decoded.lower()] = clean_exif_text(str(value))
         except Exception as e:
             logger.warning("EXIF extraction failed for %s: %s", image_path, e)
         exif_data['file_size'] = _stat_size(image_path)
@@ -3014,7 +3003,7 @@ class Facet:
                 res.setdefault('subject_bbox', None)
                 res.setdefault('channel_clip_shadow_pct', None)
                 res.setdefault('channel_clip_highlight_pct', None)
-                for exif_col in _EXIF_META_COLUMNS:
+                for exif_col in EXIF_META_COLUMNS:
                     res.setdefault(exif_col, None)
                 for form_col in FORM_METRIC_COLUMNS:
                     res.setdefault(form_col, None)
@@ -3156,7 +3145,7 @@ class Facet:
             for res, _, computed_columns in batch:
                 # A caller that never read the file metadata binds NULL for it.
                 conn.execute(_photos_partial_upsert(computed_columns),
-                             {**dict.fromkeys(_EXIF_META_COLUMNS), **res})
+                             {**dict.fromkeys(EXIF_META_COLUMNS), **res})
 
             if refresh_faces:
                 replace_photo_faces(

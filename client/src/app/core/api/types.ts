@@ -26,6 +26,9 @@ export type PhotoProvenance = components['schemas']['PhotoProvenance'];
 
 export type RelatedFilesResponse = components['schemas']['RelatedFilesResponse'];
 
+/** One album containing a photo, as `GET /api/photo/albums` lists it. */
+export type PhotoAlbum = components['schemas']['PhotoAlbum'];
+
 export type LightroomImportResponse = components['schemas']['LightroomImportResponse'];
 
 export type LightroomManifest = components['schemas']['LightroomManifest'];

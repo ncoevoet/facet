@@ -49,7 +49,8 @@ describe('exif section rows', () => {
     const t = text(root);
     for (const key of ['tooltip.focal_35mm', 'tooltip.exposure_compensation', 'tooltip.flash', 'tooltip.white_balance',
       'tooltip.metering', 'tooltip.dimensions', 'tooltip.file_size', 'tooltip.folder', 'tooltip.artist', 'tooltip.copyright']) {
-      expect(t, key).toContain(key);
+      // A label key must match on its own: 'tooltip.flash' is also a prefix of the value 'tooltip.flash_fired'.
+      expect(t, key).toMatch(new RegExp(`${key.replace('.', '\\.')}(?!_)`));
     }
     expect(t).toContain('75mm'); expect(t).toContain('+0.7 EV'); expect(t).toContain('tooltip.flash_fired');
     expect(t).toContain('tooltip.white_balance_manual'); expect(t).toContain('tooltip.metering_pattern');

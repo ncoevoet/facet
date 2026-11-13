@@ -242,6 +242,32 @@ def get_exiftool():
     return _exiftool_instance
 
 
+EXIF_META_COLUMNS = (
+    'file_size', 'exposure_compensation', 'flash', 'white_balance', 'metering_mode',
+    'artist', 'copyright',
+)
+"""The file and exposure fields every EXIF reader (exiftool, exifread, Pillow) fills."""
+
+EXIF_CODE_DOMAINS = {
+    'flash': range(0, 128),
+    'white_balance': (0, 1),
+    'metering_mode': (0, 1, 2, 3, 4, 5, 6, 255),
+}
+"""Standard EXIF code domains; a value outside one is a MakerNotes collision and is stored as NULL."""
+
+EXPOSURE_COMPENSATION_MAX_EV = 15
+
+
+def clean_exif_text(val):
+    """An EXIF text tag as stored: a list joined, NUL separators as '; ', blank as None."""
+    if val is None:
+        return None
+    if isinstance(val, (list, tuple)):
+        val = ', '.join(str(v) for v in val)
+    text = str(val).replace('\x00', '; ').strip()
+    return text or None
+
+
 def parse_exif_data(raw_data):
     """
     Parse raw ExifTool output into standardized format.
@@ -305,19 +331,12 @@ def parse_exif_data(raw_data):
 
     def _exposure_compensation(val):
         number = _safe_numeric(val)
-        return number if number is not None and -15 <= number <= 15 else None
+        limit = EXPOSURE_COMPENSATION_MAX_EV
+        return number if number is not None and -limit <= number <= limit else None
 
     def _file_size(val):
         number = _safe_numeric(val)
         return storable_int(number) if number is not None and number > 0 else None
-
-    def _text(val):
-        if val is None:
-            return None
-        if isinstance(val, (list, tuple)):
-            val = ', '.join(str(v) for v in val)
-        text = str(val).replace('\x00', '; ').strip()
-        return text or None
 
     return {
         'date_taken': raw_data.get('DateTimeOriginal') or raw_data.get('CreateDate'),
@@ -332,11 +351,11 @@ def parse_exif_data(raw_data):
         'gps_longitude': _safe_numeric(raw_data.get('GPSLongitude')),
         'file_size': _file_size(raw_data.get('FileSize')),
         'exposure_compensation': _exposure_compensation(raw_data.get('ExposureCompensation')),
-        'flash': _coded_int(raw_data.get('Flash'), range(0, 128)),
-        'white_balance': _coded_int(raw_data.get('WhiteBalance'), (0, 1)),
-        'metering_mode': _coded_int(raw_data.get('MeteringMode'), (0, 1, 2, 3, 4, 5, 6, 255)),
-        'artist': _text(raw_data.get('Artist')),
-        'copyright': _text(raw_data.get('Copyright')),
+        'flash': _coded_int(raw_data.get('Flash'), EXIF_CODE_DOMAINS['flash']),
+        'white_balance': _coded_int(raw_data.get('WhiteBalance'), EXIF_CODE_DOMAINS['white_balance']),
+        'metering_mode': _coded_int(raw_data.get('MeteringMode'), EXIF_CODE_DOMAINS['metering_mode']),
+        'artist': clean_exif_text(raw_data.get('Artist')),
+        'copyright': clean_exif_text(raw_data.get('Copyright')),
     }
 
 

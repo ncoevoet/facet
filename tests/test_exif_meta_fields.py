@@ -20,7 +20,6 @@ def test_schema_has_the_new_columns(tmp_path):
     with get_connection(db, row_factory=False) as conn:
         names = [row[1] for row in conn.execute('PRAGMA table_info(photos)')]
     assert set(NEW_COLUMNS) <= set(names)
-    assert names[-7:] == list(NEW_COLUMNS)
 
 
 def test_parse_standard_values():

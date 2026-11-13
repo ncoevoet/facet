@@ -18,7 +18,7 @@ from api.routers.thumbnails import _image_render_budget
 from db.maintenance import evict_derived_stats_cache
 from db.manual_faces import apply_review_states, is_current
 from db.render_version import render_version_for
-from exiftool.exiftool_batch import get_exif_batch
+from exiftool.exiftool_batch import EXIF_META_COLUMNS, get_exif_batch
 from utils.capture_dates import format_capture_date, parse_capture_date
 from utils.image_loading import RAW_EXTENSIONS, load_image_from_path
 from utils.image_transforms import generate_photo_thumbnail, thumbnail_has_signal
@@ -48,8 +48,7 @@ class PhotoRefreshResponse(BaseModel):
 
 
 _METADATA_FIELDS = ('camera_model', 'lens_model', 'iso', 'f_stop', 'shutter_speed',
-                    'focal_length', 'focal_length_35mm', 'file_size', 'exposure_compensation',
-                    'flash', 'white_balance', 'metering_mode', 'artist', 'copyright')
+                    'focal_length', 'focal_length_35mm', *EXIF_META_COLUMNS)
 
 
 def _refresh(path, user):

@@ -3000,8 +3000,9 @@ def main():
         if shutil.which('exiftool') is None:
             logger.error("--backfill-exif-meta needs exiftool on PATH; install it and re-run.")
             sys.exit(1)
-        from exiftool import get_exif_batch
+        from exiftool.exiftool_batch import EXIF_META_COLUMNS, get_exif_batch
         init_database(args.db)
+        set_clause = ', '.join(f'{column} = ?' for column in EXIF_META_COLUMNS)
         with get_connection(args.db) as conn:
             # No covering index on purpose: the exiftool call per chunk dwarfs the overflow-page cost.
             paths = [row['path'] for row in conn.execute("SELECT path FROM photos WHERE file_size IS NULL")]
@@ -3011,8 +3012,8 @@ def main():
         logger.info("Backfilling file size and EXIF metadata for %d photos...", len(paths))
         updated = 0
         for start in range(0, len(paths), 500):
-            # A missing file makes exiftool exit non-zero and voids the whole chunk's output,
-            # so only files that exist go to it; the rest stay NULL and are counted below.
+            # Missing files are not sent (exiftool would only answer an 'Error' item for them);
+            # they stay NULL and are counted below.
             chunk = [path for path in paths[start:start + 500] if os.path.isfile(path)]
             found = get_exif_batch(chunk, chunk_size=500, timeout_per_chunk=120)
             rows = []
@@ -3020,14 +3021,9 @@ def main():
                 exif = found.get(str(Path(path).resolve()))
                 if exif is None or exif.get('file_size') is None:
                     continue
-                rows.append((exif['file_size'], exif['exposure_compensation'], exif['flash'],
-                             exif['white_balance'], exif['metering_mode'], exif['artist'],
-                             exif['copyright'], path))
+                rows.append((*(exif[column] for column in EXIF_META_COLUMNS), path))
             with get_connection(args.db) as conn:
-                conn.executemany(
-                    "UPDATE photos SET file_size = ?, exposure_compensation = ?, flash = ?, "
-                    "white_balance = ?, metering_mode = ?, artist = ?, copyright = ? WHERE path = ?",
-                    rows)
+                conn.executemany(f"UPDATE photos SET {set_clause} WHERE path = ?", rows)
                 conn.commit()
             updated += len(rows)
         unreadable = len(paths) - updated

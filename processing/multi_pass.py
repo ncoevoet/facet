@@ -28,6 +28,7 @@ from tqdm import tqdm
 import licensing
 from db.person_centroids import flush_centroids_safely
 from db.scoring_overrides import get_photo_scoring_overrides
+from exiftool.exiftool_batch import EXIF_META_COLUMNS
 from models.model_manager import UNIFIED_MEMORY_ACCELERATOR, ModelManager
 from processing import stage_timing
 from processing.routing import (
@@ -2281,13 +2282,7 @@ class ChunkedMultiPassProcessor:
             'focal_length_35mm': exif.get('focal_length_35mm'),
             'gps_latitude': exif.get('gps_latitude'),
             'gps_longitude': exif.get('gps_longitude'),
-            'file_size': exif.get('file_size'),
-            'exposure_compensation': exif.get('exposure_compensation'),
-            'flash': exif.get('flash'),
-            'white_balance': exif.get('white_balance'),
-            'metering_mode': exif.get('metering_mode'),
-            'artist': exif.get('artist'),
-            'copyright': exif.get('copyright'),
+            **{column: exif.get(column) for column in EXIF_META_COLUMNS},
         }
 
     def _save_results(self, results: Dict, images: Dict):

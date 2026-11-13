@@ -70,13 +70,13 @@ import { MetricScoreRowComponent } from '../metric-score-row/metric-score-row.co
               <div class="flex justify-between items-center gap-2 py-1.5"><span class="inline-flex items-center gap-2 text-[var(--mat-sys-on-surface-variant)]"><mat-icon aria-hidden="true" class="!h-4 !w-4 !text-base">sd_storage</mat-icon>{{ 'tooltip.file_size' | translate }}</span><span class="text-[var(--mat-sys-primary)] font-medium">{{ p.file_size | fileSize:locale() }}</span></div>
             }
             @if (p.path | folderPath; as folder) {
-              <div class="flex justify-between items-center gap-2 py-1.5"><span class="inline-flex shrink-0 items-center gap-2 whitespace-nowrap text-[var(--mat-sys-on-surface-variant)]"><mat-icon aria-hidden="true" class="!h-4 !w-4 !text-base">folder</mat-icon>{{ 'tooltip.folder' | translate }}</span><span class="min-w-0 truncate val" [title]="folder">{{ folder }}</span></div>
+              <div class="flex justify-between items-center gap-2 py-1.5"><span class="inline-flex shrink-0 items-center gap-2 whitespace-nowrap text-[var(--mat-sys-on-surface-variant)]"><mat-icon aria-hidden="true" class="!h-4 !w-4 !text-base">folder</mat-icon>{{ 'tooltip.folder' | translate }}</span><span class="min-w-0 truncate text-[var(--mat-sys-primary)] font-medium" [title]="folder">{{ folder }}</span></div>
             }
             @if (p.artist !== null && p.artist !== undefined) {
-              <div class="flex justify-between items-center gap-2 py-1.5"><span class="inline-flex shrink-0 items-center gap-2 whitespace-nowrap text-[var(--mat-sys-on-surface-variant)]"><mat-icon aria-hidden="true" class="!h-4 !w-4 !text-base">person</mat-icon>{{ 'tooltip.artist' | translate }}</span><span class="min-w-0 val truncate" [title]="p.artist">{{ p.artist }}</span></div>
+              <div class="flex justify-between items-center gap-2 py-1.5"><span class="inline-flex shrink-0 items-center gap-2 whitespace-nowrap text-[var(--mat-sys-on-surface-variant)]"><mat-icon aria-hidden="true" class="!h-4 !w-4 !text-base">person</mat-icon>{{ 'tooltip.artist' | translate }}</span><span class="min-w-0 truncate text-[var(--mat-sys-primary)] font-medium" [title]="p.artist">{{ p.artist }}</span></div>
             }
             @if (p.copyright !== null && p.copyright !== undefined) {
-              <div class="flex justify-between items-center gap-2 py-1.5"><span class="inline-flex shrink-0 items-center gap-2 whitespace-nowrap text-[var(--mat-sys-on-surface-variant)]"><mat-icon aria-hidden="true" class="!h-4 !w-4 !text-base">copyright</mat-icon>{{ 'tooltip.copyright' | translate }}</span><span class="min-w-0 val truncate" [title]="p.copyright">{{ p.copyright }}</span></div>
+              <div class="flex justify-between items-center gap-2 py-1.5"><span class="inline-flex shrink-0 items-center gap-2 whitespace-nowrap text-[var(--mat-sys-on-surface-variant)]"><mat-icon aria-hidden="true" class="!h-4 !w-4 !text-base">copyright</mat-icon>{{ 'tooltip.copyright' | translate }}</span><span class="min-w-0 truncate text-[var(--mat-sys-primary)] font-medium" [title]="p.copyright">{{ p.copyright }}</span></div>
             }
           </div>
         </div>

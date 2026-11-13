@@ -10,8 +10,9 @@ import { PhotoAlbumsComponent } from './photo-albums.component';
 
 describe('PhotoAlbumsComponent', () => {
   let http: HttpTestingController;
+  let status: ReturnType<typeof signal<object | null>>;
   beforeEach(() => {
-    const status = signal<object | null>({ user_id: 'alice' });
+    status = signal<object | null>({ user_id: 'alice' });
     const auth = { status, session: computed(() => (status() as { user_id?: string } | null)?.user_id ?? null), token: 'one' };
     TestBed.configureTestingModule({
       imports: [PhotoAlbumsComponent],
@@ -60,6 +61,27 @@ describe('PhotoAlbumsComponent', () => {
     http.expectOne('/api/photo/albums?path=/a.jpg').flush('no', { status: 404, statusText: 'Not Found' });
     fixture.detectChanges();
     expect((fixture.nativeElement as HTMLElement).querySelector('section')).toBeNull();
+  });
+
+  it('sends no request without a session', async () => {
+    status.set(null);
+    const fixture = await render();
+    http.expectNone('/api/photo/albums?path=/a.jpg');
+    expect(chips(fixture.nativeElement)).toHaveLength(0);
+  });
+
+  it("drops the previous account's albums and reads again when the session changes", async () => {
+    const fixture = await render();
+    http.expectOne('/api/photo/albums?path=/a.jpg').flush([{ id: 3, name: 'Alice only', is_smart: false }]);
+    fixture.detectChanges();
+    expect(chips(fixture.nativeElement)).toHaveLength(1);
+    status.set({ user_id: 'bob' });
+    fixture.detectChanges();
+    await fixture.whenStable();
+    expect(chips(fixture.nativeElement)).toHaveLength(0);
+    http.expectOne('/api/photo/albums?path=/a.jpg').flush([{ id: 5, name: 'Bob', is_smart: false }]);
+    fixture.detectChanges();
+    expect(chips(fixture.nativeElement).map(a => a.textContent!.trim())).toEqual(['Bob']);
   });
 
   it('ignores a stale response after the path changed and reads the new photo', async () => {

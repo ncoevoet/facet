@@ -21,6 +21,12 @@ describe('FileSizePipe', () => {
     expect(pipe.transform(999, 'en')).toMatch(/^999\s?byte/);
   });
 
+  it('moves a value that rounds up to 1000 into the next unit', () => {
+    expect(pipe.transform(999_950, 'en')).toMatch(/^1\s?MB$/);
+    expect(pipe.transform(999_999_999, 'en')).toMatch(/^1\s?GB$/);
+    expect(pipe.transform(999_949, 'en')).toMatch(/^999\.9\s?kB$/i);
+  });
+
   it('formats with the given locale', () => {
     expect(pipe.transform(1536, 'de')).toContain('1,5');
   });
