@@ -2281,6 +2281,13 @@ class ChunkedMultiPassProcessor:
             'focal_length_35mm': exif.get('focal_length_35mm'),
             'gps_latitude': exif.get('gps_latitude'),
             'gps_longitude': exif.get('gps_longitude'),
+            'file_size': exif.get('file_size'),
+            'exposure_compensation': exif.get('exposure_compensation'),
+            'flash': exif.get('flash'),
+            'white_balance': exif.get('white_balance'),
+            'metering_mode': exif.get('metering_mode'),
+            'artist': exif.get('artist'),
+            'copyright': exif.get('copyright'),
         }
 
     def _save_results(self, results: Dict, images: Dict):

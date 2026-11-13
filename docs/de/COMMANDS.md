@@ -198,6 +198,7 @@ Diese Befehle aktualisieren Metriken oder leiten neue Daten ab, ohne die vollst�
 | `python facet.py --rescan-gps` | EXIF-GPS für alle Fotos neu extrahieren (überschreibt); im Viewer gesetzte Orte werden übersprungen |
 | `python facet.py --recompute-embeddings` | CLIP/SigLIP-Embeddings für alle Fotos neu berechnen (nach einem Modellwechsel nötig) |
 | `python facet.py --score-topiq` | `[GPU]` `topiq_score` für jedes Foto mit Thumbnail neu bewerten (überschreibt) |
+| `python facet.py --backfill-exif-meta` | Liest Dateigröße, Belichtungskorrektur, Blitz, Weißabgleich, Messmodus, Künstler und Copyright per exiftool neu ein, für Fotos, deren Dateigröße noch leer ist, ohne neue Bewertung. Erfordert exiftool; fortsetzbar (Commit alle 500 Fotos); Dateien, die exiftool nicht lesen kann, bleiben leer und werden gezählt (siehe `python database.py --cleanup-missing-photos`) |
 | `python facet.py --backfill-focal-35mm` | 35-mm-äquivalente Brennweite aus EXIF nachfüllen, wo sie fehlt |
 | `python facet.py --backfill-clipping` | Beschnitt-Prozentsätze pro Kanal aus gespeicherten Histogrammen ableiten (fortsetzbar) |
 | `python facet.py --recompute-silhouette` | `is_silhouette` mit der gesichtsbezogenen Regel neu ableiten (siehe Hinweis) |
@@ -208,7 +209,7 @@ Diese Befehle aktualisieren Metriken oder leiten neue Daten ab, ohne die vollst�
 | `python facet.py --compute-recommendations --apply-recommendations` | Bewertungskorrekturen automatisch anwenden |
 | `python facet.py --compute-recommendations --simulate` | Voraussichtliche Änderungen vorab anzeigen |
 
-**`--dry-run`** hat für diese Befehle, die die Datenbank umschreiben, keine Vorschau; jeder lehnt es mit Exit-Code 2 ab, statt trotzdem zu schreiben: `--backfill-clipping`, `--backfill-focal-35mm`, `--cluster-faces-force`, `--generate-captions`, `--recompute-average`, `--recompute-colors`, `--recompute-distortions`, `--recompute-form`, `--recompute-skin-tone`, `--recompute-tags`, `--recompute-text`, `--repair-int-columns`, `--repair-neutral-iqa`, `--upgrade-db`.
+**`--dry-run`** hat für diese Befehle, die die Datenbank umschreiben, keine Vorschau; jeder lehnt es mit Exit-Code 2 ab, statt trotzdem zu schreiben: `--backfill-clipping`, `--backfill-exif-meta`, `--backfill-focal-35mm`, `--cluster-faces-force`, `--generate-captions`, `--recompute-average`, `--recompute-colors`, `--recompute-distortions`, `--recompute-form`, `--recompute-skin-tone`, `--recompute-tags`, `--recompute-text`, `--repair-int-columns`, `--repair-neutral-iqa`, `--upgrade-db`.
 
 **`--recompute-average`** legt keinen Snapshot an: Zum Zurückrollen einen Gewichtungs-Snapshot wiederherstellen und neu berechnen. Führen Sie nach dem Upgrade von 1.20 oder früher zuerst `--recompute-silhouette` aus, dann `--recompute-average` zweimal. Der erste Durchlauf speichert neue Perzentile, daher ändert der zweite noch einige Zeilen.
 

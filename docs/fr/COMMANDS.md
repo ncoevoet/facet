@@ -198,6 +198,7 @@ Ces commandes mettent à jour des métriques ou dérivent de nouvelles données 
 | `python facet.py --rescan-gps` | Réextrait le GPS EXIF de toutes les photos (écrase) ; ignore les lieux définis dans la visionneuse |
 | `python facet.py --recompute-embeddings` | Recalcule les embeddings CLIP/SigLIP de toutes les photos (requis après un changement de modèle) |
 | `python facet.py --score-topiq` | `[GPU]` Recalcule `topiq_score` pour chaque photo ayant une miniature (écrase) |
+| `python facet.py --backfill-exif-meta` | Relit avec exiftool la taille du fichier, la compensation d'exposition, le flash, la balance des blancs, le mode de mesure, l'artiste et le copyright des photos dont la taille de fichier est encore vide, sans recalculer les scores. Nécessite exiftool ; reprenable (validation tous les 500 photos) ; les fichiers qu'exiftool ne peut pas lire restent vides et sont comptés (voir `python database.py --cleanup-missing-photos`) |
 | `python facet.py --backfill-focal-35mm` | Remplit la focale équivalente 35 mm depuis l'EXIF là où elle manque |
 | `python facet.py --backfill-clipping` | Dérive les pourcentages d'écrêtage par canal depuis les histogrammes stockés (reprenable) |
 | `python facet.py --recompute-silhouette` | Recalcule `is_silhouette` avec la règle fondée sur le visage (voir la note) |
@@ -208,7 +209,7 @@ Ces commandes mettent à jour des métriques ou dérivent de nouvelles données 
 | `python facet.py --compute-recommendations --apply-recommendations` | Applique automatiquement les correctifs de notation |
 | `python facet.py --compute-recommendations --simulate` | Prévisualise les changements projetés |
 
-**`--dry-run`** n'a pas d'aperçu pour ces commandes qui réécrivent la base ; chacune le refuse avec le code de sortie 2 au lieu d'écrire quand même : `--backfill-clipping`, `--backfill-focal-35mm`, `--cluster-faces-force`, `--generate-captions`, `--recompute-average`, `--recompute-colors`, `--recompute-distortions`, `--recompute-form`, `--recompute-skin-tone`, `--recompute-tags`, `--recompute-text`, `--repair-int-columns`, `--repair-neutral-iqa`, `--upgrade-db`.
+**`--dry-run`** n'a pas d'aperçu pour ces commandes qui réécrivent la base ; chacune le refuse avec le code de sortie 2 au lieu d'écrire quand même : `--backfill-clipping`, `--backfill-exif-meta`, `--backfill-focal-35mm`, `--cluster-faces-force`, `--generate-captions`, `--recompute-average`, `--recompute-colors`, `--recompute-distortions`, `--recompute-form`, `--recompute-skin-tone`, `--recompute-tags`, `--recompute-text`, `--repair-int-columns`, `--repair-neutral-iqa`, `--upgrade-db`.
 
 **`--recompute-average`** ne garde aucun instantané : pour revenir en arrière, restaurez un instantané de poids et recalculez. Après une mise à jour depuis la 1.20 ou une version antérieure, lancez d'abord `--recompute-silhouette`, puis `--recompute-average` deux fois. La première passe enregistre de nouveaux percentiles, si bien que la seconde modifie encore certaines lignes.
 

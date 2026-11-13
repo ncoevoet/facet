@@ -52,6 +52,16 @@ def test_refresh_reads_real_exif_and_preview_without_scoring_or_source_write(edi
     assert photo['preview_revision'] == after['preview_revision']
 
 
+def test_refresh_fills_file_size_and_extra_exif_fields(edition_client, seed_photos_prefix, tmp_path):
+    path = _source(tmp_path)
+    _seed(seed_photos_prefix, path)
+    assert _row(path)['file_size'] is None
+    assert edition_client.post('/api/photos/refresh', json={'paths': [path]}).json()['refreshed'] == [path]
+    after = _row(path)
+    assert after['file_size'] == os.path.getsize(path)
+    assert after['artist'] is None and after['flash'] is None
+
+
 def test_refresh_preserves_manual_date_gps_and_refreshes_token_even_same_thumbnail(edition_client, seed_photos_prefix, tmp_path):
     path = _source(tmp_path)
     _seed(seed_photos_prefix, path, date_taken='2001:01:01 01:01:01', date_manually_set=1,

@@ -705,7 +705,7 @@ describe('PhotoDetailComponent', () => {
 
   it('orders the inspector Review, date line, Describe, metric tabs, set, file details and pins Review on wide screens', async () => {
     const view = renderDetail();
-    const photo = makePhoto({ camera_model: 'Canon EOS R6', focal_length: 85, f_stop: 2.8, shutter_speed: '0.01', iso: 4000,
+    const photo = makePhoto({ camera_model: 'Canon EOS R6', lens_model: 'RF 85mm F2', focal_length: 85, f_stop: 2.8, shutter_speed: '0.01', iso: 4000,
       caption: 'A street', tags_list: ['street'], gps_latitude: 1, gps_longitude: 2, persons: [{ id: 1, name: 'Alice' }],
       burst_group_id: 7 });
     const set = { kind: 'burst', count: 5, ev_span: null, members: [1, 2, 3, 4, 5].map(n => ({ path: `/m${n}.jpg`, ev_offset: null, ai_edit_of: null, is_blink: false, preview_revision: null })) };
@@ -736,7 +736,7 @@ describe('PhotoDetailComponent', () => {
     const when = aside.querySelector<HTMLElement>('[data-photo-when]')!;
     expect(when.querySelector('[data-photo-date]')!.parentElement).toBe(when.querySelector('[data-photo-category]')!.parentElement);
     const exposure = when.querySelector<HTMLElement>('[data-photo-exposure]')!;
-    expect([...exposure.querySelectorAll('span')].map(span => span.textContent!.trim())).toEqual(['Canon EOS R6', '85mm', 'f/2.8', '1/100', 'ISO 4000']);
+    expect([...exposure.querySelectorAll('span')].map(span => span.textContent!.trim())).toEqual(['Canon EOS R6', 'RF 85mm F2', '85mm', 'f/2.8', '1/100', 'ISO 4000']);
     expect(exposure.getAttribute('aria-label')).toBe('photo_detail.capture_settings');
     // The rendition help sits beside the image readout, icon-only, not in the inspector (the metric tabs keep their own).
     expect([...aside.querySelectorAll('app-context-help')].filter(help => !help.closest('app-photo-metrics-tabs'))).toHaveLength(0);

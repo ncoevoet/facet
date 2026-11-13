@@ -16,7 +16,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from pydantic import BaseModel, Field
 
 from db.preview_versions import attach_preview_versions
-from api.auth import CurrentUser, get_optional_user, require_edition
+from api.auth import CurrentUser, get_optional_user, require_authenticated, require_edition
 from api.config import VIEWER_CONFIG, server_scoring_config
 from api.database import get_async_db, get_db
 from api.db_helpers import (
@@ -25,7 +25,7 @@ from api.db_helpers import (
     split_photo_tags, attach_person_data_async, format_date, paginate,
     is_access_controlled_install, resolve_hide_defaults, get_preference_columns,
 )
-from api.models.albums import AlbumPhotosResponse, SharedAlbumResponse
+from api.models.albums import AlbumPhotosResponse, PhotoAlbum, SharedAlbumResponse
 from api.models.gallery import BY_PATHS_MISSING_CAP
 from api.top_picks import get_top_picks_score_sql, with_top_picks_alias
 from db.stats_cache import cache_stats_best_effort
@@ -440,6 +440,53 @@ def _compute_smart_album_cover(conn, album_row, user_id=None):
 
 
 # --- Endpoints ---
+
+@router.get("/api/photo/albums", response_model=list[PhotoAlbum])
+def photo_albums(
+    path: str = Query(...),
+    token: Optional[str] = Query(None),
+    user: CurrentUser = Depends(require_authenticated),
+):
+    """Albums (manual and smart) the caller may open that contain ``path``.
+
+    Registered before the ``/api/albums/{album_id}`` routes and under a distinct
+    prefix, so it cannot collide with them. Never reachable through a share token.
+    """
+    if token is not None:
+        raise HTTPException(status_code=404, detail="Photo not found")
+    source, source_params = get_photos_from_clause(user.user_id)
+    visibility, visibility_params = get_visibility_clause(user.user_id)
+    owner_sql, owner_params = ("WHERE user_id = ?", [user.user_id]) if is_access_controlled_install() else ("", [])
+    try:
+        with get_db() as conn:
+            conn.execute("BEGIN")
+            if not conn.execute(
+                f"SELECT 1 FROM {source} WHERE photos.path = ? AND {visibility}",
+                [*source_params, path, *visibility_params],
+            ).fetchone():
+                raise HTTPException(status_code=404, detail="Photo not found")
+            member_ids = {row['album_id'] for row in conn.execute(
+                "SELECT album_id FROM album_photos WHERE photo_path = ?", (path,)).fetchall()}
+            albums = []
+            for album in conn.execute(
+                f"SELECT id, name, is_smart, smart_filter_json, user_id FROM albums {owner_sql} "
+                "ORDER BY name COLLATE NOCASE, id", owner_params,
+            ).fetchall():
+                if album['is_smart'] and album['smart_filter_json']:
+                    try:
+                        member = _photo_in_album(conn, album, path)
+                    except (sqlite3.Error, ValueError, KeyError, TypeError):
+                        logger.warning("Skipping smart album %s with unusable filter", album['id'], exc_info=True)
+                        continue
+                else:
+                    member = album['id'] in member_ids
+                if member:
+                    albums.append({'id': album['id'], 'name': album['name'], 'is_smart': bool(album['is_smart'])})
+            return albums
+    except sqlite3.Error:
+        logger.exception("Failed to read photo albums")
+        raise HTTPException(status_code=503, detail="Albums could not be read") from None
+
 
 @router.get("/api/albums")
 def list_albums(

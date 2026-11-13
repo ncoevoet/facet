@@ -1,8 +1,14 @@
 import { SORT_ICONS } from '../../pipes/sort-option-icon.pipe';
 import { I18N } from '../../../core/i18n/keys';
 import { MatIconModule } from '@angular/material/icon';
-import { ChangeDetectionStrategy, Component, input } from '@angular/core';
+import { ChangeDetectionStrategy, Component, inject, input } from '@angular/core';
 import { Photo } from '../../models/photo.model';
+import { ExifCodePipe } from '../../pipes/exif-code.pipe';
+import { ExposureCompensationPipe } from '../../pipes/exposure-compensation.pipe';
+import { FileSizePipe } from '../../pipes/file-size.pipe';
+import { FolderPathPipe } from '../../pipes/folder-path.pipe';
+import { MegapixelsPipe } from '../../pipes/megapixels.pipe';
+import { I18nService } from '../../../core/services/i18n.service';
 import { FixedPipe } from '../../pipes/fixed.pipe';
 import { IsLensNamePipe } from '../../pipes/is-lens-name.pipe';
 import { ShutterSpeedPipe } from '../../pipes/shutter-speed.pipe';
@@ -18,7 +24,7 @@ import { MetricScoreRowComponent } from '../metric-score-row/metric-score-row.co
 /** Shared measurement bodies, independent of tabs or collapsible section chrome. */
 @Component({
  selector:'app-photo-metric-section',
- imports:[MatIconModule, FixedPipe, IsLensNamePipe, ShutterSpeedPipe, ThumbnailUrlPipe, TranslatePipe, ExtendedQualityComponent, HistogramComponent, MetricScoreRowComponent],
+ imports:[MatIconModule, ExifCodePipe, ExposureCompensationPipe, FileSizePipe, FolderPathPipe, MegapixelsPipe, FixedPipe, IsLensNamePipe, ShutterSpeedPipe, ThumbnailUrlPipe, TranslatePipe, ExtendedQualityComponent, HistogramComponent, MetricScoreRowComponent],
  changeDetection:ChangeDetectionStrategy.OnPush,
  host:{class:'block min-w-0'},
  template:`@let p = photo(); @switch(kind()) {@case('exif') {
@@ -41,6 +47,36 @@ import { MetricScoreRowComponent } from '../metric-score-row/metric-score-row.co
             }
             @if (p.iso) {
               <div class="flex justify-between items-center gap-2 py-1.5"><span class="inline-flex items-center gap-2 text-[var(--mat-sys-on-surface-variant)]"><mat-icon aria-hidden="true" class="!h-4 !w-4 !text-base">iso</mat-icon>{{ 'tooltip.iso' | translate }}</span><span class="text-[var(--mat-sys-primary)] font-medium">{{ p.iso }}</span></div>
+            }
+            @if (p.focal_length_35mm !== null && p.focal_length_35mm !== undefined && p.focal_length_35mm !== p.focal_length) {
+              <div class="flex justify-between items-center gap-2 py-1.5"><span class="inline-flex items-center gap-2 text-[var(--mat-sys-on-surface-variant)]"><mat-icon aria-hidden="true" class="!h-4 !w-4 !text-base">straighten</mat-icon>{{ 'tooltip.focal_35mm' | translate }}</span><span class="text-[var(--mat-sys-primary)] font-medium">{{ p.focal_length_35mm }}mm</span></div>
+            }
+            @if (p.exposure_compensation !== null && p.exposure_compensation !== undefined) {
+              <div class="flex justify-between items-center gap-2 py-1.5"><span class="inline-flex items-center gap-2 text-[var(--mat-sys-on-surface-variant)]"><mat-icon aria-hidden="true" class="!h-4 !w-4 !text-base">exposure</mat-icon>{{ 'tooltip.exposure_compensation' | translate }}</span><span class="text-[var(--mat-sys-primary)] font-medium">{{ p.exposure_compensation | exposureCompensation:locale() }}</span></div>
+            }
+            @if (p.flash !== null && p.flash !== undefined) {
+              <div class="flex justify-between items-center gap-2 py-1.5"><span class="inline-flex items-center gap-2 text-[var(--mat-sys-on-surface-variant)]"><mat-icon aria-hidden="true" class="!h-4 !w-4 !text-base">flash_on</mat-icon>{{ 'tooltip.flash' | translate }}</span><span class="text-[var(--mat-sys-primary)] font-medium">{{ (p.flash | exifCode:'flash') | translate }}</span></div>
+            }
+            @if (p.white_balance !== null && p.white_balance !== undefined) {
+              <div class="flex justify-between items-center gap-2 py-1.5"><span class="inline-flex items-center gap-2 text-[var(--mat-sys-on-surface-variant)]"><mat-icon aria-hidden="true" class="!h-4 !w-4 !text-base">wb_auto</mat-icon>{{ 'tooltip.white_balance' | translate }}</span><span class="text-[var(--mat-sys-primary)] font-medium">{{ (p.white_balance | exifCode:'whiteBalance') | translate }}</span></div>
+            }
+            @if (p.metering_mode !== null && p.metering_mode !== undefined) {
+              <div class="flex justify-between items-center gap-2 py-1.5"><span class="inline-flex items-center gap-2 text-[var(--mat-sys-on-surface-variant)]"><mat-icon aria-hidden="true" class="!h-4 !w-4 !text-base">filter_center_focus</mat-icon>{{ 'tooltip.metering' | translate }}</span><span class="text-[var(--mat-sys-primary)] font-medium">{{ (p.metering_mode | exifCode:'metering') | translate }}</span></div>
+            }
+            @if (p.image_width !== null && p.image_width !== undefined && p.image_height !== null && p.image_height !== undefined) {
+              <div class="flex justify-between items-center gap-2 py-1.5"><span class="inline-flex items-center gap-2 text-[var(--mat-sys-on-surface-variant)]"><mat-icon aria-hidden="true" class="!h-4 !w-4 !text-base">aspect_ratio</mat-icon>{{ 'tooltip.dimensions' | translate }}</span><span class="text-[var(--mat-sys-primary)] font-medium">{{ p.image_width }} × {{ p.image_height }} · {{ p.image_width | megapixels:p.image_height:locale() }}</span></div>
+            }
+            @if (p.file_size !== null && p.file_size !== undefined) {
+              <div class="flex justify-between items-center gap-2 py-1.5"><span class="inline-flex items-center gap-2 text-[var(--mat-sys-on-surface-variant)]"><mat-icon aria-hidden="true" class="!h-4 !w-4 !text-base">sd_storage</mat-icon>{{ 'tooltip.file_size' | translate }}</span><span class="text-[var(--mat-sys-primary)] font-medium">{{ p.file_size | fileSize:locale() }}</span></div>
+            }
+            @if (p.path | folderPath; as folder) {
+              <div class="flex justify-between items-center gap-2 py-1.5"><span class="inline-flex shrink-0 items-center gap-2 whitespace-nowrap text-[var(--mat-sys-on-surface-variant)]"><mat-icon aria-hidden="true" class="!h-4 !w-4 !text-base">folder</mat-icon>{{ 'tooltip.folder' | translate }}</span><span class="min-w-0 truncate val" [title]="folder">{{ folder }}</span></div>
+            }
+            @if (p.artist !== null && p.artist !== undefined) {
+              <div class="flex justify-between items-center gap-2 py-1.5"><span class="inline-flex shrink-0 items-center gap-2 whitespace-nowrap text-[var(--mat-sys-on-surface-variant)]"><mat-icon aria-hidden="true" class="!h-4 !w-4 !text-base">person</mat-icon>{{ 'tooltip.artist' | translate }}</span><span class="min-w-0 val truncate" [title]="p.artist">{{ p.artist }}</span></div>
+            }
+            @if (p.copyright !== null && p.copyright !== undefined) {
+              <div class="flex justify-between items-center gap-2 py-1.5"><span class="inline-flex shrink-0 items-center gap-2 whitespace-nowrap text-[var(--mat-sys-on-surface-variant)]"><mat-icon aria-hidden="true" class="!h-4 !w-4 !text-base">copyright</mat-icon>{{ 'tooltip.copyright' | translate }}</span><span class="min-w-0 val truncate" [title]="p.copyright">{{ p.copyright }}</span></div>
             }
           </div>
         </div>
@@ -202,6 +238,8 @@ import { MetricScoreRowComponent } from '../metric-score-row/metric-score-row.co
 })
 export class PhotoMetricSectionComponent {
  protected readonly I18N = I18N;
+ /** Read lazily in the template: only the file-size row needs it. */
+ protected readonly locale = inject(I18nService).locale;
  protected readonly metricIcons = SORT_ICONS;
  readonly kind = input.required<MetricsTab>();
  readonly photo = input.required<Photo>();

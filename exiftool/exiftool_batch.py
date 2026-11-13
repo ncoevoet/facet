@@ -188,11 +188,13 @@ class ExifToolBatch:
                         timeout=current_timeout
                     )
 
-                    if result.returncode == 0 and result.stdout:
+                    # Exit 1 means some files in the chunk could not be read; exiftool
+                    # still prints JSON for the rest, with an 'Error' item per bad file.
+                    if result.returncode in (0, 1) and result.stdout.strip():
                         data = json.loads(result.stdout)
                         for item in data:
                             source = item.get('SourceFile')
-                            if source:
+                            if source and 'Error' not in item:
                                 results[str(Path(source).resolve())] = item
                         chunk_success = True
                         break  # Success, no retry needed
@@ -288,6 +290,35 @@ def parse_exif_data(raw_data):
         number = _safe_numeric(val)
         return None if number is None else storable_int(number)
 
+    def _coded_int(val, allowed):
+        """An EXIF code only inside the standard domain, else None.
+
+        Ungrouped ``-j -n`` output can carry a MakerNotes value under the same
+        name (a NEF ``WhiteBalance`` of ``"PRESET0"``, a Sony ``MeteringMode``).
+        """
+        if isinstance(val, bool):
+            return None
+        number = _safe_numeric(val)
+        if number is None or number != int(number):
+            return None
+        return int(number) if int(number) in allowed else None
+
+    def _exposure_compensation(val):
+        number = _safe_numeric(val)
+        return number if number is not None and -15 <= number <= 15 else None
+
+    def _file_size(val):
+        number = _safe_numeric(val)
+        return storable_int(number) if number is not None and number > 0 else None
+
+    def _text(val):
+        if val is None:
+            return None
+        if isinstance(val, (list, tuple)):
+            val = ', '.join(str(v) for v in val)
+        text = str(val).replace('\x00', '; ').strip()
+        return text or None
+
     return {
         'date_taken': raw_data.get('DateTimeOriginal') or raw_data.get('CreateDate'),
         'camera_model': raw_data.get('Model'),
@@ -299,6 +330,13 @@ def parse_exif_data(raw_data):
         'focal_length_35mm': _safe_numeric(raw_data.get('FocalLengthIn35mmFilm')),
         'gps_latitude': _safe_numeric(raw_data.get('GPSLatitude')),
         'gps_longitude': _safe_numeric(raw_data.get('GPSLongitude')),
+        'file_size': _file_size(raw_data.get('FileSize')),
+        'exposure_compensation': _exposure_compensation(raw_data.get('ExposureCompensation')),
+        'flash': _coded_int(raw_data.get('Flash'), range(0, 128)),
+        'white_balance': _coded_int(raw_data.get('WhiteBalance'), (0, 1)),
+        'metering_mode': _coded_int(raw_data.get('MeteringMode'), (0, 1, 2, 3, 4, 5, 6, 255)),
+        'artist': _text(raw_data.get('Artist')),
+        'copyright': _text(raw_data.get('Copyright')),
     }
 
 
@@ -347,7 +385,9 @@ def get_exif_single(image_path):
         return {
             'date_taken': None, 'camera_model': None, 'lens_model': None,
             'iso': None, 'f_stop': None, 'shutter_speed': None, 'focal_length': None,
-            'focal_length_35mm': None
+            'focal_length_35mm': None, 'gps_latitude': None, 'gps_longitude': None,
+            'file_size': None, 'exposure_compensation': None, 'flash': None,
+            'white_balance': None, 'metering_mode': None, 'artist': None, 'copyright': None,
         }
 
     raw_data = exiftool.get_metadata(str(image_path))

@@ -48,7 +48,8 @@ class PhotoRefreshResponse(BaseModel):
 
 
 _METADATA_FIELDS = ('camera_model', 'lens_model', 'iso', 'f_stop', 'shutter_speed',
-                    'focal_length', 'focal_length_35mm')
+                    'focal_length', 'focal_length_35mm', 'file_size', 'exposure_compensation',
+                    'flash', 'white_balance', 'metering_mode', 'artist', 'copyright')
 
 
 def _refresh(path, user):

@@ -213,7 +213,29 @@
     "star_rating": "Valoración",
     "topiq_score": "TOPIQ",
     "filter_by_person": "Filtrar por {name}",
-    "histogram": "Histograma"
+    "histogram": "Histograma",
+    "focal_35mm": "Equiv. 35 mm",
+    "exposure_compensation": "Comp. de exposición",
+    "flash": "Flash",
+    "flash_fired": "Disparado",
+    "flash_off": "No disparado",
+    "white_balance": "Balance de blancos",
+    "white_balance_auto": "Automático",
+    "white_balance_manual": "Manual",
+    "metering": "Medición",
+    "metering_unknown": "Desconocida",
+    "metering_average": "Promedio",
+    "metering_center_weighted": "Ponderada al centro",
+    "metering_spot": "Puntual",
+    "metering_multi_spot": "Multipunto",
+    "metering_pattern": "Multizona",
+    "metering_partial": "Parcial",
+    "metering_other": "Otra",
+    "dimensions": "Dimensiones",
+    "file_size": "Tamaño del archivo",
+    "folder": "Carpeta",
+    "artist": "Artista",
+    "copyright": "Copyright"
   },
   "photoCard": {
     "embed_to_file": "Escribir metadatos en el archivo",
@@ -3421,7 +3443,9 @@
     "tag_refine_collection": "Refinar esta colección",
     "tag_search_library": "Buscar en la biblioteca",
     "add_caption": "Añadir descripción",
-    "capture_settings": "Ajustes de captura"
+    "capture_settings": "Ajustes de captura",
+    "albums": "Álbumes",
+    "smart_album": "Álbum inteligente"
   },
   "manual_tags": {
     "batch": {

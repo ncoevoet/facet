@@ -213,7 +213,29 @@
     "color_harmony": "Harmonie couleurs",
     "caption": "Légende",
     "filter_by_person": "Filtrer par {name}",
-    "histogram": "Histogramme"
+    "histogram": "Histogramme",
+    "focal_35mm": "Équiv. 35 mm",
+    "exposure_compensation": "Comp. d'exposition",
+    "flash": "Flash",
+    "flash_fired": "Déclenché",
+    "flash_off": "Non déclenché",
+    "white_balance": "Balance des blancs",
+    "white_balance_auto": "Auto",
+    "white_balance_manual": "Manuelle",
+    "metering": "Mesure",
+    "metering_unknown": "Inconnue",
+    "metering_average": "Moyenne",
+    "metering_center_weighted": "Pondérée centrale",
+    "metering_spot": "Spot",
+    "metering_multi_spot": "Multi-spot",
+    "metering_pattern": "Multi-zones",
+    "metering_partial": "Partielle",
+    "metering_other": "Autre",
+    "dimensions": "Dimensions",
+    "file_size": "Taille du fichier",
+    "folder": "Dossier",
+    "artist": "Artiste",
+    "copyright": "Copyright"
   },
   "photoCard": {
     "embed_to_file": "Écrire les métadonnées dans le fichier",
@@ -3421,7 +3443,9 @@
     "tag_refine_collection": "Affiner cette collection",
     "tag_search_library": "Rechercher dans la bibliothèque",
     "add_caption": "Ajouter une légende",
-    "capture_settings": "Réglages de prise de vue"
+    "capture_settings": "Réglages de prise de vue",
+    "albums": "Albums",
+    "smart_album": "Album intelligent"
   },
   "manual_tags": {
     "batch": {

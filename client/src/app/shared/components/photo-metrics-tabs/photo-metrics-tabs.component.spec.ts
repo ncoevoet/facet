@@ -1,3 +1,4 @@
+import { signal } from '@angular/core';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { By } from '@angular/platform-browser';
 import { MatTabGroup } from '@angular/material/tabs';
@@ -21,7 +22,7 @@ describe('PhotoMetricsTabsComponent', () => {
   function render(photo: Photo): void {
     TestBed.configureTestingModule({
       imports: [PhotoMetricsTabsComponent],
-      providers: [{ provide: I18nService, useValue: { t: (key: string) => key, translations: () => ({}) } }],
+      providers: [{ provide: I18nService, useValue: { t: (key: string) => key, translations: () => ({}), locale: signal('en') } }],
     });
     fixture = TestBed.createComponent(PhotoMetricsTabsComponent);
     fixture.componentRef.setInput('photo', photo);
@@ -35,6 +36,12 @@ describe('PhotoMetricsTabsComponent', () => {
   }
 
   const selectedIndex = () => fixture.debugElement.query(By.directive(MatTabGroup)).componentInstance.selectedIndex;
+
+  it('shows the EXIF tab for a photo whose only file fact is its size', () => {
+    render(makePhoto({ ...NO_EXIF, file_size: 1234 }));
+    expect(fixture.nativeElement.querySelector('app-photo-metric-section[kind="exif"]')).not.toBeNull();
+    expect(selectedIndex()).toBe(0);
+  });
 
   it('threads explainable to the assessment and re-emits its explain click', () => {
     render(makePhoto({ camera_model: 'X100V' }));

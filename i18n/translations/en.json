@@ -238,7 +238,29 @@
     "color_harmony": "Color Harmony",
     "caption": "Caption",
     "filter_by_person": "Filter by {name}",
-    "histogram": "Histogram"
+    "histogram": "Histogram",
+    "focal_35mm": "35 mm equiv.",
+    "exposure_compensation": "Exposure comp.",
+    "flash": "Flash",
+    "flash_fired": "Fired",
+    "flash_off": "Did not fire",
+    "white_balance": "White balance",
+    "white_balance_auto": "Auto",
+    "white_balance_manual": "Manual",
+    "metering": "Metering",
+    "metering_unknown": "Unknown",
+    "metering_average": "Average",
+    "metering_center_weighted": "Center-weighted",
+    "metering_spot": "Spot",
+    "metering_multi_spot": "Multi-spot",
+    "metering_pattern": "Multi-segment",
+    "metering_partial": "Partial",
+    "metering_other": "Other",
+    "dimensions": "Dimensions",
+    "file_size": "File size",
+    "folder": "Folder",
+    "artist": "Artist",
+    "copyright": "Copyright"
   },
   "photoCard": {
     "embed_to_file": "Write metadata to file",
@@ -3446,7 +3468,9 @@
     "tag_refine_collection": "Refine this collection",
     "tag_search_library": "Search library",
     "add_caption": "Add caption",
-    "capture_settings": "Capture settings"
+    "capture_settings": "Capture settings",
+    "albums": "Albums",
+    "smart_album": "Smart album"
   },
   "manual_tags": {
     "batch": {
