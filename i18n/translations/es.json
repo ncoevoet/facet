@@ -90,7 +90,8 @@
     "light_mode": "Modo claro",
     "version": "Facet {version}",
     "display_menu": "Visualización",
-    "jobs_diagnostics": "Tareas y diagnóstico"
+    "jobs_diagnostics": "Tareas y diagnóstico",
+    "copy_failed": "No se pudo copiar"
   },
   "dialog": {
     "cancel": "Cancelar",
@@ -3028,7 +3029,8 @@
       "reject_sequence_title": "¿Rechazar estos fotogramas de secuencia?",
       "reject_sequence_body": "De estas {count} fotos, {sequence_count} pertenecen a conjuntos de {kinds} cuyos fotogramas suelen mantenerse juntos. Rechazarlos anula ese comportamiento predeterminado. No se elimina ningún archivo. Aún puedes cancelar la confirmación pendiente antes de guardarla.",
       "reject_sequence_confirm": "Rechazar todas estas fotos"
-    }
+    },
+    "error_external_changes": "No se pudieron obtener los cambios externos del feed de selección."
   },
   "scenes": {
     "title": "Escenas",
@@ -3273,7 +3275,8 @@
     "no_gps_hint": "Nada en el alcance lleva coordenadas GPS. Abre una foto y usa su panel de ubicación para situarla — las fotos situadas aparecen aquí.",
     "basemap": "Fuente del mapa",
     "basemap_osm": "OpenStreetMap",
-    "basemap_custom": "Fuente propia"
+    "basemap_custom": "Fuente propia",
+    "load_failed": "No se pudieron cargar las fotos del mapa. Desplázate o haz zoom para reintentar."
   },
   "photo_detail": {
     "copy_image": "Copiar imagen",
@@ -3804,7 +3807,9 @@
       "stored": "Histograma de la imagen renderizada almacenada",
       "thumbnail": "Estimación de miniatura",
       "note": "Esta curva describe una imagen renderizada, no los valores del sensor RAW. Los marcadores de recorte usan mediciones almacenadas cuando están disponibles; el muestreo de miniaturas no permite determinar el recorte del sensor."
-    }
+    },
+    "unavailable": "Histograma no disponible",
+    "retry": "Reintentar"
   },
   "manual_faces": {
     "title": "Marcar una cara ausente o un objeto / Gestionar marcas",
