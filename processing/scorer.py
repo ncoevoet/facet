@@ -37,7 +37,7 @@ from db.schema import FACES_UPSERT_SQL, IQA_SCAN_FINGERPRINT_SQL, face_upsert_ro
 from db.scoring_overrides import get_photo_scoring_overrides
 from db.tags import sync_photo_tags
 from db.vec import sync_vec_batch
-from exiftool.exiftool_batch import EXIF_CODE_DOMAINS, EXIF_META_COLUMNS, EXPOSURE_COMPENSATION_MAX_EV, clean_exif_text
+from exiftool.exiftool_batch import EXIF_META_COLUMNS, clamp_exif_domains, clean_exif_text
 from processing.progress import emit_progress
 from utils.histogram import unpack_histogram
 from utils.image_bounds import LIQE_MIN_SHORT_SIDE, liqe_input_too_small
@@ -314,17 +314,6 @@ def _stat_size(image_path):
     except OSError:
         return None
     return size if size > 0 else None
-
-
-def _clamp_exif_domains(exif_data):
-    """Null the coded EXIF fields that fall outside the standard EXIF domain."""
-    for key, allowed in EXIF_CODE_DOMAINS.items():
-        if exif_data.get(key) not in allowed:
-            exif_data[key] = None
-    value = exif_data.get('exposure_compensation')
-    if value is not None and not -EXPOSURE_COMPENSATION_MAX_EV <= value <= EXPOSURE_COMPENSATION_MAX_EV:
-        exif_data['exposure_compensation'] = None
-    return exif_data
 
 
 def _sanitize_exif_numeric(exif_data):
@@ -2903,7 +2892,7 @@ class Facet:
                     if tag in tags:
                         exif_data[column] = clean_exif_text(str(tags[tag]))
                 exif_data['file_size'] = _stat_size(image_path)
-                _clamp_exif_domains(exif_data)
+                clamp_exif_domains(exif_data)
                 if exif_data['camera_model']:
                     return _sanitize_exif_numeric(exif_data)
         except Exception:
@@ -2951,7 +2940,7 @@ class Facet:
         except Exception as e:
             logger.warning("EXIF extraction failed for %s: %s", image_path, e)
         exif_data['file_size'] = _stat_size(image_path)
-        _clamp_exif_domains(exif_data)
+        clamp_exif_domains(exif_data)
         return _sanitize_exif_numeric(exif_data)
 
     def save_photos_batch(self, results):
