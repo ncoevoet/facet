@@ -57,6 +57,34 @@ def test_a_chunk_save_right_after_the_save_step_still_advances_the_count(tmp_pat
 
 
 @pytest.mark.timeout(30)
+def test_the_moment_and_junk_steps_reuse_the_scan_model_manager(tmp_path, monkeypatch):
+    import facet
+    from config.scoring_config import ScoringConfig
+    monkeypatch.setattr(ScoringConfig, 'get_narrative_moments_config', lambda self: {'enabled': True})
+    monkeypatch.setattr(ScoringConfig, 'get_junk_sweep_config', lambda self: {'enabled': True})
+    received = {}
+
+    class _Processor:
+        def __init__(self, scorer, model_manager, *args, **kwargs):
+            self.metrics = {'images_processed': 1, 'photos_saved': 1}
+            received['scan'] = model_manager
+
+        def process_directory(self, paths):
+            # Patched here because the harness installs its own stubs first.
+            monkeypatch.setattr(facet, 'run_moment_detection',
+                                lambda *a, model_manager=None, **k: received.update(moments=model_manager) or {})
+            monkeypatch.setattr(facet, 'run_junk_detection',
+                                lambda *a, model_manager=None, **k: received.update(junk=model_manager) or {})
+            return self.metrics
+    _run(tmp_path, monkeypatch, _Processor)
+    # The scan's manager still holds CLIP in RAM; the scorer's own idle one
+    # would rebuild it from disk.
+    assert received['scan'] is not None
+    assert received['moments'] is received['scan']
+    assert received['junk'] is received['scan']
+
+
+@pytest.mark.timeout(30)
 def test_a_scan_with_nothing_new_reports_zero_saved(tmp_path, monkeypatch, capsys):
     _run(tmp_path, monkeypatch, _recording_processor(0, {}), already_scanned=True)
     assert _events(capsys)[-1] == {'phase': 'done', 'saved': 0}
