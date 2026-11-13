@@ -1767,6 +1767,10 @@ def _run_scan_pipeline(args, resumed_run, lifecycle):
     """
     from processing.scan_state import viewer_job_id
     job_id = viewer_job_id()
+    # Announce the first phase before the heavy imports: a viewer watching this scan
+    # otherwise shows no phase at all for the several seconds they take.
+    from processing.progress import emit_progress
+    emit_progress('gather', force=True)
     # The lock is already held here. Revalidate BEFORE constructing Facet:
     # its constructor initializes the schema and may load heavy models.
     retry_plan = None
@@ -1918,6 +1922,7 @@ def _run_scan_pipeline(args, resumed_run, lifecycle):
 
     if not todo_list:
         logger.info("No new files to process.")
+        emit_progress('done', extra={'saved': 0}, force=True)
         return True
 
     # Dry-run mode - score sample photos without saving to database
@@ -2023,8 +2028,21 @@ def _run_scan_pipeline(args, resumed_run, lifecycle):
         scan_run.update_progress(processed)
         elapsed = time.time() - _scan_t0
         eta = (total - processed) * elapsed / processed if processed else None
-        report_progress('scoring', processed, total, eta_seconds=eta)
+        _scan_done[0] = processed
+        # Forced: a chunk save lands right after the forced 'save' step, so the
+        # throttle would drop the one event that advances the photo count.
+        report_progress('scoring', processed, total, eta_seconds=eta, force=True)
 
+    _scan_done = [0]
+
+    def _on_scan_step(step, detail, fraction):
+        # Between chunk saves: which step is running, and how far the whole scan is.
+        elapsed = time.time() - _scan_t0
+        eta = elapsed * (1 - fraction) / fraction if fraction >= 0.1 else None
+        report_progress('scoring', _scan_done[0], len(todo_list), eta_seconds=eta, force=True,
+                        extra={'step': step, 'detail': detail, 'fraction': round(fraction, 3)})
+
+    from utils import fast_load
     ledger.begin('scoring', group='scoring')
     report_progress('scoring', 0, len(todo_list), force=True)
     processor = None
@@ -2144,6 +2162,13 @@ def _run_scan_pipeline(args, resumed_run, lifecycle):
                     on_error=scan_run.record_failure,
                     on_progress=_on_scan_progress,
                 )
+                # The moment and junk steps below score against CLIP's text tower.
+                # Hand them this manager with CLIP still in its RAM cache, instead of
+                # the scorer's own idle one, which rebuilt the model from disk.
+                processor.keep_cached_after_scan = ('clip',)
+                fast_load.prefer_local_hub = True
+                processor.on_step = _on_scan_step
+                scorer.model_manager = model_manager
                 processor.process_directory(todo_paths)
             else:
                 # Force single-pass mode
@@ -2199,6 +2224,7 @@ def _run_scan_pipeline(args, resumed_run, lifecycle):
                 )
                 conn.commit()
     finally:
+        fast_load.prefer_local_hub = False
         ledger.end('scoring')
 
     # 3. Finalization
@@ -2206,8 +2232,11 @@ def _run_scan_pipeline(args, resumed_run, lifecycle):
     scorer.commit()
     ledger.end('finalize')
 
+    saved = _photos_saved(processor) + calibration_saved if processor is not None else None
+    done_extra = None if saved is None else {'saved': saved}
+
     if retry_plan is not None:
-        report_progress('done', force=True)
+        report_progress('done', force=True, extra=done_extra)
         logger.info('Captured retry ended. Library-wide burst, sequence, tagging, '
                     'moment, junk and vector finalization were not run.')
         return True
@@ -2232,7 +2261,7 @@ def _run_scan_pipeline(args, resumed_run, lifecycle):
             logger.warning("%d scanned file(s) were not put in a burst: not a recorded AI edit, or "
                            "the edit or its original is missing or has no phash.", len(scanned) - placed)
         _log_scan_db_destination(scorer.db_path)
-        report_progress('done', force=True)
+        report_progress('done', force=True, extra=done_extra)
         logger.info("All tasks complete.")
         return True
 
@@ -2327,7 +2356,7 @@ def _run_scan_pipeline(args, resumed_run, lifecycle):
     ledger.end('vec')
 
     _log_scan_db_destination(scorer.db_path)
-    report_progress('done', force=True)
+    report_progress('done', force=True, extra=done_extra)
     logger.info("All tasks complete.")
     logger.info(ledger.summary_line())
     return True

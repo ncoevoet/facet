@@ -271,7 +271,7 @@ Timeline routes return 503 when the query fails. Week keys use ISO 8601 week yea
 | Endpoint | Description |
 |----------|-------------|
 | `POST /api/scan/start` | Start a scoring scan (access rule above) |
-| `GET /api/scan/status` | Scan progress; structured `progress`: `{phase, current, total, eta_seconds}` |
+| `GET /api/scan/status` | Scan progress; structured `progress`: `{phase, current, total, eta_seconds}`. While a default multi-pass scan scores it also carries `step` (`decode`, `models`, `analyze`, `save`), `detail` (the model an `analyze` step runs) and `fraction` (0–1, moves within a chunk); a single-pass scan sends none of these. The final `done` event carries `saved`, except after a `--pass` run |
 | `GET /api/scan/stream?token=<jwt>` | Real-time progress via Server-Sent Events. Get the token from `GET /api/scan/stream_token` and pass it as a query param (`EventSource` can't set headers), with automatic fallback to polling `/status` |
 | `GET /api/scan/directories` | List configured scan directories |
 | `POST /api/scan/recompute` | `[Edition]` Run a full-library aggregate recompute (`--recompute-average`) as a background job. Takes only `confirm` and optional `category` (runs `--recompute-category`: that category only, burst and sequence detection skipped). Not bound by the access rule above. Errors: `409` naming the holder when a scan or recompute already runs (viewer or terminal, via `facet.LibraryLock`); `400` unknown category |

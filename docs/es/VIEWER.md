@@ -614,8 +614,9 @@ En una instalación abierta de un solo usuario (`viewer.edition_password` vacío
 
 La galería vacía ofrece **Escanea fotos para empezar**. **Buscar fotos nuevas** también está en el área de navegación global a cualquier anchura. Ambos abren el lanzador de escaneo:
 
-- Elige un directorio de la lista e inicia el escaneo.
-- El progreso en vivo y las líneas de salida se muestran en el diálogo. La galería se actualiza cuando termina el escaneo.
+- Elige un directorio de la lista e inicia el escaneo. Si solo hay un directorio configurado, ya aparece seleccionado.
+- Durante el escaneo, el diálogo muestra sus tres etapas (**Buscar**, **Analizar**, **Organizar**), qué hace el paso actual en palabras sencillas («Buscando el sujeto principal»), cuántas fotos están listas y cuánto falta aproximadamente para terminar el análisis (la etapa Organizar no tiene estimación). Las líneas de salida sin procesar quedan plegadas bajo **Registro técnico**, que se abre solo cuando un escaneo falla.
+- La galería se actualiza cuando termina el escaneo, y un mensaje indica cuántas fotos nuevas se añadieron.
 - El escaneo ejecuta `facet.py` en segundo plano; un escaneo a la vez.
 - La lista de directorios combina los `directories` de cada usuario, los directorios compartidos, los destinos de `path_mapping` y `viewer.scan_directories`. Define `viewer.scan_directories` (p. ej. `/data/photos`) para que las instalaciones de un solo usuario y Docker tengan un destino.
 

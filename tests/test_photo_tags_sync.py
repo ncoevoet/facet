@@ -192,7 +192,7 @@ class _FakeModelManager:
     def load_model_only(self, _key):
         return _FakeImageTagger()
 
-    def unload_all(self):
+    def unload_all(self, keep_cached=()):
         pass
 
 

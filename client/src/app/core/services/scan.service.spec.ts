@@ -182,6 +182,22 @@ describe('ScanService', () => {
       expect(service.observationError()).toBe(true);
       expect(service.canCancel()).toBe(false);
     });
+
+    it('publishes the step, its detail, the fraction done and the saved count', async () => {
+      await observe();
+      const progress = { phase: 'scoring', current: 0, total: 6, step: 'analyze', detail: 'saliency', fraction: 0.42, saved: 6 };
+      MockEventSource.instances.at(-1)!.simulateMessage({ ...mockStatus, progress });
+      expect(service.observationError()).toBe(false);
+      expect(service.status().progress).toEqual(progress);
+    });
+
+    it.each([
+      ['step', 3], ['detail', {}], ['fraction', '0.4'], ['saved', '6'],
+    ])('refuses a progress event whose %s is %s', async (field, value) => {
+      await observe();
+      MockEventSource.instances.at(-1)!.simulateMessage({ ...mockStatus, progress: { phase: 'scoring', [field]: value } } as unknown as ScanStatus);
+      expect(service.observationError()).toBe(true);
+    });
   });
 
   describe('connect()', () => {

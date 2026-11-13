@@ -611,8 +611,9 @@ Em uma instalação aberta de usuário único (`viewer.edition_password` vazio, 
 
 A galeria vazia oferece **Escaneie as fotos para começar**. **Procurar novas fotos** também está na área de navegação global em qualquer largura. Ambos abrem o iniciador de varredura:
 
-- Escolha um diretório da lista e inicie a varredura.
-- O progresso ao vivo e as linhas de saída chegam ao diálogo. A galeria é atualizada quando a varredura termina.
+- Escolha um diretório da lista e inicie a varredura. Quando há apenas um diretório configurado, ele já vem selecionado.
+- Durante a varredura, o diálogo mostra suas três etapas (**Procurar**, **Analisar**, **Organizar**), o que a etapa atual está fazendo em palavras simples ("A procurar o sujeito principal"), quantas fotos estão prontas e aproximadamente quanto tempo falta para a análise (a etapa Organizar não tem estimativa). As linhas de saída brutas ficam recolhidas em **Registo técnico**, que se abre sozinho quando uma varredura falha.
+- A galeria é atualizada quando a varredura termina, e uma mensagem informa quantas fotos novas foram adicionadas.
 - A varredura executa o `facet.py` em segundo plano; uma por vez.
 - A lista de diretórios combina os `directories` de cada usuário, os diretórios compartilhados, os destinos de `path_mapping` e `viewer.scan_directories`. Preencha `viewer.scan_directories` (por exemplo, `/data/photos`) para que instalações de usuário único e Docker tenham um destino.
 

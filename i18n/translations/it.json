@@ -2106,7 +2106,6 @@
     "loading_directories": "Caricamento delle cartelle…",
     "no_directories": "Nessuna cartella di scansione configurata.",
     "pick_directory": "Scegli una cartella da scansionare:",
-    "eta": "Stima",
     "starting": "Avvio...",
     "running": "In esecuzione",
     "completed": "Scansione completata",
@@ -2176,7 +2175,34 @@
         "duplicate": "Destinazioni duplicate escluse",
         "raw_paired": "File RAW con controparti JPEG/HEIF acquisite esclusi"
       }
-    }
+    },
+    "step": {
+      "decode": "Lettura delle foto",
+      "models": "Caricamento dei modelli",
+      "analyze": "Analisi delle foto",
+      "save": "Salvataggio dei risultati"
+    },
+    "analyze": {
+      "content": "Comprensione del contenuto di ogni foto",
+      "quality": "Valutazione della qualità dell'immagine",
+      "subject": "Ricerca del soggetto principale",
+      "composition": "Lettura della composizione",
+      "faces": "Rilevamento dei volti"
+    },
+    "stage": {
+      "find": "Ricerca",
+      "analyze": "Analisi",
+      "organize": "Organizzazione"
+    },
+    "stages_label": "Fasi della scansione",
+    "count": "{current} di {total} foto",
+    "time_left_seconds": "circa {n} s rimanenti",
+    "time_left_minutes": "circa {n} min rimanenti",
+    "details": "Registro tecnico",
+    "added": "{count} nuova foto aggiunta",
+    "added_plural": "{count} nuove foto aggiunte",
+    "none_new": "Nessuna nuova foto trovata",
+    "progress_label": "Avanzamento della scansione"
   },
   "persons": {
     "help": "Persone rilevate dal riconoscimento facciale. Assegna un nome ai gruppi senza nome, unisci i duplicati, imposta un avatar o nascondi una persona. Clicca su una persona per vedere le sue foto.",

@@ -16,6 +16,14 @@ export interface ScanProgress {
   total?: number;
   current_file?: string;
   eta_seconds?: number;
+  /** Within the scoring phase: what the chunk in flight is doing (decode | models | analyze | save). */
+  step?: string;
+  /** The model an `analyze` step is running. */
+  detail?: string | null;
+  /** Completed share of the scoring phase, 0..1; moves within a chunk, unlike `current`. */
+  fraction?: number;
+  /** On `done`: photos this scan saved. */
+  saved?: number;
 }
 
 export interface ScanStatus {
@@ -60,8 +68,10 @@ function isScanStatus(value: unknown): value is ScanStatus {
   const progress = data['progress'];
   if (progress == null) return true;
   if (typeof progress !== 'object' || typeof (progress as Record<string, unknown>)['phase'] !== 'string') return false;
-  return ['current', 'total', 'eta_seconds'].every(key => {
-    const v = (progress as Record<string, unknown>)[key];
+  const fields = progress as Record<string, unknown>;
+  if (['step', 'detail'].some(key => fields[key] != null && typeof fields[key] !== 'string')) return false;
+  return ['current', 'total', 'eta_seconds', 'fraction', 'saved'].every(key => {
+    const v = fields[key];
     return v == null || (typeof v === 'number' && Number.isFinite(v));
   });
 }

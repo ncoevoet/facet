@@ -477,6 +477,18 @@ class TestLoadPrecision:
             scorer.load()
         fake_model.float.assert_not_called()
 
+    def test_load_leaves_mps_at_checkpoint_precision(self):
+        """Float32 BiRefNet on MPS went from 0.9 s to 9 s a photo past batch 1 (M4 Pro);
+        fp16 held 0.7-0.9 s. Linux CI cannot notice the upcast coming back."""
+        fake_model = mock.MagicMock(name="birefnet")
+        with mock.patch(
+            "transformers.AutoModelForImageSegmentation.from_pretrained",
+            return_value=fake_model,
+        ):
+            scorer = SaliencyScorer(device="mps")
+            scorer.load()
+        fake_model.float.assert_not_called()
+
 
 class _OomBiRefNet(_RecordingBiRefNet):
     """BiRefNet stand-in that raises OOM by rule: any batch over ``max_ok``, or an image tagged ``poison``.

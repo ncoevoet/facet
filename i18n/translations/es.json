@@ -2106,7 +2106,6 @@
     "loading_directories": "Cargando directorios…",
     "no_directories": "No hay directorios de escaneo configurados.",
     "pick_directory": "Elige un directorio para escanear:",
-    "eta": "Restante",
     "starting": "Iniciando...",
     "running": "En ejecución",
     "completed": "Escaneo completado",
@@ -2176,7 +2175,34 @@
         "duplicate": "Destinos duplicados omitidos",
         "raw_paired": "RAW con parejas JPEG/HEIF capturadas omitidos"
       }
-    }
+    },
+    "step": {
+      "decode": "Leyendo fotos",
+      "models": "Cargando modelos",
+      "analyze": "Analizando fotos",
+      "save": "Guardando resultados"
+    },
+    "analyze": {
+      "content": "Entendiendo el contenido de cada foto",
+      "quality": "Evaluando la calidad de imagen",
+      "subject": "Buscando el sujeto principal",
+      "composition": "Leyendo la composición",
+      "faces": "Detectando rostros"
+    },
+    "stage": {
+      "find": "Buscar",
+      "analyze": "Analizar",
+      "organize": "Organizar"
+    },
+    "stages_label": "Pasos del escaneo",
+    "count": "{current} de {total} fotos",
+    "time_left_seconds": "quedan unos {n} s",
+    "time_left_minutes": "quedan unos {n} min",
+    "details": "Registro técnico",
+    "added": "{count} foto nueva añadida",
+    "added_plural": "{count} fotos nuevas añadidas",
+    "none_new": "No se encontraron fotos nuevas",
+    "progress_label": "Progreso del escaneo"
   },
   "persons": {
     "help": "Personas detectadas por el reconocimiento facial. Asigna nombre a los grupos sin nombre, fusiona duplicados, establece un avatar u oculta una persona. Haz clic en una persona para ver sus fotos.",

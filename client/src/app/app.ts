@@ -512,6 +512,12 @@ export class App implements OnInit {
 
   protected async openScanLauncher(): Promise<void> {
     if (await this.scan.openLauncher()) {
+      const saved = this.scan.status().progress?.saved;
+      if (typeof saved === 'number') {
+        const added = saved === 1 ? I18N.scan.added : I18N.scan.added_plural;
+        this.snackBar.open(saved > 0 ? this.i18n.t(added, { count: saved }) : this.i18n.t(I18N.scan.none_new),
+          '', { duration: 5000 });
+      }
       await this.store.loadTypeCounts();
       await this.store.reloadPhotos();
     }
