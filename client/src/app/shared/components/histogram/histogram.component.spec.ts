@@ -13,7 +13,7 @@ describe('HistogramComponent', () => {
   let fixture: ComponentFixture<HistogramComponent>;
   let mockApi: { get: Mock };
   let getContext: Mock;
-  let loadedImages: { src: string; onload: (() => void) | null }[];
+  let loadedImages: { src: string; onload: (() => void) | null; onerror: (() => void) | null }[];
 
   // Echoes the key with its params substituted, so a test can see the values
   // the component passed rather than only the key it chose.
@@ -71,11 +71,12 @@ describe('HistogramComponent', () => {
       naturalWidth = 2;
       naturalHeight = 1;
       onload: (() => void) | null = null;
+      onerror: (() => void) | null = null;
       private url = '';
       get src(): string { return this.url; }
       set src(value: string) {
         this.url = value;
-        loadedImages.push(this as unknown as { src: string; onload: (() => void) | null });
+        loadedImages.push(this as unknown as { src: string; onload: (() => void) | null; onerror: (() => void) | null });
       }
     });
 
@@ -171,6 +172,28 @@ describe('HistogramComponent', () => {
     loadedImages[0].onload!();
     fixture.detectChanges();
 
+    expect(polylines()).toHaveLength(3);
+  });
+
+  it('offers a retry when the sampled thumbnail fails to load', () => {
+    // Legacy luma-only row: the panel must sample the thumbnail for RGB.
+    mockApi.get.mockReturnValue(of({ bins: 4, luma: [1, 0.5, 0, 0], r: null, g: null, b: null }));
+    render({ path: '/a.jpg', src: '/thumb/a.jpg', defaultMode: 'rgb' });
+    fixture.detectChanges();
+    expect(loadedImages).toHaveLength(1);
+
+    // The thumbnail 404s: the panel says so instead of sitting silently blank.
+    loadedImages[0].onerror!();
+    fixture.detectChanges();
+    expect(fixture.nativeElement.querySelector('[data-histogram-unavailable]')).not.toBeNull();
+
+    // Retry spawns a fresh load; loading it recovers the curves.
+    fixture.nativeElement.querySelector('[data-histogram-retry]').click();
+    fixture.detectChanges();
+    expect(loadedImages).toHaveLength(2);
+    loadedImages[1].onload!();
+    fixture.detectChanges();
+    expect(fixture.nativeElement.querySelector('[data-histogram-unavailable]')).toBeNull();
     expect(polylines()).toHaveLength(3);
   });
 

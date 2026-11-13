@@ -31,7 +31,16 @@ import { sharedAssetPhoto, type SharedAsset, sharedAlbumMediaUrl } from '../../u
   host: { class: 'block h-full overflow-y-auto lg:overflow-y-hidden' },
   changeDetection: ChangeDetectionStrategy.Eager,
   template: `
-    @if (photo(); as p) {
+    @if (loadFailed()) {
+      <div class="flex flex-col items-center justify-center h-64 text-[var(--mat-sys-on-surface-variant)]" data-shared-photo-load-failed>
+        <mat-icon class="!text-5xl !w-12 !h-12 mb-4" aria-hidden="true">cloud_off</mat-icon>
+        <p role="alert" class="m-0 text-base font-normal">{{ I18N.albums.load_error | translate }}</p>
+        <div class="flex gap-2 mt-4">
+          <button mat-stroked-button data-shared-photo-retry (click)="retrySharedPhoto()">{{ I18N.gallery.load_error.retry | translate }}</button>
+          <button mat-button (click)="goBack()">{{ I18N.photo_detail.back | translate }}</button>
+        </div>
+      </div>
+    } @else if (photo(); as p) {
       <!-- Header bar -->
       <div class="flex items-center gap-2 px-1 py-1 border-b border-[var(--mat-sys-outline-variant)] bg-[var(--mat-sys-surface-container)]">
         <button mat-icon-button (click)="goBack()" [matTooltip]="I18N.photo_detail.back | translate" [attr.aria-label]="I18N.photo_detail.back | translate">
@@ -267,6 +276,13 @@ export class SharedPhotoDetailComponent extends PhotoDetailBase implements OnIni
   private readonly destroyRef = inject(DestroyRef);
 
   readonly photo = signal<Photo | null>(null);
+  readonly loadFailed = signal(false);
+  private retryLoad: (() => void) | null = null;
+
+  protected retrySharedPhoto(): void {
+    this.loadFailed.set(false);
+    this.retryLoad?.();
+  }
 
   private get token(): string {
     return this.route.snapshot.queryParamMap.get('token') ?? '';
@@ -285,6 +301,12 @@ export class SharedPhotoDetailComponent extends PhotoDetailBase implements OnIni
     }
     const scope = { albumId, token };
     this.sharedAlbumMedia.set(scope);
+    await this.loadSharedPhoto(albumId, token, path);
+  }
+
+  private async loadSharedPhoto(albumId: number, token: string, path: string): Promise<void> {
+    const scope = { albumId, token };
+    this.sharedAlbumMedia.set(scope);
     // Always revalidate the grant: browser history is not membership authority.
     const current = () => !this.destroyRef.destroyed && this.sharedAlbumMedia() === scope
       && this.token === token && Number(this.route.snapshot.paramMap.get('albumId')) === albumId
@@ -299,9 +321,16 @@ export class SharedPhotoDetailComponent extends PhotoDetailBase implements OnIni
           if (!photo.persons) {
             photo.persons = [];
           }
+          this.loadFailed.set(false);
           this.photo.set(photo);
         } catch {
-          if (current()) this.navigateBack();
+          // Stay and say so: a silent bounce back to the grid leaves the guest
+          // with no idea the photo exists but failed to open. The retry
+          // re-fetches the same asset; Back still works.
+          if (current()) {
+            this.retryLoad = () => void this.loadSharedPhoto(albumId, token, path);
+            this.loadFailed.set(true);
+          }
         }
   }
 

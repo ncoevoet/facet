@@ -106,7 +106,21 @@ interface MapResponse {
           </button>
         </div>
       }
-      @if (noGpsResults() && !tileError()) {
+      @if (loadError()) {
+        <div class="absolute bottom-4 left-1/2 -translate-x-1/2 z-[1001] flex items-center gap-2
+                    max-w-[90%] px-3 py-2 rounded-lg shadow-lg text-sm
+                    bg-[var(--mat-sys-error-container)] text-[var(--mat-sys-on-error-container)]"
+             role="status" data-map-load-error>
+          <mat-icon class="!text-base !w-4 !h-4 !leading-4 shrink-0">sync_problem</mat-icon>
+          <span>{{ I18N.map.load_failed | translate }}</span>
+          <button type="button" class="inline-flex items-center justify-center shrink-0 rounded-full p-0.5 hover:bg-black/20 transition-colors cursor-pointer"
+                  (click)="dismissLoadError()"
+                  [attr.aria-label]="I18N.ui.buttons.dismiss | translate">
+            <mat-icon class="!text-base !w-4 !h-4 !leading-4">close</mat-icon>
+          </button>
+        </div>
+      }
+      @if (noGpsResults() && !tileError() && !loadError()) {
         <div class="absolute inset-0 flex items-center justify-center pointer-events-none z-[1000]">
           <div class="max-w-md mx-4 px-6 py-5 rounded-xl shadow-lg text-center
                       bg-[var(--mat-sys-surface-container)] text-[var(--mat-sys-on-surface)]">
@@ -199,11 +213,21 @@ export class MapComponent implements OnInit, OnDestroy {
    *  ordinary use. The card is pointer-transparent, so the map under it still
    *  pans and zooms. A failed count leaves it hidden. */
   protected readonly noGpsResults = signal(false);
+  /** The map data request failed: markers may be stale or missing, which reads
+   *  as a bug just like a tile outage. Cleared by the next successful load; a
+   *  dismissal sticks until then (every pan refires a failing request). */
+  protected readonly loadError = signal(false);
   private tileErrorDismissed = false;
+  private loadErrorDismissed = false;
 
   protected dismissTileError(): void {
     this.tileErrorDismissed = true;
     this.tileError.set(false);
+  }
+
+  protected dismissLoadError(): void {
+    this.loadErrorDismissed = true;
+    this.loadError.set(false);
   }
 
   private map: L.Map | null = null;
@@ -326,6 +350,8 @@ export class MapComponent implements OnInit, OnDestroy {
 
       if (requestId !== this.loadMarkersRequestId || !this.map) return;
 
+      this.loadError.set(false);
+      this.loadErrorDismissed = false;
       this.markersLayer.clearLayers();
 
       if (data.clusters) {
@@ -395,6 +421,7 @@ export class MapComponent implements OnInit, OnDestroy {
         }
       }
     } catch (err) {
+      if (!this.loadErrorDismissed) this.loadError.set(true);
       console.error('Failed to load map data', err);
     } finally {
       if (requestId === this.loadMarkersRequestId) {

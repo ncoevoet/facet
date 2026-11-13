@@ -130,6 +130,7 @@ export const I18N = {
     version: "ui.version",
     display_menu: "ui.display_menu",
     jobs_diagnostics: "ui.jobs_diagnostics",
+    copy_failed: "ui.copy_failed",
   },
   dialog: {
     cancel: "dialog.cancel",
@@ -3043,6 +3044,7 @@ export const I18N = {
       reject_sequence_body: "culling.workspace.reject_sequence_body",
       reject_sequence_confirm: "culling.workspace.reject_sequence_confirm",
     },
+    error_external_changes: "culling.error_external_changes",
   },
   scenes: {
     title: "scenes.title",
@@ -3288,6 +3290,7 @@ export const I18N = {
     basemap: "map.basemap",
     basemap_osm: "map.basemap_osm",
     basemap_custom: "map.basemap_custom",
+    load_failed: "map.load_failed",
   },
   photo_detail: {
     copy_image: "photo_detail.copy_image",
@@ -3818,6 +3821,8 @@ export const I18N = {
       thumbnail: "histogram.provenance.thumbnail",
       note: "histogram.provenance.note",
     },
+    unavailable: "histogram.unavailable",
+    retry: "histogram.retry",
   },
   manual_faces: {
     same_person_overlap: "manual_faces.same_person_overlap",

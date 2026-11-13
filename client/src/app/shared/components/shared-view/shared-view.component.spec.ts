@@ -155,6 +155,38 @@ describe('SharedViewComponent', () => {
     } finally { restore(); }
   });
 
+  it('the first-page failure offers a retry that reloads the album', async () => {
+    mockApi.get.mockReturnValue(throwError(() => ({ status: 500 })));
+    createComponent('1', 'fixture-token');
+    await component.ngOnInit();
+    expect(component.error()).toBe('albums.load_error');
+    expect(component.photos()).toHaveLength(0);
+
+    // The network is back: retry clears the error page and loads the album.
+    mockApi.get.mockReturnValue(of(sharedAlbumResponse));
+    component.retryAlbumLoad();
+    await new Promise<void>(resolve => setTimeout(resolve, 0));
+    expect(component.error()).toBe('');
+    expect(component.photos().length).toBeGreaterThan(0);
+  });
+
+  it('keeps the grid and tells the guest when the next page fails', async () => {
+    mockApi.get.mockReturnValue(of({ ...sharedAlbumResponse, has_more: true }));
+    createComponent('1', 'fixture-token');
+    await component.ngOnInit();
+    const before = component.photos().length;
+    const notice = vi.spyOn(TestBed.inject(MatSnackBar), 'open').mockReturnValue({} as never);
+
+    mockApi.get.mockReturnValue(throwError(() => ({ status: 500 })));
+    component.onScrollReached();
+    await new Promise<void>(resolve => setTimeout(resolve, 0));
+    await new Promise<void>(resolve => setTimeout(resolve, 0));
+
+    expect(component.error()).toBe('');
+    expect(component.photos().length).toBe(before);
+    expect(notice).toHaveBeenCalled();
+  });
+
   it('keeps the shared album open when a selected download fails', async () => {
     createComponent('1', 'fixture-token'); await component.ngOnInit();
     component.toggleSelection(component.photos()[0]);

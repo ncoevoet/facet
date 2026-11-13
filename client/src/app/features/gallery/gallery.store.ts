@@ -2891,7 +2891,11 @@ export class GalleryStore {
           : p),
       );
       if (this.filters().faces_need_names) await this.refreshPaths([photoPath]);
-    } catch { /* ignore */ }
+    } catch {
+      // The chip the user asked to remove stays on screen: say the action
+      // failed instead of leaving them to wonder.
+      this.notifyActionFailed();
+    }
   }
 
   /**

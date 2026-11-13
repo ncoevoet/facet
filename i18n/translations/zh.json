@@ -90,7 +90,8 @@
     "light_mode": "浅色模式",
     "version": "Facet {version}",
     "display_menu": "显示",
-    "jobs_diagnostics": "任务与诊断"
+    "jobs_diagnostics": "任务与诊断",
+    "copy_failed": "复制失败"
   },
   "dialog": {
     "cancel": "取消",
@@ -3003,7 +3004,8 @@
       "reject_sequence_title": "拒绝这些序列帧？",
       "reject_sequence_body": "这 {count} 张照片中，{sequence_count} 张属于通常保持帧完整的 {kinds} 集合。拒绝它们会覆盖该默认行为。不会删除任何文件。保存前仍可取消待确认操作。",
       "reject_sequence_confirm": "拒绝所有这些照片"
-    }
+    },
+    "error_external_changes": "无法获取选片列表的外部变更。"
   },
   "scenes": {
     "title": "场景",
@@ -3248,7 +3250,8 @@
     "no_gps_hint": "当前范围内的照片都没有 GPS 坐标。打开一张照片，用其位置面板标注地点——标注后会显示在这里。",
     "basemap": "地图来源",
     "basemap_osm": "OpenStreetMap",
-    "basemap_custom": "自定义源"
+    "basemap_custom": "自定义源",
+    "load_failed": "地图照片加载失败。平移或缩放即可重试。"
   },
   "photo_detail": {
     "copy_image": "复制图像",
@@ -3778,7 +3781,9 @@
       "stored": "已存渲染图像直方图",
       "thumbnail": "缩略图估计",
       "note": "此曲线描述渲染后的图像，并非 RAW 传感器数值。溢出标记优先使用已存测量值；缩略图采样不能确定传感器是否发生溢出。"
-    }
+    },
+    "unavailable": "直方图不可用",
+    "retry": "重试"
   },
   "manual_faces": {
     "title": "标记遗漏的人脸或物体 / 管理标记",

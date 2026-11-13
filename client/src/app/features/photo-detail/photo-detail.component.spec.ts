@@ -9,6 +9,7 @@ import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { ActivatedRoute, ParamMap, Router, NavigationStart, NavigationEnd, convertToParamMap } from '@angular/router';
 import { Location } from '@angular/common';
 import { MatDialog } from '@angular/material/dialog';
+import type { DestroyRef } from '@angular/core';
 import { BehaviorSubject, finalize, Observable, of, Subject, throwError } from 'rxjs';
 import { UserActivityJournal } from '../../core/agent/user-activity-journal.service';
 import { ApplicationRef, Component, computed, signal } from '@angular/core';
@@ -2840,6 +2841,37 @@ describe('PhotoDetailComponent', () => {
       await component.generateCaption(edited.path);
 
       expect(TestBed.inject(GalleryStore).config()?.features?.show_captions).toBe(false);
+    });
+
+    it('stops applying caption results once the page is destroyed', async () => {
+      createComponent();
+      seedGrid({ caption: 'stale' });
+      const closed = new Subject<string | undefined>();
+      mockDialog.open.mockReturnValue({ afterClosed: () => closed.asObservable() });
+      // Same loader warm-up the caption test needs: editCaption is void and
+      // resolves its dynamic import on its own.
+      await import('./caption-edit-dialog.component');
+
+      // The fix registers the dialog subscription's teardown with the page's
+      // DestroyRef; capture what the editCaption call registered.
+      const dr = (component as unknown as { destroyRef: DestroyRef }).destroyRef;
+      const onDestroySpy = vi.spyOn(dr, 'onDestroy');
+      const registeredBefore = onDestroySpy.mock.calls.length;
+
+      component.editCaption({ ...edited });
+      await new Promise<void>(resolve => setTimeout(resolve, 0));
+      const newTeardowns = onDestroySpy.mock.calls
+        .slice(registeredBefore)
+        .map(call => call[0] as () => void);
+      expect(newTeardowns.length).toBeGreaterThan(0);
+
+      // Simulate the page teardown, then close the dialog: the result must not
+      // land on the destroyed page's store view.
+      newTeardowns.forEach(fn => fn());
+      closed.next('an edited caption');
+      await new Promise<void>(resolve => setTimeout(resolve, 0));
+
+      expect(stored().caption).toBe('stale');
     });
 
     it('the caption edit dialog result reaches the store', async () => {

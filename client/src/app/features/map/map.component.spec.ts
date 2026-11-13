@@ -265,6 +265,51 @@ describe('MapComponent', () => {
     });
   });
 
+  describe('data load failure', () => {
+    it('raises a retryable banner when the data request fails', async () => {
+      component.initMap();
+      mockApi.get.mockImplementation((url: string) =>
+        url === '/photos/map/count' ? of({ count: 1, bounds: null })
+                                    : throwError(() => new Error('boom')));
+      await component.loadMarkers();
+      expect(component.loadError()).toBe(true);
+    });
+
+    it('clears the banner on the next successful load', async () => {
+      mockApi.get.mockImplementation((url: string) =>
+        url === '/photos/map/count' ? of({ count: 1, bounds: null })
+                                    : throwError(() => new Error('boom')));
+      component.initMap();
+      await component.loadMarkers();
+      expect(component.loadError()).toBe(true);
+
+      mockApi.get.mockImplementation(() => of({ clusters: [], photos: [] }));
+      await component.loadMarkers();
+      expect(component.loadError()).toBe(false);
+    });
+
+    it('keeps the banner down once dismissed, until a load succeeds', async () => {
+      component.initMap();
+      mockApi.get.mockImplementation((url: string) =>
+        url === '/photos/map/count' ? of({ count: 1, bounds: null })
+                                    : throwError(() => new Error('boom')));
+      await component.loadMarkers();
+
+      component.dismissLoadError();
+      await component.loadMarkers();
+      expect(component.loadError()).toBe(false);
+
+      // A successful load re-arms the flag: the next real failure shows again.
+      mockApi.get.mockImplementation(() => of({ clusters: [], photos: [] }));
+      await component.loadMarkers();
+      mockApi.get.mockImplementation((url: string) =>
+        url === '/photos/map/count' ? of({ count: 1, bounds: null })
+                                    : throwError(() => new Error('boom')));
+      await component.loadMarkers();
+      expect(component.loadError()).toBe(true);
+    });
+  });
+
   describe('loadMarkers', () => {
     beforeEach(() => {
       component.map = mockMap;

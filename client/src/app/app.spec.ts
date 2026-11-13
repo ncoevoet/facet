@@ -1005,11 +1005,11 @@ describe('App', () => {
       expect(write).toHaveBeenCalledWith('Facet 1.28.0');
     });
 
-    it('confirms nothing when neither the clipboard nor the fallback copy works', async () => {
+    it('reports the failure when neither the clipboard nor the fallback copy works', async () => {
       Object.defineProperty(document, 'execCommand', { value: vi.fn(() => false), configurable: true });
       const { open } = await copy({ version: '1.28.0' }, vi.fn(() => Promise.reject(new Error('denied'))));
       expect(document.execCommand).toHaveBeenCalledWith('copy');
-      expect(open).not.toHaveBeenCalled();
+      expect(open).toHaveBeenCalledWith(I18N.ui.copy_failed, '', { duration: 3000 });
     });
 
     it('does nothing before the config has loaded', async () => {

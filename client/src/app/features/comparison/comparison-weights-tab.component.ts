@@ -582,7 +582,11 @@ export class ComparisonWeightsTabComponent {
     try {
       const data = await firstValueFrom(this.api.get<WeightImpactResponse>('/stats/categories/correlations'));
       this.weightImpactData.set(data);
-    } catch { /* empty */ }
+    } catch {
+      // Same failure surface as loadWeights: without this the impact panel
+      // sits silently blank and "no data" is indistinguishable from a failure.
+      this.snackBar.open(this.i18n.t(I18N.comparison.error_loading_weights), '', { duration: 4000 });
+    }
     finally { this.weightImpactLoading.set(false); }
   }
 

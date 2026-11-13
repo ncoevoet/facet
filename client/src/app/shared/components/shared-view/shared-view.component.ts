@@ -121,6 +121,7 @@ const HIDE_TOGGLE_KEYS = ['hide_blinks', 'hide_bursts', 'hide_duplicates'] as co
       <div class="flex flex-col items-center justify-center h-64 text-[var(--mat-sys-on-surface-variant)]">
         <mat-icon class="!text-5xl !w-12 !h-12 mb-4" aria-hidden="true">lock</mat-icon>
         <h1 role="alert" class="m-0 text-base font-normal">{{ error() | translate }}</h1>
+        <button mat-stroked-button class="mt-4" (click)="retryAlbumLoad()">{{ I18N.gallery.load_error.retry | translate }}</button>
       </div>
     } @else {
       <div class="bg-[var(--mat-sys-surface)] border-b border-[var(--mat-sys-outline-variant)] px-2 md:px-4 py-1 md:py-3">
@@ -879,9 +880,10 @@ export class SharedViewComponent implements OnInit {
 
   protected copyPaths(): void {
     const filenames = [...this.selectedFiles().values()];
-    copyLines(filenames).then(() => {
-      this.snackBar.open(this.i18n.t(I18N.gallery.selection.copied), '', { duration: 2000 });
-    });
+    copyLines(filenames).then(
+      () => this.snackBar.open(this.i18n.t(I18N.gallery.selection.copied), '', { duration: 2000 }),
+      () => this.snackBar.open(this.i18n.t(I18N.ui.copy_failed), '', { duration: 3000 }),
+    );
   }
 
   protected async downloadSelected(type = 'original', profile?: string): Promise<void> {
@@ -1054,6 +1056,12 @@ export class SharedViewComponent implements OnInit {
     await this.loadPage(1);
   }
 
+  protected retryAlbumLoad(): void {
+    this.error.set('');
+    this.loading.set(true);
+    void this.loadPage(1);
+  }
+
   private async loadPage(page: number, append = false): Promise<void> {
     const scope = this.mediaScope();
     if (!scope || !this.mediaCurrent(scope)) return;
@@ -1062,11 +1070,19 @@ export class SharedViewComponent implements OnInit {
       await this.loadAlbumPage(page, append, scope, epoch);
     } catch (e: unknown) {
       if (epoch !== this.requestEpoch || !this.mediaCurrent(scope)) return;
-      if (e instanceof HttpErrorResponse && (e.status === 403 || e.status === 401)) {
-        this.error.set(I18N.albums.share_link_revoked);
-      } else {
-        this.error.set(I18N.albums.load_error);
+      const failure = e instanceof HttpErrorResponse && (e.status === 403 || e.status === 401)
+        ? I18N.albums.share_link_revoked
+        : I18N.albums.load_error;
+      // The first page reaching an empty grid is the one case the error page
+      // fits: there is nothing on screen to preserve. An append or an in-place
+      // refresh keeps the grid -- one failed request must not throw away what
+      // the guest is already looking at; scrolling or re-picking a filter
+      // retries it.
+      if (page === 1 && !append && this.photos().length === 0) {
+        this.error.set(failure);
+        return;
       }
+      this.snackBar.open(this.i18n.t(failure), '', { duration: 3000 });
     } finally {
       if (epoch === this.requestEpoch && this.mediaCurrent(scope)) this.loading.set(false);
     }

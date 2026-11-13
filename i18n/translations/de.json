@@ -90,7 +90,8 @@
     "light_mode": "Hellmodus",
     "version": "Facet {version}",
     "display_menu": "Anzeige",
-    "jobs_diagnostics": "Aufgaben & Diagnose"
+    "jobs_diagnostics": "Aufgaben & Diagnose",
+    "copy_failed": "Kopieren fehlgeschlagen"
   },
   "dialog": {
     "cancel": "Abbrechen",
@@ -3003,7 +3004,8 @@
       "reject_sequence_title": "Diese Sequenzaufnahmen ablehnen?",
       "reject_sequence_body": "Von diesen {count} Fotos gehören {sequence_count} zu {kinds}-Sets, deren Aufnahmen normalerweise zusammenbleiben. Ablehnen setzt diesen Standard außer Kraft. Es werden keine Dateien gelöscht. Sie können die ausstehende Bestätigung vor dem Speichern noch abbrechen.",
       "reject_sequence_confirm": "Alle diese Fotos ablehnen"
-    }
+    },
+    "error_external_changes": "Externe Änderungen am Auslese-Feed konnten nicht abgerufen werden."
   },
   "scenes": {
     "title": "Szenen",
@@ -3248,7 +3250,8 @@
     "no_gps_hint": "Nichts im Umfang trägt GPS-Koordinaten. Öffne ein Foto und lege es über dessen Standort-Panel fest — platzierte Fotos erscheinen hier.",
     "basemap": "Kartenquelle",
     "basemap_osm": "OpenStreetMap",
-    "basemap_custom": "Eigene Quelle"
+    "basemap_custom": "Eigene Quelle",
+    "load_failed": "Kartenfotos konnten nicht geladen werden. Schwenken oder zoomen zum Wiederholen."
   },
   "photo_detail": {
     "copy_image": "Bild kopieren",
@@ -3778,7 +3781,9 @@
       "stored": "Gespeichertes Histogramm der Darstellung",
       "thumbnail": "Schätzung aus Miniatur",
       "note": "Diese Kurve beschreibt ein gerendertes Bild, keine RAW-Sensorwerte. Clipping-Markierungen verwenden gespeicherte Messwerte, sofern verfügbar. Stichproben aus Miniaturen können kein Sensor-Clipping nachweisen."
-    }
+    },
+    "unavailable": "Histogramm nicht verfügbar",
+    "retry": "Wiederholen"
   },
   "manual_faces": {
     "title": "Fehlendes Gesicht oder Objekt markieren / Markierungen verwalten",

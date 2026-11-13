@@ -1705,12 +1705,14 @@ export class PhotoDetailComponent extends PhotoDetailBase implements OnInit {
         maxWidth: '500px',
         data: { path: p.path, filename: p.filename, caption: p.caption || '' },
       });
-      ref.afterClosed().subscribe(result => {
-        if (result !== undefined) {
-          this.translatedCaption.set(null);
-          this.applyConfirmed(p, { caption: result || null, caption_translated: undefined });
-        }
-      });
+      ref.afterClosed()
+        .pipe(takeUntilDestroyed(this.destroyRef))
+        .subscribe(result => {
+          if (result !== undefined) {
+            this.translatedCaption.set(null);
+            this.applyConfirmed(p, { caption: result || null, caption_translated: undefined });
+          }
+        });
     });
   }
 
@@ -1759,7 +1761,9 @@ export class PhotoDetailComponent extends PhotoDetailBase implements OnInit {
           hasBracketLead,
         },
       });
-      ref.afterClosed().subscribe(async result => {
+      ref.afterClosed()
+        .pipe(takeUntilDestroyed(this.destroyRef))
+        .subscribe(async result => {
         if (!result || !current()) return;
         const sameSession = captureSession(this.auth);
         const res = await this.photoActions.deletePhotos([p.path], result);
@@ -1787,9 +1791,11 @@ export class PhotoDetailComponent extends PhotoDetailBase implements OnInit {
         maxWidth: '24rem',
         data: { path: p.path, currentCategory: p.category },
       });
-      ref.afterClosed().subscribe((result: CategoryOverrideResult | undefined) => {
-        if (result) this.applyConfirmed(p, { category: result.category, aggregate: result.aggregate });
-      });
+      ref.afterClosed()
+        .pipe(takeUntilDestroyed(this.destroyRef))
+        .subscribe((result: CategoryOverrideResult | undefined) => {
+          if (result) this.applyConfirmed(p, { category: result.category, aggregate: result.aggregate });
+        });
     });
   }
 

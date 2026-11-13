@@ -171,8 +171,9 @@ export class ClientPicksDialogComponent implements OnInit {
     const filenames = this.picks()
       .filter(pick => pick.picked)
       .map(pick => pick.filename);
-    copyLines(filenames).then(() => {
-      this.snackBar.open(this.i18n.t(I18N.gallery.selection.copied), '', { duration: 2000 });
-    });
+    copyLines(filenames).then(
+      () => this.snackBar.open(this.i18n.t(I18N.gallery.selection.copied), '', { duration: 2000 }),
+      () => this.snackBar.open(this.i18n.t(I18N.ui.copy_failed), '', { duration: 3000 }),
+    );
   }
 }
