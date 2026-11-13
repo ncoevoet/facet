@@ -179,6 +179,16 @@ export const HISTOGRAM_PANEL_HEIGHT = 160;
         </div>
       }
     }
+    @if (sampleFailed()) {
+      <!-- Sampling failed (the fallback thumbnail 404'd or the network
+           dropped). The stored luma fallback may still render above; this
+           says so instead of leaving the missing RGB curve unexplained. -->
+      <div class="flex items-center gap-2 text-sm" data-histogram-unavailable>
+        <span>{{ I18N.histogram.unavailable | translate }}</span>
+        <button type="button" class="underline cursor-pointer" data-histogram-retry
+                (click)="retrySample()">{{ I18N.histogram.retry | translate }}</button>
+      </div>
+    }
   `,
   host: { class: 'block text-neutral-400' },
 })
@@ -220,6 +230,10 @@ export class HistogramComponent {
   //    channel modes stay internally consistent with each other.
   private readonly storedChannels = signal<HistogramChannels | null>(null);
   private readonly sampledChannels = signal<HistogramChannels | null>(null);
+  /** The fallback thumbnail failed to load: without this the panel would sit
+   *  silently blank (no stored measurement exists to fall back to either). */
+  protected readonly sampleFailed = signal(false);
+  private lastSampleUrl: string | null = null;
   protected readonly clipped = signal<ClipPercents | null>(null);
 
   /** A monochrome photo has no colour channels to separate, so it never leaves luma. */
@@ -303,6 +317,10 @@ export class HistogramComponent {
         this.storedChannels.set(null);
         this.sampledChannels.set(null);
         this.clipped.set(null);
+        // A previous photo's failed sample must not follow the user: its Retry
+        // would draw that photo's thumbnail as this one's curves.
+        this.sampleFailed.set(false);
+        this.lastSampleUrl = null;
       });
       if (path) {
         // Unsubscribing aborts the request, so scrubbing the gallery cancels
@@ -376,8 +394,14 @@ export class HistogramComponent {
   }
 
   private sample(url: string, token: number): void {
+    this.lastSampleUrl = url;
+    this.sampleFailed.set(false);
     const img = new Image();
     img.decoding = 'async';
+    img.onerror = () => {
+      if (this.destroyed || token !== this.generation) return;
+      this.sampleFailed.set(true);
+    };
     img.onload = () => {
       if (this.destroyed || token !== this.generation) return;
       try {
@@ -398,5 +422,10 @@ export class HistogramComponent {
       } catch { /* canvas unavailable - histogram stays hidden */ }
     };
     img.src = url;
+  }
+
+  protected retrySample(): void {
+    if (!this.lastSampleUrl) return;
+    this.sample(this.lastSampleUrl, this.generation);
   }
 }
