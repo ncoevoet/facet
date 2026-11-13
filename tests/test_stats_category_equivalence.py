@@ -27,7 +27,9 @@ from config.category_filter import (
 )
 from db.schema import init_database
 
-from tests.test_stats import _async_conn_factory, _create_app_no_auth, _photo
+from tests.test_stats import (
+    _async_conn_factory, _cache_passthrough, _create_app_no_auth, _photo,
+)
 
 
 # --- deterministic category config covering every filter kind ---
@@ -296,6 +298,47 @@ def test_overlap_streams_in_chunks(monkeypatch, tmp_path):
     assert data_chunked == data_default
 
 
+def test_overlap_uncategorized_and_visibility(monkeypatch, tmp_path):
+    """NULL/'' categories count as uncategorized, and the visibility clause
+    binds correctly inside the rewritten scans (multi-user installs)."""
+    rows = [
+        _photo('/seen/a.jpg', face_count=1, aggregate=8.0, category=None),  # category NULL
+        _photo('/seen/b.jpg', face_count=1, aggregate=7.0, category=''),
+        _photo('/hidden/c.jpg', face_count=1, aggregate=9.0),        # filtered out
+    ]
+    cats = json.loads(json.dumps([
+        {"name": "cats_seen", "priority": 10, "filters": {"has_face": True}, "weights": {}},
+    ]))
+    db_path = str(tmp_path / 'test.db')
+    _make_db(db_path, rows)
+    app = _create_app_no_auth()
+    import api.routers.stats as stats_module
+    # get_visibility_clause returns the BARE clause; _vis_where adds the AND.
+    monkeypatch.setattr(stats_module, 'get_visibility_clause',
+                        lambda user_id: ('photos.path LIKE ?', ['/seen/%']))
+    with mock.patch('api.routers.stats.server_scoring_config', lambda: _FakeConfig(cats)):
+        with mock.patch('api.routers.stats.get_async_db', _async_conn_factory(db_path)), \
+             mock.patch('api.routers.stats._get_stats_cached_async', _cache_passthrough):
+            resp = TestClient(app).get('/api/stats/categories/overlap')
+        assert resp.status_code == 200
+        data = resp.json()
+        # Only the two /seen rows survive the visibility clause; both have no
+        # assigned category, so uncategorized counts both.
+        assert data['total'] == 2
+        assert data['uncategorized'] == 2
+        seen = next((c for c in data['per_category'] if c['name'] == 'cats_seen'), None)
+        assert seen is not None, json.dumps(data['per_category'][:3])
+        assert seen['matched'] == 2 and seen['assigned'] == 0
+
+        # The correlations scan honours the same clause and parameter binding.
+        with mock.patch('api.routers.stats.get_async_db', _async_conn_factory(db_path)), \
+             mock.patch('api.routers.stats._get_stats_cached_async', _cache_passthrough):
+            resp = TestClient(app).get('/api/stats/categories/correlations')
+    assert resp.status_code == 200
+    # Both visible rows are category-NULL, so the grouped scan has no groups.
+    assert resp.json()['correlations'] == {}
+
+
 def test_correlations_match_ground_truth_and_single_scan(monkeypatch, tmp_path):
     rows = _correlation_rows()
     db_path = str(tmp_path / 'test.db')
@@ -338,8 +381,20 @@ def test_correlations_match_ground_truth_and_single_scan(monkeypatch, tmp_path):
 
     assert executes['n'] == 1
 
-    from api.routers.stats import _WEIGHT_COLUMNS
-    gt = _ground_truth_correlations(rows, cats, _WEIGHT_COLUMNS)
+    # Hardcoded key->column pairs: the truth must not borrow the
+    # implementation's own mapping.
+    gt = _ground_truth_correlations(rows, cats, {
+        'aesthetic': 'aesthetic', 'composition': 'comp_score',
+        'face_quality': 'face_quality', 'eye_sharpness': 'eye_sharpness',
+        'tech_sharpness': 'tech_sharpness', 'exposure': 'exposure_score',
+        'color': 'color_score', 'quality': 'quality_score',
+        'contrast': 'contrast_score', 'dynamic_range': 'dynamic_range_stops',
+        'isolation': 'isolation_bonus', 'leading_lines': 'leading_lines_score',
+        'aesthetic_iaa': 'aesthetic_iaa', 'face_quality_iqa': 'face_quality_iqa',
+        'liqe': 'liqe_score', 'subject_sharpness': 'subject_sharpness',
+        'subject_prominence': 'subject_prominence', 'subject_placement': 'subject_placement',
+        'bg_separation': 'bg_separation',
+    })
     assert data['correlations'] == gt
     # n = 9 for the 'land' category is below the per-column threshold.
     assert 'land' not in data['correlations']
