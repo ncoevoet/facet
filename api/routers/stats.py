@@ -882,6 +882,146 @@ def api_stats_categories_weights(user: Optional[CurrentUser] = Depends(get_optio
     }
 
 
+# --- Category overlap: precompiled filters over streamed rows ---
+
+# Column indices of the overlap scan (SELECT order above).
+_OVERLAP_IDX = {'tags': 0, 'face_count': 1, 'face_ratio': 2, 'is_silhouette': 3,
+                'is_group_portrait': 4, 'is_monochrome': 5, 'mean_luminance': 6,
+                'iso': 7, 'shutter_speed': 8, 'focal_length': 9, 'f_stop': 10,
+                'category': 11}
+# Columns with_face_defaults coalesces NULL to 0 before filter evaluation.
+_FACE_DEFAULT_IDX = (_OVERLAP_IDX['face_count'], _OVERLAP_IDX['face_ratio'],
+                     _OVERLAP_IDX['is_group_portrait'])
+# Numeric filter field -> scan column; the check set mirrors
+# config.category_filter.CategoryFilter._check_numeric exactly.
+_NUMERIC_FIELD_IDX = {'face_ratio': 2, 'face_count': 1, 'iso': 7,
+                      'shutter_speed': 8, 'luminance': 6, 'focal_length': 9,
+                      'f_stop': 10}
+
+
+def _shutter_float(ss):
+    """Parse the shutter_speed column the way the overlap evaluator always has."""
+    if ss and isinstance(ss, str) and '/' in ss:
+        try:
+            parts = ss.split('/')
+            return float(parts[0]) / float(parts[1])
+        except (ValueError, ZeroDivisionError):
+            return None
+    elif ss:
+        try:
+            return float(ss)
+        except (ValueError, TypeError):
+            return None
+    return ss
+
+
+def _compile_category_filter(filters: dict):
+    """Precompile one category's filter dict against the scan column indices.
+
+    Returns ``(numeric_checks, bool_checks, tag_spec)`` — a conjunction with the
+    same shape and order of outcomes as ``CategoryFilter.matches`` over
+    ``with_face_defaults``-ed rows, minus the per-row dict building.
+    """
+    numeric = []
+    for field, idx in _NUMERIC_FIELD_IDX.items():
+        mn = filters.get(f'{field}_min')
+        mx = filters.get(f'{field}_max')
+        if mn is not None or mx is not None:
+            numeric.append((idx, mn, mx))
+    bools = []
+    for key, idx in (('has_face', 1), ('is_monochrome', 5),
+                     ('is_silhouette', 3), ('is_group_portrait', 4)):
+        required = filters.get(key)
+        if required is not None:
+            bools.append((idx, required))
+    required_tags = [t.lower() for t in filters.get('required_tags', [])]
+    excluded_tags = [t.lower() for t in filters.get('excluded_tags', [])]
+    tag_spec = None
+    if required_tags or excluded_tags:
+        tag_spec = (required_tags, excluded_tags, filters.get('tag_match_mode', 'any'))
+    return numeric, bools, tag_spec
+
+
+def _evaluate_overlap_chunk(rows, compiled, names):
+    """Evaluate every category filter over one chunk of photo rows.
+
+    The per-row semantics are exactly ``CategoryFilter.matches`` over
+    ``with_face_defaults``-ed photo dicts: face NULLs coalesce to 0, shutter
+    strings parse to fractional floats, numeric mismatches fail closed on
+    unparseable values, and tags compare as the lowercased, end-stripped,
+    comma-split set.
+    """
+    from config.category_filter import _to_float
+
+    overlap_pairs = defaultdict(int)
+    match_counts = defaultdict(int)
+    assigned_counts = defaultdict(int)
+    uncategorized = 0
+    total = 0
+    tags_needed = any(spec is not None for _, _, spec in compiled)
+
+    for row in rows:
+        total += 1
+        values = list(row)
+        for idx in _FACE_DEFAULT_IDX:
+            if values[idx] is None:
+                values[idx] = 0
+        values[8] = _shutter_float(values[8])
+
+        assigned_cat = row[11] or ''
+        if assigned_cat:
+            assigned_counts[assigned_cat] += 1
+        else:
+            uncategorized += 1
+
+        photo_tags = None
+        if tags_needed:
+            raw = row[0] or ''
+            photo_tags = {t.strip().lower() for t in raw.split(',') if t.strip()}
+
+        matched = []
+        for (numeric, bools, tag_spec), name in zip(compiled, names):
+            ok = True
+            for idx, mn, mx in numeric:
+                num = _to_float(values[idx])
+                if mn is not None:
+                    if num is None or num < mn:
+                        ok = False
+                        break
+                if mx is not None:
+                    if num is None or num > mx:
+                        ok = False
+                        break
+            if ok:
+                for idx, required in bools:
+                    actual = bool(values[idx] or 0) if idx != 1 else values[idx] > 0
+                    if actual != required:
+                        ok = False
+                        break
+            if ok and tag_spec is not None:
+                required_tags, excluded_tags, mode = tag_spec
+                if required_tags:
+                    if mode == 'any':
+                        if not any(tag in photo_tags for tag in required_tags):
+                            ok = False
+                    else:
+                        if not all(tag in photo_tags for tag in required_tags):
+                            ok = False
+                if ok and excluded_tags:
+                    if any(tag in photo_tags for tag in excluded_tags):
+                        ok = False
+            if ok:
+                matched.append(name)
+                match_counts[name] += 1
+
+        for i in range(len(matched)):
+            for j in range(i + 1, len(matched)):
+                pair = tuple(sorted([matched[i], matched[j]]))
+                overlap_pairs[pair] += 1
+
+    return total, uncategorized, assigned_counts, match_counts, overlap_pairs
+
+
 @router.get('/api/stats/categories/correlations', response_model=StatsCategoryCorrelationsResponse,
             response_model_exclude_unset=True)
 async def api_stats_categories_correlations(user: Optional[CurrentUser] = Depends(get_optional_user)):
@@ -891,28 +1031,39 @@ async def api_stats_categories_correlations(user: Optional[CurrentUser] = Depend
         async with get_async_db() as conn:
             # For each category, compute Pearson r between each weight dimension and aggregate
             # Using: r = (N*SUM(xy) - SUM(x)*SUM(y)) / sqrt((N*SUM(x^2) - SUM(x)^2) * (N*SUM(y^2) - SUM(y)^2))
-            results = {}
+            # One scan for every weight column: each column's own NULL filters
+            # (col IS NOT NULL AND aggregate IS NOT NULL) fold into conditional
+            # SUMs, which reproduce the per-column WHERE + GROUP BY exactly.
+            per_col = []
             for weight_key, col in _WEIGHT_COLUMNS.items():
-                cur = await conn.execute(f'''
-                    SELECT category,
-                        COUNT(*) as n,
-                        SUM(CAST({col} AS REAL)) as sx,
-                        SUM(CAST(aggregate AS REAL)) as sy,
-                        SUM(CAST({col} AS REAL) * CAST(aggregate AS REAL)) as sxy,
-                        SUM(CAST({col} AS REAL) * CAST({col} AS REAL)) as sx2,
-                        SUM(CAST(aggregate AS REAL) * CAST(aggregate AS REAL)) as sy2
-                    FROM photos
-                    WHERE {col} IS NOT NULL AND aggregate IS NOT NULL
-                        AND category IS NOT NULL AND category != ''{vis}
-                    GROUP BY category
-                    HAVING COUNT(*) >= 10
-                ''', vp)
-                corr_rows = await cur.fetchall()
-                await cur.close()
+                cond = f'{col} IS NOT NULL AND aggregate IS NOT NULL'
+                per_col.append(f'''
+                    SUM(CASE WHEN {cond} THEN 1 ELSE 0 END) AS n__{weight_key},
+                    SUM(CASE WHEN {cond} THEN CAST({col} AS REAL) ELSE 0 END) AS sx__{weight_key},
+                    SUM(CASE WHEN {cond} THEN CAST(aggregate AS REAL) ELSE 0 END) AS sy__{weight_key},
+                    SUM(CASE WHEN {cond} THEN CAST({col} AS REAL) * CAST(aggregate AS REAL) ELSE 0 END) AS sxy__{weight_key},
+                    SUM(CASE WHEN {cond} THEN CAST({col} AS REAL) * CAST({col} AS REAL) ELSE 0 END) AS sx2__{weight_key},
+                    SUM(CASE WHEN {cond} THEN CAST(aggregate AS REAL) * CAST(aggregate AS REAL) ELSE 0 END) AS sy2__{weight_key}''')
+            cur = await conn.execute(f'''
+                SELECT category, {', '.join(per_col)}
+                FROM photos
+                WHERE aggregate IS NOT NULL
+                    AND category IS NOT NULL AND category != ''{vis}
+                GROUP BY category
+            ''', vp)
+            corr_rows = await cur.fetchall()
+            await cur.close()
 
-                for r in corr_rows:
-                    cat = r[0]
-                    n, sx, sy, sxy, sx2, sy2 = r[1], r[2], r[3], r[4], r[5], r[6]
+            results = {}
+            for r in corr_rows:
+                cat = r[0]
+                for weight_key in _WEIGHT_COLUMNS:
+                    n, sx, sy, sxy, sx2, sy2 = (
+                        r[f'n__{weight_key}'], r[f'sx__{weight_key}'], r[f'sy__{weight_key}'],
+                        r[f'sxy__{weight_key}'], r[f'sx2__{weight_key}'], r[f'sy2__{weight_key}'])
+                    # The old HAVING COUNT(*) >= 10 was per column+category.
+                    if n < 10:
+                        continue
                     denom = math.sqrt((n * sx2 - sx * sx) * (n * sy2 - sy * sy))
                     pearson_r = (n * sxy - sx * sy) / denom if denom > 0 else 0
 
@@ -947,7 +1098,7 @@ async def api_stats_categories_overlap(user: Optional[CurrentUser] = Depends(get
     vis, vp = _vis_where(user)
 
     async def compute():
-        from config.category_filter import CategoryFilter, with_face_defaults
+        from config.category_filter import CategoryFilter
 
         config = server_scoring_config()
         cat_configs = config.get_categories()
@@ -961,7 +1112,18 @@ async def api_stats_categories_overlap(user: Optional[CurrentUser] = Depends(get
                 'filter': CategoryFilter(cat_cfg.get('filters', {})),
             })
 
-        # Fetch photo data needed for filter evaluation
+        overlap_pairs = defaultdict(int)
+        match_counts = defaultdict(int)  # how many photos match each filter
+        assigned_counts = defaultdict(int)  # how many are actually assigned
+        uncategorized = 0
+        total = 0
+
+        # The per-row filter evaluation is CPU-bound over the whole library, so
+        # the scan streams in chunks: fetchmany hops the event loop once per
+        # chunk, the chunk's evaluation runs in a worker thread, and memory
+        # stays bounded instead of materialising every row as a dict.
+        compiled = [_compile_category_filter(cf['filter'].filters) for cf in cat_filters]
+        names = [cf['name'] for cf in cat_filters]
         async with get_async_db() as conn:
             cur = await conn.execute(f'''
                 SELECT tags, face_count, face_ratio, is_silhouette, is_group_portrait,
@@ -969,64 +1131,21 @@ async def api_stats_categories_overlap(user: Optional[CurrentUser] = Depends(get
                        f_stop, category
                 FROM photos WHERE 1=1{vis}
             ''', vp)
-            photo_rows = await cur.fetchall()
+            while True:
+                rows = await cur.fetchmany(2000)
+                if not rows:
+                    break
+                chunk = await asyncio.to_thread(
+                    _evaluate_overlap_chunk, rows, compiled, names)
+                total += chunk[0]
+                uncategorized += chunk[1]
+                for name, n in chunk[2].items():
+                    assigned_counts[name] += n
+                for name, n in chunk[3].items():
+                    match_counts[name] += n
+                for pair, n in chunk[4].items():
+                    overlap_pairs[pair] += n
             await cur.close()
-
-        columns = ['tags', 'face_count', 'face_ratio', 'is_silhouette', 'is_group_portrait',
-                    'is_monochrome', 'mean_luminance', 'iso', 'shutter_speed', 'focal_length',
-                    'f_stop', 'category']
-
-        # Per-row CategoryFilter evaluation is CPU-bound (one filter pass per
-        # photo across every category). Offload it from the event loop.
-        def _evaluate():
-            overlap_pairs = defaultdict(int)
-            match_counts = defaultdict(int)  # how many photos match each filter
-            assigned_counts = defaultdict(int)  # how many are actually assigned
-            uncategorized = 0
-            total = 0
-
-            for row in photo_rows:
-                total += 1
-                photo_data = dict(zip(columns, row))
-
-                # Parse shutter_speed from string to float
-                ss = photo_data.get('shutter_speed')
-                if ss and isinstance(ss, str) and '/' in ss:
-                    try:
-                        parts = ss.split('/')
-                        photo_data['shutter_speed'] = float(parts[0]) / float(parts[1])
-                    except (ValueError, ZeroDivisionError):
-                        photo_data['shutter_speed'] = None
-                elif ss:
-                    try:
-                        photo_data['shutter_speed'] = float(ss)
-                    except (ValueError, TypeError):
-                        photo_data['shutter_speed'] = None
-
-                assigned_cat = photo_data.get('category') or ''
-                if assigned_cat:
-                    assigned_counts[assigned_cat] += 1
-                else:
-                    uncategorized += 1
-
-                # Test all filters
-                matched = []
-                for cf in cat_filters:
-                    if cf['filter'].matches(with_face_defaults(photo_data)):
-                        matched.append(cf['name'])
-                        match_counts[cf['name']] += 1
-
-                # Record overlap pairs
-                for i in range(len(matched)):
-                    for j in range(i + 1, len(matched)):
-                        pair = tuple(sorted([matched[i], matched[j]]))
-                        overlap_pairs[pair] += 1
-
-            return overlap_pairs, match_counts, assigned_counts, uncategorized, total
-
-        overlap_pairs, match_counts, assigned_counts, uncategorized, total = (
-            await asyncio.to_thread(_evaluate)
-        )
 
         # Build overlap list sorted by count
         overlaps = [
