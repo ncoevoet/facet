@@ -81,11 +81,12 @@ Immich ≥ 3.0 允许把密钥限定在某些权限范围内。星级和收藏�
 | `server.about` | `--immich-test` 的连通性／认证检查 |
 | `asset.read` | 通过 `originalPath` 解析资产 |
 | `asset.update` | 写入 `rating` 和 `isFavorite` |
-| `album.read` | 按名称查找已有的精选照片相册 |
+| `album.read` | 按名称查找精选照片相册并读取其成员列表 |
 | `album.create` | 首次创建精选照片相册 |
 | `albumAsset.create` | 把照片添加到精选照片相册 |
+| `albumAsset.delete` | 移除评分跌破精选阈值的照片 |
 
-如果 `push.top_picks_album` 为空，就可以省略三个相册范围。只有设置了这个名称，Facet 才会碰相册。
+如果 `push.top_picks_album` 为空，就可以省略四个相册范围。只有设置了这个名称，Facet 才会碰相册。 缺少 `albumAsset.delete` 时同步仍会继续：被拒绝的移除会跳过并计入同步摘要，试运行也会预览它们。
 
 Facet 以 `x-api-key` 请求头发送密钥。把它放进 `scoring_config.json`：
 
@@ -147,9 +148,11 @@ python facet.py --immich-sync
 - **1–5 星的星级** → Immich 的 `rating`。未评星的照片什么也不会推送。
 - **收藏** → Immich 的 `isFavorite`。
 - **清除。** 如果你给一张照片评了星、同步过，然后又把它重置为未评星，下一次同步会发送 `rating: null`，让 Immich 也把它清除。Facet 为此会记住自己上一次推送的内容（放在 `stats_cache` 中）。它发送的是 `null` 而绝不是 `0`：Immich v3 会拒绝 `0`，而一个批次被拒就会中止整次同步。
-- **一个可选的精选照片相册**，当设置了 `push.top_picks_album` 时，用评分不低于 `push.top_picks_min_rating` 的照片填充。
+- **一个可选的精选照片相册**，当设置了 `push.top_picks_album` 时：评分不低于 `push.top_picks_min_rating` 的照片是成员；跌破阈值的成员会在全局同步时被移除，前提是 Facet 仍能归因它（已删除的照片或其他应用的资产保持原样）；已有成员不会被重复添加。
 
 在多用户模式下，`--immich-sync --user alice` 推送的是 Alice 自己的星级（`user_preferences`），而不是全局星级，并单独跟踪她的同步状态。
+
+在多用户模式下，精选相册是共享的：全局同步使用 `photos` 中的默认评分，因此当全局评分低于阈值时，可能移除之前由用户同步加入的照片。用户同步不会移除相册成员。
 
 ## 推送淘汰标记
 
@@ -336,7 +339,7 @@ WARNING  Immich webhook saw an asset Facet has not scored: /mnt/photos/2026/08/I
 | `push.ratings` | `true` | 推送 1–5 星的星级（以及它们的清除）。 |
 | `push.favorites` | `true` | 推送 `isFavorite`（以及它的清除）。 |
 | `push.rejected` | `false` | 为在 Facet 中被淘汰的照片推送 `rating: -1`。需要 `push.ratings`。 |
-| `push.top_picks_album` | `""` | 要填充的相册名称。为空表示 Facet 绝不碰相册。 |
+| `push.top_picks_album` | `""` | 要持续填充的相册名称：低于 `push.top_picks_min_rating` 的成员会在全局同步时被移除，前提是 Facet 仍能归因它们。为空表示 Facet 绝不碰相册。 |
 | `push.top_picks_min_rating` | `4` | 进入该相册的最低星级。 |
 | `webhook.token_env` | `""` | 存放 webhook 密钥的环境变量。为空表示禁用该端点。 |
 | `webhook.header` | `"x-facet-token"` | Immich 用来发送令牌的请求头。 |
@@ -367,7 +370,7 @@ WARNING  Immich webhook saw an asset Facet has not scored: /mnt/photos/2026/08/I
 
 - `Unsupported Immich URL scheme`——`url` 需要 `http://` 或 `https://`。
 - `HTTP 401`——API 密钥错误或已被吊销。
-- `HTTP 403`——密钥缺少 `server.about`。用上面那六个范围重新创建它。
+- `HTTP 403`——密钥缺少 `server.about`。用上面那七个范围重新创建它。
 - 连接被拒绝／超时——端口不对，或者 Facet 访问不到容器。在 Facet 所在的机器上用 `curl -H "x-api-key: …" http://immich.local:2283/api/server/about` 测试。
 
 ### webhook 返回 404

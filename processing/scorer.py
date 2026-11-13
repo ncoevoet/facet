@@ -37,6 +37,7 @@ from db.schema import FACES_UPSERT_SQL, IQA_SCAN_FINGERPRINT_SQL, face_upsert_ro
 from db.scoring_overrides import get_photo_scoring_overrides
 from db.tags import sync_photo_tags
 from db.vec import sync_vec_batch
+from exiftool.exiftool_batch import EXIF_META_COLUMNS, clamp_exif_domains, clean_exif_text
 from processing.progress import emit_progress
 from utils.histogram import unpack_histogram
 from utils.image_bounds import LIQE_MIN_SHORT_SIDE, liqe_input_too_small
@@ -82,6 +83,8 @@ _PARTIAL_CORE_COLUMNS = (
     'path', 'filename', 'image_width', 'image_height', 'date_taken',
     'camera_model', 'lens_model', 'iso', 'f_stop', 'shutter_speed',
     'focal_length', 'focal_length_35mm', 'gps_latitude', 'gps_longitude',
+    'file_size', 'exposure_compensation', 'flash', 'white_balance', 'metering_mode',
+    'artist', 'copyright',
     'phash', 'config_version', 'thumbnail',
 )
 
@@ -297,10 +300,20 @@ def _apply_exif_rotation(img, orientation):
 
 _EXIF_NUMERIC_FIELDS = (
     'iso', 'f_stop', 'focal_length', 'focal_length_35mm',
-    'gps_latitude', 'gps_longitude',
+    'gps_latitude', 'gps_longitude', 'file_size', 'exposure_compensation',
+    'flash', 'white_balance', 'metering_mode',
 )
 
-_EXIF_INT_FIELDS = ('iso',)
+_EXIF_INT_FIELDS = ('iso', 'flash', 'white_balance', 'metering_mode', 'file_size')
+
+
+def _stat_size(image_path):
+    """File size in bytes for the exifread / Pillow fallbacks (exiftool reports its own)."""
+    try:
+        size = os.stat(image_path).st_size
+    except OSError:
+        return None
+    return size if size > 0 else None
 
 
 def _sanitize_exif_numeric(exif_data):
@@ -2796,7 +2809,9 @@ class Facet:
         exif_data = {
             'date_taken': None, 'camera_model': None, 'lens_model': None,
             'iso': None, 'f_stop': None, 'shutter_speed': None, 'focal_length': None,
-            'focal_length_35mm': None, 'gps_latitude': None, 'gps_longitude': None
+            'focal_length_35mm': None, 'gps_latitude': None, 'gps_longitude': None,
+            'file_size': None, 'exposure_compensation': None, 'flash': None,
+            'white_balance': None, 'metering_mode': None, 'artist': None, 'copyright': None,
         }
 
         # 1. Try persistent ExifTool (fastest - no subprocess spawn)
@@ -2817,18 +2832,8 @@ class Facet:
                 ['exiftool', '-j', '-n', str(image_path)],
                 capture_output=True, text=True, check=True, timeout=30
             )
-            data = json.loads(result.stdout)[0]
-            exif_data['date_taken'] = data.get('DateTimeOriginal') or data.get('CreateDate')
-            exif_data['camera_model'] = data.get('Model')
-            exif_data['lens_model'] = data.get('LensModel') or data.get('LensID')
-            exif_data['iso'] = data.get('ISO')
-            exif_data['f_stop'] = data.get('Aperture')
-            exposure = data.get('ExposureTime')
-            exif_data['shutter_speed'] = str(exposure) if exposure else None
-            exif_data['focal_length'] = data.get('FocalLength')
-            exif_data['focal_length_35mm'] = data.get('FocalLengthIn35mmFilm')
-            exif_data['gps_latitude'] = data.get('GPSLatitude')
-            exif_data['gps_longitude'] = data.get('GPSLongitude')
+            from exiftool import parse_exif_data
+            exif_data.update(parse_exif_data(json.loads(result.stdout)[0]))
 
             if exif_data['camera_model']:
                 return _sanitize_exif_numeric(exif_data)
@@ -2871,6 +2876,23 @@ class Facet:
                         exif_data['focal_length_35mm'] = float(tags['EXIF FocalLengthIn35mmFilm'].values[0])
                 except (ValueError, IndexError, ZeroDivisionError):
                     pass
+                try:
+                    if 'EXIF ExposureBiasValue' in tags:
+                        exif_data['exposure_compensation'] = float(tags['EXIF ExposureBiasValue'].values[0])
+                except (ValueError, IndexError, ZeroDivisionError):
+                    pass
+                for column, tag in (('flash', 'EXIF Flash'), ('white_balance', 'EXIF WhiteBalance'),
+                                    ('metering_mode', 'EXIF MeteringMode')):
+                    try:
+                        if tag in tags:
+                            exif_data[column] = int(tags[tag].values[0])
+                    except (ValueError, IndexError, TypeError):
+                        pass
+                for column, tag in (('artist', 'Image Artist'), ('copyright', 'Image Copyright')):
+                    if tag in tags:
+                        exif_data[column] = clean_exif_text(str(tags[tag]))
+                exif_data['file_size'] = _stat_size(image_path)
+                clamp_exif_domains(exif_data)
                 if exif_data['camera_model']:
                     return _sanitize_exif_numeric(exif_data)
         except Exception:
@@ -2904,8 +2926,21 @@ class Facet:
                         exif_data['focal_length'] = float(value)
                     elif decoded == 'FocalLengthIn35mmFilm':
                         exif_data['focal_length_35mm'] = float(value)
+                    elif decoded in ('ExposureBiasValue', 'Flash', 'WhiteBalance', 'MeteringMode'):
+                        # Guarded per field: a malformed value must not stop the loop
+                        # before the tags that follow it (focal length, lens).
+                        key, cast = {'ExposureBiasValue': ('exposure_compensation', float), 'Flash': ('flash', int),
+                                     'WhiteBalance': ('white_balance', int), 'MeteringMode': ('metering_mode', int)}[decoded]
+                        try:
+                            exif_data[key] = cast(value)
+                        except (TypeError, ValueError, ZeroDivisionError):
+                            pass
+                    elif decoded in ('Artist', 'Copyright'):
+                        exif_data[decoded.lower()] = clean_exif_text(str(value))
         except Exception as e:
             logger.warning("EXIF extraction failed for %s: %s", image_path, e)
+        exif_data['file_size'] = _stat_size(image_path)
+        clamp_exif_domains(exif_data)
         return _sanitize_exif_numeric(exif_data)
 
     def save_photos_batch(self, results):
@@ -2957,6 +2992,8 @@ class Facet:
                 res.setdefault('subject_bbox', None)
                 res.setdefault('channel_clip_shadow_pct', None)
                 res.setdefault('channel_clip_highlight_pct', None)
+                for exif_col in EXIF_META_COLUMNS:
+                    res.setdefault(exif_col, None)
                 for form_col in FORM_METRIC_COLUMNS:
                     res.setdefault(form_col, None)
                 conn.execute(_photos_upsert(f'''
@@ -2979,7 +3016,9 @@ class Facet:
                         qrealign_score, aesthetic_v25, deqa_score,
                         subject_sharpness, subject_prominence, subject_placement, bg_separation, subject_bbox,
                         form_symmetry, form_balance, form_edge_entropy, form_fractal, color_harmony,
-                        gps_latitude, gps_longitude, scanned_at, render_version
+                        gps_latitude, gps_longitude,
+                        file_size, exposure_compensation, flash, white_balance, metering_mode,
+                        artist, copyright, scanned_at, render_version
                     )
                     VALUES (
                         :path, :filename, :category, :image_width, :image_height,
@@ -3000,7 +3039,9 @@ class Facet:
                         :qrealign_score, :aesthetic_v25, :deqa_score,
                         :subject_sharpness, :subject_prominence, :subject_placement, :bg_separation, :subject_bbox,
                         :form_symmetry, :form_balance, :form_edge_entropy, :form_fractal, :color_harmony,
-                        :gps_latitude, :gps_longitude, datetime('now'), {DISPLAY_RENDER_VERSION}
+                        :gps_latitude, :gps_longitude,
+                        :file_size, :exposure_compensation, :flash, :white_balance, :metering_mode,
+                        :artist, :copyright, datetime('now'), {DISPLAY_RENDER_VERSION}
                     )
                 '''), res)
                 # A full save replaces the observation even when two scans land
@@ -3091,7 +3132,9 @@ class Facet:
         with get_connection(self.db_path, row_factory=False) as conn:
             apply_review_states(conn, review_states)
             for res, _, computed_columns in batch:
-                conn.execute(_photos_partial_upsert(computed_columns), res)
+                # A caller that never read the file metadata binds NULL for it.
+                conn.execute(_photos_partial_upsert(computed_columns),
+                             {**dict.fromkeys(EXIF_META_COLUMNS), **res})
 
             if refresh_faces:
                 replace_photo_faces(

@@ -213,7 +213,30 @@
     "color_harmony": "Harmonie couleurs",
     "caption": "Légende",
     "filter_by_person": "Filtrer par {name}",
-    "histogram": "Histogramme"
+    "histogram": "Histogramme",
+    "focal_35mm": "Équiv. 35 mm",
+    "exposure_compensation": "Comp. d'exposition",
+    "flash": "Flash",
+    "flash_fired": "Déclenché",
+    "flash_off": "Non déclenché",
+    "white_balance": "Balance des blancs",
+    "white_balance_auto": "Auto",
+    "white_balance_manual": "Manuelle",
+    "metering": "Mesure",
+    "metering_unknown": "Inconnue",
+    "metering_average": "Moyenne",
+    "metering_center_weighted": "Pondérée centrale",
+    "metering_spot": "Spot",
+    "metering_multi_spot": "Multi-spot",
+    "metering_pattern": "Multi-zones",
+    "metering_partial": "Partielle",
+    "metering_other": "Autre",
+    "dimensions": "Dimensions",
+    "file_size": "Taille du fichier",
+    "folder": "Dossier",
+    "copy_folder": "Copier le chemin du dossier",
+    "artist": "Artiste",
+    "copyright": "Copyright"
   },
   "photoCard": {
     "embed_to_file": "Écrire les métadonnées dans le fichier",
@@ -230,6 +253,8 @@
     "copied_count_plural": "Copies {count} noms de fichiers",
     "link_copied": "Lien copie dans le presse-papiers",
     "copy_failed": "Échec de la copie du lien",
+    "folder_copied": "Chemin du dossier copié",
+    "folder_copy_failed": "Impossible de copier le chemin du dossier",
     "person_renamed": "Personne renommée en \"{name}\"",
     "failed_rename": "Échec du renommage",
     "error_merging": "Erreur lors de la fusion",
@@ -3447,7 +3472,8 @@
     "tag_refine_collection": "Affiner cette collection",
     "tag_search_library": "Rechercher dans la bibliothèque",
     "add_caption": "Ajouter une légende",
-    "capture_settings": "Réglages de prise de vue"
+    "capture_settings": "Réglages de prise de vue",
+    "labelled_value": "{label} : {value}"
   },
   "manual_tags": {
     "batch": {

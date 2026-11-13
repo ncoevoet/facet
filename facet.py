@@ -827,6 +827,7 @@ DEFAULT_SCAN_STALE_SECONDS = 120
 LIBRARY_JOB_ARGS = (
     'apply_recommendations',
     'backfill_clipping',
+    'backfill_exif_meta',
     'backfill_focal_35mm',
     'cluster_faces_force',
     'cluster_faces_incremental',
@@ -3018,6 +3019,47 @@ def main():
         repair_neutral_iqa(args.db)
         exit()
 
+    # Backfill file size and the extra EXIF fields (exposure compensation, flash,
+    # white balance, metering, artist, copyright). Only rows whose file_size is still
+    # NULL (no EXIF reader has run since the column was added) are re-read.
+    if args.backfill_exif_meta:
+        import shutil
+        if shutil.which('exiftool') is None:
+            logger.error("--backfill-exif-meta needs exiftool on PATH; install it and re-run.")
+            sys.exit(1)
+        from exiftool.exiftool_batch import EXIF_META_COLUMNS, get_exif_batch
+        init_database(args.db)
+        set_clause = ', '.join(f'{column} = ?' for column in EXIF_META_COLUMNS)
+        with get_connection(args.db) as conn:
+            # No covering index on purpose: the exiftool call per chunk dwarfs the overflow-page cost.
+            paths = [row['path'] for row in conn.execute("SELECT path FROM photos WHERE file_size IS NULL")]
+        if not paths:
+            logger.info("No photos need EXIF metadata backfill.")
+            exit()
+        logger.info("Backfilling file size and EXIF metadata for %d photos...", len(paths))
+        updated = 0
+        for start in range(0, len(paths), 500):
+            # Missing files are not sent (exiftool would only answer an 'Error' item for them);
+            # they stay NULL and are counted below.
+            chunk = [path for path in paths[start:start + 500] if os.path.isfile(path)]
+            found = get_exif_batch(chunk, chunk_size=500, timeout_per_chunk=120)
+            rows = []
+            for path in chunk:
+                exif = found.get(str(Path(path).resolve()))
+                if exif is None or exif.get('file_size') is None:
+                    continue
+                rows.append((*(exif[column] for column in EXIF_META_COLUMNS), path))
+            with get_connection(args.db) as conn:
+                conn.executemany(f"UPDATE photos SET {set_clause} WHERE path = ?", rows)
+                conn.commit()
+            updated += len(rows)
+        unreadable = len(paths) - updated
+        logger.info("Updated EXIF metadata for %d/%d photos.", updated, len(paths))
+        if unreadable:
+            logger.info("%d photos could not be read (missing or unreadable file) and stay NULL; "
+                        "run database.py --cleanup-missing-photos to drop rows whose file is gone.", unreadable)
+        exit()
+
     # Backfill focal_length_35mm from EXIF (lightweight - no GPU needed)
     if args.backfill_focal_35mm:
         from exiftool import get_exif_batch
@@ -4272,10 +4314,12 @@ def main():
             sys.exit(1)
         logger.info(
             "Immich sync%s: %d matched, %d unmatched, %d updated, "
-            "%d skipped (unrated), %d identity conflict(s), %d album(s) created",
+            "%d skipped (unrated), %d identity conflict(s), %d album(s) created, "
+            "%d album asset(s) added, %d removed, %d removal failure(s)",
             " (dry-run)" if args.dry_run else "",
             stats['matched'], stats['unmatched'], stats['updated'],
             stats['skipped_unrated'], stats['identity_conflicts'], stats['albums_created'],
+            stats['album_added'], stats['album_removed'], stats['album_remove_failed'],
         )
         exit()
 

@@ -186,7 +186,8 @@ def resolve(url: str) -> tuple[float, float]:
         # string. Every allowed host serves https; an http:// link is never fetched in clear.
         parts = urlsplit(current)
         target = urlunsplit(('https', parts.hostname, parts.path, parts.query, ''))
-        remaining = deadline - time.monotonic()
+        # Capped: on a coarse clock (deadline - now) can round a hair above the budget.
+        remaining = min(TIMEOUT_SECONDS, deadline - time.monotonic())
         if remaining <= 0:
             raise LinkError('unreachable')
         try:

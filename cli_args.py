@@ -201,6 +201,10 @@ Configuration:
                              'mean-luminance deltas. Read-only — validate settings before a rescan')
     db_group.add_argument('--backfill-focal-35mm', action='store_true',
                         help='Backfill focal_length_35mm from EXIF for photos missing it')
+    db_group.add_argument('--backfill-exif-meta', action='store_true',
+                        help='Backfill file size, exposure compensation, flash, white balance, '
+                             'metering mode, artist and copyright from EXIF for photos not read yet '
+                             '(needs exiftool; resumable)')
     db_group.add_argument('--backfill-clipping', action='store_true',
                         help='Derive per-channel clipping percentages from stored histograms. '
                              'Database-only (no image decode) and resumable; photos whose '

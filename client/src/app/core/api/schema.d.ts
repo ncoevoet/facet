@@ -3304,6 +3304,29 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/photo/albums": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Photo Albums
+         * @description Albums (manual and smart) the caller may open that contain ``path``.
+         *
+         *     Registered before the ``/api/albums/{album_id}`` routes and under a distinct
+         *     prefix, so it cannot collide with them. Never reachable through a share token.
+         */
+        get: operations["photo_albums_api_photo_albums_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/photo/assign_all_faces": {
         parameters: {
             query?: never;
@@ -9363,6 +9386,8 @@ export interface components {
             aggregate?: number | null;
             /** Ai Edit Of */
             ai_edit_of?: string | null;
+            /** Artist */
+            artist?: string | null;
             assessment_states?: components["schemas"]["PhotoAssessmentStates"] | null;
             /** Bg Separation */
             bg_separation?: number | null;
@@ -9394,6 +9419,8 @@ export interface components {
             composition_pattern?: string | null;
             /** Contrast Score */
             contrast_score?: number | null;
+            /** Copyright */
+            copyright?: string | null;
             /** Date Formatted */
             date_formatted?: string | null;
             /** Date Manually Set */
@@ -9410,6 +9437,8 @@ export interface components {
             dynamic_range_stops?: number | null;
             /** Embedding Similarity */
             embedding_similarity?: number | null;
+            /** Exposure Compensation */
+            exposure_compensation?: number | null;
             /** Exposure Score */
             exposure_score?: number | null;
             /** Eye Sharpness */
@@ -9428,10 +9457,16 @@ export interface components {
             face_ratio?: number | null;
             /** Face Sharpness */
             face_sharpness?: number | null;
+            /** File Size */
+            file_size?: number | null;
             /** Filename */
             filename?: string | null;
+            /** Flash */
+            flash?: number | null;
             /** Focal Length */
             focal_length?: number | null;
+            /** Focal Length 35Mm */
+            focal_length_35mm?: number | null;
             /** Form Balance */
             form_balance?: number | null;
             /** Form Edge Entropy */
@@ -9498,6 +9533,8 @@ export interface components {
             mean_luminance?: number | null;
             /** Mean Saturation */
             mean_saturation?: number | null;
+            /** Metering Mode */
+            metering_mode?: number | null;
             /** Narrative Moment */
             narrative_moment?: string | null;
             /** Narrative Moment Confidence */
@@ -9568,6 +9605,20 @@ export interface components {
             topiq_score?: number | null;
             /** Unassigned Faces */
             unassigned_faces?: number | null;
+            /** White Balance */
+            white_balance?: number | null;
+        };
+        /**
+         * PhotoAlbum
+         * @description One album a photo belongs to, as listed in the photo info panel.
+         */
+        PhotoAlbum: {
+            /** Id */
+            id: number;
+            /** Is Smart */
+            is_smart: boolean;
+            /** Name */
+            name: string;
         };
         /**
          * PhotoAssessmentStates
@@ -10830,6 +10881,8 @@ export interface components {
             aggregate?: number | null;
             /** Ai Edit Of */
             ai_edit_of?: string | null;
+            /** Artist */
+            artist?: string | null;
             /** Asset Id */
             asset_id: string;
             /** Bg Separation */
@@ -10862,6 +10915,8 @@ export interface components {
             composition_pattern?: string | null;
             /** Contrast Score */
             contrast_score?: number | null;
+            /** Copyright */
+            copyright?: string | null;
             /** Date Formatted */
             date_formatted?: string | null;
             /** Date Manually Set */
@@ -10878,6 +10933,8 @@ export interface components {
             dynamic_range_stops?: number | null;
             /** Embedding Similarity */
             embedding_similarity?: number | null;
+            /** Exposure Compensation */
+            exposure_compensation?: number | null;
             /** Exposure Score */
             exposure_score?: number | null;
             /** Eye Sharpness */
@@ -10896,10 +10953,16 @@ export interface components {
             face_ratio?: number | null;
             /** Face Sharpness */
             face_sharpness?: number | null;
+            /** File Size */
+            file_size?: number | null;
             /** Filename */
             filename?: string | null;
+            /** Flash */
+            flash?: number | null;
             /** Focal Length */
             focal_length?: number | null;
+            /** Focal Length 35Mm */
+            focal_length_35mm?: number | null;
             /** Form Balance */
             form_balance?: number | null;
             /** Form Edge Entropy */
@@ -10965,6 +11028,8 @@ export interface components {
             mean_luminance?: number | null;
             /** Mean Saturation */
             mean_saturation?: number | null;
+            /** Metering Mode */
+            metering_mode?: number | null;
             /** Narrative Moment */
             narrative_moment?: string | null;
             /** Narrative Moment Confidence */
@@ -11033,6 +11098,8 @@ export interface components {
             topiq_score?: number | null;
             /** Unassigned Faces */
             unassigned_faces?: number | null;
+            /** White Balance */
+            white_balance?: number | null;
         };
         /**
          * ShootTypeEvidence
@@ -16979,6 +17046,38 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["AiEditImportResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    photo_albums_api_photo_albums_get: {
+        parameters: {
+            query: {
+                path: string;
+                token?: string | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PhotoAlbum"][];
                 };
             };
             /** @description Validation Error */

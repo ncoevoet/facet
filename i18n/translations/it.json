@@ -213,7 +213,30 @@
     "star_rating": "Valutazione",
     "topiq_score": "TOPIQ",
     "filter_by_person": "Filtra per {name}",
-    "histogram": "Istogramma"
+    "histogram": "Istogramma",
+    "focal_35mm": "Equiv. 35 mm",
+    "exposure_compensation": "Comp. esposizione",
+    "flash": "Flash",
+    "flash_fired": "Scattato",
+    "flash_off": "Non scattato",
+    "white_balance": "Bilanciamento del bianco",
+    "white_balance_auto": "Automatico",
+    "white_balance_manual": "Manuale",
+    "metering": "Misurazione",
+    "metering_unknown": "Sconosciuta",
+    "metering_average": "Media",
+    "metering_center_weighted": "Ponderata al centro",
+    "metering_spot": "Spot",
+    "metering_multi_spot": "Multi-spot",
+    "metering_pattern": "Multi-zona",
+    "metering_partial": "Parziale",
+    "metering_other": "Altro",
+    "dimensions": "Dimensioni",
+    "file_size": "Dimensione file",
+    "folder": "Cartella",
+    "copy_folder": "Copia il percorso della cartella",
+    "artist": "Artista",
+    "copyright": "Copyright"
   },
   "photoCard": {
     "embed_to_file": "Scrivi i metadati nel file",
@@ -230,6 +253,8 @@
     "copied_count_plural": "{count} nomi file copiati",
     "link_copied": "Link copiato negli appunti",
     "copy_failed": "Copia del link non riuscita",
+    "folder_copied": "Percorso della cartella copiato",
+    "folder_copy_failed": "Impossibile copiare il percorso della cartella",
     "person_renamed": "Persona rinominata in \"{name}\"",
     "failed_rename": "Rinomina della persona non riuscita",
     "error_merging": "Errore nell'unione delle persone",
@@ -3447,7 +3472,8 @@
     "tag_refine_collection": "Affina questa raccolta",
     "tag_search_library": "Cerca nella raccolta",
     "add_caption": "Aggiungi didascalia",
-    "capture_settings": "Impostazioni di scatto"
+    "capture_settings": "Impostazioni di scatto",
+    "labelled_value": "{label}: {value}"
   },
   "manual_tags": {
     "batch": {

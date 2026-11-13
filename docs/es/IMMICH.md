@@ -81,11 +81,12 @@ Immich ≥ 3.0 permite limitar una clave a ciertos ámbitos. La sincronización 
 | `server.about` | Comprobación de conectividad/autenticación de `--immich-test` |
 | `asset.read` | Resolver recursos por `originalPath` |
 | `asset.update` | Escribir `rating` e `isFavorite` |
-| `album.read` | Encontrar un álbum de mejores fotos existente por nombre |
+| `album.read` | Encontrar el álbum de mejores fotos por nombre y leer sus miembros |
 | `album.create` | Crear el álbum de mejores fotos la primera vez |
 | `albumAsset.create` | Añadir fotos al álbum de mejores fotos |
+| `albumAsset.delete` | Eliminar las fotos que caigan por debajo del umbral de mejores fotos |
 
-Puedes omitir los tres ámbitos de álbum si `push.top_picks_album` está vacío. Facet solo toca los álbumes cuando ese nombre está definido.
+Puedes omitir los cuatro ámbitos de álbum si `push.top_picks_album` está vacío. Facet solo toca los álbumes cuando ese nombre está definido. Sin `albumAsset.delete` la sincronización continúa: las eliminaciones rechazadas se omiten y se cuentan en el resumen, y la simulación las previsualiza.
 
 Facet envía la clave en una cabecera `x-api-key`. Ponla en `scoring_config.json`:
 
@@ -147,9 +148,11 @@ Qué se envía:
 - **Valoraciones por estrellas 1–5** → el `rating` de Immich. Una foto sin valorar no envía nada.
 - **Favoritos** → el `isFavorite` de Immich.
 - **Borrados.** Si valoraste una foto, sincronizaste, y luego la restableciste a sin valorar, la siguiente sincronización envía `rating: null` para que Immich también la borre. Facet recuerda lo último que envió (en `stats_cache`) para esto. Envía `null`, nunca `0`: Immich v3 rechaza `0`, y un solo lote rechazado aborta toda la sincronización.
-- **Un álbum de mejores fotos** (opcional), poblado con las fotos valoradas con al menos `push.top_picks_min_rating`, cuando `push.top_picks_album` está definido.
+- **Un álbum de mejores fotos** (opcional), cuando `push.top_picks_album` está definido: las fotos valoradas con al menos `push.top_picks_min_rating` son miembros, y un miembro que caiga por debajo del umbral se elimina en una sincronización global mientras Facet pueda atribuirlo (una foto eliminada o el asset de otra aplicación queda como está); un miembro existente nunca se vuelve a añadir.
 
 En modo multiusuario, `--immich-sync --user alice` envía las valoraciones propias de Alice (`user_preferences`) en lugar de las globales, y sigue su estado de sincronización por separado.
+
+En modo multiusuario, el álbum de mejores fotos es compartido: una sincronización global usa las valoraciones de respaldo de `photos` y puede quitar una foto añadida por una sincronización de usuario si su valoración global está por debajo del umbral. Las sincronizaciones de usuario nunca quitan miembros.
 
 ## Envío de rechazos
 
@@ -336,7 +339,7 @@ El bloque `immich` completo, con los valores por defecto de fábrica:
 | `push.ratings` | `true` | Envía las valoraciones por estrellas 1–5 (y sus borrados). |
 | `push.favorites` | `true` | Envía `isFavorite` (y sus borrados). |
 | `push.rejected` | `false` | Envía `rating: -1` para las fotos rechazadas en Facet. Requiere `push.ratings`. |
-| `push.top_picks_album` | `""` | Nombre del álbum a poblar. Vacío significa que Facet nunca toca los álbumes. |
+| `push.top_picks_album` | `""` | Nombre del álbum a mantener poblado: los miembros por debajo de `push.top_picks_min_rating` se eliminan en una sincronización global mientras Facet pueda atribuirlos. Vacío significa que Facet nunca toca los álbumes. |
 | `push.top_picks_min_rating` | `4` | Valoración por estrellas mínima para ese álbum. |
 | `webhook.token_env` | `""` | Variable de entorno que contiene el secreto del webhook. Vacío desactiva el endpoint. |
 | `webhook.header` | `"x-facet-token"` | Cabecera en la que Immich envía el token. |
@@ -367,7 +370,7 @@ Trampas habituales:
 
 - `Unsupported Immich URL scheme` — `url` necesita `http://` o `https://`.
 - `HTTP 401` — la clave de API es incorrecta o fue revocada.
-- `HTTP 403` — a la clave le falta `server.about`. Vuelve a crearla con los seis ámbitos anteriores.
+- `HTTP 403` — a la clave le falta `server.about`. Vuelve a crearla con los siete ámbitos anteriores.
 - Conexión rechazada / tiempo de espera agotado — el puerto es incorrecto, o Facet no puede alcanzar el contenedor. Pruébalo con `curl -H "x-api-key: …" http://immich.local:2283/api/server/about` desde la máquina que ejecuta Facet.
 
 ### El webhook devuelve 404

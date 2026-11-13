@@ -188,11 +188,13 @@ class ExifToolBatch:
                         timeout=current_timeout
                     )
 
-                    if result.returncode == 0 and result.stdout:
+                    # Exit 1 means some files in the chunk could not be read; exiftool
+                    # still prints JSON for the rest, with an 'Error' item per bad file.
+                    if result.returncode in (0, 1) and result.stdout.strip():
                         data = json.loads(result.stdout)
                         for item in data:
                             source = item.get('SourceFile')
-                            if source:
+                            if source and 'Error' not in item:
                                 results[str(Path(source).resolve())] = item
                         chunk_success = True
                         break  # Success, no retry needed
@@ -240,6 +242,112 @@ def get_exiftool():
     return _exiftool_instance
 
 
+EXIF_META_COLUMNS = (
+    'file_size', 'exposure_compensation', 'flash', 'white_balance', 'metering_mode',
+    'artist', 'copyright',
+)
+"""The file and exposure fields every EXIF reader (exiftool, exifread, Pillow) fills."""
+
+EXIF_CODE_DOMAINS = {
+    'flash': range(0, 128),
+    'white_balance': (0, 1),
+    'metering_mode': (0, 1, 2, 3, 4, 5, 6, 255),
+}
+"""Standard EXIF code domains; a value outside one is a MakerNotes collision and is stored as NULL."""
+
+EXPOSURE_COMPENSATION_MAX_EV = 15
+
+
+def clean_exif_text(val):
+    """An EXIF text tag as stored: a list joined, NUL separators as '; ', blank as None."""
+    if val is None:
+        return None
+    if isinstance(val, (list, tuple)):
+        val = ', '.join(str(v) for v in val)
+    text = str(val).replace('\x00', '; ').strip()
+    return text or None
+
+
+def _safe_numeric(val):
+    """Convert EXIF value to float, handling strings and rejecting non-finite values.
+
+    A lens without electronic contacts (e.g. on a Canon EOS 600D) reports
+    FNumber as N/0, which ExifTool surfaces as 'inf'. Storing that poisons
+    downstream MIN/MAX aggregates (np.histogram rejects a non-finite range),
+    so non-finite parses are dropped to None here.
+    """
+    if val is None:
+        return None
+    if isinstance(val, (int, float)):
+        f = float(val)
+    elif isinstance(val, str):
+        try:
+            f = float(val)
+        except ValueError:
+            return None
+    else:
+        return None
+    return f if math.isfinite(f) else None
+
+
+def _safe_int(val):
+    """Convert EXIF value to int for an INTEGER-affinity column (#142).
+
+    A fractional value (e.g. an Immich-sourced exposure index such as
+    63.4525478595867) stays REAL under SQLite's INTEGER affinity because
+    the conversion only happens when it is lossless, and the response
+    model then rejects the row. Rounding here keeps the write path
+    producing what the column actually stores.
+
+    ``storable_int`` and not a bare ``round``: an ISO beyond int64
+    rounds to an int SQLite cannot bind at all, and the INSERT that
+    raises is inside a 50-photo batch, so a bare round would trade one
+    odd value for a lost batch and a dead scan.
+    """
+    number = _safe_numeric(val)
+    return None if number is None else storable_int(number)
+
+
+def coded_exif_int(val, allowed):
+    """An EXIF code only inside the standard domain, else None.
+
+    Ungrouped ``-j -n`` output can carry a MakerNotes value under the same
+    name (a NEF ``WhiteBalance`` of ``"PRESET0"``, a Sony ``MeteringMode``).
+    """
+    if isinstance(val, bool):
+        return None
+    number = _safe_numeric(val)
+    if number is None or number != int(number):
+        return None
+    return int(number) if int(number) in allowed else None
+
+
+def exif_exposure_compensation(val):
+    """An exposure bias in EV, or None beyond +/- EXPOSURE_COMPENSATION_MAX_EV."""
+    number = _safe_numeric(val)
+    limit = EXPOSURE_COMPENSATION_MAX_EV
+    return number if number is not None and -limit <= number <= limit else None
+
+
+def exif_focal_length_35mm(val):
+    """A 35mm-equivalent focal length, or None: EXIF stores 0 for "unknown"."""
+    number = _safe_numeric(val)
+    return number if number is not None and number > 0 else None
+
+
+def clamp_exif_domains(exif_data):
+    """Apply parse_exif_data's domain rules in place to an already-read EXIF dict.
+
+    For the exifread / Pillow readers, which fill the same keys without going
+    through parse_exif_data.
+    """
+    for key, allowed in EXIF_CODE_DOMAINS.items():
+        exif_data[key] = coded_exif_int(exif_data.get(key), allowed)
+    exif_data['exposure_compensation'] = exif_exposure_compensation(exif_data.get('exposure_compensation'))
+    exif_data['focal_length_35mm'] = exif_focal_length_35mm(exif_data.get('focal_length_35mm'))
+    return exif_data
+
+
 def parse_exif_data(raw_data):
     """
     Parse raw ExifTool output into standardized format.
@@ -250,43 +358,9 @@ def parse_exif_data(raw_data):
     Returns:
         Dict with standardized EXIF fields
     """
-    def _safe_numeric(val):
-        """Convert EXIF value to float, handling strings and rejecting non-finite values.
-
-        A lens without electronic contacts (e.g. on a Canon EOS 600D) reports
-        FNumber as N/0, which ExifTool surfaces as 'inf'. Storing that poisons
-        downstream MIN/MAX aggregates (np.histogram rejects a non-finite range),
-        so non-finite parses are dropped to None here.
-        """
-        if val is None:
-            return None
-        if isinstance(val, (int, float)):
-            f = float(val)
-        elif isinstance(val, str):
-            try:
-                f = float(val)
-            except ValueError:
-                return None
-        else:
-            return None
-        return f if math.isfinite(f) else None
-
-    def _safe_int(val):
-        """Convert EXIF value to int for an INTEGER-affinity column (#142).
-
-        A fractional value (e.g. an Immich-sourced exposure index such as
-        63.4525478595867) stays REAL under SQLite's INTEGER affinity because
-        the conversion only happens when it is lossless, and the response
-        model then rejects the row. Rounding here keeps the write path
-        producing what the column actually stores.
-
-        ``storable_int`` and not a bare ``round``: an ISO beyond int64
-        rounds to an int SQLite cannot bind at all, and the INSERT that
-        raises is inside a 50-photo batch, so a bare round would trade one
-        odd value for a lost batch and a dead scan.
-        """
+    def _file_size(val):
         number = _safe_numeric(val)
-        return None if number is None else storable_int(number)
+        return storable_int(number) if number is not None and number > 0 else None
 
     return {
         'date_taken': raw_data.get('DateTimeOriginal') or raw_data.get('CreateDate'),
@@ -296,9 +370,16 @@ def parse_exif_data(raw_data):
         'f_stop': _safe_numeric(raw_data.get('Aperture')),
         'shutter_speed': str(raw_data.get('ExposureTime')) if raw_data.get('ExposureTime') else None,
         'focal_length': _safe_numeric(raw_data.get('FocalLength')),
-        'focal_length_35mm': _safe_numeric(raw_data.get('FocalLengthIn35mmFilm')),
+        'focal_length_35mm': exif_focal_length_35mm(raw_data.get('FocalLengthIn35mmFormat')),
         'gps_latitude': _safe_numeric(raw_data.get('GPSLatitude')),
         'gps_longitude': _safe_numeric(raw_data.get('GPSLongitude')),
+        'file_size': _file_size(raw_data.get('FileSize')),
+        'exposure_compensation': exif_exposure_compensation(raw_data.get('ExposureCompensation')),
+        'flash': coded_exif_int(raw_data.get('Flash'), EXIF_CODE_DOMAINS['flash']),
+        'white_balance': coded_exif_int(raw_data.get('WhiteBalance'), EXIF_CODE_DOMAINS['white_balance']),
+        'metering_mode': coded_exif_int(raw_data.get('MeteringMode'), EXIF_CODE_DOMAINS['metering_mode']),
+        'artist': clean_exif_text(raw_data.get('Artist')),
+        'copyright': clean_exif_text(raw_data.get('Copyright')),
     }
 
 
@@ -347,7 +428,9 @@ def get_exif_single(image_path):
         return {
             'date_taken': None, 'camera_model': None, 'lens_model': None,
             'iso': None, 'f_stop': None, 'shutter_speed': None, 'focal_length': None,
-            'focal_length_35mm': None
+            'focal_length_35mm': None, 'gps_latitude': None, 'gps_longitude': None,
+            'file_size': None, 'exposure_compensation': None, 'flash': None,
+            'white_balance': None, 'metering_mode': None, 'artist': None, 'copyright': None,
         }
 
     raw_data = exiftool.get_metadata(str(image_path))
