@@ -1,4 +1,4 @@
-"""B93/B94 equivalence: the category-analysis endpoints must produce exactly
+"""Equivalence: the category-analysis endpoints must produce exactly
 what the ground-truth semantics produce.
 
 Ground truth:
@@ -9,7 +9,7 @@ Ground truth:
   over the same seeded rows).
 
 The correlations endpoint must also answer in ONE scan: a counting
-``get_async_db`` wrapper asserts a single ``execute`` (the pre-B93 shape ran
+``get_async_db`` wrapper asserts a single ``execute`` (the previous shape ran
 one full-table query per weight column).
 """
 
@@ -180,13 +180,12 @@ def _make_db(db_path, rows):
         conn.close()
 
 
-def _run_endpoint(monkeypatch, tmp_path, rows, endpoint, categories=TEST_CATEGORIES):
+def _run_endpoint(tmp_path, rows, endpoint, categories=TEST_CATEGORIES):
     db_path = str(tmp_path / 'test.db')
     _make_db(db_path, rows)
     cats = json.loads(json.dumps(categories))
     app = _create_app_no_auth()
     with mock.patch('api.routers.stats.server_scoring_config', lambda: _FakeConfig(cats)):
-        from tests.test_stats import _cache_passthrough
         with mock.patch('api.routers.stats.get_async_db', _async_conn_factory(db_path)), \
              mock.patch('api.routers.stats._get_stats_cached_async', _cache_passthrough):
             resp = TestClient(app).get(endpoint)
@@ -194,10 +193,10 @@ def _run_endpoint(monkeypatch, tmp_path, rows, endpoint, categories=TEST_CATEGOR
     return resp.json()
 
 
-def test_overlap_matches_ground_truth(monkeypatch, tmp_path):
+def test_overlap_matches_ground_truth(tmp_path):
     rows = _seed_rows()
     cats = json.loads(json.dumps(TEST_CATEGORIES))
-    data = _run_endpoint(monkeypatch, tmp_path, rows, '/api/stats/categories/overlap')
+    data = _run_endpoint(tmp_path, rows, '/api/stats/categories/overlap')
 
     gt_pairs, gt_match, gt_assigned, gt_unc, gt_total = _ground_truth_overlap(rows, cats)
     assert data['total'] == gt_total
@@ -214,10 +213,10 @@ def test_overlap_matches_ground_truth(monkeypatch, tmp_path):
         assert captured[name] == max(0, got_match[name] - got_assigned.get(name, 0))
 
 
-def test_overlap_semantics_spot_checks(monkeypatch, tmp_path):
+def test_overlap_semantics_spot_checks(tmp_path):
     """The tricky rows behave as the filter library dictates, not by accident."""
     rows = _seed_rows()
-    data = _run_endpoint(monkeypatch, tmp_path, rows, '/api/stats/categories/overlap')
+    data = _run_endpoint(tmp_path, rows, '/api/stats/categories/overlap')
     got_match = {c['name']: c['matched'] for c in data['per_category']}
 
     # r1 'Blue Hour, a' + luminance 0.1: case-insensitive tag with an interior
@@ -247,7 +246,7 @@ def test_overlap_semantics_spot_checks(monkeypatch, tmp_path):
     assert got_pairs[('cats_excl', 'cats_night')] == 1
 
 
-def test_overlap_null_tag_lists_match_the_filter_library(monkeypatch, tmp_path):
+def test_overlap_null_tag_lists_match_the_filter_library(tmp_path):
     """An explicit null tag list is an empty one, as CategoryFilter treats it,
     not a 500 from iterating None."""
     cats = [
@@ -257,7 +256,7 @@ def test_overlap_null_tag_lists_match_the_filter_library(monkeypatch, tmp_path):
          "filters": {"required_tags": None, "excluded_tags": ["soft"]}, "weights": {}},
     ]
     rows = _seed_rows()
-    data = _run_endpoint(monkeypatch, tmp_path, rows, '/api/stats/categories/overlap',
+    data = _run_endpoint(tmp_path, rows, '/api/stats/categories/overlap',
                          categories=cats)
     _, gt_match, _, _, _ = _ground_truth_overlap(rows, cats)
     assert {c['name']: c['matched'] for c in data['per_category']} == gt_match
@@ -267,28 +266,29 @@ def test_overlap_null_tag_lists_match_the_filter_library(monkeypatch, tmp_path):
 def test_overlap_compiles_every_filter_library_field():
     """Every numeric and boolean filter the library knows yields a compiled
     check, so a field added to CategoryFilter cannot be silently ignored."""
-    from api.routers.stats import _compile_category_filter
+    from api.routers.stats import _OVERLAP_IDX
 
+    unknown = [None] * len(_OVERLAP_IDX)
     for key in VALID_NUMERIC_FILTERS:
-        numeric, _, _ = _compile_category_filter({key: 1})
-        assert len(numeric) == 1, key
+        match = CategoryFilter({key: 1}).compile(_OVERLAP_IDX)
+        assert match(unknown, None) is False, key  # an unknown value fails closed
+    zeros = [0] * len(_OVERLAP_IDX)
     for key in VALID_BOOLEAN_FILTERS:
-        _, bools, _ = _compile_category_filter({key: True})
-        assert len(bools) == 1, key
+        match = CategoryFilter({key: True}).compile(_OVERLAP_IDX)
+        assert match(zeros, None) is False, key
 
 
-def test_overlap_streams_in_chunks(monkeypatch, tmp_path):
+def test_overlap_streams_in_chunks(tmp_path):
     """The chunked streaming path accumulates identically when the fetch spans
     multiple chunks (patch the chunk size below the seed size)."""
     rows = _seed_rows() + _correlation_rows()
     cats = json.loads(json.dumps(TEST_CATEGORIES))
-    data_default = _run_endpoint(monkeypatch, tmp_path, rows, '/api/stats/categories/overlap')
+    data_default = _run_endpoint(tmp_path, rows, '/api/stats/categories/overlap')
 
     db_path = str(tmp_path / 'chunked.db')
     _make_db(db_path, rows)
     app = _create_app_no_auth()
     with mock.patch('api.routers.stats.server_scoring_config', lambda: _FakeConfig(cats)):
-        from tests.test_stats import _cache_passthrough
         with mock.patch('api.routers.stats.get_async_db', _async_conn_factory(db_path)), \
              mock.patch('api.routers.stats._get_stats_cached_async', _cache_passthrough), \
              mock.patch('api.routers.stats._OVERLAP_CHUNK', 3):
@@ -339,15 +339,15 @@ def test_overlap_uncategorized_and_visibility(monkeypatch, tmp_path):
     assert resp.json()['correlations'] == {}
 
 
-def test_correlations_match_ground_truth_and_single_scan(monkeypatch, tmp_path):
+def test_correlations_match_ground_truth_and_single_scan(tmp_path):
     rows = _correlation_rows()
     db_path = str(tmp_path / 'test.db')
     _make_db(db_path, rows)
     cats = json.loads(json.dumps(TEST_CATEGORIES))
     app = _create_app_no_auth()
 
-    # Counting aiosqlite connection: the B93 shape must answer in ONE scan
-    # (the pre-B93 shape ran one full-table query per weight column).
+    # Counting aiosqlite connection: the endpoint must answer in ONE scan
+    # (the previous shape ran one full-table query per weight column).
     executes = {'n': 0}
 
     @asynccontextmanager
@@ -372,7 +372,6 @@ def test_correlations_match_ground_truth_and_single_scan(monkeypatch, tmp_path):
             await conn.close()
 
     with mock.patch('api.routers.stats.server_scoring_config', lambda: _FakeConfig(cats)):
-        from tests.test_stats import _cache_passthrough
         with mock.patch('api.routers.stats.get_async_db', counting_factory), \
              mock.patch('api.routers.stats._get_stats_cached_async', _cache_passthrough):
             resp = TestClient(app).get('/api/stats/categories/correlations')
@@ -400,7 +399,7 @@ def test_correlations_match_ground_truth_and_single_scan(monkeypatch, tmp_path):
     assert 'land' not in data['correlations']
     # 'port' comp_score has 3 NULLs among 12 rows: n = 9 there too, so it is
     # excluded while every fully-populated constant column yields a 0.0 r.
-    assert 'comp_score' not in data['correlations']['port']
+    assert 'composition' not in data['correlations']['port']
     assert data['correlations']['port']['aesthetic'] == gt['port']['aesthetic']
     assert 'aesthetic' in data['dimensions'] and 'composition' in data['dimensions']
     configured = data['configured_weights']

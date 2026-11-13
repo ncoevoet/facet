@@ -893,15 +893,8 @@ _OVERLAP_COLUMNS = ('tags', 'face_count', 'face_ratio', 'is_silhouette',
                     'iso', 'shutter_speed', 'focal_length', 'f_stop', 'category')
 _OVERLAP_IDX = {col: i for i, col in enumerate(_OVERLAP_COLUMNS)}
 _TAGS_IDX = _OVERLAP_IDX['tags']
-_FACE_COUNT_IDX = _OVERLAP_IDX['face_count']
 _SHUTTER_IDX = _OVERLAP_IDX['shutter_speed']
 _CATEGORY_IDX = _OVERLAP_IDX['category']
-# Columns with_face_defaults coalesces NULL to 0 before filter evaluation.
-_FACE_DEFAULT_IDX = (_FACE_COUNT_IDX, _OVERLAP_IDX['face_ratio'],
-                     _OVERLAP_IDX['is_group_portrait'])
-# Filter fields whose scan column has another name; every other numeric or
-# boolean filter field reads the column of the same name.
-_FILTER_FIELD_COLUMN = {'luminance': 'mean_luminance', 'has_face': 'face_count'}
 
 
 def _shutter_float(ss):
@@ -920,120 +913,41 @@ def _shutter_float(ss):
     return ss
 
 
-def _compile_category_filter(filters: dict):
-    """Precompile one category's filter dict against the scan column indices.
+def _evaluate_overlap_chunk(rows, matchers, names, tags_needed):
+    """Evaluate every compiled category filter over one chunk of photo rows.
 
-    Returns ``(numeric_checks, bool_checks, tag_spec)`` — a conjunction with the
-    same shape and order of outcomes as ``CategoryFilter.matches`` over
-    ``with_face_defaults``-ed rows, minus the per-row dict building.
+    Each row gets ``with_face_defaults`` and the shutter parse, then the
+    ``CategoryFilter.compile`` matchers, so the outcome is exactly
+    ``CategoryFilter.matches`` over the equivalent photo dict.
     """
-    from config.category_filter import VALID_BOOLEAN_FILTERS, VALID_NUMERIC_FILTERS
+    from config.category_filter import FACE_DEFAULT_FIELDS, photo_tag_set
 
-    # The check set is derived from the filter library's own field lists, so a
-    # filter added there cannot be silently ignored here: a field whose column
-    # is not in the scan raises KeyError instead of over-matching.
-    numeric = []
-    for field in dict.fromkeys(f.rsplit('_', 1)[0] for f in VALID_NUMERIC_FILTERS):
-        idx = _OVERLAP_IDX[_FILTER_FIELD_COLUMN.get(field, field)]
-        mn = filters.get(f'{field}_min')
-        mx = filters.get(f'{field}_max')
-        if mn is not None or mx is not None:
-            numeric.append((idx, mn, mx))
-    bools = []
-    for key in VALID_BOOLEAN_FILTERS:
-        idx = _OVERLAP_IDX[_FILTER_FIELD_COLUMN.get(key, key)]
-        required = filters.get(key)
-        if required is not None:
-            bools.append((idx, required, key == 'has_face'))
-    # ``or []``: CategoryFilter treats an explicit null tag list as empty.
-    required_tags = [t.lower() for t in filters.get('required_tags') or []]
-    excluded_tags = [t.lower() for t in filters.get('excluded_tags') or []]
-    tag_spec = None
-    if required_tags or excluded_tags:
-        tag_spec = (required_tags, excluded_tags, filters.get('tag_match_mode', 'any'))
-    return numeric, bools, tag_spec
-
-
-def _evaluate_overlap_chunk(rows, compiled, names):
-    """Evaluate every category filter over one chunk of photo rows.
-
-    The per-row semantics are exactly ``CategoryFilter.matches`` over
-    ``with_face_defaults``-ed photo dicts: face NULLs coalesce to 0, shutter
-    strings parse to fractional floats, numeric mismatches fail closed on
-    unparseable values, and tags compare as the lowercased, end-stripped,
-    comma-split set.
-    """
-    from config.category_filter import _to_float
-
+    face_default_idx = [_OVERLAP_IDX[f] for f in FACE_DEFAULT_FIELDS]
     overlap_pairs = defaultdict(int)
     match_counts = defaultdict(int)
     assigned_counts = defaultdict(int)
     uncategorized = 0
     total = 0
-    tags_needed = any(spec is not None for _, _, spec in compiled)
-
     for row in rows:
         total += 1
         values = list(row)
-        for idx in _FACE_DEFAULT_IDX:
+        for idx in face_default_idx:
             if values[idx] is None:
                 values[idx] = 0
         values[_SHUTTER_IDX] = _shutter_float(values[_SHUTTER_IDX])
-
         assigned_cat = row[_CATEGORY_IDX] or ''
         if assigned_cat:
             assigned_counts[assigned_cat] += 1
         else:
             uncategorized += 1
-
-        photo_tags = None
-        if tags_needed:
-            raw = row[_TAGS_IDX] or ''
-            photo_tags = {t.strip().lower() for t in raw.split(',') if t.strip()}
-
-        matched = []
-        for (numeric, bools, tag_spec), name in zip(compiled, names):
-            ok = True
-            for idx, mn, mx in numeric:
-                num = _to_float(values[idx])
-                if mn is not None:
-                    if num is None or num < mn:
-                        ok = False
-                        break
-                if mx is not None:
-                    if num is None or num > mx:
-                        ok = False
-                        break
-            if ok:
-                for idx, required, is_face_count in bools:
-                    # has_face is ``(face_count or 0) > 0`` in the filter
-                    # library — the ``or 0`` keeps a falsy TEXT value (e.g. an
-                    # externally written '') from raising on the comparison.
-                    actual = (values[idx] or 0) > 0 if is_face_count else bool(values[idx] or 0)
-                    if actual != required:
-                        ok = False
-                        break
-            if ok and tag_spec is not None:
-                required_tags, excluded_tags, mode = tag_spec
-                if required_tags:
-                    if mode == 'any':
-                        if not any(tag in photo_tags for tag in required_tags):
-                            ok = False
-                    else:
-                        if not all(tag in photo_tags for tag in required_tags):
-                            ok = False
-                if ok and excluded_tags:
-                    if any(tag in photo_tags for tag in excluded_tags):
-                        ok = False
-            if ok:
-                matched.append(name)
-                match_counts[name] += 1
-
+        photo_tags = photo_tag_set(row[_TAGS_IDX]) if tags_needed else None
+        matched = [name for match, name in zip(matchers, names) if match(values, photo_tags)]
+        for name in matched:
+            match_counts[name] += 1
         for i in range(len(matched)):
             for j in range(i + 1, len(matched)):
                 pair = tuple(sorted([matched[i], matched[j]]))
                 overlap_pairs[pair] += 1
-
     return total, uncategorized, assigned_counts, match_counts, overlap_pairs
 
 
@@ -1139,8 +1053,9 @@ async def api_stats_categories_overlap(user: Optional[CurrentUser] = Depends(get
         # the scan streams in chunks: fetchmany hops the event loop once per
         # chunk, the chunk's evaluation runs in a worker thread, and memory
         # stays bounded instead of materialising every row as a dict.
-        compiled = [_compile_category_filter(cf['filter'].filters) for cf in cat_filters]
+        matchers = [cf['filter'].compile(_OVERLAP_IDX) for cf in cat_filters]
         names = [cf['name'] for cf in cat_filters]
+        tags_needed = any(cf['filter'].uses_tags() for cf in cat_filters)
         async with get_async_db() as conn:
             cur = await conn.execute(f'''
                 SELECT {', '.join(_OVERLAP_COLUMNS)}
@@ -1152,7 +1067,7 @@ async def api_stats_categories_overlap(user: Optional[CurrentUser] = Depends(get
                     if not rows:
                         break
                     chunk = await asyncio.to_thread(
-                        _evaluate_overlap_chunk, rows, compiled, names)
+                        _evaluate_overlap_chunk, rows, matchers, names, tags_needed)
                     total += chunk[0]
                     uncategorized += chunk[1]
                     for name, n in chunk[2].items():
