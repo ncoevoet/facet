@@ -250,7 +250,19 @@ _FULL_PHOTO_ROW = {
     "date_taken": "2026:01:01 12:00:00", "image_width": 6000, "image_height": 4000,
     "is_burst_lead": 1, "burst_group_id": 0, "tags": "portrait,indoor",
     "gps_latitude": 48.5, "gps_longitude": 2.25, "gps_manually_set": 1,
+    "file_size": 24_576_000, "flash": 16, "white_balance": 1, "metering_mode": 5,
+    "exposure_compensation": -0.7, "focal_length_35mm": 50.0,
+    "artist": "Jane Doe", "copyright": "(c) 2026 Jane Doe",
     "thumbnail": b"\xff\xd8\xff\xd9",
+}
+
+# The info panel's file/exposure fields, with the Python wire type the server
+# model declares. TypeScript says ``number`` for both ints and floats, so the
+# declared-type check alone cannot tell an int column sent as a float.
+_EXIF_DETAIL_WIRE_TYPES = {
+    "file_size": int, "flash": int, "white_balance": int, "metering_mode": int,
+    "exposure_compensation": float, "focal_length_35mm": float,
+    "artist": str, "copyright": str,
 }
 
 _BRACKET_FRAMES = [
@@ -322,6 +334,24 @@ class TestPhotoContract:
         assert resp.status_code == 200
         body = resp.json()
         assert_satisfies(body.get('photo', body), 'Photo', 'GET /api/photo')
+
+    @pytest.mark.parametrize("endpoint", ["/api/photos", "/api/photo"])
+    def test_exif_detail_fields_arrive_non_null_with_their_wire_type(self, edition_client, seeded, endpoint):
+        declared = optional_fields('Photo')
+        assert set(_EXIF_DETAIL_WIRE_TYPES) <= set(declared), "Photo no longer declares every EXIF detail field"
+        if endpoint == "/api/photos":
+            resp = edition_client.get(endpoint, params={'path_prefix': PREFIX, 'per_page': 50, 'hide_bursts': '0'})
+            assert resp.status_code == 200
+            row = {r['path']: r for r in resp.json()['photos']}[PHOTO]
+        else:
+            resp = edition_client.get(endpoint, params={'path': PHOTO})
+            assert resp.status_code == 200
+            body = resp.json()
+            row = body.get('photo', body)
+        assert_satisfies(row, 'Photo', f'GET {endpoint}')
+        for field, wire_type in _EXIF_DETAIL_WIRE_TYPES.items():
+            assert row.get(field) == _FULL_PHOTO_ROW[field], f"{endpoint} sent {field}={row.get(field)!r}"
+            assert type(row[field]) is wire_type, f"{endpoint} sent {field} as {type(row[field]).__name__}"
 
     def test_gallery_envelope_satisfies_photos_response(self, edition_client, seeded):
         resp = edition_client.get('/api/photos', params={'per_page': 5})

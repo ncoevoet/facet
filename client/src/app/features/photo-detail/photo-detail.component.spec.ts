@@ -661,6 +661,16 @@ describe('PhotoDetailComponent', () => {
     expect(mockApi.post.mock.calls.filter(([url]) => url === '/critique/vlm')).toHaveLength(0);
   });
 
+  it.each([[true, 1], [false, 0]])('gates the albums section on features.show_albums (%s)', async (enabled, count) => {
+    const view = renderDetail();
+    const photo = makePhoto({ camera_model: 'X100V' });
+    mockApi.get.mockImplementation((url: string) => of(url === '/photo' ? photo : {}));
+    TestBed.inject(GalleryStore).config.set({ features: { show_albums: enabled } } as never);
+    view.componentInstance.photo.set(photo);
+    view.detectChanges(); await view.whenStable(); view.detectChanges();
+    expect((view.nativeElement as HTMLElement).querySelectorAll('app-photo-albums')).toHaveLength(count);
+  });
+
   it('lays the inspector out like the gallery rail: untitled Review, then the metric tabs, no accordions', async () => {
     localStorage.setItem('facet_photo_detail_tab', 'technical');
     const view = renderDetail();

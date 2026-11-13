@@ -3447,8 +3447,7 @@
     "tag_search_library": "Cerca nella raccolta",
     "add_caption": "Aggiungi didascalia",
     "capture_settings": "Impostazioni di scatto",
-    "albums": "Album",
-    "smart_album": "Album intelligente"
+    "labelled_value": "{label}: {value}"
   },
   "manual_tags": {
     "batch": {

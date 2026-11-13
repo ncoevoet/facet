@@ -3447,8 +3447,7 @@
     "tag_search_library": "Bibliothek durchsuchen",
     "add_caption": "Beschriftung hinzufügen",
     "capture_settings": "Aufnahmeeinstellungen",
-    "albums": "Alben",
-    "smart_album": "Intelligentes Album"
+    "labelled_value": "{label}: {value}"
   },
   "manual_tags": {
     "batch": {

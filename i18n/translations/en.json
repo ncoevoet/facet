@@ -3472,8 +3472,7 @@
     "tag_search_library": "Search library",
     "add_caption": "Add caption",
     "capture_settings": "Capture settings",
-    "albums": "Albums",
-    "smart_album": "Smart album"
+    "labelled_value": "{label}: {value}"
   },
   "manual_tags": {
     "batch": {

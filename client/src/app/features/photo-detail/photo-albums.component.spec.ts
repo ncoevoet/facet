@@ -40,12 +40,14 @@ describe('PhotoAlbumsComponent', () => {
     fixture.detectChanges();
     const root = fixture.nativeElement as HTMLElement;
     const items = chips(root);
-    expect(items.map(a => a.textContent!.replace(/\s+/g, ' ').trim())).toEqual(['Alps', 'auto_awesomephoto_detail.smart_album:Best of']);
+    expect(items.map(a => a.textContent!.replace(/\s+/g, ' ').trim())).toEqual(['Alps', 'auto_awesomeBest of']);
     expect(items[0].getAttribute('href')).toBe('/album/3');
     expect(items[1].getAttribute('href')).toBe('/album/9');
     expect(items[0].querySelector('mat-icon')).toBeNull();
     expect(items[1].querySelector('mat-icon')!.textContent).toContain('auto_awesome');
-    expect(root.querySelector('h2')!.textContent).toContain('photo_detail.albums');
+    expect(root.querySelector('h2')!.textContent).toContain('nav.albums');
+    expect(items[0].hasAttribute('aria-label')).toBe(false);
+    expect(items[1].getAttribute('aria-label')).toBe('photo_detail.labelled_value');
     expect(items[0].className).toContain('min-h-11');
   });
 

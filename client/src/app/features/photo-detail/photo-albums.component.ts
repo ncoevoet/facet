@@ -16,15 +16,15 @@ import { PhotoPanelReader } from './photo-panel-reader';
     @if (data(); as albums) {
       @if (albums.length) {
         <section data-photo-albums aria-labelledby="photo-albums-title">
-          <h2 id="photo-albums-title" class="m-0 mb-1 text-xs font-normal text-[var(--mat-sys-on-surface-variant)]">{{ I18N.photo_detail.albums | translate }}</h2>
+          <h2 id="photo-albums-title" class="m-0 mb-1 text-xs font-normal text-[var(--mat-sys-on-surface-variant)]">{{ I18N.nav.albums | translate }}</h2>
           <ul class="m-0 flex list-none flex-wrap gap-1.5 p-0">
             @for (album of albums; track album.id) {
               <li class="min-w-0 max-w-full">
                 <a [routerLink]="['/album', album.id]" data-album-chip
+                   [attr.aria-label]="album.is_smart ? (I18N.photo_detail.labelled_value | translate:{ label: (I18N.albums.smart_album | translate), value: album.name }) : null"
                    class="inline-flex min-h-8 max-w-full items-center gap-1 rounded-full border border-[var(--mat-sys-outline-variant)] px-3 text-xs no-underline hover:bg-[var(--mat-sys-surface-container)] focus-visible:outline-2 [@media(pointer:coarse)]:min-h-11">
                   @if (album.is_smart) {
                     <mat-icon aria-hidden="true" class="!h-4 !w-4 shrink-0 !text-base">auto_awesome</mat-icon>
-                    <span class="sr-only">{{ I18N.photo_detail.smart_album | translate }}:</span>
                   }
                   <bdi class="truncate">{{ album.name }}</bdi>
                 </a>

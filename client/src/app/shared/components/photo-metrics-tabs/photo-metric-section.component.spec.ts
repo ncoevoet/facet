@@ -42,6 +42,11 @@ describe('exif section rows', () => {
     return fixture.nativeElement as HTMLElement;
   }
   const text = (root: HTMLElement) => root.textContent!.replace(/\s+/g, ' ');
+  const originalClipboard = Object.getOwnPropertyDescriptor(navigator, 'clipboard');
+  afterEach(() => {
+    if (originalClipboard) Object.defineProperty(navigator, 'clipboard', originalClipboard);
+    else Reflect.deleteProperty(navigator, 'clipboard');
+  });
 
   it('renders every new row when the fields are set', () => {
     const root = render({ focal_length: 50, focal_length_35mm: 75, exposure_compensation: 0.7, flash: 1, white_balance: 1,
@@ -85,11 +90,35 @@ describe('exif section rows', () => {
     const open = vi.fn();
     TestBed.overrideProvider(MatSnackBar, { useValue: { open } });
     const button = render({ path: '/photos/2024/IMG_1.jpg' }).querySelector<HTMLButtonElement>('[data-copy-folder]')!;
-    expect(button.getAttribute('aria-label')).toBe('tooltip.copy_folder: /photos/2024');
+    expect(button.getAttribute('aria-label')).toBe('photo_detail.labelled_value');
+    expect(button.className).toContain('min-h-11');
     button.click();
     await vi.waitFor(() => expect(open).toHaveBeenCalled());
     expect(writeText).toHaveBeenCalledWith('/photos/2024');
     expect(open.mock.calls[0][0]).toBe('notifications.folder_copied');
+  });
+
+  it('reports a failed copy with the error toast', async () => {
+    const writeText = vi.fn().mockRejectedValue(new Error('denied'));
+    Object.defineProperty(navigator, 'clipboard', { value: { writeText }, configurable: true });
+    // The textarea fallback also fails: jsdom has no execCommand, so stand in for a browser that refuses it.
+    const execCommand = vi.fn().mockReturnValue(false);
+    Object.defineProperty(document, 'execCommand', { value: execCommand, configurable: true });
+    try {
+      const open = vi.fn();
+      TestBed.overrideProvider(MatSnackBar, { useValue: { open } });
+      render({ path: '/photos/2024/IMG_1.jpg' }).querySelector<HTMLButtonElement>('[data-copy-folder]')!.click();
+      await vi.waitFor(() => expect(open).toHaveBeenCalled());
+      expect(writeText).toHaveBeenCalledWith('/photos/2024');
+      expect(execCommand).toHaveBeenCalledWith('copy');
+      expect(open.mock.calls[0][0]).toBe('notifications.folder_copy_failed');
+    } finally {
+      Reflect.deleteProperty(document, 'execCommand');
+    }
+  });
+
+  it.each([0, -1])('hides the 35 mm row when the stored value is %s (EXIF unknown)', value => {
+    expect(text(render({ focal_length: 50, focal_length_35mm: value }))).not.toContain('tooltip.focal_35mm');
   });
 
   it('hides the 35 mm row when it equals the focal length', () => {

@@ -3447,8 +3447,7 @@
     "tag_search_library": "搜索图库",
     "add_caption": "添加照片描述",
     "capture_settings": "拍摄参数",
-    "albums": "相册",
-    "smart_album": "智能相册"
+    "labelled_value": "{label}：{value}"
   },
   "manual_tags": {
     "batch": {

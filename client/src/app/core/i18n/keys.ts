@@ -3486,8 +3486,7 @@ export const I18N = {
     tag_search_library: "photo_detail.tag_search_library",
     add_caption: "photo_detail.add_caption",
     capture_settings: "photo_detail.capture_settings",
-    albums: "photo_detail.albums",
-    smart_album: "photo_detail.smart_album",
+    labelled_value: "photo_detail.labelled_value",
   },
   manual_tags: {
     batch: {
