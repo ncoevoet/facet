@@ -4287,10 +4287,12 @@ def main():
             sys.exit(1)
         logger.info(
             "Immich sync%s: %d matched, %d unmatched, %d updated, "
-            "%d skipped (unrated), %d identity conflict(s), %d album(s) created",
+            "%d skipped (unrated), %d identity conflict(s), %d album(s) created, "
+            "%d album asset(s) added, %d removed, %d removal failure(s)",
             " (dry-run)" if args.dry_run else "",
             stats['matched'], stats['unmatched'], stats['updated'],
             stats['skipped_unrated'], stats['identity_conflicts'], stats['albums_created'],
+            stats['album_added'], stats['album_removed'], stats['album_remove_failed'],
         )
         exit()
 

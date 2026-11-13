@@ -81,11 +81,12 @@ Immich ≥ 3.0 permet de restreindre une clé à certaines portées. La synchron
 | `server.about` | Contrôle de connectivité/authentification pour `--immich-test` |
 | `asset.read` | Résoudre les ressources par `originalPath` |
 | `asset.update` | Écrire `rating` et `isFavorite` |
-| `album.read` | Trouver un album de coups de cœur existant par son nom |
+| `album.read` | Trouver l'album de coups de cœur par son nom et lire ses membres |
 | `album.create` | Créer l'album de coups de cœur la première fois |
 | `albumAsset.create` | Ajouter des photos à l'album de coups de cœur |
+| `albumAsset.delete` | Retirer les photos repassées sous le seuil des coups de cœur |
 
-Vous pouvez omettre les trois portées d'album si `push.top_picks_album` est vide. Facet ne touche aux albums que lorsque ce nom est défini.
+Vous pouvez omettre les quatre portées d'album si `push.top_picks_album` est vide. Facet ne touche aux albums que lorsque ce nom est défini. Sans `albumAsset.delete`, la synchronisation continue : les retraits refusés sont ignorés et comptabilisés dans le résumé, et la simulation les prévisualise.
 
 Facet envoie la clé dans un en-tête `x-api-key`. Placez-la dans `scoring_config.json` :
 
@@ -147,9 +148,11 @@ Ce qui est poussé :
 - **Notes en étoiles 1–5** → le `rating` d'Immich. Une photo non notée ne pousse rien.
 - **Favoris** → l'`isFavorite` d'Immich.
 - **Effacements.** Si vous avez noté une photo, synchronisé, puis réinitialisé sa note, la synchronisation suivante envoie `rating: null` pour qu'Immich l'efface aussi. Facet se souvient de ce qu'il a poussé en dernier (dans `stats_cache`) pour cela. Il envoie `null`, jamais `0` : Immich v3 rejette `0`, et un seul lot rejeté interrompt toute la synchronisation.
-- **Un album de coups de cœur** (facultatif), rempli avec les photos notées au moins `push.top_picks_min_rating`, lorsque `push.top_picks_album` est défini.
+- **Un album de coups de cœur** (facultatif), lorsque `push.top_picks_album` est défini : les photos notées au moins `push.top_picks_min_rating` en sont membres, et un membre repassé sous le seuil en est retiré lors d'une synchronisation globale tant que Facet sait l'y attribuer (une photo supprimée ou l'asset d'une autre application reste en place) ; un membre existant n'est jamais réajouté.
 
 En mode multi-utilisateurs, `--immich-sync --user alice` pousse les notes propres à Alice (`user_preferences`) au lieu des notes globales, et suit son état de synchronisation séparément.
+
+En mode multi-utilisateur, l’album des meilleures photos est partagé : une synchronisation globale utilise les notes de repli de `photos` et peut retirer une photo ajoutée par une synchronisation utilisateur si sa note globale est sous le seuil. Les synchronisations utilisateur ne retirent jamais de membres.
 
 ## Pousser les rejets
 
@@ -336,7 +339,7 @@ Le bloc `immich` complet, avec les valeurs par défaut fournies :
 | `push.ratings` | `true` | Pousse les notes en étoiles 1–5 (et leurs effacements). |
 | `push.favorites` | `true` | Pousse `isFavorite` (et son effacement). |
 | `push.rejected` | `false` | Pousse `rating: -1` pour les photos rejetées dans Facet. Nécessite `push.ratings`. |
-| `push.top_picks_album` | `""` | Nom de l'album à remplir. Vide signifie que Facet ne touche jamais aux albums. |
+| `push.top_picks_album` | `""` | Nom de l'album à remplir en continu : les membres sous `push.top_picks_min_rating` en sont retirés lors d'une synchronisation globale tant que Facet sait les y attribuer. Vide signifie que Facet ne touche jamais aux albums. |
 | `push.top_picks_min_rating` | `4` | Note en étoiles minimale pour cet album. |
 | `webhook.token_env` | `""` | Variable d'environnement contenant le secret du webhook. Vide désactive le point d'accès. |
 | `webhook.header` | `"x-facet-token"` | En-tête dans lequel Immich envoie le jeton. |
@@ -367,7 +370,7 @@ Pièges courants :
 
 - `Unsupported Immich URL scheme` — `url` a besoin de `http://` ou `https://`.
 - `HTTP 401` — la clé API est incorrecte ou a été révoquée.
-- `HTTP 403` — il manque `server.about` à la clé. Recréez-la avec les six portées ci-dessus.
+- `HTTP 403` — il manque `server.about` à la clé. Recréez-la avec les sept portées ci-dessus.
 - Connexion refusée / délai dépassé — le port est incorrect, ou Facet ne peut pas atteindre le conteneur. Testez avec `curl -H "x-api-key: …" http://immich.local:2283/api/server/about` depuis la machine qui exécute Facet.
 
 ### Le webhook renvoie 404
