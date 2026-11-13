@@ -43,6 +43,9 @@ _PHOTOS_SCHEMA = """
         mean_saturation REAL, quality_score REAL,
         power_point_score REAL, leading_lines_score REAL,
         face_confidence REAL,
+        aesthetic_iaa REAL, face_quality_iqa REAL, liqe_score REAL,
+        subject_sharpness REAL, subject_prominence REAL, subject_placement REAL,
+        bg_separation REAL,
         is_silhouette INTEGER DEFAULT 0, is_group_portrait INTEGER DEFAULT 0,
         mean_luminance REAL
     );

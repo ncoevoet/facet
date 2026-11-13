@@ -58,6 +58,41 @@ VALID_BOOLEAN_FILTERS = [
     "has_face", "is_monochrome", "is_silhouette", "is_group_portrait"
 ]
 
+# Numeric filter field -> the photo key it reads (``<field>_min`` / ``_max``).
+NUMERIC_FILTER_FIELDS = {
+    "face_ratio": "face_ratio",
+    "face_count": "face_count",
+    "iso": "iso",
+    "shutter_speed": "shutter_speed",
+    "luminance": "mean_luminance",
+    "focal_length": "focal_length",
+    "f_stop": "f_stop",
+}
+
+# Boolean filter -> the photo key it reads.
+BOOLEAN_FILTER_FIELDS = {
+    "has_face": "face_count",
+    "is_monochrome": "is_monochrome",
+    "is_silhouette": "is_silhouette",
+    "is_group_portrait": "is_group_portrait",
+}
+
+
+def _boolean_value(field, value):
+    """has_face is ``face_count > 0``; every other boolean filter is truthiness.
+
+    The ``or 0`` keeps a NULL, or a falsy TEXT value such as ``''``, from
+    raising on the comparison.
+    """
+    if field == "has_face":
+        return (value or 0) > 0
+    return bool(value or 0)
+
+
+def photo_tag_set(tags_str) -> set:
+    """The comma-separated tags column as the stripped, lowercased set filters compare."""
+    return {t.strip().lower() for t in (tags_str or "").split(",") if t.strip()}
+
 VALID_TAG_FILTERS = [
     "required_tags", "excluded_tags", "tag_match_mode"
 ]
@@ -136,17 +171,8 @@ class CategoryFilter:
 
     def _check_numeric(self, photo_data: dict) -> dict | None:
         """Check all numeric range filters, return first mismatch or None."""
-        numeric_fields = {
-            "face_ratio": photo_data.get("face_ratio"),
-            "face_count": photo_data.get("face_count"),
-            "iso": photo_data.get("iso"),
-            "shutter_speed": photo_data.get("shutter_speed"),
-            "luminance": photo_data.get("mean_luminance"),
-            "focal_length": photo_data.get("focal_length"),
-            "f_stop": photo_data.get("f_stop"),
-        }
-
-        for field, actual in numeric_fields.items():
+        for field, key in NUMERIC_FILTER_FIELDS.items():
+            actual = photo_data.get(key)
             min_val = self.filters.get(f"{field}_min")
             max_val = self.filters.get(f"{field}_max")
             # Coerce to float — SQLite can return strings for numeric columns,
@@ -167,17 +193,10 @@ class CategoryFilter:
 
     def _check_booleans(self, photo_data: dict) -> dict | None:
         """Check all boolean filters, return first mismatch or None."""
-        bool_mappings = {
-            "has_face": lambda pd: (pd.get("face_count") or 0) > 0,
-            "is_monochrome": lambda pd: bool(pd.get("is_monochrome", 0)),
-            "is_silhouette": lambda pd: bool(pd.get("is_silhouette", 0)),
-            "is_group_portrait": lambda pd: bool(pd.get("is_group_portrait", 0)),
-        }
-
-        for field, getter in bool_mappings.items():
+        for field, key in BOOLEAN_FILTER_FIELDS.items():
             required = self.filters.get(field)
             if required is not None:
-                actual = getter(photo_data)
+                actual = _boolean_value(field, photo_data.get(key))
                 if actual != required:
                     return {"key": field, "required": required, "actual": actual}
 
@@ -192,8 +211,7 @@ class CategoryFilter:
         if not required_tags and not excluded_tags:
             return None
 
-        tags_str = photo_data.get("tags") or ""
-        photo_tags = [t.strip().lower() for t in tags_str.split(",") if t.strip()]
+        photo_tags = photo_tag_set(photo_data.get("tags"))
 
         if required_tags:
             required_lower = [t.lower() for t in required_tags]
@@ -212,3 +230,54 @@ class CategoryFilter:
                 return {"key": "excluded_tags", "required": excluded_tags, "actual": matched_excluded}
 
         return None
+
+    def uses_tags(self) -> bool:
+        """Whether this filter reads the photo's tags at all."""
+        return bool(self.filters.get("required_tags") or self.filters.get("excluded_tags"))
+
+    def compile(self, column_index: dict):
+        """Precompile this filter against row positions for bulk evaluation.
+
+        ``column_index`` maps photo keys to positions in a row sequence. Returns
+        ``match(values, photo_tags) -> bool`` with exactly the outcome of
+        :meth:`matches` over the same values: the caller applies
+        ``with_face_defaults`` and any shutter parsing to ``values`` first, and
+        passes :func:`photo_tag_set` of the tags column (or None when
+        :meth:`uses_tags` is false). A filter field whose key is missing from
+        ``column_index`` raises KeyError rather than silently over-matching.
+        """
+        filters = self.filters
+        numeric = []
+        for field, key in NUMERIC_FILTER_FIELDS.items():
+            min_val = filters.get(f"{field}_min")
+            max_val = filters.get(f"{field}_max")
+            if min_val is not None or max_val is not None:
+                numeric.append((column_index[key], min_val, max_val))
+        booleans = []
+        for field, key in BOOLEAN_FILTER_FIELDS.items():
+            required = filters.get(field)
+            if required is not None:
+                booleans.append((column_index[key], field, required))
+        required_tags = [t.lower() for t in filters.get("required_tags") or []]
+        excluded_tags = [t.lower() for t in filters.get("excluded_tags") or []]
+        match_all = filters.get("tag_match_mode", "any") != "any"
+
+        def match(values, photo_tags) -> bool:
+            for idx, min_val, max_val in numeric:
+                num_actual = _to_float(values[idx])
+                if min_val is not None and (num_actual is None or num_actual < min_val):
+                    return False
+                if max_val is not None and (num_actual is None or num_actual > max_val):
+                    return False
+            for idx, field, required in booleans:
+                if _boolean_value(field, values[idx]) != required:
+                    return False
+            if required_tags:
+                hits = (tag in photo_tags for tag in required_tags)
+                if not (all(hits) if match_all else any(hits)):
+                    return False
+            if excluded_tags and any(tag in photo_tags for tag in excluded_tags):
+                return False
+            return True
+
+        return match
