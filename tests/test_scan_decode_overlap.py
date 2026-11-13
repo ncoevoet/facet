@@ -88,7 +88,7 @@ class _Manager:
         self.events.append(('unload', name))
         self.models.pop(name, None)
 
-    def unload_all(self):
+    def unload_all(self, keep_cached=()):
         self.events.append(('unload_all',))
         self.models.clear()
 

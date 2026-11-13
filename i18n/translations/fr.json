@@ -2173,7 +2173,8 @@
     "time_left_seconds": "environ {n} s restantes",
     "time_left_minutes": "environ {n} min restantes",
     "details": "Journal technique",
-    "added": "{count} nouvelles photos ajoutées",
+    "added": "{count} nouvelle photo ajoutée",
+    "added_plural": "{count} nouvelles photos ajoutées",
     "none_new": "Aucune nouvelle photo trouvée",
     "progress_label": "Progression de l'analyse"
   },

@@ -2173,7 +2173,8 @@
     "time_left_seconds": "noch etwa {n} s",
     "time_left_minutes": "noch etwa {n} Min.",
     "details": "Technisches Protokoll",
-    "added": "{count} neue Fotos hinzugefügt",
+    "added": "{count} neues Foto hinzugefügt",
+    "added_plural": "{count} neue Fotos hinzugefügt",
     "none_new": "Keine neuen Fotos gefunden",
     "progress_label": "Scan-Fortschritt"
   },

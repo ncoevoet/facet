@@ -285,7 +285,7 @@ class _TrimManager:
     def unload_model(self, name, reclaim=True):
         pass
 
-    def unload_all(self):
+    def unload_all(self, keep_cached=()):
         pass
 
     def evict_cpu_cache(self, needed_available_bytes=None, next_use=None):

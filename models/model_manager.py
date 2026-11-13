@@ -11,6 +11,7 @@ import math
 from typing import Dict, List
 
 import licensing
+from models.weights import pretrained_model_path
 from utils.system_memory import BYTES_PER_GB
 
 logger = logging.getLogger("facet.models")
@@ -108,9 +109,6 @@ class ModelManager:
     Automatically selects models based on configured VRAM profile.
     """
 
-    # Models that support .cpu()/.to(device) for RAM caching between passes,
-    # plus 'insightface', which is retained rather than moved (see
-    # _can_cache_to_ram)
     # Models whose checkpoint supplies every parameter, so the constructor's random
     # init is pure waste and is skipped (utils.fast_load.skip_weight_init). A model
     # belongs here only once TestCheckpointCoverage in tests/test_fast_load.py has
@@ -121,8 +119,11 @@ class ModelManager:
         'saliency', 'samp_net',
     })
 
-    WARM_MODELS_PATH = 'pretrained_models/.warm_models.json'
+    WARM_MODELS_PATH = str(pretrained_model_path('.warm_models.json'))
 
+    # Models that support .cpu()/.to(device) for RAM caching between passes,
+    # plus 'insightface', which is retained rather than moved (see
+    # _can_cache_to_ram)
     CPU_CACHEABLE_MODELS = {
         'clip', 'clip_aesthetic', 'samp_net',
         'topiq', 'hyperiqa', 'dbcnn', 'musiq', 'musiq-koniq', 'clipiqa+',

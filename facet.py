@@ -2229,8 +2229,11 @@ def _run_scan_pipeline(args, resumed_run, lifecycle):
     scorer.commit()
     ledger.end('finalize')
 
+    saved = _photos_saved(processor) + calibration_saved if processor is not None else None
+    done_extra = None if saved is None else {'saved': saved}
+
     if retry_plan is not None:
-        report_progress('done', force=True)
+        report_progress('done', force=True, extra=done_extra)
         logger.info('Captured retry ended. Library-wide burst, sequence, tagging, '
                     'moment, junk and vector finalization were not run.')
         return True
@@ -2255,7 +2258,7 @@ def _run_scan_pipeline(args, resumed_run, lifecycle):
             logger.warning("%d scanned file(s) were not put in a burst: not a recorded AI edit, or "
                            "the edit or its original is missing or has no phash.", len(scanned) - placed)
         _log_scan_db_destination(scorer.db_path)
-        report_progress('done', force=True)
+        report_progress('done', force=True, extra=done_extra)
         logger.info("All tasks complete.")
         return True
 
@@ -2350,8 +2353,7 @@ def _run_scan_pipeline(args, resumed_run, lifecycle):
     ledger.end('vec')
 
     _log_scan_db_destination(scorer.db_path)
-    saved = _photos_saved(processor) + calibration_saved if processor is not None else None
-    report_progress('done', force=True, extra=None if saved is None else {'saved': saved})
+    report_progress('done', force=True, extra=done_extra)
     logger.info("All tasks complete.")
     logger.info(ledger.summary_line())
     return True

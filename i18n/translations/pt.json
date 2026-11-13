@@ -2173,7 +2173,8 @@
     "time_left_seconds": "cerca de {n} s restantes",
     "time_left_minutes": "cerca de {n} min restantes",
     "details": "Registo técnico",
-    "added": "{count} novas fotos adicionadas",
+    "added": "{count} nova foto adicionada",
+    "added_plural": "{count} novas fotos adicionadas",
     "none_new": "Nenhuma foto nova encontrada",
     "progress_label": "Progresso da análise"
   },

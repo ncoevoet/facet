@@ -2198,7 +2198,8 @@
     "time_left_seconds": "about {n}s left",
     "time_left_minutes": "about {n} min left",
     "details": "Technical log",
-    "added": "{count} new photos added",
+    "added": "{count} new photo added",
+    "added_plural": "{count} new photos added",
     "none_new": "No new photos found",
     "progress_label": "Scan progress"
   },

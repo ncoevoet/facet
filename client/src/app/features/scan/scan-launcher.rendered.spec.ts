@@ -125,6 +125,30 @@ describe('Scan launcher rendered phase labels', () => {
     expect(root.textContent).not.toContain('saliency');
   });
 
+  it.each([
+    ['saliency', 'Finding the main subject'], ['samp_net', 'Reading the composition'],
+    ['insightface', 'Detecting faces'], ['topiq_nr_face', 'Detecting faces'],
+    ['topiq_iaa', 'Judging image quality'], ['liqe', 'Judging image quality'], ['clip_aesthetic', 'Judging image quality'],
+    ['clip', 'Understanding content'], ['qwen3_5_tagger', 'Understanding content'],
+  ])('describes the %s pass as "%s"', async (detail, label) => {
+    await scoring({ step: 'analyze', detail, fraction: 0.5 });
+    expect(root.textContent).toContain(`${label}…`);
+    expect(root.textContent).not.toContain(detail);
+  });
+
+  it.each([
+    ['decode', 'Reading photos'], ['models', 'Loading models'], ['save', 'Saving results'],
+  ])('names the %s step', async (step, label) => {
+    await scoring({ step, fraction: 0.5 });
+    expect(root.textContent).toContain(`${label}…`);
+  });
+
+  it.each([[12, 'about 12s left'], [0.2, 'about 1s left'], [59.4, 'about 59s left'], [60, 'about 1 min left'], [61, 'about 2 min left']])(
+    'rounds %s seconds remaining to "%s"', async (eta_seconds, text) => {
+      await scoring({ step: 'analyze', detail: 'clip', fraction: 0.5, eta_seconds });
+      expect(root.textContent).toContain(text);
+    });
+
   it('falls back to the step label for a model it has no words for, and ignores an unknown step', async () => {
     await scoring({ step: 'analyze', detail: 'brand_new_model', fraction: 0.5 });
     expect(root.textContent).toContain('Analyzing photos');

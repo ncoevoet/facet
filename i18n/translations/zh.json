@@ -2174,6 +2174,7 @@
     "time_left_minutes": "大约还需 {n} 分钟",
     "details": "技术日志",
     "added": "已添加 {count} 张新照片",
+    "added_plural": "已添加 {count} 张新照片",
     "none_new": "未发现新照片",
     "progress_label": "扫描进度"
   },

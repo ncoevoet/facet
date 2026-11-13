@@ -65,6 +65,19 @@ describe('ScanLauncherComponent', () => {
     expect(read<boolean>('loadingDirs')).toBe(false);
   });
 
+  it('leaves the choice open when there are several directories', async () => {
+    await component.ngOnInit();
+    expect(read<string | null>('selectedDir')).toBeNull();
+  });
+
+  it('preselects the only directory, so Start needs no extra click', async () => {
+    mockScan.loadDirectories.mockResolvedValue([{ path: '/photos/only', owner: '' }]);
+    await component.ngOnInit();
+    expect(read<string | null>('selectedDir')).toBe('/photos/only');
+    await component.start();
+    expect(mockScan.startScan).toHaveBeenCalledWith(['/photos/only']);
+  });
+
   it('starts a scan with the selected directory', async () => {
     (component as unknown as { selectedDir: { set(v: string): void } }).selectedDir.set('/photos/b');
     await component.start();

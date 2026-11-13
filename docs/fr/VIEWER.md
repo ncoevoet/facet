@@ -613,8 +613,9 @@ Sur une installation mono-utilisateur ouverte (`viewer.edition_password` vide, v
 
 La galerie vide propose **Lancer un scan pour commencer**. **Scanner de nouvelles photos** est aussi disponible dans la zone de navigation globale à toute largeur. Les deux ouvrent le lanceur de scan :
 
-- Choisissez un répertoire dans la liste et lancez le scan.
-- La progression en direct et les lignes de sortie défilent dans la boîte de dialogue. La galerie se rafraîchit à la fin du scan.
+- Choisissez un répertoire dans la liste et lancez le scan. Lorsqu'un seul répertoire est configuré, il est déjà sélectionné.
+- Pendant le scan, la boîte de dialogue affiche ses trois étapes (**Recherche**, **Analyse**, **Organisation**), ce que fait l'étape en cours en langage courant (« Recherche du sujet principal »), le nombre de photos traitées et une estimation du temps restant. Les lignes de sortie brutes sont repliées sous **Journal technique**, qui s'ouvre de lui-même si le scan échoue.
+- La galerie se rafraîchit à la fin du scan, et un message indique combien de nouvelles photos ont été ajoutées.
 - Le scan exécute `facet.py` en arrière-plan ; un seul scan à la fois.
 - La liste des répertoires combine les `directories` de chaque utilisateur, les répertoires partagés, les cibles de `path_mapping` et `viewer.scan_directories`. Renseignez `viewer.scan_directories` (par ex. `/data/photos`) pour que les installations mono-utilisateur et Docker aient une cible.
 

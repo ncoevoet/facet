@@ -11,6 +11,9 @@ from processing.multi_pass import ChunkedMultiPassProcessor  # noqa: E402
 from utils import fast_load  # noqa: E402
 from utils.fast_load import WarmModelLedger, hub_offline, skip_weight_init  # noqa: E402
 
+# Read at import: conftest points the attribute at a temp file for every test.
+_SHIPPED_LEDGER_PATH = ModelManager.WARM_MODELS_PATH
+
 
 class TestSkipWeightInit:
     def test_random_inits_are_noops_inside_and_restored_after(self):
@@ -62,6 +65,15 @@ class TestSkipWeightInit:
         with pytest.raises(RuntimeError), skip_weight_init():
             raise RuntimeError("load failed")
         assert torch.nn.init.xavier_uniform_ is original
+
+    def test_without_torch_the_load_still_runs(self, monkeypatch):
+        """The licensing gate refuses a model on installs that have no torch at all."""
+        import sys
+        monkeypatch.setitem(sys.modules, 'torch.nn.init', None)
+        ran = []
+        with skip_weight_init():
+            ran.append(True)
+        assert ran == [True]
 
     def test_replacement_reaches_a_layer_the_checkpoint_would_have_to_cover(self):
         """The coverage proof for CHECKPOINT_COMPLETE_MODELS: poison, load, look for poison."""
@@ -179,15 +191,88 @@ class TestLoadFast:
         assert [offline for offline, _ in calls] == [False]
 
 
-def test_unload_all_can_leave_a_model_in_the_ram_cache():
-    manager = ModelManager.__new__(ModelManager)
-    manager.device = 'cpu'
-    manager.models = {}
-    manager._cpu_cache = {'clip': object(), 'topiq_iaa': object()}
-    manager.unload_all(keep_cached=('clip',))
-    assert list(manager._cpu_cache) == ['clip']
-    manager.unload_all()
-    assert manager._cpu_cache == {}
+class _LoadedModel:
+    def __init__(self):
+        self.unloaded = False
+
+    def unload(self):
+        self.unloaded = True
+
+
+class TestUnloadAllKeepCached:
+    """A scan ends with CLIP still loaded; ``keep_cached`` must move it, not drop it."""
+
+    def _manager(self, monkeypatch, can_cache):
+        manager = ModelManager.__new__(ModelManager)
+        manager.device = 'cpu'
+        manager.models = {'clip': _LoadedModel(), 'topiq_iaa': _LoadedModel()}
+        manager._cpu_cache = {'liqe': object()}
+        monkeypatch.setattr(manager, '_can_cache_to_ram', lambda name: can_cache, raising=False)
+        monkeypatch.setattr(manager, '_move_to_cpu', lambda model, name: None, raising=False)
+        return manager
+
+    def test_a_loaded_model_lands_in_the_ram_cache(self, monkeypatch):
+        manager = self._manager(monkeypatch, can_cache=True)
+        clip, other = manager.models['clip'], manager.models['topiq_iaa']
+        manager.unload_all(keep_cached=('clip',))
+        assert manager._cpu_cache == {'clip': clip}
+        assert not clip.unloaded and other.unloaded
+        assert manager.models == {}
+
+    def test_a_model_the_memory_gate_refuses_is_unloaded(self, monkeypatch):
+        manager = self._manager(monkeypatch, can_cache=False)
+        clip = manager.models['clip']
+        manager.unload_all(keep_cached=('clip',))
+        assert manager._cpu_cache == {}
+        assert clip.unloaded
+
+    def test_an_already_cached_model_stays_and_a_plain_call_empties_the_cache(self, monkeypatch):
+        manager = self._manager(monkeypatch, can_cache=True)
+        manager.models = {}
+        manager._cpu_cache = {'clip': object(), 'topiq_iaa': object()}
+        manager.unload_all(keep_cached=('clip',))
+        assert list(manager._cpu_cache) == ['clip']
+        manager.unload_all()
+        assert manager._cpu_cache == {}
+
+
+def test_the_ledger_lives_beside_the_weights_whatever_the_working_directory():
+    from models.weights import PRETRAINED_MODELS_DIR
+    assert _SHIPPED_LEDGER_PATH == str(PRETRAINED_MODELS_DIR / '.warm_models.json')
+
+
+class TestScanReportsItsSteps:
+    """process_directory drives the real _process_chunk: the steps it reports and what it keeps."""
+
+    def _run(self, monkeypatch, keep=()):
+        from tests.test_scan_decode_overlap import PATHS, _Manager, _processor, _stub_decode
+
+        class Manager(_Manager):
+            def unload_all(self, keep_cached=()):
+                self.kept = keep_cached
+                super().unload_all()
+
+        manager = Manager()
+        proc = _processor(manager, [['clip', 'topiq_iaa'], ['saliency']], monkeypatch, chunk=2)
+        monkeypatch.setattr(proc, '_load_images', _stub_decode(proc))
+        proc.keep_cached_after_scan = keep
+        seen = []
+        proc.on_step = lambda step, detail, fraction: seen.append((step, detail, fraction))
+        proc.process_directory(PATHS, show_progress=False)
+        return manager, seen
+
+    def test_each_chunk_reports_decode_loads_models_and_save_in_order(self, monkeypatch):
+        _, seen = self._run(monkeypatch)
+        chunk = [('decode', None), ('models', None), ('analyze', 'clip'), ('analyze', 'topiq_iaa'),
+                 ('models', None), ('analyze', 'saliency'), ('save', None)]
+        assert [(step, detail) for step, detail, _ in seen] == chunk * 2
+        fractions = [fraction for _, _, fraction in seen]
+        assert fractions == sorted(fractions)
+        assert fractions[0] == 0.0 and fractions[7] == 0.5 and fractions[-1] < 1.0
+
+    def test_the_models_to_keep_reach_the_final_unload(self, monkeypatch):
+        manager, _ = self._run(monkeypatch, keep=('clip',))
+        assert manager.kept == ('clip',)
 
 
 def test_step_reports_cover_the_chunk_evenly():

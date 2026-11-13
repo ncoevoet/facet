@@ -725,10 +725,7 @@ class ChunkedMultiPassProcessor:
             # Ensure all models are unloaded. The centroid flush (persons re-attached
             # during the scan, rebuilt once) runs even if this raises.
             try:
-                if self.keep_cached_after_scan:
-                    self.model_manager.unload_all(keep_cached=self.keep_cached_after_scan)
-                else:
-                    self.model_manager.unload_all()
+                self.model_manager.unload_all(keep_cached=self.keep_cached_after_scan)
             finally:
                 flush_centroids_safely(self.scorer)
 
@@ -883,7 +880,7 @@ class ChunkedMultiPassProcessor:
         """Count this chunk's steps: the decode, each group's load, each model, the save."""
         self._step_units = (-1, 2 + sum(1 + len(group) for group in self.pass_groups))
 
-    def _step(self, step: str, detail: str = None):
+    def _step(self, step: str, detail: str | None = None):
         """Report the step now starting; the one before it counts as finished."""
         finished, units = self._step_units
         finished = min(units, finished + 1)

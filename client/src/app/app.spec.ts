@@ -470,12 +470,15 @@ describe('App', () => {
       expect(store.loadTypeCounts).toHaveBeenCalled();
     });
 
-    it.each([[6, I18N.scan.added], [0, I18N.scan.none_new]])('says what a finished scan added (%s saved)', async (saved, key) => {
+    it.each([[6, I18N.scan.added_plural], [1, I18N.scan.added], [0, I18N.scan.none_new]])('says what a finished scan added (%s saved)', async (saved, key) => {
       const { fixture, buttons, store } = render(true, true, saved);
       const open = vi.spyOn(fixture.debugElement.injector.get(MatSnackBar), 'open');
+      const translate = vi.spyOn(fixture.debugElement.injector.get(I18nService), 't');
       buttons[0].click();
       await vi.waitFor(() => expect(store.reloadPhotos).toHaveBeenCalledTimes(1));
       expect(open).toHaveBeenCalledWith(key, '', { duration: 5000 });
+      if (saved > 0) expect(translate).toHaveBeenCalledWith(key, { count: saved });
+      else expect(translate).toHaveBeenCalledWith(key);
     });
 
     it('stays quiet when the finished job reported no count', async () => {

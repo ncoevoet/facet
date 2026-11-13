@@ -2213,6 +2213,7 @@ export const I18N = {
     time_left_minutes: "scan.time_left_minutes",
     details: "scan.details",
     added: "scan.added",
+    added_plural: "scan.added_plural",
     none_new: "scan.none_new",
     progress_label: "scan.progress_label",
   },

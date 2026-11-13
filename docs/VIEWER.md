@@ -615,8 +615,9 @@ On an open single-user install (empty `viewer.edition_password`, the default), n
 
 The empty gallery offers **Scan photos to get started**. **Scan for new photos** is also available in the global navigation area at every width. Both open the scan launcher:
 
-- Pick a directory from the list and start the scan.
-- Live progress and output lines stream into the dialog. The gallery refreshes when the scan ends.
+- Pick a directory from the list and start the scan. When only one directory is configured it is already selected.
+- While it runs, the dialog shows the three stages of a scan (**Find**, **Analyze**, **Organize**), what the current step is doing in plain words ("Finding the main subject"), how many photos are done and roughly how long is left. The raw output lines are folded under **Technical log**, which opens by itself when a scan fails.
+- The gallery refreshes when the scan ends, and a message says how many new photos were added.
 - The scan runs `facet.py` in the background; one scan at a time.
 - The directory list combines each user's `directories`, shared directories, `path_mapping` targets and `viewer.scan_directories`. Seed `viewer.scan_directories` (e.g. `/data/photos`) so single-user and Docker installs have a target.
 

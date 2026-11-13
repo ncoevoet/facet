@@ -17,6 +17,7 @@ import json
 import logging
 import os
 import threading
+from typing import Callable
 
 logger = logging.getLogger("facet.fast_load")
 
@@ -34,7 +35,7 @@ prefer_local_hub = False
 
 _PATCH_LOCK = threading.RLock()
 _local = threading.local()
-_originals = {}
+_originals: dict[str, Callable] = {}
 _active = 0
 
 
@@ -69,7 +70,13 @@ def skip_weight_init(replacement=_keep_tensor):
     that skip only on a thread inside this context. A module another thread builds
     meanwhile (the viewer trains its ranker beside model loads) is initialised as usual.
     """
-    import torch.nn.init as init
+    try:
+        import torch.nn.init as init
+    except ImportError:
+        # Nothing to skip, and the loader must still run: a loader that refuses a
+        # model (the licensing gate) does so without ever importing torch.
+        yield
+        return
 
     global _active
     with _PATCH_LOCK:
@@ -142,6 +149,7 @@ class WarmModelLedger:
 
     def _write(self, names):
         try:
+            os.makedirs(os.path.dirname(self._path) or '.', exist_ok=True)
             tmp = f'{self._path}.{os.getpid()}.tmp'
             with open(tmp, 'w', encoding='utf-8') as f:
                 json.dump(sorted(names), f)
