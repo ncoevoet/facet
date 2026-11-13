@@ -198,6 +198,7 @@ These update metrics or derive new data without re-running the full scoring pipe
 | `python facet.py --rescan-gps` | Re-extract EXIF GPS for all photos (overwrites); skips locations set in the viewer |
 | `python facet.py --recompute-embeddings` | Recompute CLIP/SigLIP embeddings for all photos (needed after a model switch) |
 | `python facet.py --score-topiq` | `[GPU]` Re-score `topiq_score` for every photo with a thumbnail (overwrites) |
+| `python facet.py --backfill-exif-meta` | Re-read file size, exposure compensation, flash, white balance, metering mode, artist and copyright with exiftool for photos whose file size is still empty, without rescoring. Requires exiftool; resumable (commits every 500 photos); files exiftool cannot read stay empty and are counted (see `python database.py --cleanup-missing-photos`) |
 | `python facet.py --backfill-focal-35mm` | Backfill 35mm-equivalent focal length from EXIF where missing |
 | `python facet.py --backfill-clipping` | Derive per-channel clipping percentages from stored histograms (resumable) |
 | `python facet.py --recompute-silhouette` | Re-derive `is_silhouette` with the face-aware rule (see note) |

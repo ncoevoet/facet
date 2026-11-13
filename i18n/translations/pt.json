@@ -214,7 +214,30 @@
     "color_harmony": "Harmonia de cores",
     "caption": "Legenda",
     "filter_by_person": "Filtrar por {name}",
-    "histogram": "Histograma"
+    "histogram": "Histograma",
+    "focal_35mm": "Equiv. 35 mm",
+    "exposure_compensation": "Comp. de exposição",
+    "flash": "Flash",
+    "flash_fired": "Disparado",
+    "flash_off": "Não disparado",
+    "white_balance": "Balanço de brancos",
+    "white_balance_auto": "Automático",
+    "white_balance_manual": "Manual",
+    "metering": "Medição",
+    "metering_unknown": "Desconhecida",
+    "metering_average": "Média",
+    "metering_center_weighted": "Ponderada ao centro",
+    "metering_spot": "Pontual",
+    "metering_multi_spot": "Multiponto",
+    "metering_pattern": "Multizona",
+    "metering_partial": "Parcial",
+    "metering_other": "Outra",
+    "dimensions": "Dimensões",
+    "file_size": "Tamanho do ficheiro",
+    "folder": "Pasta",
+    "copy_folder": "Copiar o caminho da pasta",
+    "artist": "Artista",
+    "copyright": "Copyright"
   },
   "photoCard": {
     "embed_to_file": "Gravar metadados no arquivo",
@@ -231,6 +254,8 @@
     "copied_count_plural": "{count} nomes de arquivo copiados",
     "link_copied": "Link copiado para a área de transferência",
     "copy_failed": "Falha ao copiar o link",
+    "folder_copied": "Caminho da pasta copiado",
+    "folder_copy_failed": "Não foi possível copiar o caminho da pasta",
     "person_renamed": "Pessoa renomeada para \"{name}\"",
     "failed_rename": "Falha ao renomear a pessoa",
     "error_merging": "Erro ao mesclar pessoas",
@@ -3424,7 +3449,8 @@
     "tag_refine_collection": "Refinar esta coleção",
     "tag_search_library": "Pesquisar na biblioteca",
     "add_caption": "Adicionar legenda",
-    "capture_settings": "Definições de captura"
+    "capture_settings": "Definições de captura",
+    "labelled_value": "{label}: {value}"
   },
   "manual_tags": {
     "batch": {

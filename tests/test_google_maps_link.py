@@ -130,6 +130,15 @@ def test_short_link_followed_to_pin(hops):
     assert requested == ['https://maps.app.goo.gl/abc']
 
 
+def test_first_hop_budget_never_exceeds_the_deadline(hops, monkeypatch):
+    # On a coarse clock (Windows) two reads return the same instant, and
+    # (t + 5.0) - t rounds above 5.0 for some t; the budget must stay capped.
+    monkeypatch.setattr(maps_link.time, 'monotonic', lambda: 131071.52317087211)
+    requested, script = hops
+    script['https://maps.app.goo.gl/abc'] = (302, PIN_URL)
+    assert maps_link.resolve('https://maps.app.goo.gl/abc') == (32.6064, -116.3239)
+
+
 def test_http_link_fetched_over_https(hops):
     requested, script = hops
     script['https://goo.gl/maps/abc'] = (301, 'https://maps.google.com/?q=1,2')

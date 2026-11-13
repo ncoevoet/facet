@@ -7,6 +7,7 @@ import { PhotoCollectionSidebarComponent } from './photo-collection-sidebar.comp
 import { LogicalReviewService, LogicalReviewAction, LogicalReviewWriteError } from '../../core/services/logical-review.service';
 import { PhotoProvenanceComponent } from './photo-provenance.component';
 import { PhotoRelatedFilesComponent } from './photo-related-files.component';
+import { PhotoAlbumsComponent } from './photo-albums.component';
 import { TimelineFeedCache } from '../timeline/timeline-feed-cache.service';
 import { ContextHelpComponent } from '../../shared/components/context-help/context-help.component';
 import { Component, inject, signal, computed, effect, OnInit, HostListener, DestroyRef, ElementRef, viewChild, ChangeDetectionStrategy, Injector, afterNextRender } from '@angular/core';
@@ -34,6 +35,7 @@ import { PhotoDetailBase } from '../../shared/directives/photo-detail-base.direc
 import { ZoomPanDirective } from '../../shared/directives/zoom-pan.directive';
 import { PhotoObjectLayerComponent } from './photo-object-layer.component';
 import { FixedPipe } from '../../shared/pipes/fixed.pipe';
+import { IsLensNamePipe } from '../../shared/pipes/is-lens-name.pipe';
 import { ShutterSpeedPipe } from '../../shared/pipes/shutter-speed.pipe';
 import { CaptureDatePipe } from '../../shared/pipes/capture-date.pipe';
 import { RenditionReadoutComponent } from '../../shared/components/rendition-readout/rendition-readout.component';
@@ -104,7 +106,7 @@ function inDetectedSet(photo: Photo): boolean {
 
 @Component({
   selector: 'app-photo-detail',
-  imports: [ControlPopoverComponent, PhotoCollectionSidebarComponent, ContextHelpComponent, PhotoProvenanceComponent, PhotoRelatedFilesComponent,
+  imports: [ControlPopoverComponent, PhotoCollectionSidebarComponent, ContextHelpComponent, PhotoProvenanceComponent, PhotoRelatedFilesComponent, PhotoAlbumsComponent, IsLensNamePipe,
     StackNavigatorComponent,
     ZoomPanDirective,
     PhotoObjectLayerComponent,
@@ -460,10 +462,11 @@ function inDetectedSet(photo: Photo): boolean {
                 </span>
               }
             </div>
-            @if (p.camera_model || p.focal_length || p.f_stop || p.shutter_speed || p.iso) {
+            @if (p.camera_model || (p.lens_model | isLensName) || p.focal_length || p.f_stop || p.shutter_speed || p.iso) {
               <div data-photo-exposure role="group" [attr.aria-label]="I18N.photo_detail.capture_settings | translate"
                    class="flex flex-wrap gap-x-1.5 tabular-nums [&>span+span]:before:me-1.5 [&>span+span]:before:content-['·']">
                 @if (p.camera_model) { <span>{{ p.camera_model }}</span> }
+                @if (p.lens_model && (p.lens_model | isLensName)) { <span>{{ p.lens_model }}</span> }
                 @if (p.focal_length) { <span>{{ p.focal_length }}mm</span> }
                 @if (p.f_stop) { <span>f/{{ p.f_stop }}</span> }
                 @if (p.shutter_speed | shutterSpeed; as shutter) { <span>{{ shutter }}</span> }
@@ -595,6 +598,8 @@ function inDetectedSet(photo: Photo): boolean {
                 </div>
               </section>
             }
+
+            @if (store.config()?.features?.show_albums) { <app-photo-albums [photo]="p" /> }
 
             @if (auth.isEdition() && (!p.caption || (!p.tags_list.length && !p.manual_tags.length && !tagInputOpen()) || p.gps_latitude === null || p.gps_longitude === null)) {
               <div data-photo-add class="flex flex-wrap items-center gap-1">

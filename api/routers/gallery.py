@@ -180,7 +180,21 @@ def _fts5_query_from(term: str) -> Optional[str]:
     return ' '.join(f'"{token}"*' for token in tokens) if tokens else None
 
 
-def _apply_search_filter(where_clauses, sql_params, term: str, conn, include_manual=True):
+def _membership(outer: str, key: str, source: str, condition: str, correlated: bool) -> str:
+    """``outer`` is among ``source``'s ``key`` values that meet ``condition``.
+
+    The uncorrelated form, ``outer IN (SELECT key ...)``, resolves the subquery
+    once and suits a library-wide scan. The correlated form, ``EXISTS (... key =
+    outer ...)``, probes ``source`` by its index for each outer row, which is the
+    fast one when the outer query is pinned to a single photo: the ``IN`` form
+    would build the whole match list to test one row.
+    """
+    if correlated:
+        return f"EXISTS (SELECT 1 FROM {source} WHERE {key} = {outer} AND {condition})"
+    return f"{outer} IN (SELECT {key} FROM {source} WHERE {condition})"
+
+
+def _apply_search_filter(where_clauses, sql_params, term: str, conn, include_manual=True, *, correlated=False):
     """Apply the gallery free-text search filter.
 
     Prefers a single ``photos_fts MATCH`` query over the covering FTS5
@@ -193,33 +207,35 @@ def _apply_search_filter(where_clauses, sql_params, term: str, conn, include_man
     the labels of user-marked objects (``photo_objects``), neither of which is in
     the FTS index, via companion ``IN`` subqueries; ``include_manual=False``
     (share-link requests) leaves both out.
+
+    ``correlated=True`` writes the same predicates as correlated ``EXISTS``
+    probes, for a query already restricted to one photo (smart-album membership
+    of a single path); see ``_membership``.
     """
     from db.fts import has_fts_table
     from api.db_helpers import is_manual_tags_available, is_photo_objects_available
 
     use_manual = include_manual and is_manual_tags_available(conn)
-    manual_clause = (
-        "photos.path IN (SELECT photo_path FROM photo_manual_tags WHERE tag LIKE ? ESCAPE '\\')"
-    )
+    manual_clause = _membership("photos.path", "photo_manual_tags.photo_path", "photo_manual_tags",
+                                "photo_manual_tags.tag LIKE ? ESCAPE '\\'", correlated)
     use_objects = include_manual and is_photo_objects_available(conn)
-    object_clause = (
-        "photos.path IN (SELECT photo_path FROM photo_objects WHERE label LIKE ? ESCAPE '\\')"
-    )
+    object_clause = _membership("photos.path", "photo_objects.photo_path", "photo_objects",
+                                "photo_objects.label LIKE ? ESCAPE '\\'", correlated)
 
     fts_query = _fts5_query_from(term)
 
     if fts_query and has_fts_table(conn):
         person_like = "%" + term.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_") + "%"
-        # IN-subquery rather than EXISTS per row: the persons.name LIKE
-        # scan runs once on the small persons table (a few thousand rows)
-        # instead of N times against the photos table. On a no-match query
-        # this collapses the worst-case from ~580 ms to ~2 ms.
+        # IN-subquery rather than EXISTS per row for a library-wide scan: the
+        # persons.name LIKE scan runs once on the small persons table (a few
+        # thousand rows) instead of N times against the photos table. On a
+        # no-match query this collapses the worst-case from ~580 ms to ~2 ms.
         where_clauses.append(
             "("
-            "photos.rowid IN (SELECT rowid FROM photos_fts WHERE photos_fts MATCH ?)"
-            " OR photos.path IN ("
-            "SELECT f.photo_path FROM faces f JOIN persons p ON f.person_id = p.id"
-            " WHERE p.name LIKE ? ESCAPE '\\')"
+            + _membership("photos.rowid", "photos_fts.rowid", "photos_fts", "photos_fts MATCH ?", correlated)
+            + " OR "
+            + _membership("photos.path", "f.photo_path", "faces f JOIN persons p ON f.person_id = p.id",
+                          "p.name LIKE ? ESCAPE '\\'", correlated)
             + (f" OR {manual_clause}" if use_manual else "")
             + (f" OR {object_clause}" if use_objects else "")
             + ")"
@@ -295,7 +311,7 @@ def _add_range_filter(where_clauses, sql_params, params, column, min_key, max_ke
             pass
 
 
-def _apply_text_filters(where_clauses, sql_params, params, conn, include_manual=True, *, hierarchy_available=None):
+def _apply_text_filters(where_clauses, sql_params, params, conn, include_manual=True, *, hierarchy_available=None, correlated_search=False):
     """Apply camera, lens, search, tag, composition, person, category filters."""
     if params.get('camera'):
         where_clauses.append("camera_model = ?")
@@ -306,7 +322,8 @@ def _apply_text_filters(where_clauses, sql_params, params, conn, include_manual=
         sql_params.append(f"{clean_search}%")
 
     if params.get('search'):
-        _apply_search_filter(where_clauses, sql_params, params['search'], conn, include_manual=include_manual)
+        _apply_search_filter(where_clauses, sql_params, params['search'], conn, include_manual=include_manual,
+                             correlated=correlated_search)
 
     _add_tag_filter(
         where_clauses, sql_params,
@@ -729,11 +746,14 @@ def _apply_date_album_geo_filters(where_clauses, sql_params, params, *, logical=
         sql_params.append(escaped + '%')
 
 
-def _build_gallery_where(params, conn=None, user_id=None, include_manual=True, *, stack_owner=None, include_stacks=True, hierarchy_available=None, logical=False):
+def _build_gallery_where(params, conn=None, user_id=None, include_manual=True, *, stack_owner=None, include_stacks=True, hierarchy_available=None, logical=False, single_photo=False):
     """Build WHERE clauses for gallery queries.
 
     ``include_manual=False`` makes the tag filter and the text search AI-only:
     a share-link request must not be able to probe the owner's manual tags.
+    ``single_photo=True`` is for a caller that pins the query to one path: the
+    text search then probes its side tables per row instead of resolving every
+    match in the library first (see ``_apply_search_filter``).
     """
     # Stack ownership is trusted execution context, never a filter value. Smart
     # album JSON is user-controlled even when its keys begin with an underscore.
@@ -744,7 +764,8 @@ def _build_gallery_where(params, conn=None, user_id=None, include_manual=True, *
     where_clauses = []
     sql_params = []
     _apply_visibility_and_hide_filters(where_clauses, sql_params, params, user_id, stack_owner, logical=logical)
-    _apply_text_filters(where_clauses, sql_params, params, conn, include_manual=include_manual, hierarchy_available=hierarchy_available)
+    _apply_text_filters(where_clauses, sql_params, params, conn, include_manual=include_manual, hierarchy_available=hierarchy_available,
+                        correlated_search=single_photo)
     preference_columns = {field: f'photos.{field}' for field in ('star_rating', 'is_favorite', 'is_kept', 'is_rejected')} if logical else None
     _apply_preference_filters(where_clauses, sql_params, params, user_id, preference_columns)
     _apply_score_range_filters(where_clauses, sql_params, params, user_id, preference_columns)

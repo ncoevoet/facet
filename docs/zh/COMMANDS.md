@@ -198,6 +198,7 @@ Facet 会记录每次扫描（状态、模式、目录、计数器）以及每�
 | `python facet.py --rescan-gps` | 为全部照片重新提取 EXIF GPS（覆盖）；跳过在查看器中设置过的位置 |
 | `python facet.py --recompute-embeddings` | 为全部照片重新计算 CLIP/SigLIP 特征向量（更换模型后必须执行） |
 | `python facet.py --score-topiq` | `[GPU]` 对每张带缩略图的照片重新计算 `topiq_score`（覆盖） |
+| `python facet.py --backfill-exif-meta` | 用 exiftool 为文件大小仍为空的照片重新读取文件大小、曝光补偿、闪光灯、白平衡、测光模式、作者和版权，不重新评分。需要 exiftool；可续跑（每 500 张照片提交一次）；exiftool 无法读取的文件保持为空并被计数（参见 `python database.py --cleanup-missing-photos`） |
 | `python facet.py --backfill-focal-35mm` | 为缺少等效 35mm 焦距的照片从 EXIF 回填该值 |
 | `python facet.py --backfill-clipping` | 从已存储的直方图推导各通道的溢出百分比（可续跑） |
 | `python facet.py --recompute-silhouette` | 用基于人脸的规则重新推导 `is_silhouette`（见说明） |
@@ -208,7 +209,7 @@ Facet 会记录每次扫描（状态、模式、目录、计数器）以及每�
 | `python facet.py --compute-recommendations --apply-recommendations` | 自动应用评分修正 |
 | `python facet.py --compute-recommendations --simulate` | 预览预计产生的变化 |
 
-**`--dry-run`** 对以下改写数据库的命令没有预览，因此它们会以退出码 2 拒绝该选项，而不是照样写入：`--backfill-clipping`, `--backfill-focal-35mm`, `--cluster-faces-force`, `--generate-captions`, `--recompute-average`, `--recompute-colors`, `--recompute-distortions`, `--recompute-form`, `--recompute-skin-tone`, `--recompute-tags`, `--recompute-text`, `--repair-int-columns`, `--repair-neutral-iqa`, `--upgrade-db`。
+**`--dry-run`** 对以下改写数据库的命令没有预览，因此它们会以退出码 2 拒绝该选项，而不是照样写入：`--backfill-clipping`, `--backfill-exif-meta`, `--backfill-focal-35mm`, `--cluster-faces-force`, `--generate-captions`, `--recompute-average`, `--recompute-colors`, `--recompute-distortions`, `--recompute-form`, `--recompute-skin-tone`, `--recompute-tags`, `--recompute-text`, `--repair-int-columns`, `--repair-neutral-iqa`, `--upgrade-db`。
 
 **`--recompute-average`** 不保留快照：如需回退，请恢复某个权重快照并重新计算。从 1.20 或更早版本升级后，先运行 `--recompute-silhouette`，再把本命令运行两次。第一遍会存储新的百分位，所以第二遍仍会改动一些行。
 

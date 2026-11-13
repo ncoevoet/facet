@@ -214,7 +214,30 @@
     "color_harmony": "色彩和谐度",
     "caption": "照片描述",
     "filter_by_person": "按 {name} 筛选",
-    "histogram": "直方图"
+    "histogram": "直方图",
+    "focal_35mm": "35 毫米等效",
+    "exposure_compensation": "曝光补偿",
+    "flash": "闪光灯",
+    "flash_fired": "已闪光",
+    "flash_off": "未闪光",
+    "white_balance": "白平衡",
+    "white_balance_auto": "自动",
+    "white_balance_manual": "手动",
+    "metering": "测光",
+    "metering_unknown": "未知",
+    "metering_average": "平均",
+    "metering_center_weighted": "中央重点",
+    "metering_spot": "点测光",
+    "metering_multi_spot": "多点测光",
+    "metering_pattern": "多区评价",
+    "metering_partial": "局部",
+    "metering_other": "其他",
+    "dimensions": "尺寸",
+    "file_size": "文件大小",
+    "folder": "文件夹",
+    "copy_folder": "复制文件夹路径",
+    "artist": "作者",
+    "copyright": "版权"
   },
   "photoCard": {
     "embed_to_file": "将元数据写入文件",
@@ -231,6 +254,8 @@
     "copied_count_plural": "已复制 {count} 个文件名",
     "link_copied": "链接已复制到剪贴板",
     "copy_failed": "复制链接失败",
+    "folder_copied": "已复制文件夹路径",
+    "folder_copy_failed": "无法复制文件夹路径",
     "person_renamed": "人物已重命名为“{name}”",
     "failed_rename": "重命名人物失败",
     "error_merging": "合并人物出错",
@@ -3424,7 +3449,8 @@
     "tag_refine_collection": "细化此集合",
     "tag_search_library": "搜索图库",
     "add_caption": "添加照片描述",
-    "capture_settings": "拍摄参数"
+    "capture_settings": "拍摄参数",
+    "labelled_value": "{label}：{value}"
   },
   "manual_tags": {
     "batch": {

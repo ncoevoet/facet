@@ -1,8 +1,16 @@
 import { SORT_ICONS } from '../../pipes/sort-option-icon.pipe';
 import { I18N } from '../../../core/i18n/keys';
 import { MatIconModule } from '@angular/material/icon';
-import { ChangeDetectionStrategy, Component, input } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, inject, input } from '@angular/core';
+import { MatSnackBar } from '@angular/material/snack-bar';
+import { copyText } from '../../utils/clipboard';
 import { Photo } from '../../models/photo.model';
+import { ExifCodePipe } from '../../pipes/exif-code.pipe';
+import { ExposureCompensationPipe } from '../../pipes/exposure-compensation.pipe';
+import { FileSizePipe } from '../../pipes/file-size.pipe';
+import { FolderPathPipe } from '../../pipes/folder-path.pipe';
+import { MegapixelsPipe } from '../../pipes/megapixels.pipe';
+import { I18nService } from '../../../core/services/i18n.service';
 import { FixedPipe } from '../../pipes/fixed.pipe';
 import { IsLensNamePipe } from '../../pipes/is-lens-name.pipe';
 import { ShutterSpeedPipe } from '../../pipes/shutter-speed.pipe';
@@ -18,7 +26,7 @@ import { MetricScoreRowComponent } from '../metric-score-row/metric-score-row.co
 /** Shared measurement bodies, independent of tabs or collapsible section chrome. */
 @Component({
  selector:'app-photo-metric-section',
- imports:[MatIconModule, FixedPipe, IsLensNamePipe, ShutterSpeedPipe, ThumbnailUrlPipe, TranslatePipe, ExtendedQualityComponent, HistogramComponent, MetricScoreRowComponent],
+ imports:[MatIconModule, ExifCodePipe, ExposureCompensationPipe, FileSizePipe, FolderPathPipe, MegapixelsPipe, FixedPipe, IsLensNamePipe, ShutterSpeedPipe, ThumbnailUrlPipe, TranslatePipe, ExtendedQualityComponent, HistogramComponent, MetricScoreRowComponent],
  changeDetection:ChangeDetectionStrategy.OnPush,
  host:{class:'block min-w-0'},
  template:`@let p = photo(); @switch(kind()) {@case('exif') {
@@ -41,6 +49,36 @@ import { MetricScoreRowComponent } from '../metric-score-row/metric-score-row.co
             }
             @if (p.iso) {
               <div class="flex justify-between items-center gap-2 py-1.5"><span class="inline-flex items-center gap-2 text-[var(--mat-sys-on-surface-variant)]"><mat-icon aria-hidden="true" class="!h-4 !w-4 !text-base">iso</mat-icon>{{ 'tooltip.iso' | translate }}</span><span class="text-[var(--mat-sys-primary)] font-medium">{{ p.iso }}</span></div>
+            }
+            @if (has().focal35) {
+              <div class="flex justify-between items-center gap-2 py-1.5"><span class="inline-flex items-center gap-2 text-[var(--mat-sys-on-surface-variant)]"><mat-icon aria-hidden="true" class="!h-4 !w-4 !text-base">straighten</mat-icon>{{ I18N.tooltip.focal_35mm | translate }}</span><span class="text-[var(--mat-sys-primary)] font-medium">{{ p.focal_length_35mm }}mm</span></div>
+            }
+            @if (has().exposureComp) {
+              <div class="flex justify-between items-center gap-2 py-1.5"><span class="inline-flex items-center gap-2 text-[var(--mat-sys-on-surface-variant)]"><mat-icon aria-hidden="true" class="!h-4 !w-4 !text-base">exposure</mat-icon>{{ I18N.tooltip.exposure_compensation | translate }}</span><span class="text-[var(--mat-sys-primary)] font-medium">{{ p.exposure_compensation | exposureCompensation:locale() }}</span></div>
+            }
+            @if (has().flash) {
+              <div class="flex justify-between items-center gap-2 py-1.5"><span class="inline-flex items-center gap-2 text-[var(--mat-sys-on-surface-variant)]"><mat-icon aria-hidden="true" class="!h-4 !w-4 !text-base">flash_on</mat-icon>{{ I18N.tooltip.flash | translate }}</span><span class="text-[var(--mat-sys-primary)] font-medium">{{ (p.flash | exifCode:'flash') | translate }}</span></div>
+            }
+            @if (has().whiteBalance) {
+              <div class="flex justify-between items-center gap-2 py-1.5"><span class="inline-flex items-center gap-2 text-[var(--mat-sys-on-surface-variant)]"><mat-icon aria-hidden="true" class="!h-4 !w-4 !text-base">wb_auto</mat-icon>{{ I18N.tooltip.white_balance | translate }}</span><span class="text-[var(--mat-sys-primary)] font-medium">{{ (p.white_balance | exifCode:'whiteBalance') | translate }}</span></div>
+            }
+            @if (has().metering) {
+              <div class="flex justify-between items-center gap-2 py-1.5"><span class="inline-flex items-center gap-2 text-[var(--mat-sys-on-surface-variant)]"><mat-icon aria-hidden="true" class="!h-4 !w-4 !text-base">filter_center_focus</mat-icon>{{ I18N.tooltip.metering | translate }}</span><span class="text-[var(--mat-sys-primary)] font-medium">{{ (p.metering_mode | exifCode:'metering') | translate }}</span></div>
+            }
+            @if (has().dimensions) {
+              <div class="flex justify-between items-center gap-2 py-1.5"><span class="inline-flex items-center gap-2 text-[var(--mat-sys-on-surface-variant)]"><mat-icon aria-hidden="true" class="!h-4 !w-4 !text-base">aspect_ratio</mat-icon>{{ I18N.tooltip.dimensions | translate }}</span><span class="text-[var(--mat-sys-primary)] font-medium">{{ p.image_width }} × {{ p.image_height }} · {{ p.image_width | megapixels:p.image_height:locale() }}</span></div>
+            }
+            @if (has().fileSize) {
+              <div class="flex justify-between items-center gap-2 py-1.5"><span class="inline-flex items-center gap-2 text-[var(--mat-sys-on-surface-variant)]"><mat-icon aria-hidden="true" class="!h-4 !w-4 !text-base">sd_storage</mat-icon>{{ I18N.tooltip.file_size | translate }}</span><span class="text-[var(--mat-sys-primary)] font-medium">{{ p.file_size | fileSize:locale() }}</span></div>
+            }
+            @if (p.path | folderPath; as folder) {
+              <div class="flex justify-between items-center gap-2 py-1.5"><span class="inline-flex shrink-0 items-center gap-2 whitespace-nowrap text-[var(--mat-sys-on-surface-variant)]"><mat-icon aria-hidden="true" class="!h-4 !w-4 !text-base">folder</mat-icon>{{ I18N.tooltip.folder | translate }}</span><button type="button" data-copy-folder class="min-h-8 min-w-0 cursor-pointer truncate rounded border-0 bg-transparent p-0 text-right font-[inherit] text-[length:inherit] text-[var(--mat-sys-primary)] font-medium hover:underline focus-visible:outline-2 [@media(pointer:coarse)]:min-h-11" [title]="folder" [attr.aria-label]="I18N.photo_detail.labelled_value | translate:{ label: (I18N.tooltip.copy_folder | translate), value: folder }" (click)="copyFolder(folder)">{{ folder }}</button></div>
+            }
+            @if (has().artist) {
+              <div class="flex justify-between items-center gap-2 py-1.5"><span class="inline-flex shrink-0 items-center gap-2 whitespace-nowrap text-[var(--mat-sys-on-surface-variant)]"><mat-icon aria-hidden="true" class="!h-4 !w-4 !text-base">person</mat-icon>{{ I18N.tooltip.artist | translate }}</span><span class="min-w-0 truncate text-[var(--mat-sys-primary)] font-medium" [title]="p.artist">{{ p.artist }}</span></div>
+            }
+            @if (has().copyright) {
+              <div class="flex justify-between items-center gap-2 py-1.5"><span class="inline-flex shrink-0 items-center gap-2 whitespace-nowrap text-[var(--mat-sys-on-surface-variant)]"><mat-icon aria-hidden="true" class="!h-4 !w-4 !text-base">copyright</mat-icon>{{ I18N.tooltip.copyright | translate }}</span><span class="min-w-0 truncate text-[var(--mat-sys-primary)] font-medium" [title]="p.copyright">{{ p.copyright }}</span></div>
             }
           </div>
         </div>
@@ -202,6 +240,10 @@ import { MetricScoreRowComponent } from '../metric-score-row/metric-score-row.co
 })
 export class PhotoMetricSectionComponent {
  protected readonly I18N = I18N;
+ private readonly i18n = inject(I18nService);
+ private readonly snackBar = inject(MatSnackBar);
+ /** Read lazily in the template: only the file-size row needs it. */
+ protected readonly locale = this.i18n.locale;
  protected readonly metricIcons = SORT_ICONS;
  readonly kind = input.required<MetricsTab>();
  readonly photo = input.required<Photo>();
@@ -211,4 +253,27 @@ export class PhotoMetricSectionComponent {
  readonly histogramSurface = input<HistogramSurface>('detail');
  readonly histogramDefaultMode = input<HistogramMode>('luma');
  readonly indicatorPercent = input(1);
+
+ /** Which optional EXIF rows have a value; a meaningful 0 (flash off, 0 EV) counts, only null and undefined do not. */
+ protected readonly has = computed(() => {
+  const p = this.photo();
+  const set = (value: unknown): boolean => value !== null && value !== undefined;
+  return {
+   focal35: (p.focal_length_35mm ?? 0) > 0 && p.focal_length_35mm !== p.focal_length,
+   exposureComp: set(p.exposure_compensation),
+   flash: set(p.flash),
+   whiteBalance: set(p.white_balance),
+   metering: set(p.metering_mode),
+   dimensions: set(p.image_width) && set(p.image_height),
+   fileSize: set(p.file_size),
+   artist: set(p.artist),
+   copyright: set(p.copyright),
+  };
+ });
+
+ /** Copies the photo's folder path; a toast confirms either way, since nothing else on screen changes. */
+ protected async copyFolder(folder: string): Promise<void> {
+  const copied = await copyText(folder);
+  this.snackBar.open(this.i18n.t(copied ? I18N.notifications.folder_copied : I18N.notifications.folder_copy_failed), '', { duration: 2000 });
+ }
 }
