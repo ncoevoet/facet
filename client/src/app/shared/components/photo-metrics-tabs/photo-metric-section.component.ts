@@ -2,6 +2,8 @@ import { SORT_ICONS } from '../../pipes/sort-option-icon.pipe';
 import { I18N } from '../../../core/i18n/keys';
 import { MatIconModule } from '@angular/material/icon';
 import { ChangeDetectionStrategy, Component, inject, input } from '@angular/core';
+import { MatSnackBar } from '@angular/material/snack-bar';
+import { copyText } from '../../utils/clipboard';
 import { Photo } from '../../models/photo.model';
 import { ExifCodePipe } from '../../pipes/exif-code.pipe';
 import { ExposureCompensationPipe } from '../../pipes/exposure-compensation.pipe';
@@ -70,7 +72,7 @@ import { MetricScoreRowComponent } from '../metric-score-row/metric-score-row.co
               <div class="flex justify-between items-center gap-2 py-1.5"><span class="inline-flex items-center gap-2 text-[var(--mat-sys-on-surface-variant)]"><mat-icon aria-hidden="true" class="!h-4 !w-4 !text-base">sd_storage</mat-icon>{{ 'tooltip.file_size' | translate }}</span><span class="text-[var(--mat-sys-primary)] font-medium">{{ p.file_size | fileSize:locale() }}</span></div>
             }
             @if (p.path | folderPath; as folder) {
-              <div class="flex justify-between items-center gap-2 py-1.5"><span class="inline-flex shrink-0 items-center gap-2 whitespace-nowrap text-[var(--mat-sys-on-surface-variant)]"><mat-icon aria-hidden="true" class="!h-4 !w-4 !text-base">folder</mat-icon>{{ 'tooltip.folder' | translate }}</span><span class="min-w-0 truncate text-[var(--mat-sys-primary)] font-medium" [title]="folder">{{ folder }}</span></div>
+              <div class="flex justify-between items-center gap-2 py-1.5"><span class="inline-flex shrink-0 items-center gap-2 whitespace-nowrap text-[var(--mat-sys-on-surface-variant)]"><mat-icon aria-hidden="true" class="!h-4 !w-4 !text-base">folder</mat-icon>{{ 'tooltip.folder' | translate }}</span><button type="button" data-copy-folder class="min-w-0 cursor-pointer truncate rounded border-0 bg-transparent p-0 text-right font-[inherit] text-[length:inherit] text-[var(--mat-sys-primary)] font-medium hover:underline focus-visible:outline-2" [title]="folder" [attr.aria-label]="(I18N.tooltip.copy_folder | translate) + ': ' + folder" (click)="copyFolder(folder)">{{ folder }}</button></div>
             }
             @if (p.artist !== null && p.artist !== undefined) {
               <div class="flex justify-between items-center gap-2 py-1.5"><span class="inline-flex shrink-0 items-center gap-2 whitespace-nowrap text-[var(--mat-sys-on-surface-variant)]"><mat-icon aria-hidden="true" class="!h-4 !w-4 !text-base">person</mat-icon>{{ 'tooltip.artist' | translate }}</span><span class="min-w-0 truncate text-[var(--mat-sys-primary)] font-medium" [title]="p.artist">{{ p.artist }}</span></div>
@@ -238,8 +240,10 @@ import { MetricScoreRowComponent } from '../metric-score-row/metric-score-row.co
 })
 export class PhotoMetricSectionComponent {
  protected readonly I18N = I18N;
+ private readonly i18n = inject(I18nService);
+ private readonly snackBar = inject(MatSnackBar);
  /** Read lazily in the template: only the file-size row needs it. */
- protected readonly locale = inject(I18nService).locale;
+ protected readonly locale = this.i18n.locale;
  protected readonly metricIcons = SORT_ICONS;
  readonly kind = input.required<MetricsTab>();
  readonly photo = input.required<Photo>();
@@ -249,4 +253,10 @@ export class PhotoMetricSectionComponent {
  readonly histogramSurface = input<HistogramSurface>('detail');
  readonly histogramDefaultMode = input<HistogramMode>('luma');
  readonly indicatorPercent = input(1);
+
+ /** Copies the photo's folder path; a toast confirms either way, since nothing else on screen changes. */
+ protected async copyFolder(folder: string): Promise<void> {
+  const copied = await copyText(folder);
+  this.snackBar.open(this.i18n.t(copied ? I18N.notifications.folder_copied : I18N.notifications.folder_copy_failed), '', { duration: 2000 });
+ }
 }

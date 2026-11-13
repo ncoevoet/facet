@@ -234,6 +234,7 @@
     "dimensions": "Abmessungen",
     "file_size": "Dateigröße",
     "folder": "Ordner",
+    "copy_folder": "Ordnerpfad kopieren",
     "artist": "Künstler",
     "copyright": "Copyright"
   },
@@ -252,6 +253,8 @@
     "copied_count_plural": "{count} Dateinamen kopiert",
     "link_copied": "Link in Zwischenablage kopiert",
     "copy_failed": "Link konnte nicht kopiert werden",
+    "folder_copied": "Ordnerpfad kopiert",
+    "folder_copy_failed": "Ordnerpfad konnte nicht kopiert werden",
     "person_renamed": "Person umbenannt zu \"{name}\"",
     "failed_rename": "Person konnte nicht umbenannt werden",
     "error_merging": "Fehler beim Zusammenführen der Personen",

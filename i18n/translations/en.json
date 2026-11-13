@@ -259,6 +259,7 @@
     "dimensions": "Dimensions",
     "file_size": "File size",
     "folder": "Folder",
+    "copy_folder": "Copy folder path",
     "artist": "Artist",
     "copyright": "Copyright"
   },
@@ -277,6 +278,8 @@
     "copied_count_plural": "Copied {count} filenames",
     "link_copied": "Link copied to clipboard",
     "copy_failed": "Failed to copy link",
+    "folder_copied": "Folder path copied",
+    "folder_copy_failed": "Could not copy the folder path",
     "person_renamed": "Person renamed to \"{name}\"",
     "failed_rename": "Failed to rename person",
     "error_merging": "Error merging persons",

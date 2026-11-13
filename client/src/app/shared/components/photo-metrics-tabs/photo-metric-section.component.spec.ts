@@ -1,5 +1,6 @@
 import { signal } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
+import { MatSnackBar } from '@angular/material/snack-bar';
 import { PhotoMetricSectionComponent } from './photo-metric-section.component';
 import { I18nService } from '../../../core/services/i18n.service';
 import { makePhoto } from '../../../../testing/photo.fixture';
@@ -76,6 +77,19 @@ describe('exif section rows', () => {
   it('keeps meaningful zero values: flash 0 and 0 EV', () => {
     const t = text(render({ flash: 0, exposure_compensation: 0 }));
     expect(t).toContain('tooltip.flash_off'); expect(t).toContain('0 EV');
+  });
+
+  it('copies the folder path on click and confirms with a toast', async () => {
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    Object.defineProperty(navigator, 'clipboard', { value: { writeText }, configurable: true });
+    const open = vi.fn();
+    TestBed.overrideProvider(MatSnackBar, { useValue: { open } });
+    const button = render({ path: '/photos/2024/IMG_1.jpg' }).querySelector<HTMLButtonElement>('[data-copy-folder]')!;
+    expect(button.getAttribute('aria-label')).toBe('tooltip.copy_folder: /photos/2024');
+    button.click();
+    await vi.waitFor(() => expect(open).toHaveBeenCalled());
+    expect(writeText).toHaveBeenCalledWith('/photos/2024');
+    expect(open.mock.calls[0][0]).toBe('notifications.folder_copied');
   });
 
   it('hides the 35 mm row when it equals the focal length', () => {

@@ -234,6 +234,7 @@
     "dimensions": "Dimensiones",
     "file_size": "Tamaño del archivo",
     "folder": "Carpeta",
+    "copy_folder": "Copiar la ruta de la carpeta",
     "artist": "Artista",
     "copyright": "Copyright"
   },
@@ -252,6 +253,8 @@
     "copied_count_plural": "{count} nombres de archivo copiados",
     "link_copied": "Enlace copiado al portapapeles",
     "copy_failed": "Error al copiar el enlace",
+    "folder_copied": "Ruta de la carpeta copiada",
+    "folder_copy_failed": "No se pudo copiar la ruta de la carpeta",
     "person_renamed": "Persona renombrada a \"{name}\"",
     "failed_rename": "Error al renombrar la persona",
     "error_merging": "Error al fusionar personas",

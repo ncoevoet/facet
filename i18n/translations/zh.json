@@ -234,6 +234,7 @@
     "dimensions": "尺寸",
     "file_size": "文件大小",
     "folder": "文件夹",
+    "copy_folder": "复制文件夹路径",
     "artist": "作者",
     "copyright": "版权"
   },
@@ -252,6 +253,8 @@
     "copied_count_plural": "已复制 {count} 个文件名",
     "link_copied": "链接已复制到剪贴板",
     "copy_failed": "复制链接失败",
+    "folder_copied": "已复制文件夹路径",
+    "folder_copy_failed": "无法复制文件夹路径",
     "person_renamed": "人物已重命名为“{name}”",
     "failed_rename": "重命名人物失败",
     "error_merging": "合并人物出错",

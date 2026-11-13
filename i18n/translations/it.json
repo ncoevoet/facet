@@ -234,6 +234,7 @@
     "dimensions": "Dimensioni",
     "file_size": "Dimensione file",
     "folder": "Cartella",
+    "copy_folder": "Copia il percorso della cartella",
     "artist": "Artista",
     "copyright": "Copyright"
   },
@@ -252,6 +253,8 @@
     "copied_count_plural": "{count} nomi file copiati",
     "link_copied": "Link copiato negli appunti",
     "copy_failed": "Copia del link non riuscita",
+    "folder_copied": "Percorso della cartella copiato",
+    "folder_copy_failed": "Impossibile copiare il percorso della cartella",
     "person_renamed": "Persona rinominata in \"{name}\"",
     "failed_rename": "Rinomina della persona non riuscita",
     "error_merging": "Errore nell'unione delle persone",

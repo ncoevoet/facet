@@ -234,6 +234,7 @@
     "dimensions": "Dimensões",
     "file_size": "Tamanho do ficheiro",
     "folder": "Pasta",
+    "copy_folder": "Copiar o caminho da pasta",
     "artist": "Artista",
     "copyright": "Copyright"
   },
@@ -252,6 +253,8 @@
     "copied_count_plural": "{count} nomes de arquivo copiados",
     "link_copied": "Link copiado para a área de transferência",
     "copy_failed": "Falha ao copiar o link",
+    "folder_copied": "Caminho da pasta copiado",
+    "folder_copy_failed": "Não foi possível copiar o caminho da pasta",
     "person_renamed": "Pessoa renomeada para \"{name}\"",
     "failed_rename": "Falha ao renomear a pessoa",
     "error_merging": "Erro ao mesclar pessoas",

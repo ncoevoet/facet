@@ -234,6 +234,7 @@
     "dimensions": "Dimensions",
     "file_size": "Taille du fichier",
     "folder": "Dossier",
+    "copy_folder": "Copier le chemin du dossier",
     "artist": "Artiste",
     "copyright": "Copyright"
   },
@@ -252,6 +253,8 @@
     "copied_count_plural": "Copies {count} noms de fichiers",
     "link_copied": "Lien copie dans le presse-papiers",
     "copy_failed": "Échec de la copie du lien",
+    "folder_copied": "Chemin du dossier copié",
+    "folder_copy_failed": "Impossible de copier le chemin du dossier",
     "person_renamed": "Personne renommée en \"{name}\"",
     "failed_rename": "Échec du renommage",
     "error_merging": "Erreur lors de la fusion",
