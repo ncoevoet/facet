@@ -936,8 +936,8 @@ def _compile_category_filter(filters: dict):
         required = filters.get(key)
         if required is not None:
             bools.append((idx, required))
-    required_tags = [t.lower() for t in filters.get('required_tags', [])]
-    excluded_tags = [t.lower() for t in filters.get('excluded_tags', [])]
+    required_tags = [t.lower() for t in filters.get('required_tags') or []]
+    excluded_tags = [t.lower() for t in filters.get('excluded_tags') or []]
     tag_spec = None
     if required_tags or excluded_tags:
         tag_spec = (required_tags, excluded_tags, filters.get('tag_match_mode', 'any'))
