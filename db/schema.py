@@ -220,6 +220,17 @@ PHOTOS_COLUMNS = [
     ('date_manually_set', 'INTEGER NOT NULL DEFAULT 0'),
     # Manual GPS (including intentional clears) survives EXIF rescans.
     ('gps_manually_set', 'INTEGER NOT NULL DEFAULT 0'),
+    # File and camera metadata the info panel shows. EXIF codes are stored raw
+    # (exiftool runs with -n); NULL = unknown. file_size is bytes from exiftool's
+    # FileSize, or os.stat when the scan fell back to exifread/Pillow; a stored
+    # size means some EXIF reader ran (--backfill-exif-meta selects on file_size IS NULL).
+    ('file_size', 'INTEGER'),
+    ('exposure_compensation', 'REAL'),
+    ('flash', 'INTEGER'),
+    ('white_balance', 'INTEGER'),
+    ('metering_mode', 'INTEGER'),
+    ('artist', 'TEXT'),
+    ('copyright', 'TEXT'),
 ]
 
 FACES_COLUMNS = [

@@ -63,6 +63,14 @@ class PhotoMetadata(BaseModel):
     f_stop: Optional[float] = None
     shutter_speed: Optional[str] = None
     focal_length: Optional[float] = None
+    focal_length_35mm: Optional[float] = None
+    file_size: CoercedInt = None
+    exposure_compensation: Optional[float] = None
+    flash: CoercedInt = None
+    white_balance: CoercedInt = None
+    metering_mode: CoercedInt = None
+    artist: Optional[str] = None
+    copyright: Optional[str] = None
     aesthetic: Optional[float] = None
     face_count: CoercedInt = None
     face_quality: Optional[float] = None

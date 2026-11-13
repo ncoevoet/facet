@@ -15,6 +15,14 @@ class AlbumPhotosResponse(PaginationEnvelope):
     photos: list[Photo]
 
 
+class PhotoAlbum(BaseModel):
+    """One album a photo belongs to, as listed in the photo info panel."""
+
+    id: int
+    name: str
+    is_smart: bool
+
+
 class Album(BaseModel):
     """An album's own metadata, as embedded in the shared-album view."""
 

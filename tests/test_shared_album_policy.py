@@ -132,3 +132,21 @@ def test_link_does_not_become_library_authorization_on_protected_install(
     denied = anonymous_client.get('/api/download',
                                   params={'path': path, 'token': 'protected-link-token'})
     assert denied.status_code == 404
+
+
+@pytest.mark.parametrize('smart', [False, True])
+def test_recipient_payloads_omit_artist_and_copyright(smart, seed_photos_prefix, album_factory, anonymous_client):
+    prefix = f'/recipient-authorship/{smart}/'
+    seed_photos_prefix(prefix, [{'path': prefix + 'photo.jpg', 'filename': 'photo.jpg', 'camera_model': 'Test camera',
+                                'artist': 'Private Artist', 'copyright': 'Private Copyright'}])
+    album_id = album_factory(prefix, 'recipient-authorship-token', 'Shared')(
+        smart_filter={'path_prefix': prefix} if smart else None, member_names=('photo.jpg',))
+    scope = {'token': 'recipient-authorship-token'}
+    listing = anonymous_client.get(f'/api/shared/album/{album_id}', params=scope)
+    assert listing.status_code == 200, listing.text
+    photo = listing.json()['photos'][0]
+    assert photo['camera_model'] == 'Test camera'
+    single = anonymous_client.get(f'/api/shared/album/{album_id}/photo', params={**scope, 'asset_id': photo['asset_id']})
+    assert single.status_code == 200, single.text
+    for response in (listing, single):
+        assert 'Private Artist' not in response.text and 'Private Copyright' not in response.text

@@ -625,6 +625,8 @@ PHOTO_BASE_COLS = [
 ]
 PHOTO_OPTIONAL_COLS = [
     'preview_revision',
+    'focal_length_35mm', 'file_size', 'exposure_compensation', 'flash', 'white_balance',
+    'metering_mode', 'artist', 'copyright',
     'histogram_spread', 'mean_luminance', 'power_point_score',
     'shadow_clipped', 'highlight_clipped', 'is_silhouette', 'is_group_portrait', 'leading_lines_score',
     'channel_clip_shadow_pct', 'channel_clip_highlight_pct',
