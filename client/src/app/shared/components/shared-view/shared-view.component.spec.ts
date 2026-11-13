@@ -187,6 +187,55 @@ describe('SharedViewComponent', () => {
     expect(notice).toHaveBeenCalled();
   });
 
+  it('does not re-arm the scroll sentinel after a failed next page', async () => {
+    mockApi.get.mockReturnValue(of({ ...sharedAlbumResponse, has_more: true }));
+    createComponent('1', 'fixture-token');
+    await component.ngOnInit();
+    vi.spyOn(TestBed.inject(MatSnackBar), 'open').mockReturnValue({} as never);
+    const recheck = vi.fn();
+    component.scrollDirective = () => ({ recheck });
+
+    // Re-arming a sentinel that is still on screen fires the same failing
+    // request again at once: a retry loop for as long as the server fails.
+    mockApi.get.mockReturnValue(throwError(() => ({ status: 500 })));
+    component.onScrollReached();
+    await new Promise<void>(resolve => setTimeout(resolve, 0));
+    expect(recheck).not.toHaveBeenCalled();
+
+    mockApi.get.mockReturnValue(of({ ...sharedAlbumResponse, page: 2, has_more: true }));
+    component.onScrollReached();
+    await new Promise<void>(resolve => setTimeout(resolve, 0));
+    expect(recheck).toHaveBeenCalledTimes(1);
+  });
+
+  it('stops paging the kept grid when a filter refresh fails', async () => {
+    mockApi.get.mockReturnValue(of({ ...sharedAlbumResponse, has_more: true }));
+    createComponent('1', 'fixture-token');
+    await component.ngOnInit();
+    vi.spyOn(TestBed.inject(MatSnackBar), 'open').mockReturnValue({} as never);
+
+    // The kept grid holds the OLD filter's photos: appending the next page of
+    // the new filter onto it would mix two result sets.
+    mockApi.get.mockReturnValue(throwError(() => ({ status: 500 })));
+    component.updateFilter('camera', 'X100');
+    await new Promise<void>(resolve => setTimeout(resolve, 0));
+    expect(component.photos().length).toBeGreaterThan(0);
+    expect(component.hasMore()).toBe(false);
+  });
+
+  it('offers no retry for an invalid share link', async () => {
+    Object.assign(mockI18n, { translations: () => ({}), locale: () => 'en' });
+    createComponent(null, 'abc123');
+    const fixture = TestBed.createComponent(SharedViewComponent);
+    fixture.detectChanges(); await fixture.whenStable(); fixture.detectChanges();
+    const shared = fixture.componentInstance as any;
+    expect(shared.error()).toBe('albums.invalid_share_link');
+    // Retrying a link that never had a scope would spin forever.
+    const buttons = [...fixture.nativeElement.querySelectorAll('button')] as HTMLButtonElement[];
+    expect(buttons.some(b => b.textContent?.includes('gallery.load_error.retry'))).toBe(false);
+    fixture.destroy();
+  });
+
   it('keeps the shared album open when a selected download fails', async () => {
     createComponent('1', 'fixture-token'); await component.ngOnInit();
     component.toggleSelection(component.photos()[0]);

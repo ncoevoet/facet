@@ -317,6 +317,10 @@ export class HistogramComponent {
         this.storedChannels.set(null);
         this.sampledChannels.set(null);
         this.clipped.set(null);
+        // A previous photo's failed sample must not follow the user: its Retry
+        // would draw that photo's thumbnail as this one's curves.
+        this.sampleFailed.set(false);
+        this.lastSampleUrl = null;
       });
       if (path) {
         // Unsubscribing aborts the request, so scrubbing the gallery cancels

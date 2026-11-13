@@ -4,6 +4,7 @@ import { ActivatedRoute, Router } from '@angular/router';
 import { MatIconModule } from '@angular/material/icon';
 import { MatButtonModule } from '@angular/material/button';
 import { MatTooltipModule } from '@angular/material/tooltip';
+import { HttpErrorResponse } from '@angular/common/http';
 import { firstValueFrom } from 'rxjs';
 import { ExtendedQualityComponent } from '../extended-quality/extended-quality.component';
 import { Photo, normalisePhotoFlags } from '../../models/photo.model';
@@ -299,8 +300,6 @@ export class SharedPhotoDetailComponent extends PhotoDetailBase implements OnIni
     if (!Number.isSafeInteger(albumId) || albumId <= 0 || !token || !path) {
       this.navigateBack(); return;
     }
-    const scope = { albumId, token };
-    this.sharedAlbumMedia.set(scope);
     await this.loadSharedPhoto(albumId, token, path);
   }
 
@@ -323,14 +322,18 @@ export class SharedPhotoDetailComponent extends PhotoDetailBase implements OnIni
           }
           this.loadFailed.set(false);
           this.photo.set(photo);
-        } catch {
+        } catch (e: unknown) {
+          if (!current()) return;
+          // A revoked grant fails the same way on every retry: the album page
+          // is what explains it.
+          if (e instanceof HttpErrorResponse && (e.status === 401 || e.status === 403)) {
+            this.navigateBack(); return;
+          }
           // Stay and say so: a silent bounce back to the grid leaves the guest
           // with no idea the photo exists but failed to open. The retry
           // re-fetches the same asset; Back still works.
-          if (current()) {
-            this.retryLoad = () => void this.loadSharedPhoto(albumId, token, path);
-            this.loadFailed.set(true);
-          }
+          this.retryLoad = () => void this.loadSharedPhoto(albumId, token, path);
+          this.loadFailed.set(true);
         }
   }
 

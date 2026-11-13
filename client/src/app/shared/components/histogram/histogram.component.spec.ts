@@ -197,6 +197,24 @@ describe('HistogramComponent', () => {
     expect(polylines()).toHaveLength(3);
   });
 
+  it('drops a failed sample\'s retry state when the photo changes', () => {
+    mockApi.get.mockReturnValue(of({ bins: 4, luma: [1, 0.5, 0, 0], r: null, g: null, b: null }));
+    render({ path: '/a.jpg', src: '/thumb/a.jpg', defaultMode: 'rgb' });
+    fixture.detectChanges();
+    loadedImages[0].onerror!();
+    fixture.detectChanges();
+    expect(fixture.nativeElement.querySelector('[data-histogram-unavailable]')).not.toBeNull();
+
+    // The next photo carries a stored RGB measurement and never samples: the
+    // previous photo's failure (and its Retry, which would sample /thumb/a.jpg
+    // as this photo's curves) must not follow it.
+    mockApi.get.mockReturnValue(of({ bins: 4, luma: [1, 0.5, 0, 0], r: [1, 0, 0, 0], g: [0, 1, 0, 0], b: [0, 0, 1, 0] }));
+    render({ path: '/b.jpg', src: '/thumb/b.jpg' });
+    fixture.detectChanges();
+    expect(fixture.nativeElement.querySelector('[data-histogram-unavailable]')).toBeNull();
+    expect(loadedImages).toHaveLength(1);
+  });
+
   it('keeps clipping markers governed exclusively by the stored measurement, never fabricated from the sample', () => {
     mockApi.get.mockReturnValue(of({
       bins: 4, luma: [1, 0.5, 0, 0], r: null, g: null, b: null, clipped: null,

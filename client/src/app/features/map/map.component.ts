@@ -421,7 +421,8 @@ export class MapComponent implements OnInit, OnDestroy {
         }
       }
     } catch (err) {
-      if (!this.loadErrorDismissed) this.loadError.set(true);
+      // A superseded request's failure says nothing about the map on screen.
+      if (requestId === this.loadMarkersRequestId && !this.loadErrorDismissed) this.loadError.set(true);
       console.error('Failed to load map data', err);
     } finally {
       if (requestId === this.loadMarkersRequestId) {

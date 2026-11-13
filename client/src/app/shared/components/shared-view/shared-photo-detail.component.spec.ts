@@ -1,4 +1,5 @@
 import { TestBed } from '@angular/core/testing';
+import { HttpErrorResponse } from '@angular/common/http';
 import { ActivatedRoute, Router, convertToParamMap } from '@angular/router';
 import { of, Subject, throwError } from 'rxjs';
 import { SharedPhotoDetailComponent } from './shared-photo-detail.component';
@@ -102,6 +103,29 @@ describe('Shared photo detail album capability transport', () => {
     expect(read).toHaveBeenCalledTimes(2);
     expect(fixture.componentInstance.photo()).not.toBeNull();
     expect(fixture.nativeElement.querySelector('[data-shared-photo-load-failed]')).toBeNull();
+  });
+
+  it('goes back to the album when the link was revoked, instead of offering a retry', async () => {
+    const read = vi.fn((): unknown => throwError(() => new HttpErrorResponse({ status: 403 })));
+    TestBed.resetTestingModule();
+    const navigate = vi.fn();
+    const query = convertToParamMap({ token: 'fixture-album-token', asset_id: asset });
+    const route = { snapshot: { paramMap: convertToParamMap({ albumId: '7' }), queryParamMap: query, url: [] } };
+    TestBed.configureTestingModule({ imports: [SharedPhotoDetailComponent], providers: [
+      { provide: ApiService, useValue: { get: read as never, imageUrl: () => '/ordinary-image' } },
+      { provide: ActivatedRoute, useValue: route },
+      { provide: Router, useValue: { navigate, events: new Subject() } },
+      { provide: I18nService, useValue: { t: (key: string) => key, locale: () => 'en', translations: () => ({}) } },
+    ] });
+    const fixture = TestBed.createComponent(SharedPhotoDetailComponent);
+    fixture.detectChanges();
+    await fixture.whenStable(); fixture.detectChanges();
+
+    // A revoked grant fails the same way on every retry; the album page is
+    // what explains it.
+    expect(navigate).toHaveBeenCalled();
+    expect(fixture.nativeElement.querySelector('[data-shared-photo-load-failed]')).toBeNull();
+    fixture.destroy();
   });
 
   it('discards a metadata completion after changing the link token', async () => {
