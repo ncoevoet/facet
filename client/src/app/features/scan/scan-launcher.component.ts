@@ -26,8 +26,9 @@ const STAGE_OF_PHASE: Record<string, number> = {
 const ANALYSIS_OF_MODEL: readonly (readonly [RegExp, keyof typeof I18N.scan.analyze])[] = [
   [/saliency/, 'subject'],
   [/samp_net|composition/, 'composition'],
-  [/face/, 'faces'],
+  // Quality before faces: topiq_nr_face rates the faces it is given, it does not find them.
   [/topiq|liqe|hyperiqa|dbcnn|musiq|clipiqa|qrealign|aesthetic|deqa/, 'quality'],
+  [/face/, 'faces'],
   [/clip|tagger|qwen|vlm/, 'content'],
 ];
 
@@ -47,7 +48,8 @@ const ANALYSIS_OF_MODEL: readonly (readonly [RegExp, keyof typeof I18N.scan.anal
       @if (observationError()) {
         <p role="alert" class="text-sm">{{ I18N.scan.status_unavailable | translate }}</p>
         <button mat-stroked-button (click)="retryStatus()">{{ I18N.scan.retry_status | translate }}</button>
-      } @else if (!statusKnown()) {
+      } @else if (!statusKnown() && !started()) {
+        <!-- Once a scan is started the progress header says this in its own status region. -->
         <p role="status" class="text-sm">{{ I18N.scan.checking_status | translate }}</p>
       }
       @if (startRefusal(); as refusal) {
@@ -205,7 +207,9 @@ export class ScanLauncherComponent implements OnInit {
   });
   protected readonly photoCount = computed(() => {
     const p = this.status().progress;
-    if (!this.live() || p?.phase !== 'scoring' || !p.total) return null;
+    // Photos only count once their chunk is saved: a small scan sits in its first
+    // chunk throughout, so "0 of N" would contradict the moving bar.
+    if (!this.live() || p?.phase !== 'scoring' || !p.total || !p.current) return null;
     return { current: p.current ?? 0, total: p.total };
   });
   protected readonly stepLabelKey = computed(() => {

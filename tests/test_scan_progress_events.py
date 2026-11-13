@@ -40,6 +40,23 @@ def test_a_scan_reports_gather_first_and_how_many_photos_it_saved_last(tmp_path,
 
 
 @pytest.mark.timeout(30)
+def test_a_chunk_save_right_after_the_save_step_still_advances_the_count(tmp_path, monkeypatch, capsys):
+    class _Processor:
+        def __init__(self, *args, on_progress=None, **kwargs):
+            self.metrics = {'images_processed': 1, 'photos_saved': 1}
+            self.on_progress = on_progress
+
+        def process_directory(self, paths):
+            # Back to back, well inside the one-second throttle window.
+            self.on_step('save', None, 0.99)
+            self.on_progress(1, 1)
+            return self.metrics
+    _run(tmp_path, monkeypatch, _Processor)
+    counts = [e['current'] for e in _events(capsys) if e.get('phase') == 'scoring']
+    assert counts[-1] == 1
+
+
+@pytest.mark.timeout(30)
 def test_a_scan_with_nothing_new_reports_zero_saved(tmp_path, monkeypatch, capsys):
     _run(tmp_path, monkeypatch, _recording_processor(0, {}), already_scanned=True)
     assert _events(capsys)[-1] == {'phase': 'done', 'saved': 0}

@@ -614,7 +614,7 @@ Su un'installazione aperta a utente singolo (`viewer.edition_password` vuota, il
 La galleria vuota offre **Scansiona le foto per iniziare**. **Scansiona nuove foto** è disponibile anche nell’area di navigazione globale a ogni larghezza. Entrambi aprono l’avvio scansione:
 
 - Scegli una directory dall'elenco e avvia la scansione. Se è configurata una sola directory, è già selezionata.
-- Durante la scansione, la finestra mostra le sue tre fasi (**Ricerca**, **Analisi**, **Organizzazione**), che cosa sta facendo il passaggio corrente in parole semplici («Ricerca del soggetto principale»), quante foto sono pronte e quanto manca all'incirca. Le righe di output grezze sono ripiegate sotto **Registro tecnico**, che si apre da solo quando una scansione fallisce.
+- Durante la scansione, la finestra mostra le sue tre fasi (**Ricerca**, **Analisi**, **Organizzazione**), che cosa sta facendo il passaggio corrente in parole semplici («Ricerca del soggetto principale»), quante foto sono pronte e quanto manca all'incirca alla fine dell'analisi (la fase Organizzazione non ha una stima). Le righe di output grezze sono ripiegate sotto **Registro tecnico**, che si apre da solo quando una scansione fallisce.
 - La galleria si aggiorna al termine della scansione, e un messaggio indica quante nuove foto sono state aggiunte.
 - La scansione esegue `facet.py` in background; una scansione alla volta.
 - L'elenco delle directory combina le `directories` di ogni utente, le directory condivise, i target di `path_mapping` e `viewer.scan_directories`. Imposta `viewer.scan_directories` (per es. `/data/photos`) così le installazioni a utente singolo e Docker hanno una destinazione.

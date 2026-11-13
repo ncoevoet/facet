@@ -2194,7 +2194,7 @@
       "organize": "整理"
     },
     "stages_label": "扫描步骤",
-    "count": "第 {current} / {total} 张照片",
+    "count": "{current} / {total} 张照片",
     "time_left_seconds": "大约还需 {n} 秒",
     "time_left_minutes": "大约还需 {n} 分钟",
     "details": "技术日志",

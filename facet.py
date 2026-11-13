@@ -2029,7 +2029,9 @@ def _run_scan_pipeline(args, resumed_run, lifecycle):
         elapsed = time.time() - _scan_t0
         eta = (total - processed) * elapsed / processed if processed else None
         _scan_done[0] = processed
-        report_progress('scoring', processed, total, eta_seconds=eta)
+        # Forced: a chunk save lands right after the forced 'save' step, so the
+        # throttle would drop the one event that advances the photo count.
+        report_progress('scoring', processed, total, eta_seconds=eta, force=True)
 
     _scan_done = [0]
 

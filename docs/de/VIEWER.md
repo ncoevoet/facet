@@ -615,7 +615,7 @@ Auf einer offenen Einzelbenutzer-Installation (leeres `viewer.edition_password`,
 Die leere Galerie bietet **Fotos scannen, um zu beginnen**. **Nach neuen Fotos suchen** steht außerdem bei jeder Breite im globalen Navigationsbereich. Beide öffnen den Scan-Starter:
 
 - Wählen Sie ein Verzeichnis aus der Liste und starten Sie den Scan. Ist nur ein Verzeichnis konfiguriert, ist es bereits ausgewählt.
-- Während des Scans zeigt der Dialog dessen drei Phasen (**Suchen**, **Analysieren**, **Ordnen**), was der aktuelle Schritt gerade tut, in einfachen Worten („Hauptmotiv wird gesucht“), wie viele Fotos fertig sind und wie lange es ungefähr noch dauert. Die rohen Ausgabezeilen sind unter **Technisches Protokoll** eingeklappt; es öffnet sich von selbst, wenn ein Scan fehlschlägt.
+- Während des Scans zeigt der Dialog dessen drei Phasen (**Suchen**, **Analysieren**, **Ordnen**), was der aktuelle Schritt gerade tut, in einfachen Worten („Hauptmotiv wird gesucht“), wie viele Fotos fertig sind und wie lange die Analyse ungefähr noch dauert (für die Phase Ordnen gibt es keine Schätzung). Die rohen Ausgabezeilen sind unter **Technisches Protokoll** eingeklappt; es öffnet sich von selbst, wenn ein Scan fehlschlägt.
 - Die Galerie aktualisiert sich, wenn der Scan endet, und eine Meldung nennt die Anzahl der neu hinzugefügten Fotos.
 - Der Scan führt `facet.py` im Hintergrund aus; es läuft jeweils nur ein Scan.
 - Die Verzeichnisliste kombiniert die `directories` jedes Benutzers, geteilte Verzeichnisse, `path_mapping`-Ziele und `viewer.scan_directories`. Füllen Sie `viewer.scan_directories` (z. B. `/data/photos`), damit Einzelbenutzer- und Docker-Installationen ein Ziel haben.

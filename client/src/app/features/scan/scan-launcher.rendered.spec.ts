@@ -120,14 +120,19 @@ describe('Scan launcher rendered phase labels', () => {
     await scoring({ step: 'analyze', detail: 'saliency', fraction: 0.424, eta_seconds: 95 });
     expect(root.querySelector('mat-progress-bar')?.getAttribute('aria-valuenow')).toBe('42');
     expect(root.textContent).toContain('Finding the main subject');
-    expect(root.textContent).toContain('0 of 6 photos');
+    expect(root.textContent).not.toContain('0 of 6 photos');
     expect(root.textContent).toContain('about 2 min left');
     expect(root.textContent).not.toContain('saliency');
   });
 
+  it('counts photos once a chunk has been saved', async () => {
+    await scoring({ current: 4, step: 'analyze', detail: 'saliency', fraction: 0.8 });
+    expect(root.textContent).toContain('4 of 6 photos');
+  });
+
   it.each([
     ['saliency', 'Finding the main subject'], ['samp_net', 'Reading the composition'],
-    ['insightface', 'Detecting faces'], ['topiq_nr_face', 'Detecting faces'],
+    ['insightface', 'Detecting faces'], ['topiq_nr_face', 'Judging image quality'],
     ['topiq_iaa', 'Judging image quality'], ['liqe', 'Judging image quality'], ['clip_aesthetic', 'Judging image quality'],
     ['clip', 'Understanding content'], ['qwen3_5_tagger', 'Understanding content'],
   ])('describes the %s pass as "%s"', async (detail, label) => {
