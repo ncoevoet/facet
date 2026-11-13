@@ -1044,10 +1044,10 @@ def push_photo_updates(db_path, config: dict, entries) -> list:
                 pushed[facet_path] = _active_state(fields)
                 results[index] = (RESULT_PUSHED, None)
         except PUSH_ERRORS as batch_error:
-            outcomes = {}
+            outcomes: dict[str, Exception | None] = {}
             for index, facet_path, asset_id in members:
                 if asset_id not in outcomes:
-                    error = batch_error
+                    error: Exception | None = batch_error
                     # Only an HTTP refusal warrants isolating individual ids;
                     # a dropped connection must not multiply timeouts by N.
                     if isinstance(batch_error, urllib_error.HTTPError):
