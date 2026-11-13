@@ -130,6 +130,26 @@ docker compose down                                      # stoppen
 Um erneut zu starten, führen Sie die oben verwendete Zeile `docker compose … up -d` noch
 einmal aus.
 
+Um stattdessen im Browser zu scannen, tragen Sie den Ordner in
+`./facet-config/scoring_config.json` ein. Fügen Sie diese Schlüssel dem `viewer`-Block
+hinzu, neben dem bereits vorhandenen `edition_password`:
+
+```json
+{
+  "viewer": {
+    "scan_directories": ["/data/photos"],
+    "features": {
+      "show_scan_button": true
+    }
+  }
+}
+```
+
+Verwenden Sie den Pfad im Container (`/data/photos`), nicht den Pfad auf dem Host. Führen
+Sie `docker compose restart facet` aus und schalten Sie dann die Bearbeitung im Benutzermenü
+mit dem Bearbeitungspasswort frei. In der leeren Galerie erscheint dann **Fotos scannen, um
+zu starten**. Siehe [Scan auslösen](VIEWER.md#scan-auslösen).
+
 ## Installation ohne Docker
 
 ### Linux

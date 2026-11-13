@@ -16,7 +16,7 @@ describe('TimelineFeedCache', () => {
       { provide: GalleryStore, useValue: { photos: signal<Photo[]>([]), loading: signal(false), timelineMembershipRevision: signal(0) } },
     ] });
     const cache = TestBed.inject(TimelineFeedCache); TestBed.tick();
-    const snapshot = { scope: 'scope', owner: auth.status()!, session: auth.session()!, token: auth.token, scrollTop: 120, rows: cache.rows(),
+    const snapshot = { scope: 'scope', session: auth.session()!, token: auth.token, scrollTop: 120, rows: cache.rows(),
       membershipRevision: cache.membershipRevision(), groups, next_cursor: null, has_more: false };
     cache.save(snapshot);
     cache.capturePhotos(groups);

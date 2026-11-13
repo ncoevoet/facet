@@ -595,6 +595,24 @@ class DatabaseValidator:
         self.results.append(result3)
         self._print_result(result3)
 
+        # Check 4: every declared foreign key, the same check the viewer export
+        # runs (db/maintenance.py) and refuses on. Report-only: most of these
+        # tables hold what a user set by hand (ratings, comparisons, albums), and
+        # a row orphaned by a path edit is recovered by fixing its path, which
+        # deleting it would make impossible.
+        result4 = ValidationResult(
+            "foreign_key_violations",
+            "Rows whose foreign key references a missing parent row"
+        )
+        for table, rowid, parent, _fkid in conn.execute('PRAGMA main.foreign_key_check'):
+            result4.add_issue(
+                {'filename': f'{table} rowid {rowid}', 'table': table, 'rowid': rowid, 'parent': parent},
+                f"references a missing {parent} row"
+            )
+
+        self.results.append(result4)
+        self._print_result(result4)
+
     def _check_statistical_outliers(self, conn: sqlite3.Connection):
         """Check for statistical outliers in score columns."""
         result = ValidationResult(

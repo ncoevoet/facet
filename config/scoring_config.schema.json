@@ -68,6 +68,9 @@
           "type": "string",
           "description": "Photon forward-search endpoint; empty disables online lookup. Server-only; no credentials or query parameters."
         },
+        "map_tile_url": { "type": "string", "description": "Self-hosted basemap tile URL for the map view, the location dialog, the photo page's location preview and the GPS-radius picker; empty keeps the OpenStreetMap default. Either a same-origin path served by the same reverse proxy (e.g. '/tiles/{z}/{x}/{y}.png') or an https:// URL — http:// and protocol-relative URLs are refused because the CSP only permits 'self' and https images, and the URL must contain {z}/{x}/{y} for Leaflet to render. The operator is responsible for the tile server and its terms." },
+        "map_tile_attribution": { "type": "string", "description": "Attribution line shown for the custom tiles (HTML allowed; the operator configures it, so it is trusted). Empty falls back to a generic self-hosted label." },
+        "map_tile_max_zoom": { "type": "integer", "default": 19, "description": "Maximum zoom level the custom tile server can serve." },
         "trusted_local_editing": {
           "type": "boolean",
           "default": false,

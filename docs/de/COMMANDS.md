@@ -486,7 +486,7 @@ Der Verschlagwortungsschritt am Ende eines Scans wird übersprungen, wenn `taggi
 | `python validate_db.py --report-only` | Berichten, ohne nachzufragen |
 | `python validate_db.py --db custom.db` | Benutzerdefinierte Datenbank validieren |
 
-Prüft: Score-Bereiche, Gesichtsmetriken, BLOB-Beschädigung, Embedding-Größen, verwaiste Gesichter, statistische Ausreißer.
+Prüft: Score-Bereiche, Gesichtsmetriken, BLOB-Beschädigung, Embedding-Größen, verwaiste Gesichter, Zeilen, deren Fremdschlüssel auf eine fehlende Zeile zeigt, statistische Ausreißer. Der Export der Viewer-Datenbank verweigert eine Datenbank mit solchen Zeilen. Diese Prüfung listet jede solche Zeile auf und löscht keine; nur verwaiste Gesichter, die auch die Prüfung auf verwaiste Gesichter erfasst, entfernt `--auto-fix`. Die meisten dieser Tabellen enthalten Bewertungen, Vergleiche oder Alben, die eine Pfadkorrektur wieder verbinden kann und ein Löschen verlieren würde.
 
 Sowohl interaktive Reparaturen als auch `--auto-fix` nehmen die Bibliothekssperre und prüfen die Probleme vor dem Schreiben erneut. Der interaktive Modus wartet auf Ihre erste Bestätigung, bevor er die Sperre nimmt. Eine belegte Bibliothek beendet mit 75; eine unbrauchbare Sperre mit 1. `--report-only` und das Ablehnen von Reparaturen brauchen die Reparatursperre nicht.
 

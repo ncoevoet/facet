@@ -571,9 +571,14 @@ def _import_sidecars(conn, root, *, user_id, overwrite_manual_gps, dry_run, fiel
             if parsed['keyword_state'] is not None and parsed['hierarchy_state'] is None:
                 # Facet <= 1.28 wrote its generated Category|/People| paths with
                 # no HierarchyState; such a packet's own marker is KeywordState.
+                # A path the user typed under those roots cannot be told apart, so it is set aside
+                # too; each one is reported rather than dropped silently.
                 legacy_roots = {HIER_CATEGORY.casefold(), HIER_PEOPLE.casefold()}
-                generated |= {key for path in parsed['hierarchy_paths']
-                              if (key := _hierarchy_key(path)) is not None and key[0] in legacy_roots}
+                for path in parsed['hierarchy_paths']:
+                    key = _hierarchy_key(path)
+                    if key is not None and key[0] in legacy_roots:
+                        generated.add(key)
+                        diagnostics.append({'field': 'hierarchy', 'value': path, 'reason': 'legacy_generated_path'})
             if parsed['hierarchy_state_invalid']:
                 diagnostics.append({'field': 'hierarchy', 'reason': 'invalid_hierarchy_ownership'})
             else:

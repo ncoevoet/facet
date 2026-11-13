@@ -795,7 +795,7 @@ python facet.py --extract-gps    # Estrae lat/lng GPS dall'EXIF nel database
 
 Le nuove foto ottengono le coordinate durante la valutazione.
 
-Apri `/map`. Controllato da `viewer.features.show_map` (predefinito: `true`). Gli sfondi della mappa provengono da OpenStreetMap e richiedono una connessione a Internet, anche nell'app installata.
+Apri `/map`. Controllato da `viewer.features.show_map` (predefinito: `true`). Lo sfondo predefinito di OpenStreetMap richiede una connessione a Internet, anche nell'app installata; una fonte propria dello stesso origine no. Con `viewer.map_tile_url` configurato, un pulsante **Sorgente della mappa** sulla mappa alterna tra OpenStreetMap e le tue tile auto-ospitate (la scelta è memorizzata per browser, e lo stesso interruttore compare sopra la mappa della finestra di posizione). OpenStreetMap traccia esattamente le coordinate WGS-84 che il GPS EXIF porta — cosa che conta nella Cina continentale, dove le basi commerciali spostano i segnaposto del datum GCJ-02. In modalità scura le tessere sono mostrate invertite, in linea con il tema.
 
 ### Luoghi salvati e GPS manuale
 
@@ -831,13 +831,14 @@ Usa **Indirizzo o attività → Cerca online** per cercare un luogo con Photon (
 La finestra della posizione (una foto, o **Imposta posizione** per una selezione o un'intera vista album) accetta anche punti da Google Maps. Nulla viene salvato finché non clicchi **Salva** (o non visualizzi l'anteprima e applichi un lotto), come per ogni altro punto.
 
 - **Scegli su Google Maps** apre Google Maps in una nuova scheda sul segnaposto attuale, altrimenti sulla prima foto geolocalizzata della selezione, altrimenti al centro della mappa. Trova lì il punto e copialo.
+- **Apri in OpenStreetMap** apre openstreetmap.org sullo stesso punto, con un segnaposto sulle coordinate — la base cartografica più completa nella Cina continentale, tracciata sullo stesso WGS-84 delle coordinate GPS.
 - **Link di Google Maps o coordinate**: incolla, poi premi Invio o clicca **Vai al punto**. Il segnaposto si sposta sul punto per la verifica. Formati accettati:
   - la coppia che Google copia con il clic destro sulla mappa, ad es. `32.6064, -116.3239` (va bene anche uno spazio al posto della virgola);
   - gradi, minuti, secondi come `32°36'23.0"N 116°19'26.0"W`;
   - un URL completo di Google Maps. Il segnaposto inserito (`!3d…!4d…`) prevale su un valore `q=`, `query=`, `ll=` o `center=`, che prevale sul centro della vista `@lat,lon`;
   - un link breve (`maps.app.goo.gl/…`, `goo.gl/maps/…`). Il browser non può aprirli, quindi la galleria segue il reindirizzamento (`POST /api/geo/resolve_maps_link`, solo in modalità modifica).
 - La risoluzione dei link brevi contatta solo `maps.app.goo.gl`, `goo.gl`, `maps.google.com`, `www.google.com` e `google.com` via HTTPS, solo su indirizzi pubblici, con al massimo 5 reindirizzamenti in 5 secondi, senza mai leggere il corpo di una pagina. Qualsiasi altro host viene rifiutato senza richiesta. I link non vengono registrati.
-- Facet non usa API Google, chiavi API né tile di Google: i termini di Google non consentono le sue tile in un'altra mappa, quindi la mappa della finestra resta OpenStreetMap.
+- Facet non usa API Google, chiavi API né tile di Google: i termini di Google non consentono le sue tile in un'altra mappa, quindi la mappa della finestra non è mai quella di Google — resta OpenStreetMap o mostra le tile auto-ospitate dell'operatore quando `viewer.map_tile_url` è configurato.
 
 ## Capsule
 
@@ -856,6 +857,8 @@ Facet genera capsule dalla tua libreria:
 - **Luogo** — cluster di foto geolocalizzate con nomi di luogo
 - **Preferiti** — foto preferite raggruppate per anno e stagione
 - **Basate su dimensione** — per fotocamera, obiettivo, categoria, modello compositivo, intervallo di lunghezza focale, ora del giorno, valutazione a stelle e combinazioni
+
+Le foto che hai scartato non compaiono mai in una capsula: né come copertina, né nella presentazione, né in un album salvato da essa. In modalità multiutente contano gli scarti di ciascun utente.
 
 ### Presentazione
 
@@ -1138,7 +1141,7 @@ Controllato da `viewer.features.show_junk_sweep` (predefinito: `true`).
 
 ## Modalità di confronto a coppie
 
-Ordina le foto giudicandone due alla volta; i voti alimentano la regolazione dei pesi. Apri `/compare` (pulsante Confronta nell'intestazione). Richiede una `edition_password` non vuota (utente singolo) o il ruolo `admin`/`superadmin` (multiutente).
+Ordina le foto giudicandone due alla volta; i voti alimentano la regolazione dei pesi. Apri `/compare` (pulsante Confronta nell'intestazione). Richiede una `edition_password` non vuota (utente singolo) o il ruolo `admin`/`superadmin` (multiutente). La pagina si apre sulla scheda **Pesi**.
 
 ### Scheda Confronto A/B
 

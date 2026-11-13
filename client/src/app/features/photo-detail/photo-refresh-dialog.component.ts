@@ -6,6 +6,7 @@ import { firstValueFrom } from 'rxjs';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { AuthService } from '../../core/services/auth.service';
 import { ApiService } from '../../core/services/api.service';
+import { GeoPhotosService } from '../../core/services/geo-photos.service';
 import { TranslatePipe } from '../../shared/pipes/translate.pipe';
 import type { components } from '../../core/api/schema';
 import { extractErrorDetail } from '../../core/utils/http-error.util';
@@ -46,6 +47,7 @@ export class PhotoRefreshDialogComponent {
   };
   private readonly api = inject(ApiService);
   private readonly auth = inject(AuthService);
+  private readonly geoPhotos = inject(GeoPhotosService);
   private readonly ref = inject(MatDialogRef<PhotoRefreshDialogComponent>);
   protected readonly data = inject<string[]>(MAT_DIALOG_DATA);
   private readonly destroyRef = inject(DestroyRef);
@@ -72,6 +74,7 @@ export class PhotoRefreshDialogComponent {
       const result = await firstValueFrom(this.api.post<RefreshResult>('/photos/refresh', { paths: this.pending() }));
       if (!this.current()) return;
       this.completed.update(paths => [...new Set([...paths, ...result.refreshed])]);
+      if (result.refreshed.length) void this.geoPhotos.refresh();
       this.pending.set(result.failed.map(item => item.path));
       this.failed.set(result.failed.length > 0);
       this.failures.set(result.failed);

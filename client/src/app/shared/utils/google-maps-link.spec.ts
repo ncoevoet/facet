@@ -1,4 +1,4 @@
-import { googleMapsSearchUrl, isResolvableMapsLink, parseGoogleMapsInput } from './google-maps-link';
+import { googleMapsSearchUrl, openStreetMapUrl, isResolvableMapsLink, parseGoogleMapsInput } from './google-maps-link';
 
 // Same cases as tests/test_google_maps_link.py: the two parsers must agree.
 const PIN_URL = 'https://www.google.com/maps/place/Pine+Valley/@32.8,-116.5,12z/data=!3m1!4b1!4m6!3m5!1s0x0:0x0!8m2!3d32.6064!4d-116.3239!16s';
@@ -83,5 +83,19 @@ describe('googleMapsSearchUrl', () => {
   it('builds the keyless search URL with six decimals', () => {
     expect(googleMapsSearchUrl({ lat: 32.6064, lng: -116.3239 }))
       .toBe('https://www.google.com/maps/search/?api=1&query=32.606400,-116.323900');
+  });
+});
+
+describe('openStreetMapUrl', () => {
+  it('opens openstreetmap.org with a marker on the point and the view centred on it', () => {
+    expect(openStreetMapUrl({ lat: 36.0671, lng: 120.3826 }))
+      .toBe('https://www.openstreetmap.org/?mlat=36.067100&mlon=120.382600#map=17/36.067100/120.382600');
+  });
+
+  it('keeps negative coordinates inert in the URL', () => {
+    const url = openStreetMapUrl({ lat: -33.8568, lng: -73.9857 });
+    expect(url).toContain('mlat=-33.856800');
+    expect(url).toContain('mlon=-73.985700');
+    expect(url).not.toContain(' ');
   });
 });

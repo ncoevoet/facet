@@ -412,6 +412,21 @@ def format_date(date_str):
 
 
 # --- SQL FRAGMENT CONSTANTS ---
+def hide_rejected_sql(user_id, table_alias: str = '') -> tuple[str, list]:
+    """WHERE fragment and params excluding photos the user rejected.
+
+    In multi-user mode rejections live only in ``user_preferences``. The subquery
+    is correlated rather than joined, unlike ``get_preference_columns`` (which
+    needs the caller to join ``user_preferences up``), so the fragment drops into
+    any query, including one that already joins that table under its own alias.
+    """
+    p = f"{table_alias}." if table_alias else ""
+    if user_id and is_multi_user_enabled():
+        return (f"NOT EXISTS (SELECT 1 FROM user_preferences rej WHERE rej.photo_path = {p}path "
+                "AND rej.user_id = ? AND rej.is_rejected = 1)"), [user_id]
+    return f"COALESCE({p}is_rejected, 0) = 0", []
+
+
 def hide_bursts_sql(table_alias: str = '') -> str:
     """WHERE fragment keeping only photos that hide-bursts must not hide.
 

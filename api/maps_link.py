@@ -30,7 +30,7 @@ from utils import google_maps_link
 ALLOWED_HOSTS = frozenset({'maps.app.goo.gl', 'goo.gl', 'maps.google.com', 'www.google.com', 'google.com'})
 MAX_HOPS = 5
 TIMEOUT_SECONDS = 5.0
-_MAX_LOCATION = 4096
+_MAX_LOCATION = google_maps_link.MAX_INPUT
 _REDIRECTS = {301, 302, 303, 307, 308}
 _USER_AGENT = 'Mozilla/5.0 (compatible; Facet place link resolver)'
 # urlsplit silently drops tab/CR/LF, so the parsed host can differ from the raw
@@ -196,6 +196,10 @@ def resolve(url: str) -> tuple[float, float]:
         if status not in _REDIRECTS or not location or len(location) > _MAX_LOCATION:
             raise LinkError('no_coordinates')
         current = urljoin(target, location)
+        # A relative Location joined to a long target can outgrow what
+        # parse_url reads; such a URL could only be fetched, never read.
+        if len(current) > google_maps_link.MAX_INPUT:
+            raise LinkError('no_coordinates')
     pair = google_maps_link.parse_url(current)
     if pair:
         return pair

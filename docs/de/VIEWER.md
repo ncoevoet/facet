@@ -796,7 +796,7 @@ python facet.py --extract-gps    # GPS-Breite/Länge aus EXIF in die Datenbank e
 
 Neue Fotos erhalten ihre Koordinaten beim Bewerten.
 
-Öffnen Sie `/map`. Gesteuert über `viewer.features.show_map` (Standard: `true`). Kartenhintergründe stammen von OpenStreetMap und benötigen eine Internetverbindung, auch in der installierten App.
+Öffnen Sie `/map`. Gesteuert über `viewer.features.show_map` (Standard: `true`). Der OpenStreetMap-Standardhintergrund benötigt eine Internetverbindung, auch in der installierten App; eine selbst gehostete Quelle hinter dem eigenen Reverse-Proxy nicht. Mit gesetztem `viewer.map_tile_url` schaltet ein **Kartenquelle**-Knopf auf der Karte zwischen OpenStreetMap und Ihren selbst gehosteten Kacheln um (die Wahl wird pro Browser gespeichert, und derselbe Schalter erscheint über der Karte des Standort-Dialogs). OpenStreetMap zeichnet die WGS-84-Koordinaten, die EXIF-GPS trägt, exakt — das zählt innerhalb Festlandchinas, wo kommerzielle Basiskarten Pins um das GCJ-02-Datum verschieben. Im dunklen Modus werden die Kacheln invertiert angezeigt, passend zum Design.
 
 ### Gespeicherte Orte und manuelles GPS
 
@@ -832,13 +832,14 @@ Nutzen Sie **Adresse oder Geschäft → Online suchen**, um einen Ort über Phot
 Der Ortsdialog (ein Foto oder **Ort festlegen** für eine Auswahl oder eine ganze Albumansicht) übernimmt auch Punkte aus Google Maps. Gespeichert wird erst mit **Speichern** (bzw. Vorschau und Anwenden eines Stapels), wie bei jedem anderen Punkt.
 
 - **Auf Google Maps wählen** öffnet Google Maps in einem neuen Tab an der aktuellen Markierung, sonst am ersten Foto der Auswahl mit Standort, sonst in der Kartenmitte. Suchen Sie dort die Stelle und kopieren Sie sie.
+- **In OpenStreetMap öffnen** öffnet openstreetmap.org am selben Punkt, mit einem Marker auf den Koordinaten — die vollständigeren Karten innerhalb Festlandchinas, gezeichnet auf demselben WGS-84, das die GPS-Koordinaten tragen.
 - **Google-Maps-Link oder Koordinaten**: einfügen, dann Enter drücken oder auf **Zum Punkt** klicken. Die Markierung springt zur Prüfung auf den Punkt. Akzeptiert werden:
   - das Paar, das Google per Rechtsklick auf die Karte kopiert, z. B. `32.6064, -116.3239` (ein Leerzeichen statt Komma geht auch);
   - Grad, Minuten, Sekunden wie `32°36'23.0"N 116°19'26.0"W`;
   - eine vollständige Google-Maps-URL. Die gesetzte Markierung (`!3d…!4d…`) hat Vorrang vor einem `q=`-, `query=`-, `ll=`- oder `center=`-Wert, dieser vor der Ansichtsmitte `@lat,lon`;
   - ein Kurzlink (`maps.app.goo.gl/…`, `goo.gl/maps/…`). Der Browser kann ihn nicht öffnen, daher folgt die Galerie der Weiterleitung (`POST /api/geo/resolve_maps_link`, nur im Bearbeitungsmodus).
 - Die Kurzlink-Auflösung fragt nur `maps.app.goo.gl`, `goo.gl`, `maps.google.com`, `www.google.com` und `google.com` per HTTPS an, nur unter öffentlichen Adressen, mit höchstens 5 Weiterleitungen in 5 Sekunden, und liest nie einen Seiteninhalt. Jeder andere Host wird ohne Anfrage abgelehnt. Links werden nicht protokolliert.
-- Facet nutzt keine Google-API, keinen API-Schlüssel und keine Google-Kartenkacheln: Googles Bedingungen erlauben die Kacheln nicht in einer fremden Karte, daher bleibt die Dialogkarte OpenStreetMap.
+- Facet nutzt keine Google-API, keinen API-Schlüssel und keine Google-Kartenkacheln: Googles Bedingungen erlauben die Kacheln nicht in einer fremden Karte, daher ist die Dialogkarte nie von Google — sie bleibt OpenStreetMap oder zeigt die selbst gehosteten Kacheln des Betreibers, wenn `viewer.map_tile_url` gesetzt ist.
 
 ## Kapseln
 
@@ -857,6 +858,8 @@ Facet erzeugt Kapseln aus Ihrer Bibliothek:
 - **Ort** — mit Geodaten versehene Fotocluster mit Ortsnamen
 - **Favoriten** — Favoriten, nach Jahr und Jahreszeit gruppiert
 - **Dimensionsbasiert** — nach Kamera, Objektiv, Kategorie, Kompositionsmuster, Brennweitenbereich, Tageszeit, Sternebewertung und Kombinationen
+
+Abgelehnte Fotos erscheinen nie in einer Kapsel: weder als Titelbild noch in der Slideshow noch in einem daraus gespeicherten Album. Im Mehrbenutzermodus zählen die eigenen Ablehnungen jedes Benutzers.
 
 ### Slideshow
 
@@ -1139,7 +1142,7 @@ Gesteuert über `viewer.features.show_junk_sweep` (Standard: `true`).
 
 ## Paarweiser Vergleichsmodus
 
-Ordnen Sie Fotos, indem Sie jeweils zwei beurteilen; die Stimmen fließen in die Gewichtsabstimmung ein. Öffnen Sie `/compare` (Schaltfläche Vergleichen in der Kopfzeile). Erfordert ein nicht leeres `edition_password` (Einzelbenutzer) oder die Rolle `admin`/`superadmin` (Mehrbenutzer).
+Ordnen Sie Fotos, indem Sie jeweils zwei beurteilen; die Stimmen fließen in die Gewichtsabstimmung ein. Öffnen Sie `/compare` (Schaltfläche Vergleichen in der Kopfzeile). Erfordert ein nicht leeres `edition_password` (Einzelbenutzer) oder die Rolle `admin`/`superadmin` (Mehrbenutzer). Die Seite öffnet sich auf dem Tab **Gewichte**.
 
 ### Tab „A/B-Vergleich“
 

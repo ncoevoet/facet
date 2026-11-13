@@ -10,10 +10,12 @@ import { firstValueFrom, Subject, takeUntil } from 'rxjs';
 import { AuthService } from '../../core/services/auth.service';
 import { StalenessGuardFactory } from '../../core/services/staleness-guard.service';
 import * as L from 'leaflet';
-import { createLeafletMap } from '../../shared/leaflet';
+import { createLeafletMap, DEFAULT_MAP_CENTER, setMapSource } from '../../shared/leaflet';
+import { MapSourcePreferences } from '../../core/services/map-source-preferences.service';
 import type { components } from '../../core/api/schema';
 import { GalleryStore } from '../gallery/gallery.store';
 import { ApiService } from '../../core/services/api.service';
+import { GeoPhotosService } from '../../core/services/geo-photos.service';
 import { I18nService } from '../../core/services/i18n.service';
 import { TranslatePipe } from '../../shared/pipes/translate.pipe';
 import { FixedPipe } from '../../shared/pipes/fixed.pipe';
@@ -21,12 +23,10 @@ import { normalizeOnlineQuery } from './online-query';
 import { PluralKeyPipe } from '../../shared/pipes/plural-key.pipe';
 import { I18N, i18nKeys } from '../../core/i18n/keys';
 import { HANDLE_PLACE_SEARCH_ERRORS_LOCALLY } from '../../core/utils/place-search-error.util';
-import { googleMapsSearchUrl, isResolvableMapsLink, parseGoogleMapsInput, type LatLng, MAPS_LINK_MAX_INPUT } from '../../shared/utils/google-maps-link';
+import { googleMapsSearchUrl, isResolvableMapsLink, openStreetMapUrl, parseGoogleMapsInput, type LatLng, MAPS_LINK_MAX_INPUT } from '../../shared/utils/google-maps-link';
 
 /** The keyCode browsers report for a keydown the IME is still processing. */
 const IME_PROCESS_KEY_CODE = 229;
-/** Where the map opens when there is no point yet. */
-const DEFAULT_CENTER: LatLng = { lat: 48.8566, lng: 2.3522 };
 
 export interface GpsEditDialogData {
   path: string;
@@ -91,7 +91,10 @@ type MapsLinkResponse = components['schemas']['MapsLinkResponse'];
       @if (mapsBusy()) { <p role="status" class="text-sm">{{ I18N.photo_detail.gps.maps_resolving | translate }}</p> }
       @if (mapsError()) { <p role="alert" class="text-sm">{{ mapsError() | translate }}</p> }
       <p role="status" class="text-sm">@if (mapsPoint(); as point) { {{ I18N.photo_detail.gps.maps_moved | translate:{ lat: (point.lat | fixed:6), lng: (point.lng | fixed:6) } }} }</p>
-      <button mat-button class="mb-3" (click)="openGoogleMaps()"><mat-icon>open_in_new</mat-icon>{{ I18N.photo_detail.gps.maps_pick | translate }}<span class="sr-only"> {{ I18N.photo_detail.gps.opens_new_tab | translate }}</span></button>
+      <div class="mb-3 flex flex-wrap gap-2">
+        <button mat-button (click)="openGoogleMaps()"><mat-icon>open_in_new</mat-icon>{{ I18N.photo_detail.gps.maps_pick | translate }}<span class="sr-only"> {{ I18N.photo_detail.gps.opens_new_tab | translate }}</span></button>
+        <button mat-button (click)="openOsm()"><mat-icon>open_in_new</mat-icon>{{ I18N.photo_detail.gps.osm_pick | translate }}<span class="sr-only"> {{ I18N.photo_detail.gps.opens_new_tab | translate }}</span></button>
+      </div>
       @if (loadingPlaces()) { <p role="status">{{ I18N.photo_detail.gps.loading | translate }}</p> }
       @if (placesError()) {
         <p role="alert">{{ placesError() | translate }}</p>
@@ -122,6 +125,13 @@ type MapsLinkResponse = components['schemas']['MapsLinkResponse'];
             <li><button mat-button (click)="selectRecent(point)">{{ point.latitude | fixed:6 }}, {{ point.longitude | fixed:6 }}</button></li>
           }
         </ul>
+      }
+      @if (mapSource.hasCustom(store.config())) {
+        <div class="flex items-center justify-end gap-1" data-map-source>
+          <span class="text-xs text-[var(--mat-sys-on-surface-variant)]">{{ I18N.map.basemap | translate }}</span>
+          <button mat-icon-button (click)="mapSource.set('osm')" [attr.aria-pressed]="mapSource.source() === 'osm'" [attr.title]="I18N.map.basemap_osm | translate" [attr.aria-label]="I18N.map.basemap_osm | translate" [class.!text-[var(--mat-sys-primary)]]="mapSource.source() === 'osm'"><mat-icon aria-hidden="true">public</mat-icon></button>
+          <button mat-icon-button (click)="mapSource.set('custom')" [attr.aria-pressed]="mapSource.source() === 'custom'" [attr.title]="I18N.map.basemap_custom | translate" [attr.aria-label]="I18N.map.basemap_custom | translate" [class.!text-[var(--mat-sys-primary)]]="mapSource.source() === 'custom'"><mat-icon aria-hidden="true">layers</mat-icon></button>
+        </div>
       }
       <div #mapContainer class="w-full h-48 rounded"></div>
       @if (mapFailed()) { <p role="status" class="text-sm">{{ I18N.photo_detail.gps.map_unavailable | translate }}</p> }
@@ -171,11 +181,13 @@ export class GpsEditDialogComponent {
   private readonly owner = this.auth.identity();
   private readonly api = inject(ApiService);
   private readonly store = inject(GalleryStore);
+  private readonly geoPhotos = inject(GeoPhotosService);
   private readonly dialogRef = inject(MatDialogRef<GpsEditDialogComponent>);
   private readonly destroyRef = inject(DestroyRef);
   private readonly staleness = inject(StalenessGuardFactory).create(this.destroyRef, { onNavigate: () => this.invalidateOwner() });
   private readonly snackBar = inject(MatSnackBar);
   private readonly i18n = inject(I18nService);
+  protected readonly mapSource = inject(MapSourcePreferences);
   readonly data: GpsEditDialogData = inject(MAT_DIALOG_DATA);
 
   readonly mapContainer = viewChild.required<ElementRef<HTMLDivElement>>('mapContainer');
@@ -271,6 +283,12 @@ export class GpsEditDialogComponent {
     });
     effect(() => { this.auth.status(); this.invalidateOnline(); });
     this.dialogRef.beforeClosed().pipe(takeUntilDestroyed()).subscribe(() => this.dismiss());
+    // A source switch swaps only the tile layer: the pin, zoom and centre stay.
+    // this.map is read untracked on purpose — the two signals re-run this.
+    effect(() => {
+      const tiles = this.mapSource.tiles(this.store.config());
+      if (this.map) setMapSource(this.map, tiles, () => { if (this.current()) this.mapFailed.set(true); });
+    });
     this.destroyRef.onDestroy(() => {
       this.destroyed = true;
       this.invalidateOnline();
@@ -404,6 +422,12 @@ export class GpsEditDialogComponent {
     window.open(googleMapsSearchUrl(this.googleMapsPoint()), '_blank', 'noopener');
   }
 
+  /** OpenStreetMap in a new tab at the same point: its China coverage is the
+   *  fuller one and its tiles plot WGS-84 exactly, unlike Google's there. */
+  openOsm(): void {
+    window.open(openStreetMapUrl(this.googleMapsPoint()), '_blank', 'noopener');
+  }
+
   private googleMapsPoint(): LatLng {
     const lat = this.selectedLat(), lng = this.selectedLng();
     if (lat !== null && lng !== null && this.coordinatesValid()) return { lat, lng };
@@ -417,16 +441,17 @@ export class GpsEditDialogComponent {
       return { lat: this.data.lat, lng: this.data.lng };
     }
     const center = this.map?.getCenter().wrap();
-    return center ? { lat: center.lat, lng: center.lng } : DEFAULT_CENTER;
+    return center ? { lat: center.lat, lng: center.lng } : DEFAULT_MAP_CENTER;
   }
 
   private initMap(): void {
     const container = this.mapContainer().nativeElement;
-    const lat = this.selectedLat() ?? DEFAULT_CENTER.lat;
-    const lng = this.selectedLng() ?? DEFAULT_CENTER.lng;
+    const lat = this.selectedLat() ?? DEFAULT_MAP_CENTER.lat;
+    const lng = this.selectedLng() ?? DEFAULT_MAP_CENTER.lng;
     const zoom = this.selectedLat() !== null ? 13 : 5;
 
-    this.map = createLeafletMap(container, undefined, () => { if (this.current()) this.mapFailed.set(true); }).setView([lat, lng], zoom);
+    this.map = createLeafletMap(container, undefined, () => { if (this.current()) this.mapFailed.set(true); },
+      this.mapSource.tiles(this.store.config())).setView([lat, lng], zoom);
     // Force Leaflet to recalculate container size after dialog renders
     this.map.invalidateSize();
 
@@ -576,6 +601,7 @@ export class GpsEditDialogComponent {
       if (!this.sessionCurrent()) return;
       this.store.patchPhoto(this.data.path, { gps_latitude: result.gps_latitude, gps_longitude: result.gps_longitude, gps_manually_set: 0 });
       void this.store.refreshPaths(null);
+      void this.geoPhotos.refresh();
       if (this.current()) this.dialogRef.close({ ...result, gps_manually_set: 0 });
     } catch {
       if (!this.current()) return;
@@ -612,6 +638,7 @@ export class GpsEditDialogComponent {
       if (!this.sessionCurrent()) return;
       this.data.onBatchApplied?.();
       void this.store.refreshPaths(null);
+      void this.geoPhotos.refresh();
       this.snackBar.open(this.i18n.t(result.changed === 1 ? I18N.photo_detail.gps.batch_applied : I18N.photo_detail.gps.batch_applied_plural, { changed: result.changed, skipped: result.skipped }), '', { duration: 4000 });
       if (this.current()) this.dialogRef.close(result);
     } catch {
@@ -636,6 +663,7 @@ export class GpsEditDialogComponent {
       if (!this.sessionCurrent()) return;
       this.store.patchPhoto(body.path, { gps_latitude: result.gps_latitude, gps_longitude: result.gps_longitude, gps_manually_set: 1 });
       void this.store.refreshPaths(null);
+      void this.geoPhotos.refresh();
       if (this.current()) this.dialogRef.close(result);
     } catch {
       if (!this.current()) return;

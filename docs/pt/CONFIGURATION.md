@@ -1610,6 +1610,9 @@ Exibição e comportamento da galeria web.
 | `edition_password` | `""` | Senha para desbloquear o modo de edição; vazio = somente leitura (exceto sob `trusted_local_editing`) |
 | `trusted_local_editing` | `false` | Concede direitos de edição, sem senha, a um navegador no mesmo computador. Veja [Edição Local Confiável](#edição-local-confiável) |
 | `place_search_url` | `"https://photon.komoot.io/api"` | Endpoint do Photon por trás da pesquisa **Pesquisar online** da galeria; `""` a desativa. Veja [Pesquisa online de lugares](#pesquisa-online-de-lugares) |
+| `map_tile_url` | `""` | Tiles de base auto-hospedadas para as superfícies de mapa; `""` mantém o padrão OpenStreetMap. Caminho mesma origem (ex. `/tiles/{z}/{x}/{y}.png`) ou `https://` — `http://` é recusado, a CSP só permite 'self' e imagens https |
+| `map_tile_attribution` | `""` | Linha de atribuição mostrada para as tiles personalizadas (HTML permitido; configurada pelo operador, logo confiável). Vazio mostra um rótulo genérico de auto-hospedado |
+| `map_tile_max_zoom` | `19` | Nível máximo de zoom que o servidor de tiles próprio atende |
 | **comparison_mode** | | |
 | `min_comparisons_for_optimization` | `50` | Comparações decisivas (empates excluídos) necessárias em uma categoria antes de sugerir pesos |
 | `pair_selection_strategy` | `"learning"` | Estratégia de pares: `learning`, `uncertainty`, `boundary`, `active`, `random` |

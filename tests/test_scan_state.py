@@ -126,6 +126,43 @@ class TestTransientBookkeepingFailures:
         assert run.finish('completed') is False
         assert self._row(scan_db, run.run_id) == (('failed', 0, 0), [])
 
+    def test_failure_after_commit_is_not_requeued(self, scan_db, monkeypatch):
+        real = scan_state.get_connection
+        calls = {'n': 0}
+
+        class ExitRaises:
+            def __init__(self, *args, **kwargs):
+                self._inner = real(*args, **kwargs)
+
+            def __enter__(self):
+                return self._inner.__enter__()
+
+            def __exit__(self, *exc):
+                self._inner.__exit__(*exc)
+                calls['n'] += 1
+                if calls['n'] == 1:
+                    raise sqlite3.OperationalError('disk I/O error')
+                return False
+
+        run = ScanRun.start(scan_db, 'multi-pass', {}, 10)
+        monkeypatch.setattr(scan_state, 'get_connection', ExitRaises)
+        run.record_failure('/p/bad.jpg', 'load', 'corrupt file')
+        assert run.finish('completed') is True
+        assert self._row(scan_db, run.run_id) == (('completed', 0, 1), [('/p/bad.jpg', 'load', 'corrupt file')])
+
+    def test_requeue_is_capped_and_a_dropped_failure_fails_the_scan(self, scan_db, monkeypatch):
+        monkeypatch.setattr(scan_state, 'MAX_PENDING_FAILURES', 2)
+        run = ScanRun.start(scan_db, 'multi-pass', {}, 10)
+        self._lock_calls(monkeypatch, {1, 2})
+        run.record_failure('/p/a.jpg', 'load', 'a')  # flush 1 fails
+        run.record_failure('/p/b.jpg', 'load', 'b')  # throttled
+        run.record_failure('/p/c.jpg', 'load', 'c')  # throttled
+        run._maybe_flush(force=True)  # flush 2 fails: three queued, capped to two
+        assert len(run._pending_failures) == 2
+        assert run.finish('completed') is False
+        assert self._row(scan_db, run.run_id) == (
+            ('failed', 0, 2), [('/p/a.jpg', 'load', 'a'), ('/p/b.jpg', 'load', 'b')])
+
     def test_locked_phase_write_is_retried_and_does_not_fail_the_job(self, scan_db, monkeypatch):
         run = ScanRun.start(scan_db, 'multi-pass', {}, 1)
         assert run.finish('completed') is True

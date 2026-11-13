@@ -210,6 +210,7 @@ class TestSaveCapsuleAsAlbum:
 
         mock_conn = mock.MagicMock()
         mock_conn.execute.return_value.lastrowid = 42
+        mock_conn.execute.return_value.__iter__.return_value = [{"path": "/a.jpg"}, {"path": "/b.jpg"}]
 
         with (
             mock.patch(f"{_AUTH_MODULE}.VIEWER_CONFIG", {"password": "", "edition_password": "", "features": {}}),

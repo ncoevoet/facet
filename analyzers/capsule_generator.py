@@ -121,6 +121,15 @@ def _pick_cover_photo(paths, capsule_id, top_n=5, freshness_seconds=86400, capsu
     return rng.choice(candidates)
 
 
+def _person_photo_visibility(user_id, capsule_config):
+    """The shared `vis` clause for generators that join `photos` as `ph`."""
+    from api.db_helpers import get_visibility_clause, hide_bursts_sql, hide_duplicates_sql, hide_rejected_sql
+    vis_sql, vis_params = get_visibility_clause(user_id, table_alias='ph')
+    rejected_sql, rejected_params = hide_rejected_sql(user_id, 'ph')
+    vis_sql += f" AND {hide_bursts_sql('ph')} AND {hide_duplicates_sql('ph')} AND {rejected_sql}"
+    return _apply_date_range(vis_sql, vis_params + rejected_params, capsule_config, "ph.date_taken")
+
+
 def _apply_date_range(vis_sql, vis_params, capsule_config, date_column):
     """Extend a visibility clause with the requested date range, if any.
 
@@ -343,10 +352,11 @@ def generate_all_capsules(conn, config=None, user_id=None, date_from=None, date_
     if capsule_config.get("reverse_geocoding", True):
         _init_geocode_cache(conn)
 
-    from api.db_helpers import get_visibility_clause, to_exif_date, HIDE_BURSTS_SQL, HIDE_DUPLICATES_SQL
+    from api.db_helpers import get_visibility_clause, hide_rejected_sql, to_exif_date, HIDE_BURSTS_SQL, HIDE_DUPLICATES_SQL
     vis_sql, vis_params = get_visibility_clause(user_id)
-    vis_params = list(vis_params)
-    vis_sql += f" AND {HIDE_BURSTS_SQL} AND {HIDE_DUPLICATES_SQL}"
+    rejected_sql, rejected_params = hide_rejected_sql(user_id)
+    vis_params = vis_params + rejected_params
+    vis_sql += f" AND {HIDE_BURSTS_SQL} AND {HIDE_DUPLICATES_SQL} AND {rejected_sql}"
     if date_from:
         vis_sql += " AND date_taken >= ?"
         vis_params.append(to_exif_date(date_from))
@@ -665,10 +675,7 @@ def _generate_faces_of(conn, capsule_config, min_aggregate, vis, user_id):
     max_photos = capsule_config.get("max_photos_per_capsule", 40)
 
     # Cannot use pre-computed `vis` here: photos table is aliased as `ph` in the JOIN
-    from api.db_helpers import get_visibility_clause, hide_bursts_sql, hide_duplicates_sql
-    vis_sql, vis_params = get_visibility_clause(user_id, table_alias='ph')
-    vis_sql += f" AND {hide_bursts_sql('ph')} AND {hide_duplicates_sql('ph')}"
-    vis_sql, vis_params = _apply_date_range(vis_sql, vis_params, capsule_config, "ph.date_taken")
+    vis_sql, vis_params = _person_photo_visibility(user_id, capsule_config)
 
     rows = conn.execute(
         f"""SELECT p.id, p.name, p.face_count,
@@ -1117,10 +1124,7 @@ def _generate_person_pairs(conn, capsule_config, min_aggregate, vis, user_id):
     min_photos = cfg.get("min_photos", 8)
     max_photos = capsule_config.get("max_photos_per_capsule", 40)
 
-    from api.db_helpers import get_visibility_clause, hide_bursts_sql, hide_duplicates_sql
-    vis_sql, vis_params = get_visibility_clause(user_id, table_alias='ph')
-    vis_sql += f" AND {hide_bursts_sql('ph')} AND {hide_duplicates_sql('ph')}"
-    vis_sql, vis_params = _apply_date_range(vis_sql, vis_params, capsule_config, "ph.date_taken")
+    vis_sql, vis_params = _person_photo_visibility(user_id, capsule_config)
 
     pairs = _fetch_person_pairs(conn, min_aggregate, vis_sql, vis_params, max_photos)
 
@@ -1568,10 +1572,7 @@ def _generate_rare_pairs(conn, capsule_config, min_aggregate, vis, user_id):
     min_photos = cfg.get("min_photos", 3)
     max_photos = capsule_config.get("max_photos_per_capsule", 40)
 
-    from api.db_helpers import get_visibility_clause, hide_bursts_sql, hide_duplicates_sql
-    vis_sql, vis_params = get_visibility_clause(user_id, table_alias='ph')
-    vis_sql += f" AND {hide_bursts_sql('ph')} AND {hide_duplicates_sql('ph')}"
-    vis_sql, vis_params = _apply_date_range(vis_sql, vis_params, capsule_config, "ph.date_taken")
+    vis_sql, vis_params = _person_photo_visibility(user_id, capsule_config)
 
     pairs = _fetch_person_pairs(conn, min_score, vis_sql, vis_params, max_photos)
 

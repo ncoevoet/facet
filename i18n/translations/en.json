@@ -3270,7 +3270,10 @@
     "date_from": "From",
     "date_to": "To",
     "no_gps_title": "No photos with a location",
-    "no_gps_hint": "Nothing in scope carries GPS coordinates. Open a photo and use its Location panel to place it — placed photos appear here."
+    "no_gps_hint": "Nothing in scope carries GPS coordinates. Open a photo and use its Location panel to place it — placed photos appear here.",
+    "basemap": "Map source",
+    "basemap_osm": "OpenStreetMap",
+    "basemap_custom": "Custom source"
   },
   "photo_detail": {
     "copy_image": "Copy image",
@@ -3392,7 +3395,8 @@
       "maps_moved": "Pin moved to {lat}, {lng}. Check it, then save.",
       "maps_unrecognized": "No coordinates found. Paste a Google Maps link, or right-click the map in Google Maps and copy the numbers.",
       "maps_unreachable": "Could not open the link. Check the connection, or copy the coordinates instead.",
-      "maps_pick": "Pick on Google Maps"
+      "maps_pick": "Pick on Google Maps",
+      "osm_pick": "Open in OpenStreetMap"
     },
     "distribution": {
       "scope": "Distribution scope",

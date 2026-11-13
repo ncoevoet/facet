@@ -11893,6 +11893,21 @@ export interface components {
             };
             /** Is Multi User */
             is_multi_user: boolean;
+            /**
+             * Map Tile Attribution
+             * @default
+             */
+            map_tile_attribution?: string;
+            /**
+             * Map Tile Max Zoom
+             * @default 19
+             */
+            map_tile_max_zoom?: number;
+            /**
+             * Map Tile Url
+             * @default
+             */
+            map_tile_url?: string;
             /** Moment Confidence Min */
             moment_confidence_min: unknown;
             /** Notification Duration Ms */
