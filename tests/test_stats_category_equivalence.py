@@ -15,15 +15,19 @@ one full-table query per weight column).
 
 import json
 import math
+import sqlite3
 from contextlib import asynccontextmanager
 from unittest import mock
 
 import aiosqlite
 from fastapi.testclient import TestClient
 
-from config.category_filter import CategoryFilter, with_face_defaults
+from config.category_filter import (
+    VALID_BOOLEAN_FILTERS, VALID_NUMERIC_FILTERS, CategoryFilter, with_face_defaults,
+)
+from db.schema import init_database
 
-from tests.test_stats import _async_conn_factory, _create_app_no_auth, _make_stats_db, _photo
+from tests.test_stats import _async_conn_factory, _create_app_no_auth, _photo
 
 
 # --- deterministic category config covering every filter kind ---
@@ -157,10 +161,27 @@ def _correlation_rows():
     return rows
 
 
-def _run_endpoint(monkeypatch, tmp_path, rows, endpoint):
+def _make_db(db_path, rows):
+    """The real schema (``init_database``), so no column the endpoints read can
+    be missing from the fixture; then insert the seeded rows."""
+    init_database(db_path)
+    conn = sqlite3.connect(db_path)
+    try:
+        for p in rows:
+            cols = list(p)
+            conn.execute(
+                f"INSERT INTO photos ({', '.join(cols)}) VALUES ({', '.join('?' for _ in cols)})",
+                [p[c] for c in cols],
+            )
+        conn.commit()
+    finally:
+        conn.close()
+
+
+def _run_endpoint(monkeypatch, tmp_path, rows, endpoint, categories=TEST_CATEGORIES):
     db_path = str(tmp_path / 'test.db')
-    _make_stats_db(db_path, rows)
-    cats = json.loads(json.dumps(TEST_CATEGORIES))
+    _make_db(db_path, rows)
+    cats = json.loads(json.dumps(categories))
     app = _create_app_no_auth()
     with mock.patch('api.routers.stats.server_scoring_config', lambda: _FakeConfig(cats)):
         from tests.test_stats import _cache_passthrough
@@ -224,6 +245,36 @@ def test_overlap_semantics_spot_checks(monkeypatch, tmp_path):
     assert got_pairs[('cats_excl', 'cats_night')] == 1
 
 
+def test_overlap_null_tag_lists_match_the_filter_library(monkeypatch, tmp_path):
+    """An explicit null tag list is an empty one, as CategoryFilter treats it,
+    not a 500 from iterating None."""
+    cats = [
+        {"name": "cats_null_excl", "priority": 10,
+         "filters": {"required_tags": ["action"], "excluded_tags": None}, "weights": {}},
+        {"name": "cats_null_req", "priority": 20,
+         "filters": {"required_tags": None, "excluded_tags": ["soft"]}, "weights": {}},
+    ]
+    rows = _seed_rows()
+    data = _run_endpoint(monkeypatch, tmp_path, rows, '/api/stats/categories/overlap',
+                         categories=cats)
+    _, gt_match, _, _, _ = _ground_truth_overlap(rows, cats)
+    assert {c['name']: c['matched'] for c in data['per_category']} == gt_match
+    assert gt_match['cats_null_excl'] == 3  # r3, r4, r5 carry 'action'
+
+
+def test_overlap_compiles_every_filter_library_field():
+    """Every numeric and boolean filter the library knows yields a compiled
+    check, so a field added to CategoryFilter cannot be silently ignored."""
+    from api.routers.stats import _compile_category_filter
+
+    for key in VALID_NUMERIC_FILTERS:
+        numeric, _, _ = _compile_category_filter({key: 1})
+        assert len(numeric) == 1, key
+    for key in VALID_BOOLEAN_FILTERS:
+        _, bools, _ = _compile_category_filter({key: True})
+        assert len(bools) == 1, key
+
+
 def test_overlap_streams_in_chunks(monkeypatch, tmp_path):
     """The chunked streaming path accumulates identically when the fetch spans
     multiple chunks (patch the chunk size below the seed size)."""
@@ -232,7 +283,7 @@ def test_overlap_streams_in_chunks(monkeypatch, tmp_path):
     data_default = _run_endpoint(monkeypatch, tmp_path, rows, '/api/stats/categories/overlap')
 
     db_path = str(tmp_path / 'chunked.db')
-    _make_stats_db(db_path, rows)
+    _make_db(db_path, rows)
     app = _create_app_no_auth()
     with mock.patch('api.routers.stats.server_scoring_config', lambda: _FakeConfig(cats)):
         from tests.test_stats import _cache_passthrough
@@ -248,7 +299,7 @@ def test_overlap_streams_in_chunks(monkeypatch, tmp_path):
 def test_correlations_match_ground_truth_and_single_scan(monkeypatch, tmp_path):
     rows = _correlation_rows()
     db_path = str(tmp_path / 'test.db')
-    _make_stats_db(db_path, rows)
+    _make_db(db_path, rows)
     cats = json.loads(json.dumps(TEST_CATEGORIES))
     app = _create_app_no_auth()
 
