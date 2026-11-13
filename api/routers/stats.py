@@ -886,19 +886,22 @@ def api_stats_categories_weights(user: Optional[CurrentUser] = Depends(get_optio
 
 _OVERLAP_CHUNK = 2000
 
-# Column indices of the overlap scan (SELECT order above).
-_OVERLAP_IDX = {'tags': 0, 'face_count': 1, 'face_ratio': 2, 'is_silhouette': 3,
-                'is_group_portrait': 4, 'is_monochrome': 5, 'mean_luminance': 6,
-                'iso': 7, 'shutter_speed': 8, 'focal_length': 9, 'f_stop': 10,
-                'category': 11}
+# Columns of the overlap scan, in SELECT order; the endpoint builds its SELECT
+# from this tuple, so the indices below cannot drift from it.
+_OVERLAP_COLUMNS = ('tags', 'face_count', 'face_ratio', 'is_silhouette',
+                    'is_group_portrait', 'is_monochrome', 'mean_luminance',
+                    'iso', 'shutter_speed', 'focal_length', 'f_stop', 'category')
+_OVERLAP_IDX = {col: i for i, col in enumerate(_OVERLAP_COLUMNS)}
+_TAGS_IDX = _OVERLAP_IDX['tags']
+_FACE_COUNT_IDX = _OVERLAP_IDX['face_count']
+_SHUTTER_IDX = _OVERLAP_IDX['shutter_speed']
+_CATEGORY_IDX = _OVERLAP_IDX['category']
 # Columns with_face_defaults coalesces NULL to 0 before filter evaluation.
-_FACE_DEFAULT_IDX = (_OVERLAP_IDX['face_count'], _OVERLAP_IDX['face_ratio'],
+_FACE_DEFAULT_IDX = (_FACE_COUNT_IDX, _OVERLAP_IDX['face_ratio'],
                      _OVERLAP_IDX['is_group_portrait'])
-# Numeric filter field -> scan column; the check set mirrors
-# config.category_filter.CategoryFilter._check_numeric exactly.
-_NUMERIC_FIELD_IDX = {'face_ratio': 2, 'face_count': 1, 'iso': 7,
-                      'shutter_speed': 8, 'luminance': 6, 'focal_length': 9,
-                      'f_stop': 10}
+# Filter fields whose scan column has another name; every other numeric or
+# boolean filter field reads the column of the same name.
+_FILTER_FIELD_COLUMN = {'luminance': 'mean_luminance', 'has_face': 'face_count'}
 
 
 def _shutter_float(ss):
@@ -924,18 +927,25 @@ def _compile_category_filter(filters: dict):
     same shape and order of outcomes as ``CategoryFilter.matches`` over
     ``with_face_defaults``-ed rows, minus the per-row dict building.
     """
+    from config.category_filter import VALID_BOOLEAN_FILTERS, VALID_NUMERIC_FILTERS
+
+    # The check set is derived from the filter library's own field lists, so a
+    # filter added there cannot be silently ignored here: a field whose column
+    # is not in the scan raises KeyError instead of over-matching.
     numeric = []
-    for field, idx in _NUMERIC_FIELD_IDX.items():
+    for field in dict.fromkeys(f.rsplit('_', 1)[0] for f in VALID_NUMERIC_FILTERS):
+        idx = _OVERLAP_IDX[_FILTER_FIELD_COLUMN.get(field, field)]
         mn = filters.get(f'{field}_min')
         mx = filters.get(f'{field}_max')
         if mn is not None or mx is not None:
             numeric.append((idx, mn, mx))
     bools = []
-    for key, idx in (('has_face', 1), ('is_monochrome', 5),
-                     ('is_silhouette', 3), ('is_group_portrait', 4)):
+    for key in VALID_BOOLEAN_FILTERS:
+        idx = _OVERLAP_IDX[_FILTER_FIELD_COLUMN.get(key, key)]
         required = filters.get(key)
         if required is not None:
-            bools.append((idx, required))
+            bools.append((idx, required, key == 'has_face'))
+    # ``or []``: CategoryFilter treats an explicit null tag list as empty.
     required_tags = [t.lower() for t in filters.get('required_tags') or []]
     excluded_tags = [t.lower() for t in filters.get('excluded_tags') or []]
     tag_spec = None
@@ -968,9 +978,9 @@ def _evaluate_overlap_chunk(rows, compiled, names):
         for idx in _FACE_DEFAULT_IDX:
             if values[idx] is None:
                 values[idx] = 0
-        values[8] = _shutter_float(values[8])
+        values[_SHUTTER_IDX] = _shutter_float(values[_SHUTTER_IDX])
 
-        assigned_cat = row[11] or ''
+        assigned_cat = row[_CATEGORY_IDX] or ''
         if assigned_cat:
             assigned_counts[assigned_cat] += 1
         else:
@@ -978,7 +988,7 @@ def _evaluate_overlap_chunk(rows, compiled, names):
 
         photo_tags = None
         if tags_needed:
-            raw = row[0] or ''
+            raw = row[_TAGS_IDX] or ''
             photo_tags = {t.strip().lower() for t in raw.split(',') if t.strip()}
 
         matched = []
@@ -995,11 +1005,11 @@ def _evaluate_overlap_chunk(rows, compiled, names):
                         ok = False
                         break
             if ok:
-                for idx, required in bools:
+                for idx, required, is_face_count in bools:
                     # has_face is ``(face_count or 0) > 0`` in the filter
                     # library — the ``or 0`` keeps a falsy TEXT value (e.g. an
                     # externally written '') from raising on the comparison.
-                    actual = (values[idx] or 0) > 0 if idx == 1 else bool(values[idx] or 0)
+                    actual = (values[idx] or 0) > 0 if is_face_count else bool(values[idx] or 0)
                     if actual != required:
                         ok = False
                         break
@@ -1133,9 +1143,7 @@ async def api_stats_categories_overlap(user: Optional[CurrentUser] = Depends(get
         names = [cf['name'] for cf in cat_filters]
         async with get_async_db() as conn:
             cur = await conn.execute(f'''
-                SELECT tags, face_count, face_ratio, is_silhouette, is_group_portrait,
-                       is_monochrome, mean_luminance, ISO, shutter_speed, focal_length,
-                       f_stop, category
+                SELECT {', '.join(_OVERLAP_COLUMNS)}
                 FROM photos WHERE 1=1{vis}
             ''', vp)
             try:
