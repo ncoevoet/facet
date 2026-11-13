@@ -11,7 +11,10 @@ false``, never ``rating: 0``, which Immich v3 rejects — or the stale value is
 stuck there forever. ``stats_cache`` (a generic key/value side table, keyed per
 sync scope) remembers which paths were last pushed active so that transition
 is detected — see ``_fetch_rating_rows`` and ``_load_synced_state``. An
-optional single top-picks album is filled from a minimum-rating threshold.
+optional single top-picks album mirrors a minimum-rating threshold: photos at
+or above it are members, ones this run can prove dropped below it are removed
+(and only on a global sync — a per-user sync adds but never removes), and a
+member is never re-added.
 Immich's database is never touched — REST only.
 
 Two surfaces share those payload rules: :func:`sync_to_immich` (the whole
@@ -162,27 +165,22 @@ class ImmichClient:
                 or self._paths_by_id.get(asset_id) != {original_path}):
             raise AssetIdentityError("Immich path and asset id are not a unique consistent pair")
 
-    def _iter_assets(self, original_path: str | None = None):
-        """Read every legacy page, including stacked assets; fail on bad cursors."""
+    def observed_paths(self, asset_id: str) -> set[str]:
+        """Every ``originalPath`` this operation has seen for *asset_id*."""
+        return set(self._paths_by_id.get(asset_id, ()))
+
+    def _iter_search_pages(self, payload: dict[str, object]):
+        """Yield the raw items of a paged ``POST /search/metadata`` read;
+        fail on malformed pages or non-advancing cursors."""
         page = 1
         while True:
-            payload: dict[str, int | bool | str] = {"page": page, "withStacked": True}
-            if original_path is not None:
-                payload["originalPath"] = original_path
-            data = self._request("POST", "/api/search/metadata", payload) or {}
+            data = self._request("POST", "/api/search/metadata", {**payload, "page": page}) or {}
             if not isinstance(data, dict) or not isinstance(data.get("assets"), dict):
                 raise AssetIdentityError("Immich returned an invalid search response")
             assets = data["assets"]
             if not isinstance(assets.get("items"), list):
                 raise AssetIdentityError("Immich returned an invalid asset list")
-            for item in assets["items"]:
-                if not isinstance(item, dict) or not isinstance(item.get("id"), str) or not item["id"]:
-                    raise AssetIdentityError("Immich returned an asset without a valid id")
-                if not isinstance(item.get("originalPath"), str) or not item["originalPath"]:
-                    raise AssetIdentityError("Immich returned an asset without originalPath")
-                if self._in_scope(item):
-                    self._observe_asset(item)
-                    yield item
+            yield from assets["items"]
             next_page = assets.get("nextPage")
             if next_page is None:
                 return
@@ -197,6 +195,20 @@ class ImmichClient:
             if next_page <= page:
                 raise AssetIdentityError("Immich returned non-advancing pagination")
             page = next_page
+
+    def _iter_assets(self, original_path: str | None = None):
+        """Read every page, including stacked assets; fail on bad cursors."""
+        payload: dict[str, object] = {"withStacked": True}
+        if original_path is not None:
+            payload["originalPath"] = original_path
+        for item in self._iter_search_pages(payload):
+            if not isinstance(item, dict) or not isinstance(item.get("id"), str) or not item["id"]:
+                raise AssetIdentityError("Immich returned an asset without a valid id")
+            if not isinstance(item.get("originalPath"), str) or not item["originalPath"]:
+                raise AssetIdentityError("Immich returned an asset without originalPath")
+            if self._in_scope(item):
+                self._observe_asset(item)
+                yield item
 
     def search_asset_id(self, original_path: str) -> str | None:
         """Resolve exactly one matching path across ALL pages, never the first hit."""
@@ -243,7 +255,34 @@ class ImmichClient:
         return album.get("id", "")
 
     def add_album_assets(self, album_id: str, asset_ids: list[str]) -> None:
-        self._request("PUT", f"/api/albums/{album_id}/assets", {"ids": asset_ids})
+        for start in range(0, len(asset_ids), UPDATE_CHUNK):
+            self._request("PUT", f"/api/albums/{quote(album_id, safe='')}/assets",
+                          {"ids": asset_ids[start:start + UPDATE_CHUNK]})
+
+    def remove_album_assets(self, album_id: str, asset_ids: list[str]) -> None:
+        for start in range(0, len(asset_ids), UPDATE_CHUNK):
+            self._request("DELETE", f"/api/albums/{quote(album_id, safe='')}/assets",
+                          {"ids": asset_ids[start:start + UPDATE_CHUNK]})
+
+    def album_asset_ids(self, album_id: str) -> list[str] | None:
+        """Current member ids of an album, or ``None`` when the read is unusable.
+
+        ``GET /albums/:id`` no longer carries the asset list on current Immich
+        (the response is counts and dates only), so membership comes from the
+        same paged metadata search the asset resolution uses, filtered by
+        ``albumIds``. The diff needs the whole list, so a partially malformed
+        response counts as no information at all rather than partial truth:
+        the caller degrades to add-only instead of removing on bad data.
+        """
+        try:
+            ids = []
+            for item in self._iter_search_pages({"albumIds": [album_id], "withStacked": True}):
+                if not isinstance(item, dict) or not isinstance(item.get("id"), str) or not item["id"]:
+                    return None
+                ids.append(item["id"])
+            return ids
+        except AssetIdentityError:
+            return None
 
 
 def _effective_rating(star_rating) -> int | None:
@@ -292,6 +331,18 @@ def map_immich_path(original_path: str, path_map: list[dict]) -> str | None:
     return None
 
 
+def _row_rating(row, push_rejected: bool) -> int | None:
+    """The rating a row would push — the album threshold reads the same one.
+
+    Rejection outranks stars exactly as in :func:`_push_fields`: with
+    *push_rejected* on, an ``is_rejected`` photo rates Immich's rejected -1
+    whatever its stars.
+    """
+    if push_rejected and row["is_rejected"]:
+        return REJECTED_RATING
+    return _effective_rating(row["star_rating"])
+
+
 def _push_fields(row, prev: dict, push_ratings: bool, push_favorites: bool,
                  push_rejected: bool) -> tuple[dict, int | None, bool]:
     """Build one row's Immich update payload; returns ``(fields, rating, favorite)``.
@@ -307,11 +358,7 @@ def _push_fields(row, prev: dict, push_ratings: bool, push_favorites: bool,
     pushes Immich's own rejected value (-1) whatever its star rating, because a
     photo the user threw away is not a 5-star one.
     """
-    rating: int | None
-    if push_rejected and row["is_rejected"]:
-        rating = REJECTED_RATING
-    else:
-        rating = _effective_rating(row["star_rating"])
+    rating = _row_rating(row, push_rejected)
     favorite = bool(row["is_favorite"])
     fields: dict = {}
     if push_ratings and (rating is not None or prev.get("rating")):
@@ -498,10 +545,7 @@ def _report_pending(db_path, dry_run: bool) -> int:
         pending = _load_pending(conn, None)
         if not pending:
             return 0
-        placeholders = ",".join("?" * len(pending))
-        scored = {r[0] for r in conn.execute(
-            f"SELECT path FROM photos WHERE path IN ({placeholders}) "
-            f"AND aggregate IS NOT NULL", pending)}
+        scored = set(_fetch_scored_photos(conn, pending))
         remaining = [p for p in pending if p not in scored]
         if remaining != pending and not dry_run:
             _save_pending(conn, None, remaining)
@@ -538,21 +582,27 @@ def _fetch_rating_rows(conn, user_id: str | None, extra_paths=(),
     it can never push anything (a never-touched photo has no clear to push
     either). With *push_rejected* on, a rejected row is "active" too: it has a
     -1 to push even with no stars and no favorite.
+
+    The *extra_paths* read (the tracked synced state) runs in chunks of
+    :data:`PATH_QUERY_CHUNK`: it grows with the pushed half of the library,
+    and one ``IN (...)`` over all of it hits SQLite's host-parameter limit
+    and wedges every later sync before any network work happens.
     """
     join, star_expr, fav_expr, rej_expr, params = _rating_exprs(user_id)
     where = f"({star_expr} BETWEEN 1 AND 5) OR {fav_expr} = 1"
     if push_rejected:
         where += f" OR {rej_expr} = 1"
+    select = (f"SELECT photos.path AS path, {star_expr} AS star_rating, "
+              f"{fav_expr} AS is_favorite, {rej_expr} AS is_rejected FROM photos {join} ")
+    rows = {row["path"]: row for row in conn.execute(f"{select}WHERE {where}", params)}
     extra_paths = list(extra_paths)
-    if extra_paths:
-        where += f" OR photos.path IN ({','.join('?' * len(extra_paths))})"
-        params = params + extra_paths
-    return conn.execute(
-        f"SELECT photos.path AS path, {star_expr} AS star_rating, "
-        f"{fav_expr} AS is_favorite, {rej_expr} AS is_rejected FROM photos {join} "
-        f"WHERE {where}",
-        params,
-    ).fetchall()
+    for start in range(0, len(extra_paths), PATH_QUERY_CHUNK):
+        chunk = extra_paths[start:start + PATH_QUERY_CHUNK]
+        placeholders = ",".join("?" * len(chunk))
+        for row in conn.execute(
+            f"{select}WHERE photos.path IN ({placeholders})", params + chunk):
+            rows.setdefault(row["path"], row)  # the active row already won
+    return list(rows.values())
 
 
 def _fetch_scored_photos(conn, facet_paths) -> dict:
@@ -575,15 +625,33 @@ def _fetch_scored_photos(conn, facet_paths) -> dict:
     return found
 
 
+def _existing_paths(conn, paths) -> set:
+    """The subset of *paths* that still exist in ``photos``.
+
+    Chunked like every other path ``IN (...)`` read, so pruning an unbounded
+    tracked state cannot itself hit the host-parameter limit.
+    """
+    wanted = list(paths)
+    found: set = set()
+    for start in range(0, len(wanted), PATH_QUERY_CHUNK):
+        chunk = wanted[start:start + PATH_QUERY_CHUNK]
+        placeholders = ",".join("?" * len(chunk))
+        found.update(row[0] for row in conn.execute(
+            f"SELECT path FROM photos WHERE path IN ({placeholders})", chunk))
+    return found
+
+
 def sync_to_immich(db_path, config: dict, user_id: str | None = None,
                    dry_run: bool = False) -> dict:
     """Push Facet ratings/favorites to the configured Immich server.
 
     Returns a summary dict: ``matched`` / ``unmatched`` / ``updated`` /
     ``skipped_unrated`` / ``identity_conflicts`` / ``albums_created`` /
+    ``album_added`` / ``album_removed`` / ``album_remove_failed`` /
     ``webhook_pending``. Conflicts are refused, not counted as matched. With
-    *dry_run* the assets are still resolved (read-only requests) but nothing
-    is written.
+    *dry_run* the assets and the album plan are still resolved (read-only
+    requests) but nothing is written: ``album_added`` / ``album_removed``
+    report what a real run would do.
     """
     immich_cfg = config.get("immich", {})
     client = _make_client(immich_cfg)
@@ -600,14 +668,17 @@ def sync_to_immich(db_path, config: dict, user_id: str | None = None,
                                   push_rejected=push_rejected)
     summary = {"matched": 0, "unmatched": 0, "updated": 0,
                "skipped_unrated": 0, "albums_created": 0, "webhook_pending": 0,
-               "identity_conflicts": 0}
+               "identity_conflicts": 0, "album_added": 0, "album_removed": 0,
+               "album_remove_failed": 0}
     groups: dict[tuple, list[str]] = {}
     album_asset_ids: list[str] = []
     unmatched_paths: list[str] = []
     matched_paths: set[str] = set()
     conflict_messages: list[tuple[str, str]] = []
+    conflicting_paths: set[str] = set()
 
     def record_conflict(facet_path, error):
+        conflicting_paths.add(facet_path)
         summary["identity_conflicts"] += 1
         if len(conflict_messages) < UNMATCHED_LOG_LIMIT:
             conflict_messages.append((facet_path, str(error)))
@@ -676,20 +747,18 @@ def sync_to_immich(db_path, config: dict, user_id: str | None = None,
             if not dry_run:
                 client.update_assets(ids, dict(key))
             summary["updated"] += len(ids)
-        if album_name and album_asset_ids and not dry_run:
-            album_id = client.find_album_id(album_name)
-            if album_id:
-                client.add_album_assets(album_id, album_asset_ids)
-            else:
-                client.create_album(album_name, album_asset_ids)
-                summary["albums_created"] = 1
         if not dry_run:
-            # Only rows actually confirmed pushed (matched_paths) advance the
-            # tracked state; an unmatched row keeps its prior entry so the next
-            # sync retries it instead of losing the clear. Re-read inside the
-            # serialized write: the pass above is network-bound, so a webhook
-            # delivery may have advanced the blob since, and writing back the
-            # snapshot taken before it would drop that delivery's entries.
+            # The tracked state is committed BEFORE the album step: the
+            # ratings and favourites above are pushed, so an album hiccup
+            # (a key without the delete scope, a mid-step network drop) must
+            # cost at most the album work, never a re-push of everything on
+            # the next run. Only rows actually confirmed pushed
+            # (matched_paths) advance the tracked state; an unmatched row
+            # keeps its prior entry so the next sync retries it instead of
+            # losing the clear. Re-read inside the serialized write: the pass
+            # above is network-bound, so a webhook delivery may have advanced
+            # the blob since, and writing back the snapshot taken before it
+            # would drop that delivery's entries.
             with _state_write(db_path) as write_conn:
                 current = _load_synced_state(write_conn, scope)
                 new_state = dict(current)
@@ -701,8 +770,111 @@ def sync_to_immich(db_path, config: dict, user_id: str | None = None,
                         new_state[facet_path] = active
                     else:
                         new_state.pop(facet_path, None)
-                if new_state != current:
-                    _save_synced_state(write_conn, scope, new_state)
+                # A photo deleted from Facet can never push another clear, so
+                # its tracked entry is dead weight: drop it here, or the blob
+                # grows without bound and wedges the chunked fetch above.
+                alive = _existing_paths(write_conn, new_state)
+                pruned = {p: v for p, v in new_state.items() if p in alive}
+                if len(pruned) < len(new_state):
+                    logger.info("Dropped %d gone path(s) from the Immich synced state",
+                                len(new_state) - len(pruned))
+                if pruned != current:
+                    _save_synced_state(write_conn, scope, pruned)
+        if album_name:
+            album_asset_ids = list(dict.fromkeys(album_asset_ids))
+            album_id = client.find_album_id(album_name)
+            created = False
+            if album_id:
+                try:
+                    current_members = client.album_asset_ids(album_id)
+                except PUSH_ERRORS as e:
+                    current_members = None
+                    logger.warning("Could not read membership of album %s (%s); "
+                                   "adding without pruning", album_name, e)
+            elif album_asset_ids and not dry_run:
+                # The create call carries the first chunk; the remainder goes
+                # through the chunked add like every other album write.
+                album_id = client.create_album(album_name, album_asset_ids[:UPDATE_CHUNK])
+                created = True
+                current_members = []
+                if album_asset_ids[UPDATE_CHUNK:]:
+                    client.add_album_assets(album_id, album_asset_ids[UPDATE_CHUNK:])
+            else:
+                current_members = None  # nothing qualifies, no album to create
+            to_add: list[str] = []
+            to_remove: list[str] = []
+            if album_id and not created:
+                to_add = album_asset_ids
+                if current_members is None:
+                    logger.warning("Could not read membership of album %s; "
+                                   "adding without pruning", album_name)
+                else:
+                    have = set(current_members)
+                    # The album mirrors the threshold, and an existing member
+                    # is never re-added. A member is removed only when this
+                    # run can PROVE it no longer qualifies: observed on exactly
+                    # one remote path, mapped back to a Facet row below the
+                    # threshold. Everything it cannot attribute — a photo
+                    # deleted from Facet, another app's asset, an identity
+                    # that stopped resolving, a row skipped because its push
+                    # was disabled — stays. A per-user sync (whose rows are
+                    # that user's overlay, not the library the album name is
+                    # global to) adds but never removes.
+                    to_remove = []
+                    if scope is None:
+                        to_add = [a for a in album_asset_ids if a not in have]
+                        qualifying = set(album_asset_ids)
+                        rows_by_path = {row["path"]: row for row in rows}
+                        for asset_id in current_members:
+                            if asset_id in qualifying:
+                                continue
+                            seen = client.observed_paths(asset_id)
+                            if len(seen) != 1:
+                                continue
+                            seen_path = next(iter(seen))
+                            row = rows_by_path.get(map_immich_path(seen_path, path_map))
+                            if (row is None or seen_path in ambiguous
+                                    or row["path"] in conflicting_paths
+                                    or map_facet_path(row["path"], path_map) != seen_path):
+                                continue
+                            try:
+                                client.assert_asset_identity(asset_id, seen_path)
+                            except AssetIdentityError:
+                                continue
+                            rating = _row_rating(row, push_rejected)
+                            if rating is None or rating < album_min_rating:
+                                to_remove.append(asset_id)
+                    else:
+                        to_add = [a for a in album_asset_ids if a not in have]
+                if dry_run:
+                    summary["album_added"] = len(to_add)
+                    summary["album_removed"] = len(to_remove)
+                else:
+                    if to_add:
+                        client.add_album_assets(album_id, to_add)
+                        summary["album_added"] = len(to_add)
+                    if to_remove:
+                        try:
+                            client.remove_album_assets(album_id, to_remove)
+                            summary["album_removed"] = len(to_remove)
+                            logger.info("Removed %d asset(s) no longer rated at or above the "
+                                        "top-picks threshold from %s", len(to_remove), album_name)
+                        except PUSH_ERRORS as e:
+                            # The ratings are pushed and recorded; a refused
+                            # removal (an API key without the delete scope,
+                            # say) must not fail the sync — it is counted so
+                            # the operator sees the album drifted less than
+                            # the threshold asks.
+                            summary["album_remove_failed"] = len(to_remove)
+                            logger.warning("Could not remove %d asset(s) from %s: %s",
+                                           len(to_remove), album_name, e)
+            elif created:
+                summary["album_added"] = len(album_asset_ids)
+                summary["albums_created"] = 1
+            elif album_asset_ids and dry_run:
+                # A dry run would create the album with the full qualifying
+                # set; report that plan without the create.
+                summary["album_added"] = len(album_asset_ids)
     except (urllib_error.URLError, TimeoutError) as e:
         setattr(e, "partial_summary", dict(summary))
         raise
@@ -761,10 +933,11 @@ def push_photo_updates(db_path, config: dict, entries) -> list:
 
     This is :func:`sync_to_immich`'s own shape applied to the webhook: ONE
     connection reads every row and the synced-state blob once, the per-asset
-    decisions run in memory, and ONE serialized transaction writes the blob
-    back after the loop. Per-asset it was two connections and two full round
-    trips of that blob — quadratic in the delivery's size, and lost updates
-    whenever two deliveries interleaved.
+    decisions run in memory, assets sharing one payload write as one batched
+    call, and ONE serialized transaction writes the blob back after the loop.
+    Per-asset it was two connections and two full round trips of that blob —
+    quadratic in the delivery's size, and lost updates whenever two deliveries
+    interleaved.
 
     It never raises for the classes in :data:`PUSH_ERRORS`: a delivery that
     already pushed three assets must not fail because the fourth's socket
@@ -847,17 +1020,49 @@ def push_photo_updates(db_path, config: dict, entries) -> list:
 
     # Recheck after EVERY lookup, including observations made by an unmatched
     # or failed entry. They can disprove an earlier candidate's identity.
+    # Assets sharing one payload then write as ONE batched call (update_assets
+    # chunks it) — a delivery capped at 100 assets cost up to 100 serial
+    # round trips before. A batch that is refused falls back to per-asset
+    # writes, so one bad id still cannot take the rest down with it.
+    write_groups: dict[tuple, list[tuple[int, str, str]]] = {}
     for index, facet_path, immich_path, resolved, fields in planned:
         try:
             if facet_path in conflicting_paths:
                 raise AssetIdentityError("Multiple Facet paths resolved to the same Immich asset id")
             client.assert_asset_identity(resolved, immich_path)
-            client.update_assets([resolved], fields)
         except PUSH_ERRORS as e:
             results[index] = (RESULT_FAILED, e)
             continue
-        pushed[facet_path] = _active_state(fields)
-        results[index] = (RESULT_PUSHED, None)
+        write_groups.setdefault(tuple(sorted(fields.items())), []).append(
+            (index, facet_path, resolved))
+    for key, members in write_groups.items():
+        fields = dict(key)
+        ids = list(dict.fromkeys(asset_id for _, _, asset_id in members))
+        try:
+            client.update_assets(ids, fields)
+            for index, facet_path, _ in members:
+                pushed[facet_path] = _active_state(fields)
+                results[index] = (RESULT_PUSHED, None)
+        except PUSH_ERRORS as batch_error:
+            outcomes: dict[str, Exception | None] = {}
+            for index, facet_path, asset_id in members:
+                if asset_id not in outcomes:
+                    error: Exception | None = batch_error
+                    # Only an HTTP refusal warrants isolating individual ids;
+                    # a dropped connection must not multiply timeouts by N.
+                    if isinstance(batch_error, urllib_error.HTTPError):
+                        try:
+                            client.update_assets([asset_id], fields)
+                            error = None
+                        except PUSH_ERRORS as e:
+                            error = e
+                    outcomes[asset_id] = error
+                error = outcomes[asset_id]
+                if error is not None:
+                    results[index] = (RESULT_FAILED, error)
+                    continue
+                pushed[facet_path] = _active_state(fields)
+                results[index] = (RESULT_PUSHED, None)
 
     if pushed:
         _commit_pushed_state(db_path, pushed)
