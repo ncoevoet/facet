@@ -2080,7 +2080,6 @@
     "loading_directories": "正在加载目录…",
     "no_directories": "尚未配置扫描目录。",
     "pick_directory": "选择要扫描的目录：",
-    "eta": "预计剩余时间",
     "starting": "正在启动…",
     "running": "运行中",
     "completed": "扫描已完成",
@@ -2150,7 +2149,33 @@
         "duplicate": "已省略重复目标",
         "raw_paired": "已省略具有已捕获 JPEG/HEIF 配对文件的 RAW 文件"
       }
-    }
+    },
+    "step": {
+      "decode": "正在读取照片",
+      "models": "正在加载模型",
+      "analyze": "正在分析照片",
+      "save": "正在保存结果"
+    },
+    "analyze": {
+      "content": "正在理解每张照片的内容",
+      "quality": "正在评估画质",
+      "subject": "正在寻找主体",
+      "composition": "正在分析构图",
+      "faces": "正在检测人脸"
+    },
+    "stage": {
+      "find": "查找",
+      "analyze": "分析",
+      "organize": "整理"
+    },
+    "stages_label": "扫描步骤",
+    "count": "第 {current} / {total} 张照片",
+    "time_left_seconds": "大约还需 {n} 秒",
+    "time_left_minutes": "大约还需 {n} 分钟",
+    "details": "技术日志",
+    "added": "已添加 {count} 张新照片",
+    "none_new": "未发现新照片",
+    "progress_label": "扫描进度"
   },
   "persons": {
     "help": "通过人脸识别检测到的人物。你可以为未命名的人脸组命名、合并重复人物、设置头像或隐藏人物。点击人物可查看其照片。",

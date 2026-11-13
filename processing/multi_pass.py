@@ -349,6 +349,16 @@ class ChunkedMultiPassProcessor:
         """
         self.scorer = scorer
         self.model_manager = model_manager
+        # Models the caller will load again right after the scan (see
+        # ModelManager.unload_all). Empty: release everything, as a standalone run must.
+        self.keep_cached_after_scan = ()
+        # Optional callback(step, detail, fraction): what the chunk in flight is doing
+        # ('decode' | 'models' | 'analyze' | 'save'; detail names the model being run)
+        # and the whole scan's completed fraction. ``on_progress`` only fires once a
+        # chunk is saved, which leaves a small scan silent at 0% until it is over.
+        self.on_step = None
+        self._step_base = (0, 0, 0)
+        self._step_units = (0, 1)
         self.config = config or {}
         self.on_error = on_error
         self.on_progress = on_progress
@@ -680,6 +690,7 @@ class ChunkedMultiPassProcessor:
                 # collects no EXIF: this chunk's is taken over its real membership in _process_chunk.
                 self._exif_prefetcher.plan(self._next_paths)
 
+                self._step_base = (offset, len(chunk_paths), total)
                 self._process_chunk(chunk_paths, chunk_idx, num_chunks_est)
 
                 if pbar:
@@ -714,7 +725,10 @@ class ChunkedMultiPassProcessor:
             # Ensure all models are unloaded. The centroid flush (persons re-attached
             # during the scan, rebuilt once) runs even if this raises.
             try:
-                self.model_manager.unload_all()
+                if self.keep_cached_after_scan:
+                    self.model_manager.unload_all(keep_cached=self.keep_cached_after_scan)
+                else:
+                    self.model_manager.unload_all()
             finally:
                 flush_centroids_safely(self.scorer)
 
@@ -754,6 +768,8 @@ class ChunkedMultiPassProcessor:
         # receives already loaded.
         first_group = self.pass_groups[0] if self.pass_groups else []
         preloaded = None
+        self._begin_steps()
+        self._step('decode')
         ahead, self._ahead = self._ahead, None
         decoded_ahead: Dict[str, Dict] = {}
         reported: Set[str] = set()
@@ -797,8 +813,10 @@ class ChunkedMultiPassProcessor:
             self._next_group_pos = group_idx + 1
             if group_idx == 0 and preloaded is not None:
                 loaded_models, preloaded = preloaded, None
+                self._step('models')
             else:
                 # Load models for this pass
+                self._step('models')
                 load_start = time.perf_counter()
                 loaded_models = self._load_pass_models(model_group, supplementary, failed_stages)
                 self.metrics['model_load_time'] += time.perf_counter() - load_start
@@ -808,6 +826,7 @@ class ChunkedMultiPassProcessor:
             device = getattr(self.model_manager, 'device', 'cpu')
             for model_name in list(loaded_models):
                 model_start = time.perf_counter()
+                self._step('analyze', model_name)
                 try:
                     self._run_model_pass(model_name, loaded_models[model_name], images, results)
                 except Exception as ex:
@@ -848,6 +867,7 @@ class ChunkedMultiPassProcessor:
             self._compute_aggregates(results, images)
             self.metrics['aggregate_time'] += time.perf_counter() - aggregate_start
 
+        self._step('save')
         save_start = time.perf_counter()
         if self.restricted:
             self._save_results_restricted(results, images)
@@ -858,6 +878,21 @@ class ChunkedMultiPassProcessor:
         # Free memory
         del images
         self._reclaim_freed_memory()
+
+    def _begin_steps(self):
+        """Count this chunk's steps: the decode, each group's load, each model, the save."""
+        self._step_units = (-1, 2 + sum(1 + len(group) for group in self.pass_groups))
+
+    def _step(self, step: str, detail: str = None):
+        """Report the step now starting; the one before it counts as finished."""
+        finished, units = self._step_units
+        finished = min(units, finished + 1)
+        self._step_units = (finished, units)
+        if self.on_step is None:
+            return
+        offset, chunk_len, total = self._step_base
+        fraction = (offset + chunk_len * finished / units) / total if total else 0.0
+        self.on_step(step, detail, fraction)
 
     def _supplementary_models(self) -> set:
         """Names whose load or inference failure skips the model instead of failing the chunk."""

@@ -994,3 +994,13 @@ def added_region(args):
     """The first ``-XMP-mwg-rs:RegionList+=`` JSON value in an exiftool argv, decoded."""
     addition = next(arg for arg in args if arg.startswith('-XMP-mwg-rs:RegionList+='))
     return json.loads(addition.split('=', 1)[1])
+
+
+@pytest.fixture(autouse=True)
+def _isolated_warm_model_ledger(tmp_path, monkeypatch):
+    """Keep ModelManager's warm-model ledger out of the checkout's pretrained_models/."""
+    try:
+        from models.model_manager import ModelManager
+    except ImportError:
+        return
+    monkeypatch.setattr(ModelManager, 'WARM_MODELS_PATH', str(tmp_path / '.warm_models.json'))

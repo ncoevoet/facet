@@ -410,7 +410,7 @@ describe('App', () => {
   describe('scan button in the header', () => {
     const TONAL = ['!bg-[var(--mat-sys-primary-container)]', '!text-[var(--mat-sys-on-primary-container)]'];
 
-    function render(canLaunch: boolean, launched = true) {
+    function render(canLaunch: boolean, launched = true, saved: number | null = 6) {
       const canLaunchSig = signal(canLaunch);
       const openLauncher = vi.fn(() => Promise.resolve(launched));
       const reloadPhotos = vi.fn(() => Promise.resolve());
@@ -426,7 +426,7 @@ describe('App', () => {
         providers: [
           provideRouter([]),
           { provide: GalleryStore, useValue: store },
-          { provide: ScanService, useValue: { canLaunch: canLaunchSig, openLauncher } },
+          { provide: ScanService, useValue: { canLaunch: canLaunchSig, openLauncher, status: signal({ progress: { phase: 'done', saved: saved ?? undefined } }) } },
           { provide: AuthService, useValue: { identity: () => '0|', session: () => '0|', isAuthenticated: signal(true), isReadOnlyInstall: signal(false), features: signal({}), user: signal(null), logout: vi.fn(), isEdition: signal(false), status: signal(null), editionPasswordRequired: signal(false), isMultiUser: signal(false), isInstallAdmin: signal(false), loginPasswordRequired: signal(false), checkStatus: vi.fn(() => Promise.resolve()) } },
           { provide: I18nService, useValue: { load: vi.fn(() => Promise.resolve()), loadLanguages: vi.fn(() => Promise.resolve()), languages: signal([]), t: vi.fn((k: string) => k), translations: signal({}) } },
           { provide: StatsFiltersService, useValue: { filterCategory: signal(''), dateFrom: signal(''), dateTo: signal('') } },
@@ -468,6 +468,22 @@ describe('App', () => {
       await vi.waitFor(() => expect(store.reloadPhotos).toHaveBeenCalledTimes(1));
       expect(openLauncher).toHaveBeenCalledTimes(1);
       expect(store.loadTypeCounts).toHaveBeenCalled();
+    });
+
+    it.each([[6, I18N.scan.added], [0, I18N.scan.none_new]])('says what a finished scan added (%s saved)', async (saved, key) => {
+      const { fixture, buttons, store } = render(true, true, saved);
+      const open = vi.spyOn(fixture.debugElement.injector.get(MatSnackBar), 'open');
+      buttons[0].click();
+      await vi.waitFor(() => expect(store.reloadPhotos).toHaveBeenCalledTimes(1));
+      expect(open).toHaveBeenCalledWith(key, '', { duration: 5000 });
+    });
+
+    it('stays quiet when the finished job reported no count', async () => {
+      const { fixture, buttons, store } = render(true, true, null);
+      const open = vi.spyOn(fixture.debugElement.injector.get(MatSnackBar), 'open');
+      buttons[0].click();
+      await vi.waitFor(() => expect(store.reloadPhotos).toHaveBeenCalledTimes(1));
+      expect(open).not.toHaveBeenCalled();
     });
 
     it('reloads nothing when the launcher is dismissed', async () => {

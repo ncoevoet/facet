@@ -16,6 +16,21 @@ const DEFINITE_REFUSALS = new Set([400, 403, 409, 422, 429]);
 const isRefusal = (err: HttpErrorResponse): boolean =>
   DEFINITE_REFUSALS.has(err.status) || (err.status === 503 && err.error?.detail === 'library_busy');
 
+const STAGES = ['find', 'analyze', 'organize'] as const;
+
+const STAGE_OF_PHASE: Record<string, number> = {
+  gather: 0, scoring: 1, bursts: 2, sequences: 2, tagging: 2, moments: 2, junk: 2, vec: 2, done: 3,
+};
+
+/** What a model is doing for the photo, in the user's terms; first match wins. */
+const ANALYSIS_OF_MODEL: readonly (readonly [RegExp, keyof typeof I18N.scan.analyze])[] = [
+  [/saliency/, 'subject'],
+  [/samp_net|composition/, 'composition'],
+  [/face/, 'faces'],
+  [/topiq|liqe|hyperiqa|dbcnn|musiq|clipiqa|qrealign|aesthetic|deqa/, 'quality'],
+  [/clip|tagger|qwen|vlm/, 'content'],
+];
+
 /**
  * Superadmin-only dialog to pick a configured directory and launch + watch a
  * scoring scan in-app. Binds the live ScanService status (SSE with polling
@@ -65,26 +80,57 @@ const isRefusal = (err: HttpErrorResponse): boolean =>
           </div>
         }
       } @else {
-        <div class="flex items-center gap-2 mb-2 text-sm">
-          <mat-icon class="!text-base !w-4 !h-4" [class.text-[var(--facet-positive)]]="connected() && statusKnown() && !observationError()">
-            {{ connected() && statusKnown() && !observationError() ? 'cloud_done' : 'sync' }}
-          </mat-icon>
-          <span class="opacity-80">
+        @if (stages(); as stageList) {
+          <ol class="flex items-center gap-2 mb-4 mt-1 p-0 list-none text-xs" [attr.aria-label]="I18N.scan.stages_label | translate">
+            @for (stage of stageList; track stage.key) {
+              <li class="flex items-center gap-1.5" [attr.aria-current]="stage.state === 'current' ? 'step' : null"
+                  [class.text-[var(--mat-sys-on-surface-variant)]]="stage.state === 'pending'"
+                  [class.font-medium]="stage.state === 'current'">
+                <span class="grid place-items-center w-5 h-5 rounded-full text-[11px] tabular-nums"
+                      [class.bg-[var(--mat-sys-primary)]]="stage.state !== 'pending'"
+                      [class.text-[var(--mat-sys-on-primary)]]="stage.state !== 'pending'"
+                      [class.border]="stage.state === 'pending'"
+                      [class.border-[var(--mat-sys-outline)]]="stage.state === 'pending'">
+                  @if (stage.state === 'done') { <mat-icon class="!text-sm !w-3.5 !h-3.5 !leading-none" aria-hidden="true">check</mat-icon> }
+                  @else { {{ $index + 1 }} }
+                </span>
+                <span>{{ stage.label | translate }}</span>
+              </li>
+              @if (!$last) {
+                <li aria-hidden="true" class="flex-1 h-px"
+                    [class.bg-[var(--mat-sys-primary)]]="stage.state === 'done'"
+                    [class.bg-[var(--mat-sys-outline-variant)]]="stage.state !== 'done'"></li>
+              }
+            }
+          </ol>
+        }
+        <div class="flex items-baseline gap-3">
+          <span role="status" class="text-base font-medium">
             @if (phaseLabelKey(); as key) { {{ key | translate }} }
             @else { {{ status().progress?.phase }} }
           </span>
-          @if (eta() !== null) {
-            <span class="text-[var(--mat-sys-on-surface-variant)] ml-auto">{{ I18N.scan.eta | translate }} {{ eta() }}s</span>
+          @if (photoCount(); as count) {
+            <span class="ml-auto text-sm tabular-nums text-[var(--mat-sys-on-surface-variant)]">{{ I18N.scan.count | translate:count }}</span>
+          }
+        </div>
+        <div class="flex items-baseline gap-3 min-h-5 mb-2 text-sm text-[var(--mat-sys-on-surface-variant)]">
+          @if (stepLabelKey(); as key) { <span>{{ key | translate }}…</span> }
+          @if (timeLeft(); as left) {
+            <span class="ml-auto tabular-nums">{{ left.key | translate:left.vars }}</span>
           }
         </div>
         @if (statusKnown() && status().running && !observationError()) {
-          <mat-progress-bar [mode]="progressValue() === null ? 'indeterminate' : 'determinate'"
-                            [value]="progressValue() ?? 0" />
+          <mat-progress-bar class="!h-1.5 rounded-full" [mode]="progressValue() === null ? 'indeterminate' : 'determinate'"
+                            [value]="progressValue() ?? 0" [attr.aria-label]="I18N.scan.progress_label | translate" />
         }
-        @if ((!statusKnown() || observationError()) && outputTail()) {
-          <p class="mt-3 mb-1 text-xs">{{ I18N.scan.last_observed_output | translate }}</p>
+        @if (outputTail()) {
+          <details class="mt-3" [open]="logOpen()">
+            <summary class="text-xs cursor-pointer select-none text-[var(--mat-sys-on-surface-variant)]">
+              {{ ((!statusKnown() || observationError()) ? I18N.scan.last_observed_output : I18N.scan.details) | translate }}
+            </summary>
+            <pre class="mt-2 text-xs font-mono whitespace-pre-wrap max-h-48 overflow-y-auto opacity-70 bg-[var(--mat-sys-surface-container)] rounded p-2">{{ outputTail() }}</pre>
+          </details>
         }
-        <pre class="mt-3 text-xs font-mono whitespace-pre-wrap max-h-48 overflow-y-auto opacity-70 bg-[var(--mat-sys-surface-container)] rounded p-2">{{ outputTail() }}</pre>
       }
       <app-scan-history (retrySubmitted)="noteRetrySubmitted()" (retryAccepted)="noteRetryAccepted($event)" />
       @if (pendingStopId()) {
@@ -143,9 +189,44 @@ export class ScanLauncherComponent implements OnInit {
 
   protected readonly progressValue = computed(() => {
     const p = this.status().progress;
-    if (!p || !p.total) return null;
+    if (!p) return null;
+    // `fraction` moves within a chunk; `current` only once a whole chunk is saved.
+    if (typeof p.fraction === 'number') return Math.round(Math.min(1, Math.max(0, p.fraction)) * 100);
+    if (!p.total) return null;
     return Math.round(((p.current ?? 0) / p.total) * 100);
   });
+  private readonly live = computed(() => this.statusKnown() && !this.observationError() && this.status().running && !this.status().cancel_requested);
+  /** The three things a scan does, for a scan's own phases only (a recompute has no such shape). */
+  protected readonly stages = computed(() => {
+    const phase = this.status().progress?.phase;
+    if (!this.live() || !phase || !Object.hasOwn(STAGE_OF_PHASE, phase)) return null;
+    const at = STAGE_OF_PHASE[phase];
+    return STAGES.map((key, i) => ({ key, label: I18N.scan.stage[key], state: i < at ? 'done' : i === at ? 'current' : 'pending' }));
+  });
+  protected readonly photoCount = computed(() => {
+    const p = this.status().progress;
+    if (!this.live() || p?.phase !== 'scoring' || !p.total) return null;
+    return { current: p.current ?? 0, total: p.total };
+  });
+  protected readonly stepLabelKey = computed(() => {
+    const p = this.status().progress;
+    if (!this.live() || !p?.step || !Object.hasOwn(I18N.scan.step, p.step)) return null;
+    if (p.step === 'analyze' && p.detail) {
+      const kind = ANALYSIS_OF_MODEL.find(([pattern]) => pattern.test(p.detail!))?.[1];
+      if (kind) return I18N.scan.analyze[kind];
+    }
+    return (I18N.scan.step as Record<string, string>)[p.step];
+  });
+  protected readonly timeLeft = computed(() => {
+    const seconds = this.eta();
+    if (seconds === null) return null;
+    return seconds < 60
+      ? { key: I18N.scan.time_left_seconds, vars: { n: Math.max(1, Math.round(seconds)) } }
+      : { key: I18N.scan.time_left_minutes, vars: { n: Math.ceil(seconds / 60) } };
+  });
+  /** The raw log stays folded away while things go well, and opens itself when they do not. */
+  protected readonly logOpen = computed(() => !this.statusKnown() || this.observationError()
+    || (!this.status().running && this.status().exit_code !== null && this.status().exit_code !== 0));
   protected readonly phaseLabelKey = computed(() => {
     if (this.observationError()) return I18N.scan.status_unknown;
     if (!this.statusKnown()) return I18N.scan.checking_status;
@@ -192,7 +273,9 @@ export class ScanLauncherComponent implements OnInit {
   async ngOnInit(): Promise<void> {
     void this.scan.connect();
     try {
-      this.directories.set(await this.scan.loadDirectories());
+      const directories = await this.scan.loadDirectories();
+      this.directories.set(directories);
+      if (directories.length === 1) this.selectedDir.set(directories[0].path);
     } catch {
       this.dirLoadError.set(true);
     } finally {

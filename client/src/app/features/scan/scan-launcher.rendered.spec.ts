@@ -13,7 +13,12 @@ const translations = {
   scan: {
     checking_status: 'Checking scan status…', status_unavailable: 'Status unavailable', retry_status: 'Read scan status again', failed: 'Scan ended with an error',
     title: 'Scan Photos', close: 'Close', start_button: 'Start Scan', running: 'Running',
-    pick_directory: 'Pick a directory', eta: 'ETA',
+    pick_directory: 'Pick a directory',
+    time_left_seconds: 'about {n}s left', time_left_minutes: 'about {n} min left', count: '{current} of {total} photos',
+    details: 'Technical log', last_observed_output: 'Last observed output', stages_label: 'Scan steps', progress_label: 'Scan progress',
+    stage: { find: 'Find', analyze: 'Analyze', organize: 'Organize' },
+    step: { decode: 'Reading photos', models: 'Loading models', analyze: 'Analyzing photos', save: 'Saving results' },
+    analyze: { content: 'Understanding content', quality: 'Judging image quality', subject: 'Finding the main subject', composition: 'Reading the composition', faces: 'Detecting faces' },
     stop_button: 'Stop scan', stop_confirm: 'Stop this scan?', stop_consequence: 'Saved results stay.',
     stopping: 'Stop requested', ended_after_stop: 'Scan ended after a stop request',
     stop_unconfirmed: 'Stop request unconfirmed',
@@ -103,6 +108,47 @@ describe('Scan launcher rendered phase labels', () => {
       expect(root.textContent).not.toContain('[object Object]');
     });
   }
+
+  async function scoring(extra: Partial<NonNullable<ScanStatus['progress']>>, rest: Partial<ScanStatus> = {}) {
+    statusKnown.set(true);
+    status.set({ running: true, directories: ['/fixture/photos'], output: ['INFO loading'], elapsed_seconds: 3, exit_code: null,
+      progress: { phase: 'scoring', current: 0, total: 6, ...extra }, ...rest });
+    await settle();
+  }
+
+  it('moves the bar within a chunk and says what the scan is doing, in plain words', async () => {
+    await scoring({ step: 'analyze', detail: 'saliency', fraction: 0.424, eta_seconds: 95 });
+    expect(root.querySelector('mat-progress-bar')?.getAttribute('aria-valuenow')).toBe('42');
+    expect(root.textContent).toContain('Finding the main subject');
+    expect(root.textContent).toContain('0 of 6 photos');
+    expect(root.textContent).toContain('about 2 min left');
+    expect(root.textContent).not.toContain('saliency');
+  });
+
+  it('falls back to the step label for a model it has no words for, and ignores an unknown step', async () => {
+    await scoring({ step: 'analyze', detail: 'brand_new_model', fraction: 0.5 });
+    expect(root.textContent).toContain('Analyzing photos');
+    await scoring({ step: 'constructor', fraction: 0.5 });
+    expect(root.textContent).not.toContain('constructor');
+  });
+
+  it('marks the stage the scan is in', async () => {
+    await scoring({ step: 'models', fraction: 0.1 });
+    const stepper = 'ol[aria-label="Scan steps"]';
+    const steps = [...root.querySelectorAll(`${stepper} li:not([aria-hidden])`)];
+    expect(steps.map(li => li.getAttribute('aria-current'))).toEqual([null, 'step', null]);
+    expect(steps[0].querySelector('mat-icon')?.textContent).toContain('check');
+    await progress('recompute');
+    expect(root.querySelector(stepper)).toBeNull();
+  });
+
+  it('folds the raw log away while the scan is healthy and opens it when it failed', async () => {
+    await scoring({ step: 'models', fraction: 0.1 });
+    expect(root.querySelector('details')?.open).toBe(false);
+    expect(root.querySelector('details pre')?.textContent).toContain('INFO loading');
+    await scoring({}, { running: false, exit_code: 1 });
+    expect(root.querySelector('details')?.open).toBe(true);
+  });
 
   it('shows the running label before structured progress arrives', async () => {
     expect(root.textContent).toContain('Checking scan status…');

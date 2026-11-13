@@ -2080,7 +2080,6 @@
     "loading_directories": "Verzeichnisse werden geladen…",
     "no_directories": "Keine Scan-Verzeichnisse konfiguriert.",
     "pick_directory": "Wählen Sie ein Verzeichnis zum Scannen:",
-    "eta": "Restzeit",
     "starting": "Wird gestartet...",
     "running": "Läuft",
     "completed": "Scan abgeschlossen",
@@ -2150,7 +2149,33 @@
         "duplicate": "Doppelte Ziele ausgelassen",
         "raw_paired": "RAW-Dateien mit erfasstem JPEG/HEIF-Partner ausgelassen"
       }
-    }
+    },
+    "step": {
+      "decode": "Fotos werden gelesen",
+      "models": "Modelle werden geladen",
+      "analyze": "Fotos werden analysiert",
+      "save": "Ergebnisse werden gespeichert"
+    },
+    "analyze": {
+      "content": "Bildinhalt wird erfasst",
+      "quality": "Bildqualität wird bewertet",
+      "subject": "Hauptmotiv wird gesucht",
+      "composition": "Komposition wird ausgewertet",
+      "faces": "Gesichter werden erkannt"
+    },
+    "stage": {
+      "find": "Suchen",
+      "analyze": "Analysieren",
+      "organize": "Ordnen"
+    },
+    "stages_label": "Scan-Schritte",
+    "count": "{current} von {total} Fotos",
+    "time_left_seconds": "noch etwa {n} s",
+    "time_left_minutes": "noch etwa {n} Min.",
+    "details": "Technisches Protokoll",
+    "added": "{count} neue Fotos hinzugefügt",
+    "none_new": "Keine neuen Fotos gefunden",
+    "progress_label": "Scan-Fortschritt"
   },
   "persons": {
     "help": "Von der Gesichtserkennung erkannte Personen. Benennen Sie unbenannte Cluster, führen Sie Duplikate zusammen, legen Sie einen Avatar fest oder blenden Sie eine Person aus. Klicken Sie auf eine Person, um ihre Fotos zu sehen.",

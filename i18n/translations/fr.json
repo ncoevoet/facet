@@ -2080,7 +2080,6 @@
     "loading_directories": "Chargement des dossiers…",
     "no_directories": "Aucun dossier de scan configuré.",
     "pick_directory": "Choisissez un dossier à scanner :",
-    "eta": "Estimation",
     "starting": "Démarrage...",
     "running": "En cours",
     "completed": "Scan terminé",
@@ -2150,7 +2149,33 @@
         "duplicate": "Cibles en double omises",
         "raw_paired": "Fichiers RAW avec partenaire JPEG/HEIF capturé omis"
       }
-    }
+    },
+    "step": {
+      "decode": "Lecture des photos",
+      "models": "Chargement des modèles",
+      "analyze": "Analyse des photos",
+      "save": "Enregistrement des résultats"
+    },
+    "analyze": {
+      "content": "Compréhension du contenu de chaque photo",
+      "quality": "Évaluation de la qualité d'image",
+      "subject": "Recherche du sujet principal",
+      "composition": "Lecture de la composition",
+      "faces": "Détection des visages"
+    },
+    "stage": {
+      "find": "Recherche",
+      "analyze": "Analyse",
+      "organize": "Organisation"
+    },
+    "stages_label": "Étapes de l'analyse",
+    "count": "{current} sur {total} photos",
+    "time_left_seconds": "environ {n} s restantes",
+    "time_left_minutes": "environ {n} min restantes",
+    "details": "Journal technique",
+    "added": "{count} nouvelles photos ajoutées",
+    "none_new": "Aucune nouvelle photo trouvée",
+    "progress_label": "Progression de l'analyse"
   },
   "persons": {
     "help": "Personnes détectées par la reconnaissance faciale. Nommez les groupes sans nom, fusionnez les doublons, définissez un avatar ou masquez une personne. Cliquez sur une personne pour voir ses photos.",

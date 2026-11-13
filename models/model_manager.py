@@ -5,6 +5,7 @@ Handles loading and managing AI models based on VRAM profile configuration.
 Supports PyIQA, Qwen2-VL, and CLIP models with automatic selection.
 """
 
+import contextlib
 import logging
 import math
 from typing import Dict, List
@@ -110,6 +111,18 @@ class ModelManager:
     # Models that support .cpu()/.to(device) for RAM caching between passes,
     # plus 'insightface', which is retained rather than moved (see
     # _can_cache_to_ram)
+    # Models whose checkpoint supplies every parameter, so the constructor's random
+    # init is pure waste and is skipped (utils.fast_load.skip_weight_init). A model
+    # belongs here only once TestCheckpointCoverage in tests/test_fast_load.py has
+    # loaded its real weights with the init poisoned and found no poison left
+    # (opt-in: FACET_TEST_REAL_MODELS=1, it downloads the checkpoints).
+    CHECKPOINT_COMPLETE_MODELS = frozenset({
+        'clip', 'clip_aesthetic', 'topiq', 'topiq_iaa', 'topiq_nr_face', 'liqe',
+        'saliency', 'samp_net',
+    })
+
+    WARM_MODELS_PATH = 'pretrained_models/.warm_models.json'
+
     CPU_CACHEABLE_MODELS = {
         'clip', 'clip_aesthetic', 'samp_net',
         'topiq', 'hyperiqa', 'dbcnn', 'musiq', 'musiq-koniq', 'clipiqa+',
@@ -164,6 +177,8 @@ class ModelManager:
 
         # CPU RAM cache for models between multi-pass chunks
         self._cpu_cache = {}
+        from utils.fast_load import WarmModelLedger
+        self._warm_models = WarmModelLedger(self.WARM_MODELS_PATH)
         self._cache_hits = 0
         self._cache_misses = 0
 
@@ -878,12 +893,46 @@ class ModelManager:
                         'topiq_iaa', 'topiq_nr_face', 'liqe']
 
         if model_name in loaders:
-            return loaders[model_name]()
+            loader = loaders[model_name]
         elif model_name in pyiqa_models:
-            return self._load_pyiqa(model_name)
+            def loader():
+                return self._load_pyiqa(model_name)
         else:
             logger.warning("Unknown model: %s", model_name)
             return None
+        return self._load_fast(model_name, loader)
+
+    def _load_fast(self, model_name: str, loader):
+        """Run ``loader`` without the work a warm install does not need.
+
+        A model in ``CHECKPOINT_COMPLETE_MODELS`` skips the constructor's random
+        weight init. Under ``fast_load.prefer_local_hub``, one that has loaded here before
+        reads its files from the hub cache without asking the hub first; a failed
+        offline attempt (the cache was cleared since) falls back to the ordinary
+        online load.
+        """
+        from utils import fast_load
+        from utils.fast_load import hub_offline, skip_weight_init
+
+        skip_init = (skip_weight_init() if model_name in self.CHECKPOINT_COMPLETE_MODELS
+                     else contextlib.nullcontext())
+        warm = getattr(self, '_warm_models', None)   # absent on a manager built without __init__
+        if warm is None or not fast_load.prefer_local_hub:
+            with skip_init:
+                return loader()
+        warm_key = f"{getattr(self, 'profile', '')}:{model_name}"
+        with skip_init:
+            if warm_key in warm:
+                with hub_offline():
+                    model = loader()
+                if model is not None:
+                    return model
+                logger.info("%s did not load from the local cache; retrying online.", model_name)
+                warm.discard(warm_key)
+            model = loader()
+        if model is not None:
+            warm.add(warm_key)
+        return model
 
     def _load_samp_net(self):
         """Load SAMP-Net composition model."""
@@ -1145,8 +1194,14 @@ class ModelManager:
             logger.error("Failed to load BiRefNet: %s", e)
             return None
 
-    def unload_all(self):
+    def unload_all(self, keep_cached=()):
         """Unload all models to free VRAM and clear CPU cache.
+
+        ``keep_cached`` names models to leave in the CPU RAM cache instead, for a
+        caller about to load them again: a scan's post-processing scores the new
+        photos' embeddings against text prompts and rebuilt CLIP from disk for it.
+        A kept model is still subject to the cache's memory gate, so it is simply
+        unloaded where the RAM is not there.
 
         The cache is emptied with ``pop`` rather than ``del`` for the reason
         ``evict_cpu_cache`` is: ``MultiPassResourceMonitor.stop()`` only sets
@@ -1154,6 +1209,9 @@ class ModelManager:
         removing these same keys while this runs, and a ``del`` on the key it
         already took would raise on the way out of a scan.
         """
+        for name in keep_cached:
+            if name in self.models:
+                self.unload_model(name, reclaim=False)
         for name, model in list(self.models.items()):
             if hasattr(model, 'unload'):
                 model.unload()
@@ -1181,8 +1239,8 @@ class ModelManager:
         # Clear CPU cache. A cached scorer never reached ``unload()``, so the
         # skip totals it accumulated are reported here, once, as it leaves.
         for name in list(self._cpu_cache):
-            self._report_scorer_skips(self._cpu_cache.pop(name, None))
-        self._cpu_cache.clear()
+            if name not in keep_cached:
+                self._report_scorer_skips(self._cpu_cache.pop(name, None))
 
         import gc
         gc.collect()

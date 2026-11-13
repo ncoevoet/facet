@@ -2080,7 +2080,6 @@
     "loading_directories": "Carregando diretórios…",
     "no_directories": "Nenhum diretório de escaneamento configurado.",
     "pick_directory": "Escolha um diretório para escanear:",
-    "eta": "Tempo restante",
     "starting": "Iniciando...",
     "running": "Em execução",
     "completed": "Varredura concluída",
@@ -2150,7 +2149,33 @@
         "duplicate": "Destinos duplicados omitidos",
         "raw_paired": "Ficheiros RAW com parceiros JPEG/HEIF capturados omitidos"
       }
-    }
+    },
+    "step": {
+      "decode": "A ler as fotos",
+      "models": "A carregar os modelos",
+      "analyze": "A analisar as fotos",
+      "save": "A guardar os resultados"
+    },
+    "analyze": {
+      "content": "A compreender o conteúdo de cada foto",
+      "quality": "A avaliar a qualidade da imagem",
+      "subject": "A procurar o sujeito principal",
+      "composition": "A ler a composição",
+      "faces": "A detetar rostos"
+    },
+    "stage": {
+      "find": "Procurar",
+      "analyze": "Analisar",
+      "organize": "Organizar"
+    },
+    "stages_label": "Etapas da análise",
+    "count": "{current} de {total} fotos",
+    "time_left_seconds": "cerca de {n} s restantes",
+    "time_left_minutes": "cerca de {n} min restantes",
+    "details": "Registo técnico",
+    "added": "{count} novas fotos adicionadas",
+    "none_new": "Nenhuma foto nova encontrada",
+    "progress_label": "Progresso da análise"
   },
   "persons": {
     "help": "Pessoas detectadas pelo reconhecimento facial. Nomeie os grupos sem nome, mescle duplicatas, defina um avatar ou oculte uma pessoa. Clique em uma pessoa para ver as suas fotos.",

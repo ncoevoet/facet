@@ -2105,7 +2105,6 @@
     "loading_directories": "Loading directories…",
     "no_directories": "No scan directories configured.",
     "pick_directory": "Pick a directory to scan:",
-    "eta": "ETA",
     "starting": "Starting...",
     "running": "Running",
     "completed": "Scan completed",
@@ -2175,7 +2174,33 @@
         "duplicate": "Duplicate targets omitted",
         "raw_paired": "RAW files with captured JPEG/HEIF partners omitted"
       }
-    }
+    },
+    "step": {
+      "decode": "Reading photos",
+      "models": "Loading models",
+      "analyze": "Analyzing photos",
+      "save": "Saving results"
+    },
+    "analyze": {
+      "content": "Understanding what's in each photo",
+      "quality": "Judging image quality",
+      "subject": "Finding the main subject",
+      "composition": "Reading the composition",
+      "faces": "Detecting faces"
+    },
+    "stage": {
+      "find": "Find",
+      "analyze": "Analyze",
+      "organize": "Organize"
+    },
+    "stages_label": "Scan steps",
+    "count": "{current} of {total} photos",
+    "time_left_seconds": "about {n}s left",
+    "time_left_minutes": "about {n} min left",
+    "details": "Technical log",
+    "added": "{count} new photos added",
+    "none_new": "No new photos found",
+    "progress_label": "Scan progress"
   },
   "persons": {
     "help": "People detected by face recognition. Name unnamed clusters, merge duplicates, set an avatar, or hide a person. Click a person to see their photos.",

@@ -129,6 +129,8 @@ class SaliencyScorer:
     # a memory-derived one.
     UNIFIED_MEMORY_ACCELERATOR = 'mps'
     UNIFIED_MEMORY_MAX_BATCH = 2
+    # Devices that run the checkpoint's native fp16 (see load()).
+    HALF_PRECISION_DEVICES = ('cuda', 'mps')
 
     def __init__(self, device: Optional[str] = None, model_name: Optional[str] = None,
                  resolution: Optional[int] = None, mask_threshold: Optional[float] = None,
@@ -157,7 +159,7 @@ class SaliencyScorer:
         self._warned_vram_unreadable = False
 
     def load(self):
-        """Load BiRefNet, in float32 anywhere without a dedicated GPU.
+        """Load BiRefNet, in float32 on CPU and the checkpoint's fp16 on CUDA and MPS.
 
         The published checkpoint is stored as F16 and its config carries no
         ``torch_dtype``, so transformers loads it half-precision. CPU kernels
@@ -170,6 +172,14 @@ class SaliencyScorer:
         :meth:`_affordable_batch_size` is sized from the float32 slope. CUDA
         keeps the checkpoint's fp16 and reserves about the same 2.4 GiB per
         image at 1024 px.
+
+        Apple's MPS keeps fp16 too. Float32 there is not merely slower: its
+        activations outgrow what the Metal allocator serves quickly, and the
+        forward pass falls off a cliff. Measured on an M4 Pro (24 GB) with
+        12 MP photos at 1024 px, per image: float32 0.9 s at batch 1, 1.3-1.6 s
+        at batch 2, 9.1 s at batch 4, and 15 s for the batch of one that
+        followed; fp16 0.74-0.88 s at every batch size. The fp16 mask
+        matched the float32 one at IoU 0.994.
         """
         if self._loaded:
             return
@@ -180,7 +190,7 @@ class SaliencyScorer:
         self.model = AutoModelForImageSegmentation.from_pretrained(
             self.model_name, trust_remote_code=True
         )
-        if not self.device.startswith(self.DEDICATED_VRAM_DEVICE):
+        if not self.device.startswith(self.HALF_PRECISION_DEVICES):
             self.model = self.model.float()
         self.model.to(self.device).eval()
 
