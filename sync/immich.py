@@ -256,7 +256,7 @@ class ImmichClient:
 
     def add_album_assets(self, album_id: str, asset_ids: list[str]) -> None:
         for start in range(0, len(asset_ids), UPDATE_CHUNK):
-            self._request("PUT", f"/api/albums/{album_id}/assets",
+            self._request("PUT", f"/api/albums/{quote(album_id, safe='')}/assets",
                           {"ids": asset_ids[start:start + UPDATE_CHUNK]})
 
     def remove_album_assets(self, album_id: str, asset_ids: list[str]) -> None:
@@ -675,8 +675,10 @@ def sync_to_immich(db_path, config: dict, user_id: str | None = None,
     unmatched_paths: list[str] = []
     matched_paths: set[str] = set()
     conflict_messages: list[tuple[str, str]] = []
+    conflicting_paths: set[str] = set()
 
     def record_conflict(facet_path, error):
+        conflicting_paths.add(facet_path)
         summary["identity_conflicts"] += 1
         if len(conflict_messages) < UNMATCHED_LOG_LIMIT:
             conflict_messages.append((facet_path, str(error)))
@@ -829,9 +831,15 @@ def sync_to_immich(db_path, config: dict, user_id: str | None = None,
                             seen = client.observed_paths(asset_id)
                             if len(seen) != 1:
                                 continue
-                            row = rows_by_path.get(
-                                map_immich_path(next(iter(seen)), path_map))
-                            if row is None:
+                            seen_path = next(iter(seen))
+                            row = rows_by_path.get(map_immich_path(seen_path, path_map))
+                            if (row is None or seen_path in ambiguous
+                                    or row["path"] in conflicting_paths
+                                    or map_facet_path(row["path"], path_map) != seen_path):
+                                continue
+                            try:
+                                client.assert_asset_identity(asset_id, seen_path)
+                            except AssetIdentityError:
                                 continue
                             rating = _row_rating(row, push_rejected)
                             if rating is None or rating < album_min_rating:
@@ -1035,12 +1043,23 @@ def push_photo_updates(db_path, config: dict, entries) -> list:
             for index, facet_path, _ in members:
                 pushed[facet_path] = _active_state(fields)
                 results[index] = (RESULT_PUSHED, None)
-        except PUSH_ERRORS:
+        except PUSH_ERRORS as batch_error:
+            outcomes = {}
             for index, facet_path, asset_id in members:
-                try:
-                    client.update_assets([asset_id], fields)
-                except PUSH_ERRORS as e:
-                    results[index] = (RESULT_FAILED, e)
+                if asset_id not in outcomes:
+                    error = batch_error
+                    # Only an HTTP refusal warrants isolating individual ids;
+                    # a dropped connection must not multiply timeouts by N.
+                    if isinstance(batch_error, urllib_error.HTTPError):
+                        try:
+                            client.update_assets([asset_id], fields)
+                            error = None
+                        except PUSH_ERRORS as e:
+                            error = e
+                    outcomes[asset_id] = error
+                error = outcomes[asset_id]
+                if error is not None:
+                    results[index] = (RESULT_FAILED, error)
                     continue
                 pushed[facet_path] = _active_state(fields)
                 results[index] = (RESULT_PUSHED, None)

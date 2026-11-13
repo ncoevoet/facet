@@ -152,6 +152,8 @@ Was übertragen wird:
 
 Im Mehrbenutzermodus überträgt `--immich-sync --user alice` Alices eigene Bewertungen (`user_preferences`) statt der globalen und verfolgt ihren Synchronisierungszustand getrennt.
 
+Im Mehrbenutzermodus ist das Top-Picks-Album gemeinsam: Eine globale Synchronisierung verwendet die Ersatzbewertungen aus `photos` und kann ein zuvor von einem Benutzer hinzugefügtes Foto entfernen, wenn seine globale Bewertung unter dem Schwellenwert liegt. Benutzersynchronisierungen entfernen niemals Mitglieder.
+
 ## Ablehnungen übertragen
 
 Standardmäßig deaktiviert. Aktiviert, erhält ein Foto, das Sie in Facets Culling-Ansicht ablehnen, Immichs Ablehnungsmarker:

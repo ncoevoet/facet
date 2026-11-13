@@ -152,6 +152,8 @@ What gets pushed:
 
 In multi-user mode, `--immich-sync --user alice` pushes Alice's own ratings (`user_preferences`) instead of the global ones, and tracks her sync state separately.
 
+In multi-user mode, the top-picks album is shared: a global sync uses the fallback ratings in `photos`, so it can remove a member previously added by a per-user sync when its global rating is below the threshold. Per-user syncs never remove members.
+
 ## Pushing rejections
 
 Off by default. When on, a photo you reject in Facet's culling view gets Immich's rejected marker:

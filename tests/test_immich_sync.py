@@ -3,6 +3,7 @@
 import json
 import sqlite3
 import threading
+import urllib.error
 
 import pytest
 
@@ -1316,14 +1317,16 @@ class TestWebhookBatchedWrites:
             if method == "PUT" and path == "/api/assets":
                 puts.append(payload["ids"])
                 if len(payload["ids"]) > 1 or payload["ids"] == ['id-boom']:
-                    raise urllib.error.URLError("batch refused")
+                    raise urllib.error.HTTPError("http://immich.local", 400, "batch refused", {}, None)
                 return None
             raise AssertionError(f"Unexpected request: {method} {path}")
 
         monkeypatch.setattr(ImmichClient, "_request", flaky)
         results = push_photo_updates(db_path, make_config(), [
-            ('/p/boom.jpg', 'id-boom'), ('/p/ok.jpg', 'id-ok')])
+            ('/p/boom.jpg', 'id-boom'), ('/p/ok.jpg', 'id-ok'),
+            ('/p/ok.jpg', 'id-ok')])
 
+        assert results[2] == (RESULT_PUSHED, None)
         assert results[0][0] == RESULT_FAILED
         assert results[1] == (RESULT_PUSHED, None)
         # The batch went out as ONE call carrying both ids before the fallback.
@@ -1633,3 +1636,79 @@ class TestAlbumMembershipRead:
         assert searches, "the membership read never hit the albumIds search"
         assert all(s["albumIds"] == ["al"] for s in searches)
         assert all("originalPath" not in s for s in searches)
+
+
+@pytest.mark.parametrize('dry_run', [False, True])
+@pytest.mark.parametrize('overlapping', [False, True])
+def test_album_removal_refuses_ambiguous_or_non_roundtrip_paths(
+        tmp_path, transport, dry_run, overlapping):
+    rows = [('/nas/x.jpg', 2, 0, 0), ('/local/x.jpg', 5, 0, 0)]
+    mappings = [
+        {'facet_prefix': '/nas/', 'immich_prefix': '/photos/'},
+        {'facet_prefix': '/local/', 'immich_prefix': '/photos/'},
+    ]
+    if overlapping:
+        rows = [('/nas/sub/x.jpg', 2, 0, 0), ('/local/x.jpg', 5, 0, 0)]
+        mappings[1]['immich_prefix'] = '/photos/sub/'
+    db_path = make_db(tmp_path, rows)
+    remote_path = '/photos/sub/x.jpg' if overlapping else '/photos/x.jpg'
+    transport.assets_by_path = {remote_path: 'id-x'}
+    transport.albums = [{'albumName': 'Facet Top Picks', 'id': 'al'}]
+    transport.album_assets = {'al': ['id-x']}
+    cfg = make_config(push={'ratings': True, 'favorites': True,
+                            'top_picks_album': 'Facet Top Picks'})
+    cfg['immich']['path_map'] = mappings
+
+    summary = sync_to_immich(db_path, cfg, dry_run=dry_run)
+
+    assert summary['identity_conflicts'] == 2
+    assert summary['album_removed'] == 0
+    assert not [r for r in transport.requests if r[0] == 'DELETE']
+
+
+@pytest.mark.parametrize('dry_run', [False, True])
+def test_album_removal_requires_forward_path_agreement(tmp_path, transport, dry_run):
+    db_path = make_db(tmp_path, [('/nas/sub/x.jpg', 2, 0, 0)])
+    transport.assets_by_path = {'/photos/sub/x.jpg': 'id-x'}
+    transport.albums = [{'albumName': 'Facet Top Picks', 'id': 'al'}]
+    transport.album_assets = {'al': ['id-x']}
+    cfg = make_config(push={'ratings': True, 'favorites': True,
+                            'top_picks_album': 'Facet Top Picks'})
+    cfg['immich']['path_map'] = [
+        {'facet_prefix': '/nas/sub/', 'immich_prefix': '/elsewhere/'},
+        {'facet_prefix': '/nas/', 'immich_prefix': '/photos/'},
+    ]
+
+    summary = sync_to_immich(db_path, cfg, dry_run=dry_run)
+
+    assert summary['album_removed'] == 0
+    assert not [r for r in transport.requests if r[0] == 'DELETE']
+
+
+@pytest.mark.parametrize('error', [urllib.error.URLError('offline'), TimeoutError('timeout')])
+def test_webhook_network_failure_does_not_retry_each_asset(tmp_path, transport, monkeypatch, error):
+    db_path = make_db(tmp_path, [('/p/a.jpg', 5, 0, 0), ('/p/b.jpg', 5, 0, 0)])
+    with sqlite3.connect(db_path) as conn:
+        conn.execute('UPDATE photos SET aggregate = 8')
+    transport.assets_by_path = {'/p/a.jpg': 'id-a', '/p/b.jpg': 'id-b'}
+    original = ImmichClient.update_assets
+    calls = []
+
+    def offline(self, ids, fields):
+        calls.append(ids)
+        raise error
+
+    monkeypatch.setattr(ImmichClient, 'update_assets', offline)
+    results = push_photo_updates(db_path, make_config(),
+                                 [('/p/a.jpg', 'id-a'), ('/p/b.jpg', 'id-b')])
+    assert calls == [['id-a', 'id-b']]
+    assert results == [(RESULT_FAILED, error), (RESULT_FAILED, error)]
+    monkeypatch.setattr(ImmichClient, 'update_assets', original)
+
+
+def test_add_album_assets_quotes_album_id(monkeypatch):
+    calls = []
+    monkeypatch.setattr(ImmichClient, '_request',
+                        lambda self, method, path, payload: calls.append((method, path, payload)))
+    ImmichClient('http://immich.local', 'key').add_album_assets('a/b?', ['id'])
+    assert calls == [('PUT', '/api/albums/a%2Fb%3F/assets', {'ids': ['id']})]

@@ -152,6 +152,8 @@ O que é enviado:
 
 No modo multiusuário, `--immich-sync --user alice` envia as avaliações próprias da Alice (`user_preferences`) em vez das globais, e rastreia o estado de sincronização dela separadamente.
 
+No modo multiusuário, o álbum de melhores fotos é compartilhado: uma sincronização global usa as avaliações de referência de `photos` e pode remover uma foto adicionada por uma sincronização de usuário se sua avaliação global estiver abaixo do limite. As sincronizações de usuário nunca removem membros.
+
 ## Enviando rejeições
 
 Desativado por padrão. Quando ativado, uma foto que você rejeita na visão de triagem do Facet recebe o marcador de rejeitada do Immich:

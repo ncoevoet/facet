@@ -152,6 +152,8 @@ Ce qui est poussé :
 
 En mode multi-utilisateurs, `--immich-sync --user alice` pousse les notes propres à Alice (`user_preferences`) au lieu des notes globales, et suit son état de synchronisation séparément.
 
+En mode multi-utilisateur, l’album des meilleures photos est partagé : une synchronisation globale utilise les notes de repli de `photos` et peut retirer une photo ajoutée par une synchronisation utilisateur si sa note globale est sous le seuil. Les synchronisations utilisateur ne retirent jamais de membres.
+
 ## Pousser les rejets
 
 Désactivé par défaut. Quand il est activé, une photo que vous rejetez dans la vue de tri de Facet reçoit le marqueur de rejet d'Immich :
