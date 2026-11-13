@@ -884,6 +884,8 @@ def api_stats_categories_weights(user: Optional[CurrentUser] = Depends(get_optio
 
 # --- Category overlap: precompiled filters over streamed rows ---
 
+_OVERLAP_CHUNK = 2000
+
 # Column indices of the overlap scan (SELECT order above).
 _OVERLAP_IDX = {'tags': 0, 'face_count': 1, 'face_ratio': 2, 'is_silhouette': 3,
                 'is_group_portrait': 4, 'is_monochrome': 5, 'mean_luminance': 6,
@@ -994,7 +996,10 @@ def _evaluate_overlap_chunk(rows, compiled, names):
                         break
             if ok:
                 for idx, required in bools:
-                    actual = bool(values[idx] or 0) if idx != 1 else values[idx] > 0
+                    # has_face is ``(face_count or 0) > 0`` in the filter
+                    # library — the ``or 0`` keeps a falsy TEXT value (e.g. an
+                    # externally written '') from raising on the comparison.
+                    actual = (values[idx] or 0) > 0 if idx == 1 else bool(values[idx] or 0)
                     if actual != required:
                         ok = False
                         break
@@ -1051,8 +1056,10 @@ async def api_stats_categories_correlations(user: Optional[CurrentUser] = Depend
                     AND category IS NOT NULL AND category != ''{vis}
                 GROUP BY category
             ''', vp)
-            corr_rows = await cur.fetchall()
-            await cur.close()
+            try:
+                corr_rows = await cur.fetchall()
+            finally:
+                await cur.close()
 
             results = {}
             for r in corr_rows:
@@ -1131,21 +1138,23 @@ async def api_stats_categories_overlap(user: Optional[CurrentUser] = Depends(get
                        f_stop, category
                 FROM photos WHERE 1=1{vis}
             ''', vp)
-            while True:
-                rows = await cur.fetchmany(2000)
-                if not rows:
-                    break
-                chunk = await asyncio.to_thread(
-                    _evaluate_overlap_chunk, rows, compiled, names)
-                total += chunk[0]
-                uncategorized += chunk[1]
-                for name, n in chunk[2].items():
-                    assigned_counts[name] += n
-                for name, n in chunk[3].items():
-                    match_counts[name] += n
-                for pair, n in chunk[4].items():
-                    overlap_pairs[pair] += n
-            await cur.close()
+            try:
+                while True:
+                    rows = await cur.fetchmany(_OVERLAP_CHUNK)
+                    if not rows:
+                        break
+                    chunk = await asyncio.to_thread(
+                        _evaluate_overlap_chunk, rows, compiled, names)
+                    total += chunk[0]
+                    uncategorized += chunk[1]
+                    for name, n in chunk[2].items():
+                        assigned_counts[name] += n
+                    for name, n in chunk[3].items():
+                        match_counts[name] += n
+                    for pair, n in chunk[4].items():
+                        overlap_pairs[pair] += n
+            finally:
+                await cur.close()
 
         # Build overlap list sorted by count
         overlaps = [

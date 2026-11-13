@@ -78,6 +78,7 @@ def _seed_rows():
         _photo('/r12.jpg', category='cats_noface', tags='people', face_count=3, face_ratio=0.4,
                aggregate=7.9),
         _photo('/r13.jpg', face_count=1, face_ratio=0.05, is_monochrome=1, aggregate=6.1),  # boundary min
+        _photo('/r14.jpg', face_count='', tags='people', face_ratio=0.1, aggregate=6.3),  # falsy TEXT face_count
     ]
 
 
@@ -210,7 +211,8 @@ def test_overlap_semantics_spot_checks(monkeypatch, tmp_path):
     # longexp r5 + r9; allmode only r10 ('a'+'b' after strip+lower); excl only
     # r7 ('scenery' without 'soft'); night r1/r2/r7.
     assert got_match['cats_portrait'] == 4
-    assert got_match['cats_noface'] == 9
+    # r14's falsy TEXT face_count counts as no face, like the filter library.
+    assert got_match['cats_noface'] == 10
     assert got_match['cats_mono'] == 2
     assert got_match['cats_sports'] == 1
     assert got_match['cats_allmode'] == 1
@@ -220,6 +222,27 @@ def test_overlap_semantics_spot_checks(monkeypatch, tmp_path):
     got_pairs = {tuple(o['pair']): o['count'] for o in data['overlaps']}
     assert got_pairs[('cats_mono', 'cats_portrait')] == 1
     assert got_pairs[('cats_excl', 'cats_night')] == 1
+
+
+def test_overlap_streams_in_chunks(monkeypatch, tmp_path):
+    """The chunked streaming path accumulates identically when the fetch spans
+    multiple chunks (patch the chunk size below the seed size)."""
+    rows = _seed_rows() + _correlation_rows()
+    cats = json.loads(json.dumps(TEST_CATEGORIES))
+    data_default = _run_endpoint(monkeypatch, tmp_path, rows, '/api/stats/categories/overlap')
+
+    db_path = str(tmp_path / 'chunked.db')
+    _make_stats_db(db_path, rows)
+    app = _create_app_no_auth()
+    with mock.patch('api.routers.stats.server_scoring_config', lambda: _FakeConfig(cats)):
+        from tests.test_stats import _cache_passthrough
+        with mock.patch('api.routers.stats.get_async_db', _async_conn_factory(db_path)), \
+             mock.patch('api.routers.stats._get_stats_cached_async', _cache_passthrough), \
+             mock.patch('api.routers.stats._OVERLAP_CHUNK', 3):
+            resp = TestClient(app).get('/api/stats/categories/overlap')
+    assert resp.status_code == 200
+    data_chunked = resp.json()
+    assert data_chunked == data_default
 
 
 def test_correlations_match_ground_truth_and_single_scan(monkeypatch, tmp_path):
