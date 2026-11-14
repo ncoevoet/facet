@@ -161,6 +161,12 @@ def test_burst_score_extraction_values():
     assert compute_burst_score(photo) == pytest.approx(7.6)
     blink = {'aggregate': 8, 'aesthetic': 6, 'tech_sharpness': 7, 'is_blink': 1}
     assert compute_burst_score(blink) == pytest.approx(6.1)
+    # NULL is_blink = the face pass failed: unknown, not "eyes open" — the
+    # blink term is skipped instead of crediting the full 10.
+    failed = {'aggregate': 8, 'aesthetic': 6, 'tech_sharpness': 7}
+    assert compute_burst_score(failed) == pytest.approx(6.1)
+    assert compute_burst_score({'aggregate': 8, 'aesthetic': 6, 'tech_sharpness': 7,
+                                'is_blink': None}) == pytest.approx(6.1)
 
 
 def test_keeper_baseline_accuracy():
@@ -438,8 +444,11 @@ def test_build_ranker_dataset_heuristic_reflects_custom_weights(keeper_db):
     conn.close()
     assert data is not None
     assert len(data['heur_a']) == data['n_pairs'] == len(data['heur_b'])
-    np.testing.assert_allclose(data['heur_a'], 10.0)
-    np.testing.assert_allclose(data['heur_b'], 10.0)
+    # The seeded rows have no is_blink (face pass never ran): the burst
+    # heuristic skips the blink term for NULL instead of crediting open eyes,
+    # so a blink-only weight vector scores every row 0.
+    np.testing.assert_allclose(data['heur_a'], 0.0)
+    np.testing.assert_allclose(data['heur_b'], 0.0)
 
 
 # --- _keeper_head_for scope fallback ---

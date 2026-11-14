@@ -567,16 +567,15 @@ class DatabaseValidator:
         self.results.append(result2)
         self._print_result(result2)
 
-        # Check 3: Orphaned persons (persons with no assigned faces)
+        # Check 3: Persons with no assigned faces. Report-only: an empty person
+        # is a legitimate assignment target (created empty on purpose and filled
+        # by the review flow), so there is no safe automatic delete -- a person
+        # being populated would be wiped by the old fix. The faces side of real
+        # orphans is cleaned by reassign_faces_to_person instead.
         result3 = ValidationResult(
             "orphaned_persons",
             "Person records with no assigned faces"
         )
-        result3.fixable = True
-        result3.fix_query = """
-            DELETE FROM persons
-            WHERE id NOT IN (SELECT DISTINCT person_id FROM faces WHERE person_id IS NOT NULL)
-        """
 
         cursor.execute("""
             SELECT p.id, p.name, p.face_count

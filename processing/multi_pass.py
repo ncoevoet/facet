@@ -2054,6 +2054,13 @@ class ChunkedMultiPassProcessor:
         except Exception as e:
             licensing.reraise_if_refused()
             logger.error("BiRefNet saliency pass failed: %s", e)
+            # Flag every photo in the chunk exactly like the per-image failure
+            # branch above: without it a full save overwrites stored values
+            # with NULL, and --retry-failed never sees this batch.
+            for path in paths:
+                results[path][SALIENCY_FAILED_KEY] = True
+                if self.on_error:
+                    self.on_error(path, 'saliency', e)
 
     def _rebuild_gray(self, pil_img):
         """The gray plane ``ImageCache`` used to hold, rebuilt from the retained PIL image.

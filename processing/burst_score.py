@@ -38,10 +38,13 @@ def compute_burst_score(photo, weights=DEFAULT_BURST_WEIGHTS):
     aggregate = photo.get('aggregate') or 0
     aesthetic = photo.get('aesthetic') or 0
     sharpness = photo.get('tech_sharpness') or 0
-    is_blink = photo.get('is_blink') or 0
-    blink_score = 0 if is_blink else 10
+    # is_blink NULL is unknown, not "eyes open": the face pass failed, or a
+    # face had no measured blink (e.g. mediapipe absent in permissive mode).
+    # The blink contribution is skipped, like eyes/expression below.
+    is_blink = photo.get('is_blink')
+    blink = 0 if is_blink is None else (0 if is_blink else 10)
     score = (aggregate * w_agg + aesthetic * w_aes
-             + sharpness * w_sharp + blink_score * w_blink)
+             + sharpness * w_sharp + blink * w_blink)
     if (photo.get('face_count') or 0) > 0:
         eyes = photo.get('eyes_open_score')
         expr = photo.get('expression_score')
