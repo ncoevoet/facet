@@ -1054,9 +1054,11 @@ def _fetch_similar_group_photos(conn, groups, vis_sql="1=1", vis_params=None, ma
         photos = photos[:max_per_group]
         best = photos[0] if photos else None
         for pd in photos:
+            # Score before the wire coercion: a NULL is_blink is unknown and
+            # skips the blink term, it must not be scored as "eyes open".
+            pd['burst_score'] = round(_compute_burst_score(pd), 2)
             pd['is_blink'] = pd.get('is_blink') or 0
             pd['is_burst_lead'] = 0
-            pd['burst_score'] = round(_compute_burst_score(pd), 2)
             pd['cull_reason'] = _compute_cull_reason(pd, best)
         result[idx] = photos
     return result

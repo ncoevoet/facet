@@ -1656,3 +1656,29 @@ class TestLegacyNullBurstReviewed:
         conn.execute("UPDATE photos SET burst_reviewed = 1")
         conn.commit()
         assert _query_burst_groups(conn, "1=1", [])[1] == 0
+
+
+class TestSimilarFeedNullBlink:
+    """The similar/scene feeds rank with the same formula as every other feed:
+    a NULL ``is_blink`` (face pass failed or blink not measured) must not be
+    coerced to 0 -- "eyes open" -- before the burst score is computed."""
+
+    def test_null_blink_is_scored_before_the_wire_coercion(self):
+        from api.routers.burst_culling import _fetch_similar_group_photos
+        conn = sqlite3.connect(':memory:')
+        initialize_photo_database(conn)
+        conn.row_factory = sqlite3.Row
+        for path, blink in (('/s/unknown.jpg', None), ('/s/open.jpg', 0)):
+            conn.execute(
+                "INSERT INTO photos (path, filename, aggregate, aesthetic, tech_sharpness, is_blink) "
+                "VALUES (?, ?, 8, 6, 7, ?)", (path, path.rsplit('/', 1)[1], blink))
+        conn.commit()
+        groups = [{'paths': ['/s/unknown.jpg', '/s/open.jpg'], 'best_path': '/s/open.jpg', 'count': 2}]
+        photos = {p['path']: p for p in _fetch_similar_group_photos(conn, groups)[0]}
+        conn.close()
+        raw = {'aggregate': 8, 'aesthetic': 6, 'tech_sharpness': 7}
+        assert photos['/s/unknown.jpg']['burst_score'] == round(_compute_burst_score({**raw, 'is_blink': None}), 2)
+        assert photos['/s/open.jpg']['burst_score'] == round(_compute_burst_score({**raw, 'is_blink': 0}), 2)
+        assert photos['/s/unknown.jpg']['burst_score'] < photos['/s/open.jpg']['burst_score']
+        # The response model declares is_blink: int, so the wire value stays 0.
+        assert photos['/s/unknown.jpg']['is_blink'] == 0

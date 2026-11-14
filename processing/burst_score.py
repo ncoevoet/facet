@@ -38,9 +38,9 @@ def compute_burst_score(photo, weights=DEFAULT_BURST_WEIGHTS):
     aggregate = photo.get('aggregate') or 0
     aesthetic = photo.get('aesthetic') or 0
     sharpness = photo.get('tech_sharpness') or 0
-    # is_blink NULL means the face pass failed (unknown, not "eyes open"):
-    # the blink contribution is skipped, like eyes/expression below. A stored
-    # 0/1 always means the face pass ran and recorded eyes-open/closed.
+    # is_blink NULL is unknown, not "eyes open": the face pass failed, or a
+    # face had no measured blink (e.g. mediapipe absent in permissive mode).
+    # The blink contribution is skipped, like eyes/expression below.
     is_blink = photo.get('is_blink')
     blink = 0 if is_blink is None else (0 if is_blink else 10)
     score = (aggregate * w_agg + aesthetic * w_aes
