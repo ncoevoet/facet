@@ -72,14 +72,17 @@ class TestComputeBurstScore:
         assert score_ok - score_blink == pytest.approx(1.5)
 
     def test_none_values_treated_as_zero(self):
+        # All zero except is_blink: NULL means the face pass failed (unknown),
+        # so the blink term is skipped instead of crediting eyes-open.
         photo = {'aggregate': None, 'aesthetic': None, 'tech_sharpness': None, 'is_blink': None}
         score = _compute_burst_score(photo)
-        # All zero except blink_score = 10 (not blinked) * 0.15 = 1.5
-        assert score == pytest.approx(1.5)
+        assert score == pytest.approx(0.0)
 
     def test_missing_keys_treated_as_zero(self):
+        # A missing/NULL is_blink means the face pass never scored it: the
+        # blink term is skipped (unknown), not credited as eyes-open.
         score = _compute_burst_score({})
-        assert score == pytest.approx(1.5)
+        assert score == pytest.approx(0.0)
 
 
 class TestFormatGroup:

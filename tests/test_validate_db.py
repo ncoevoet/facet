@@ -63,6 +63,45 @@ class TestDatabaseIntegrity:
         assert not validator.results[-1].has_issues
 
 
+class TestOrphanedPersonsReportOnly:
+    """An empty person is a legitimate assignment target (created empty on
+    purpose, filled by the review flow), so the check reports but never
+    deletes -- the old auto-fix wiped a person being populated."""
+
+    def _seed(self, tmp_path, persons, faces):
+        db = tmp_path / "t.db"
+        init_database(str(db))
+        conn = sqlite3.connect(str(db))
+        for pid, name in persons:
+            conn.execute("INSERT INTO persons (id, name) VALUES (?, ?)", (pid, name))
+        for fid, pid, path in faces:
+            conn.execute(
+                "INSERT INTO faces (id, person_id, photo_path, face_index, embedding) "
+                "VALUES (?, ?, ?, ?, zeroblob(128))",
+                (fid, pid, path, fid))
+        conn.commit()
+        return db, conn
+
+    def test_reports_empty_persons_without_deleting(self, tmp_path):
+        # Person 1 "Dad" is empty (created for the review flow to fill);
+        # person 2 has a face. Only the faceless one is reported -- and
+        # neither is ever deleted, because the check is report-only now.
+        db, conn = self._seed(tmp_path, [(1, "Dad"), (2, "ghost")], [(10, 2, '/p/a.jpg')])
+        validator = DatabaseValidator(str(db))
+        validator._check_referential_integrity(conn)
+        conn.close()
+
+        result = next(r for r in validator.results if r.check_name == "orphaned_persons")
+        assert result.has_issues
+        assert {i['record']['person_id'] for i in result.issues} == {1}
+        # Report-only: auto-fix has nothing to execute, so "Dad" survives.
+        assert result.fixable is False
+        assert not getattr(result, 'fix_query', '')
+        conn = sqlite3.connect(str(db))
+        assert {r[0] for r in conn.execute("SELECT id FROM persons")} == {1, 2}
+        conn.close()
+
+
 class TestDataTypeCorruption:
     """TEXT (not just BLOB) corruption in numeric columns must be flagged.
 
