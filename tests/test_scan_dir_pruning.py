@@ -124,3 +124,10 @@ class TestGather:
         _tree(tmp_path)
         files = _gather([tmp_path], {"skip_hidden_directories": True})
         assert "z.jpg" in _names(files)
+
+    def test_skip_raw_excludes_raw_files_when_enabled(self, tmp_path):
+        _touch(tmp_path, "shot.jpg")
+        _touch(tmp_path, "shot.cr2")
+        _touch(tmp_path, "other.nef")
+        assert _names(_gather([tmp_path], {"skip_raw": False})) == ["other.nef", "shot.cr2", "shot.jpg"]
+        assert _names(_gather([tmp_path], {"skip_raw": True})) == ["shot.jpg"]

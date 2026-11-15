@@ -488,7 +488,7 @@ Campos de resposta e códigos de status: [API.md](../API.md).
 
 Clique em **Semelhante** em uma foto e escolha um modo:
 
-- **Visual** (padrão) — similaridade pHash (70%) + similaridade CLIP/SigLIP (30%). Quando duas fotos compartilham só um dos dois sinais, ele conta com peso total; fotos que não compartilham nenhum nunca são listadas. Todas as correspondências acima do limiar são devolvidas, página a página. Se a foto não tiver nenhum dos sinais, analise-a de novo com `--force` (um simples `python facet.py <dir>` ignora arquivos já processados).
+- **Visual** (padrão) — similaridade pHash (30%) + similaridade CLIP/SigLIP (70%). Quando duas fotos compartilham só um dos dois sinais, ele conta com peso total; fotos que não compartilham nenhum nunca são listadas. Todas as correspondências acima do limiar são devolvidas, página a página. Se a foto não tiver nenhum dos sinais, analise-a de novo com `--force` (um simples `python facet.py <dir>` ignora arquivos já processados).
 - **Cor** — interseção de histograma (70%) + distância de saturação (10%) + distância de luminância (10%) + bônus monocromático (10%). Pré-filtra pela marcação monocromática e faixa de saturação.
 - **Pessoa** — fotos com a(s) mesma(s) pessoa(s), por `person_id` quando disponível, senão por similaridade do embedding facial.
 

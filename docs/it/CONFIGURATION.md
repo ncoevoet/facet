@@ -162,7 +162,8 @@ Controlla quali directory visita la scansione.
 {
   "scanning": {
     "skip_hidden_directories": true,
-    "skip_directories": ["@eaDir", "#recycle", "#snapshot", "@Recycle"]
+    "skip_directories": ["@eaDir", "#recycle", "#snapshot", "@Recycle"],
+    "skip_raw": false
   }
 }
 ```
@@ -171,6 +172,7 @@ Controlla quali directory visita la scansione.
 |---------|---------|-------------|
 | `skip_hidden_directories` | `true` | Salta le directory il cui nome inizia con `.` |
 | `skip_directories` | `["@eaDir", "#recycle", "#snapshot", "@Recycle"]` | Glob di nomi di cartella saltati a qualsiasi profondità |
+| `skip_raw` | `false` | Salta i file RAW della fotocamera durante la scansione delle cartelle |
 
 Note su `skip_directories`:
 - I glob usano `fnmatch`, distinguono le maiuscole e confrontano solo il nome della cartella.
@@ -972,6 +974,7 @@ Raggruppa foto simili scattate in rapida successione.
 | `similarity_threshold_percent` | `70` | Soglia di similarità dell'hash dell'immagine |
 | `time_window_minutes` | `0.8` | Tempo massimo tra le foto |
 | `rapid_burst_seconds` | `0.4` | Foto entro questo intervallo raggruppate automaticamente |
+| `embedding_cosine_threshold` | `0.0` | Soglia coseno CLIP/SigLIP facoltativa per le raffiche (`0.0` = disattivata) |
 
 ---
 
@@ -1157,6 +1160,7 @@ Trova le foto duplicate nell'intera libreria: candidati pHash permissivi, confer
 
 | Impostazione | Predefinito | Descrizione |
 |---------|---------|-------------|
+| `enabled` | `true` | Esegui automaticamente il rilevamento globale dei quasi-duplicati alla fine di ogni scansione |
 | `similarity_threshold_percent` | `90` | Soglia pHash rigorosa (90% = distanza di Hamming <= 6 su 64 bit); l'unico test quando una delle due foto non ha un embedding |
 | `prefilter_hamming` | `12` | Facoltativo (assente dal file fornito). Soglia di Hamming permissiva per i candidati quando entrambe le foto hanno embedding (almeno pari alla soglia rigorosa) |
 | `embedding_cosine_threshold` | `0.90` | Facoltativo (assente dal file fornito). Un candidato si unisce solo se il coseno SigLIP/CLIP è >= questo valore |

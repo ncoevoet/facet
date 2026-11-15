@@ -85,7 +85,7 @@ def test_pairwise_available_weights(db):
     add(db, 'clip', None, [1, 0])
     add(db, 'both', '0', [0, 1])
     results, _ = search(db, {'phash': '0', 'clip_embedding': _blob([1, 0])})
-    assert {r['path']: r['similarity'] for r in results} == {'hash': 1.0, 'clip': 1.0, 'both': 0.7}
+    assert {r['path']: r['similarity'] for r in results} == {'hash': 1.0, 'clip': 1.0, 'both': 0.3}
 
 
 @pytest.mark.parametrize('broken', [
@@ -224,8 +224,8 @@ def _scalar_reference(conn, source, threshold):
         candidate_hash = _scalar_phash(row['phash'])
         weighted = weight = 0.0
         if reference_hash is not None and candidate_hash is not None:
-            weighted += .7 * (1 - (reference_hash ^ candidate_hash).bit_count() / 64)
-            weight += .7
+            weighted += .3 * (1 - (reference_hash ^ candidate_hash).bit_count() / 64)
+            weight += .3
         if reference_embedding is not None:
             candidate_embedding = _scalar_embedding(row['clip_embedding'])
             if candidate_embedding is not None and candidate_embedding.shape == reference_embedding.shape:
@@ -233,8 +233,8 @@ def _scalar_reference(conn, source, threshold):
                 roundoff = 8 * np.finfo(np.float64).eps * reference_embedding.size
                 if abs(1.0 - cosine) <= roundoff:
                     cosine = 1.0
-                weighted += .3 * min(1.0, max(0.0, cosine))
-                weight += .3
+                weighted += .7 * min(1.0, max(0.0, cosine))
+                weight += .7
         if not weight:
             continue
         similarity = weighted / weight

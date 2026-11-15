@@ -161,7 +161,8 @@ Steuert, welche Verzeichnisse der Scan besucht.
 {
   "scanning": {
     "skip_hidden_directories": true,
-    "skip_directories": ["@eaDir", "#recycle", "#snapshot", "@Recycle"]
+    "skip_directories": ["@eaDir", "#recycle", "#snapshot", "@Recycle"],
+    "skip_raw": false
   }
 }
 ```
@@ -170,6 +171,7 @@ Steuert, welche Verzeichnisse der Scan besucht.
 |---------|---------|-------------|
 | `skip_hidden_directories` | `true` | Überspringt Verzeichnisse, deren Name mit `.` beginnt |
 | `skip_directories` | `["@eaDir", "#recycle", "#snapshot", "@Recycle"]` | Ordnernamen-Globs, die in beliebiger Tiefe übersprungen werden |
+| `skip_raw` | `false` | Kamera-RAW-Dateien beim Verzeichnisscan überspringen |
 
 Hinweise zu `skip_directories`:
 
@@ -971,6 +973,7 @@ Gruppiert ähnliche Fotos, die in schneller Folge aufgenommen wurden.
 | `similarity_threshold_percent` | `70` | Schwellenwert für die Image-Hash-Ähnlichkeit |
 | `time_window_minutes` | `0.8` | Maximale Zeit zwischen Fotos |
 | `rapid_burst_seconds` | `0.4` | Fotos innerhalb dieser Zeit werden automatisch gruppiert |
+| `embedding_cosine_threshold` | `0.0` | Optionales CLIP/SigLIP-Kosinus-Gate für Serienbilder (`0.0` = deaktiviert) |
 
 ---
 
@@ -1158,6 +1161,7 @@ Findet Duplikate in der gesamten Bibliothek: lockere pHash-Kandidaten, bestätig
 
 | Einstellung | Standard | Beschreibung |
 |---------|---------|-------------|
+| `enabled` | `true` | Globale Beinahe-Duplikaterkennung automatisch am Ende jedes Scans ausführen |
 | `similarity_threshold_percent` | `90` | Strikte pHash-Schranke (90 % = Hamming-Distanz <= 6 von 64 Bits); der einzige Test, wenn einem der beiden Fotos ein Embedding fehlt |
 | `prefilter_hamming` | `12` | Optional (nicht in der ausgelieferten Datei). Lockere Hamming-Schranke für Kandidaten, wenn beide Fotos Embeddings besitzen (mindestens die strikte Schranke) |
 | `embedding_cosine_threshold` | `0.90` | Optional (nicht in der ausgelieferten Datei). Ein Kandidat wird nur zusammengeführt, wenn der SigLIP/CLIP-Kosinus >= diesem Wert ist |

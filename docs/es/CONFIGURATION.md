@@ -162,7 +162,8 @@ Controla qué directorios visita el escaneo.
 {
   "scanning": {
     "skip_hidden_directories": true,
-    "skip_directories": ["@eaDir", "#recycle", "#snapshot", "@Recycle"]
+    "skip_directories": ["@eaDir", "#recycle", "#snapshot", "@Recycle"],
+    "skip_raw": false
   }
 }
 ```
@@ -171,6 +172,7 @@ Controla qué directorios visita el escaneo.
 |---------|---------|-------------|
 | `skip_hidden_directories` | `true` | Omite los directorios cuyo nombre empieza por `.` |
 | `skip_directories` | `["@eaDir", "#recycle", "#snapshot", "@Recycle"]` | Globs de nombres de carpeta omitidos a cualquier profundidad |
+| `skip_raw` | `false` | Omitir archivos RAW de cámara al escanear carpetas |
 
 Notas sobre `skip_directories`:
 - Los globs usan `fnmatch`, distinguen mayúsculas y solo se aplican al nombre de la carpeta.
@@ -970,6 +972,7 @@ Agrupa fotos similares tomadas en rápida sucesión.
 | `similarity_threshold_percent` | `70` | Umbral de similitud del hash de imagen |
 | `time_window_minutes` | `0.8` | Tiempo máximo entre fotos |
 | `rapid_burst_seconds` | `0.4` | Fotos dentro de este intervalo se agrupan automáticamente |
+| `embedding_cosine_threshold` | `0.0` | Filtro coseno CLIP/SigLIP opcional para candidatos de ráfaga (`0.0` = desactivado) |
 
 ---
 
@@ -1155,6 +1158,7 @@ Encuentra fotos duplicadas en toda la biblioteca: candidatos de pHash flexible, 
 
 | Ajuste | Por defecto | Descripción |
 |---------|---------|-------------|
+| `enabled` | `true` | Ejecutar la detección global de casi duplicados automáticamente al final de cada escaneo |
 | `similarity_threshold_percent` | `90` | Filtro pHash estricto (90 % = distancia de Hamming <= 6 de 64 bits); el único criterio cuando a alguna de las fotos le falta un embedding |
 | `prefilter_hamming` | `12` | Opcional (ausente en el archivo incluido). Filtro de Hamming flexible para los candidatos cuando ambas fotos tienen embeddings (como mínimo el filtro estricto) |
 | `embedding_cosine_threshold` | `0.90` | Opcional (ausente en el archivo incluido). Un candidato solo se fusiona cuando el coseno SigLIP/CLIP >= esto |

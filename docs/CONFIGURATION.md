@@ -162,7 +162,8 @@ Controls which directories the scan visits.
 {
   "scanning": {
     "skip_hidden_directories": true,
-    "skip_directories": ["@eaDir", "#recycle", "#snapshot", "@Recycle"]
+    "skip_directories": ["@eaDir", "#recycle", "#snapshot", "@Recycle"],
+    "skip_raw": false
   }
 }
 ```
@@ -171,6 +172,7 @@ Controls which directories the scan visits.
 |---------|---------|-------------|
 | `skip_hidden_directories` | `true` | Skip directories whose name starts with `.` |
 | `skip_directories` | `["@eaDir", "#recycle", "#snapshot", "@Recycle"]` | Folder-name globs skipped at any depth |
+| `skip_raw` | `false` | Skip camera RAW files during directory scans |
 
 Notes on `skip_directories`:
 - Globs use `fnmatch`, are case-sensitive and match the folder name only.
@@ -968,6 +970,7 @@ Groups similar photos taken in quick succession.
 | `similarity_threshold_percent` | `70` | Image hash similarity threshold |
 | `time_window_minutes` | `0.8` | Maximum time between photos |
 | `rapid_burst_seconds` | `0.4` | Photos within this auto-grouped |
+| `embedding_cosine_threshold` | `0.0` | Optional CLIP/SigLIP cosine gate for burst candidates (`0.0` = disabled) |
 
 ---
 
@@ -1152,6 +1155,7 @@ Finds duplicate photos across the whole library: loose pHash candidates, confirm
 
 | Setting | Default | Description |
 |---------|---------|-------------|
+| `enabled` | `true` | Run global near-duplicate detection automatically at the end of each scan |
 | `similarity_threshold_percent` | `90` | Strict pHash gate (90% = Hamming distance <= 6 of 64 bits); the only test when either photo lacks an embedding |
 | `prefilter_hamming` | `12` | Optional (not in the shipped file). Loose Hamming gate for candidates when both photos have embeddings (at least the strict gate) |
 | `embedding_cosine_threshold` | `0.90` | Optional (not in the shipped file). A candidate merges only when SigLIP/CLIP cosine >= this |

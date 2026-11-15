@@ -1817,15 +1817,17 @@ def _find_similar_color(conn, source, photo_path, min_similarity, vis_sql, vis_p
     src_sat = source.get('mean_saturation', 0) or 0
     src_lum = source.get('mean_luminance', 0) or 0
 
-    # Luminance only, even for a photo whose blob carries the R/G/B channels: a
-    # library mid-rescan holds both formats, so a per-channel term would score
-    # rescanned candidates on a different scale than legacy ones and shuffle the
-    # ranking by scan order rather than by colour. The chroma signal stays in the
-    # saturation and monochrome terms below, which every row has.
-    src_hist = src_decoded['luma']
-    src_norm = src_hist.sum()
-    if src_norm > 0:
-        src_hist = src_hist / src_norm
+    def _norm_hist(arr):
+        if arr is None:
+            return None
+        total = arr.sum()
+        return arr / total if total > 0 else arr
+
+    # Blend R/G/B and luminance channel intersections when both photos carry the
+    # 4-channel histogram format; fall back to luminance-only whenever either
+    # side is a legacy luma-only blob so mixed libraries score uniformly on luma.
+    src_hist = _norm_hist(src_decoded['luma'])
+    src_rgb = tuple(_norm_hist(c) for c in src_decoded['rgb']) if src_decoded.get('rgb') is not None else None
 
     # Pre-filter: match monochrome flag, limit saturation distance
     rows = conn.execute(f"""
@@ -1844,13 +1846,19 @@ def _find_similar_color(conn, source, photo_path, min_similarity, vis_sql, vis_p
         cand_decoded = unpack_histogram(r['histogram_data'])
         if cand_decoded is None:
             continue
-        cand_hist = cand_decoded['luma']
-        cand_norm = cand_hist.sum()
-        if cand_norm > 0:
-            cand_hist = cand_hist / cand_norm
+        cand_hist = _norm_hist(cand_decoded['luma'])
 
-        # Histogram intersection (0..1)
-        hist_sim = float(np.minimum(src_hist, cand_hist).sum())
+        # Histogram intersection (0..1): 4-channel RGB+luma when both have RGB, else luma-only
+        luma_sim = float(np.minimum(src_hist, cand_hist).sum())
+        cand_raw_rgb = cand_decoded.get('rgb')
+        if src_rgb is not None and cand_raw_rgb is not None:
+            cand_rgb = tuple(_norm_hist(c) for c in cand_raw_rgb)
+            r_sim = float(np.minimum(src_rgb[0], cand_rgb[0]).sum())
+            g_sim = float(np.minimum(src_rgb[1], cand_rgb[1]).sum())
+            b_sim = float(np.minimum(src_rgb[2], cand_rgb[2]).sum())
+            hist_sim = 0.4 * luma_sim + 0.2 * r_sim + 0.2 * g_sim + 0.2 * b_sim
+        else:
+            hist_sim = luma_sim
 
         # Saturation distance (0..1, inverted)
         cand_sat = r.get('mean_saturation', 0) or 0
@@ -1975,7 +1983,7 @@ async def api_similar_photos(
 
     Modes:
       - visual: scored on the features both photos carry -- pHash similarity
-        (70%) + CLIP/SigLIP cosine (30%) when both are shared, the one shared
+        (30%) + CLIP/SigLIP cosine (70%) when both are shared, the one shared
         feature at full weight otherwise; a photo sharing neither is never
         listed. ``total`` counts the complete thresholded set.
       - color: histogram intersection + saturation/luminance distance

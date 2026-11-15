@@ -161,7 +161,8 @@ python database.py --add-user alice --role superadmin --display-name "Alice"
 {
   "scanning": {
     "skip_hidden_directories": true,
-    "skip_directories": ["@eaDir", "#recycle", "#snapshot", "@Recycle"]
+    "skip_directories": ["@eaDir", "#recycle", "#snapshot", "@Recycle"],
+    "skip_raw": false
   }
 }
 ```
@@ -170,6 +171,7 @@ python database.py --add-user alice --role superadmin --display-name "Alice"
 |---------|---------|-------------|
 | `skip_hidden_directories` | `true` | 跳过名称以 `.` 开头的目录 |
 | `skip_directories` | `["@eaDir", "#recycle", "#snapshot", "@Recycle"]` | 在任意深度被跳过的文件夹名通配符 |
+| `skip_raw` | `false` | 扫描文件夹时跳过相机 RAW 文件 |
 
 关于 `skip_directories`：
 - 通配符使用 `fnmatch`，区分大小写，且只匹配文件夹名。
@@ -966,6 +968,7 @@ IEC 61966-2-1。NCLX 传递特征值 16：ISO/IEC 23001-8 / ITU-T H.273。
 | `similarity_threshold_percent` | `70` | 图像哈希相似度阈值 |
 | `time_window_minutes` | `0.8` | 照片之间的最大时间间隔 |
 | `rapid_burst_seconds` | `0.4` | 在此间隔内的照片自动归为一组 |
+| `embedding_cosine_threshold` | `0.0` | 可选的连拍 CLIP/SigLIP 余弦门限（`0.0` = 禁用） |
 
 ---
 
@@ -1150,6 +1153,7 @@ IEC 61966-2-1。NCLX 传递特征值 16：ISO/IEC 23001-8 / ITU-T H.273。
 
 | 设置 | 默认值 | 说明 |
 |---------|---------|-------------|
+| `enabled` | `true` | 每次扫描结束时自动运行全局近似重复检测 |
 | `similarity_threshold_percent` | `90` | 严格的 pHash 门限（90% = 64 位中汉明距离 <= 6）；当两张照片中有一张缺少嵌入时，它就是唯一判据 |
 | `prefilter_hamming` | `12` | 可选（随附文件中没有）。两张照片都有嵌入时，用于筛出候选的宽松汉明门限（不低于严格门限） |
 | `embedding_cosine_threshold` | `0.90` | 可选（随附文件中没有）。只有 SigLIP/CLIP 余弦值 >= 此值时，候选才会合并 |

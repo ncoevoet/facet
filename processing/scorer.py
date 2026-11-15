@@ -3267,12 +3267,17 @@ def process_bursts(db_path, config_path=None):
     similarity_percent = burst_config.get('similarity_threshold_percent', 88)
     time_window_minutes = burst_config.get('time_window_minutes', 60)
     rapid_burst_seconds = burst_config.get('rapid_burst_seconds', 5)
+    embedding_cosine_threshold = float(burst_config.get('embedding_cosine_threshold', 0.0) or 0.0)
 
     # Convert percentage to hamming distance (64-bit phash)
     # 100% = 0 distance, 0% = 64 distance
     max_hamming_distance = int(64 * (1 - similarity_percent / 100))
 
-    logger.info("Processing burst groups (rapid<=%ss, similarity>=%s%%, window=%smin)...", rapid_burst_seconds, similarity_percent, time_window_minutes)
+    logger.info(
+        "Processing burst groups (rapid<=%ss, similarity>=%s%%, window=%smin%s)...",
+        rapid_burst_seconds, similarity_percent, time_window_minutes,
+        f", cosine>={embedding_cosine_threshold:.2f}" if embedding_cosine_threshold > 0 else "",
+    )
 
     from utils.date_utils import parse_date
     from utils.selection import pick_lead
@@ -3316,6 +3321,19 @@ def process_bursts(db_path, config_path=None):
             for row in face_data:
                 photo_persons.setdefault(row['photo_path'], set()).add(row['person_id'])
 
+        # Load normalized embeddings only when an embedding cosine gate is configured
+        photo_embeddings = {}
+        if embedding_cosine_threshold > 0:
+            from utils.embedding import bytes_to_normalized_embedding
+            emb_rows = conn.execute(
+                "SELECT path, clip_embedding FROM photos "
+                "WHERE phash IS NOT NULL AND clip_embedding IS NOT NULL"
+            ).fetchall()
+            for er in emb_rows:
+                vec = bytes_to_normalized_embedding(er['clip_embedding'])
+                if vec is not None:
+                    photo_embeddings[er['path']] = vec
+
         def phash_distance(hash1, hash2):
             """Compute hamming distance between two hex phash strings."""
             if not hash1 or not hash2:
@@ -3331,6 +3349,16 @@ def process_bursts(db_path, config_path=None):
                 return True
             # Otherwise require at least one shared person
             return bool(persons1 & persons2)
+
+        def embedding_consistent(path1, path2):
+            """Require semantic similarity when both photos carry compatible embeddings."""
+            if embedding_cosine_threshold <= 0:
+                return True
+            e1 = photo_embeddings.get(path1)
+            e2 = photo_embeddings.get(path2)
+            if e1 is None or e2 is None or e1.shape != e2.shape:
+                return True
+            return float(np.dot(e1, e2)) >= embedding_cosine_threshold
 
         def is_similar_to_burst(photo, burst, threshold, time_limit, rapid_seconds):
             """Check if photo belongs to burst - rapid shots require face consistency."""
@@ -3350,12 +3378,14 @@ def process_bursts(db_path, config_path=None):
                 if time_diff <= rapid_seconds:
                     if shares_person(photo['path'], b['path']):
                         if phash_distance(photo['phash'], b['phash']) <= threshold * 2:
-                            return True
+                            if embedding_consistent(photo['path'], b['path']):
+                                return True
 
                 # Slow burst: within time window AND visually similar
                 if time_diff <= time_limit * 60:
                     if phash_distance(photo['phash'], b['phash']) <= threshold:
-                        return True
+                        if embedding_consistent(photo['path'], b['path']):
+                            return True
 
             return False
 

@@ -701,3 +701,30 @@ class TestCudaWithoutDevices:
         else:
             fake.cuda.device_count = count
         assert device.is_device_available("cuda", torch_module=fake) is False
+
+
+class TestPreloadCudaRuntimeLibraries:
+    """``preload_cuda_runtime_libraries`` opens nvidia wheel libs globally and skips nvblas."""
+
+    def test_loads_nvidia_libs_with_rtld_global_and_skips_nvblas(self, monkeypatch, tmp_path):
+        import ctypes
+
+        lib_dir = tmp_path / "nvidia" / "cublas" / "lib"
+        lib_dir.mkdir(parents=True)
+        cublas = lib_dir / "libcublasLt.so.12"
+        nvblas = lib_dir / "libnvblas.so.12"
+        cublas.write_bytes(b"")
+        nvblas.write_bytes(b"")
+
+        loaded = []
+        monkeypatch.setattr(sys, "platform", "linux")
+        monkeypatch.setattr(
+            ctypes,
+            "CDLL",
+            lambda path, mode=None: loaded.append((path, mode)) or mock.MagicMock(),
+        )
+
+        result = device.preload_cuda_runtime_libraries(search_roots=[str(tmp_path)])
+
+        assert result == [str(cublas)]
+        assert loaded == [(str(cublas), ctypes.RTLD_GLOBAL)]

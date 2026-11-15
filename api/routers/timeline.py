@@ -164,9 +164,9 @@ async def api_timeline(
             date_rows = date_rows[:limit]
 
             # build_photo_select_columns reads the startup-warmed
-            # _existing_columns_cache and never touches conn — safe to call
-            # with an aiosqlite Connection.
-            select_cols = build_photo_select_columns(conn, user_id, logical=logical)
+            # _existing_columns_cache; pass conn=None so a cache miss opens a
+            # sync sqlite3 connection instead of passing an aiosqlite Connection.
+            select_cols = build_photo_select_columns(conn=None, user_id=user_id, logical=logical)
 
             tags_limit = VIEWER_CONFIG['display']['tags_per_photo']
             groups = []

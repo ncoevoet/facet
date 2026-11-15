@@ -488,7 +488,7 @@ Campi della risposta e codici di stato: [API.md](../API.md).
 
 Clicca **Simili** su una foto e scegli una modalità:
 
-- **Visivo** (predefinito) — somiglianza pHash (70%) + somiglianza CLIP/SigLIP (30%). Quando due foto condividono solo uno dei due segnali, conta a peso pieno; le foto che non ne condividono nessuno non vengono mai elencate. Vengono restituite, pagina per pagina, tutte le corrispondenze sopra la soglia. Se la foto non ha nessuno dei due segnali, riscansionala con `--force` (un semplice `python facet.py <dir>` salta i file già elaborati).
+- **Visivo** (predefinito) — somiglianza pHash (30%) + somiglianza CLIP/SigLIP (70%). Quando due foto condividono solo uno dei due segnali, conta a peso pieno; le foto che non ne condividono nessuno non vengono mai elencate. Vengono restituite, pagina per pagina, tutte le corrispondenze sopra la soglia. Se la foto non ha nessuno dei due segnali, riscansionala con `--force` (un semplice `python facet.py <dir>` salta i file già elaborati).
 - **Colore** — intersezione degli istogrammi (70%) + distanza di saturazione (10%) + distanza di luminanza (10%) + bonus monocromatico (10%). Pre-filtra per flag monocromatico e intervallo di saturazione.
 - **Persona** — foto con le stesse persone, per `person_id` quando disponibile, altrimenti per somiglianza dell'embedding del volto.
 

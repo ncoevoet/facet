@@ -161,7 +161,8 @@ Controla quais diretórios o escaneamento visita.
 {
   "scanning": {
     "skip_hidden_directories": true,
-    "skip_directories": ["@eaDir", "#recycle", "#snapshot", "@Recycle"]
+    "skip_directories": ["@eaDir", "#recycle", "#snapshot", "@Recycle"],
+    "skip_raw": false
   }
 }
 ```
@@ -170,6 +171,7 @@ Controla quais diretórios o escaneamento visita.
 |--------------|--------|-----------|
 | `skip_hidden_directories` | `true` | Ignora diretórios cujo nome começa com `.` |
 | `skip_directories` | `["@eaDir", "#recycle", "#snapshot", "@Recycle"]` | Globs de nomes de pasta ignorados em qualquer profundidade |
+| `skip_raw` | `false` | Ignorar arquivos RAW da câmera durante o escaneamento de pastas |
 
 Notas sobre `skip_directories`:
 - Os globs usam `fnmatch`, diferenciam maiúsculas de minúsculas e comparam apenas o nome da pasta.
@@ -965,6 +967,7 @@ Agrupa fotos similares tiradas em sucessão rápida.
 | `similarity_threshold_percent` | `70` | Limiar de similaridade do hash da imagem |
 | `time_window_minutes` | `0.8` | Tempo máximo entre fotos |
 | `rapid_burst_seconds` | `0.4` | Fotos dentro deste intervalo são agrupadas automaticamente |
+| `embedding_cosine_threshold` | `0.0` | Filtro de cosseno CLIP/SigLIP opcional para rajadas (`0.0` = desativado) |
 
 ---
 
@@ -1149,6 +1152,7 @@ Encontra fotos duplicadas em toda a biblioteca: candidatos de pHash frouxo, conf
 
 | Configuração | Padrão | Descrição |
 |--------------|--------|-----------|
+| `enabled` | `true` | Executar automaticamente a detecção global de quase duplicatas ao final de cada escaneamento |
 | `similarity_threshold_percent` | `90` | Filtro estrito de pHash (90% = distância de Hamming <= 6 de 64 bits); é o único teste quando falta o embedding de alguma das fotos |
 | `prefilter_hamming` | `12` | Opcional (ausente no arquivo distribuído). Filtro frouxo de Hamming para os candidatos quando ambas as fotos têm embeddings (pelo menos igual ao filtro estrito) |
 | `embedding_cosine_threshold` | `0.90` | Opcional (ausente no arquivo distribuído). Um candidato só é mesclado quando o cosseno SigLIP/CLIP >= este valor |

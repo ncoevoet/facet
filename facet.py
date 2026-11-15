@@ -194,6 +194,8 @@ def _gather_scan_files(photo_paths, scanning_settings):
     hidden-directory rule and the ``skip_directories`` name globs.
     """
     valid_suffixes = SCANNABLE_IMAGE_EXTENSIONS
+    if scanning_settings.get('skip_raw', False):
+        valid_suffixes = valid_suffixes - RAW_EXTENSIONS
     skip_hidden = scanning_settings.get('skip_hidden_directories', True)
     skip_globs = _scan_skip_globs(scanning_settings)
     all_files = []
@@ -2278,6 +2280,14 @@ def _run_scan_pipeline(args, resumed_run, lifecycle):
     ledger.begin('sequences')
     report_progress('sequences', force=True)
     detect_all_sequences(scorer.db_path, scorer.config.config_path, incremental=True)
+
+    # 5b. Global near-duplicate detection (lightweight, no GPU)
+    if scorer.config.get_duplicate_detection_settings().get('enabled', True):
+        from utils.duplicate import detect_duplicates
+        try:
+            detect_duplicates(scorer.db_path, config_path=scorer.config.config_path)
+        except Exception:
+            logger.warning("Duplicate detection failed (non-fatal)", exc_info=True)
     ledger.end('sequences')
 
     # 6. Auto-tag photos using stored CLIP/SigLIP embeddings
@@ -3304,6 +3314,13 @@ def main():
             paths = [row['path'] for row in conn.execute(
                 f"SELECT path FROM photos WHERE {where}"
             ).fetchall()]
+
+        if args.photo_paths:
+            resolved_prefixes = tuple(os.path.realpath(str(p)) for p in args.photo_paths)
+            paths = [
+                p for p in paths
+                if any(p == pref or p.startswith(pref + os.sep) for pref in resolved_prefixes)
+            ]
 
         if not paths:
             logger.info("No photos need saliency recompute (use --force to redo all).")

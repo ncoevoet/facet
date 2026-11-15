@@ -693,16 +693,16 @@ def get_existing_columns(conn=None):
         if _existing_columns_cache is not None:
             return _existing_columns_cache
 
-    if conn is None:
+    close_conn = False
+    if not isinstance(conn, sqlite3.Connection):
         conn = get_db_connection()
-        try:
-            cursor = conn.execute('PRAGMA table_info(photos)')
-            result = {row[1] for row in cursor.fetchall()}
-        finally:
-            conn.close()
-    else:
+        close_conn = True
+    try:
         cursor = conn.execute('PRAGMA table_info(photos)')
         result = {row[1] for row in cursor.fetchall()}
+    finally:
+        if close_conn:
+            conn.close()
 
     from api import config as _config_mod
     with _existing_columns_lock:
