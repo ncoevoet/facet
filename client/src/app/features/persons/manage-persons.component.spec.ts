@@ -1145,6 +1145,29 @@ describe('ManagePersonsComponent', () => {
       expect(root.querySelector('[data-ignored-failed]')).toBeNull();
     });
 
+    it('keeps a loaded Ignored list without a "load more" error when its refresh fails', async () => {
+      const original = mockApi.get.getMockImplementation()!;
+      const hidden = (id: number) => ({ id, name: null, face_count: 2, face_thumbnail: true, is_hidden: true });
+      mockApi.get.mockImplementation((url: string, params?: { hidden_only?: boolean }) =>
+        params?.hidden_only ? of({ persons: [hidden(101)], total: 3 }) : original(url, params));
+      withTab(null);
+      const fixture = await render();
+      fixture.componentInstance.ignoredExpanded.set(true); fixture.detectChanges();
+      const root = fixture.nativeElement as HTMLElement;
+
+      // A full reload (the one an Undo of a hide runs) fails while rows are on
+      // screen: they stay, and nothing claims a next page failed — that
+      // message's Retry would append onto the list instead of reloading it.
+      mockApi.get.mockImplementationOnce(() => throwError(() => ({ status: 500 })));
+      await fixture.componentInstance.loadIgnored();
+      fixture.detectChanges();
+
+      expect(fixture.componentInstance.ignored().map((p) => p.id)).toEqual([101]);
+      expect(fixture.componentInstance.ignoredError()).toBe(false);
+      expect(root.querySelector('[data-ignored-more] [role="alert"]')).toBeNull();
+      expect(root.querySelector('[data-ignored-failed]')).toBeNull();
+    });
+
     it('opens on Named first, even with persons waiting for a name', async () => {
       withTab(null);
       const fixture = await render();

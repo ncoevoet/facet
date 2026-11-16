@@ -50,7 +50,6 @@ export class SaveSmartAlbumDialogComponent {
   private journal = inject(UserActivityJournal);
   private dialogRef = inject(MatDialogRef<SaveSmartAlbumDialogComponent>);
   private data = inject<{ filterJson: string }>(MAT_DIALOG_DATA);
-  private router = inject(Router);
   // The other album dialogs' stale-session guard: the result of a save that
   // lands after a sign-out or navigation must not touch the store.
   private readonly guard = new AlbumDialogContext(inject(AuthService), inject(Router), inject(DestroyRef));

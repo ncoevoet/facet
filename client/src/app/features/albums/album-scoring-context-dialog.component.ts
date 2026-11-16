@@ -290,8 +290,7 @@ export class AlbumScoringContextDialogComponent implements OnInit {
     try {
       const status = await firstValueFrom(this.api.get<RecomputeStatusResponse>('/scan/recompute_status'));
       // A success re-arms the failure counter: one transient poll failure must
-      // not declare a minutes-long recompute failed, and the next poll waits
-      // a little longer so a busy server gets some room.
+      // not declare a minutes-long recompute failed; only three in a row do.
       this.pollFailures = 0;
       this.recomputeProgress.set(status.progress);
       if (!status.running) {

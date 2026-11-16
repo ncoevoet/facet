@@ -751,8 +751,10 @@ export class ManagePersonsComponent implements OnInit {
     } catch {
       // A first-page failure must not leave nothing on screen either: the
       // section renders an error with a Retry (mirroring Needs naming), and
-      // an appended page keeps its inline one.
-      if (!this.destroyRef.destroyed) this.ignoredError.set(true);
+      // an appended page keeps its inline one. A failed refresh of a list
+      // already on screen keeps that list: its inline error reads "could not
+      // load more", and its Retry appends, so neither fits a refresh.
+      if (!this.destroyRef.destroyed && (append || !this.ignored().length)) this.ignoredError.set(true);
     } finally {
       this.ignoredLoading.set(false);
     }
