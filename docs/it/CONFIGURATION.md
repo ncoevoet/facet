@@ -1160,7 +1160,7 @@ Trova le foto duplicate nell'intera libreria: candidati pHash permissivi, confer
 
 | Impostazione | Predefinito | Descrizione |
 |---------|---------|-------------|
-| `enabled` | `true` | Esegui automaticamente il rilevamento globale dei quasi-duplicati alla fine di ogni scansione |
+| `enabled` | `false` | Facoltativo (assente dal file fornito). Esegue il rilevamento globale dei quasi-duplicati alla fine di ogni scansione. Disattivato di default: il passaggio legge tutti i pHash e gli embedding della libreria, e `hide_duplicates` è attivo di default, quindi abilitarlo nasconde foto alla scansione successiva. `--detect-duplicates` lo esegue su richiesta |
 | `similarity_threshold_percent` | `90` | Soglia pHash rigorosa (90% = distanza di Hamming <= 6 su 64 bit); l'unico test quando una delle due foto non ha un embedding |
 | `prefilter_hamming` | `12` | Facoltativo (assente dal file fornito). Soglia di Hamming permissiva per i candidati quando entrambe le foto hanno embedding (almeno pari alla soglia rigorosa) |
 | `embedding_cosine_threshold` | `0.90` | Facoltativo (assente dal file fornito). Un candidato si unisce solo se il coseno SigLIP/CLIP è >= questo valore |

@@ -1161,7 +1161,7 @@ Findet Duplikate in der gesamten Bibliothek: lockere pHash-Kandidaten, bestätig
 
 | Einstellung | Standard | Beschreibung |
 |---------|---------|-------------|
-| `enabled` | `true` | Globale Beinahe-Duplikaterkennung automatisch am Ende jedes Scans ausführen |
+| `enabled` | `false` | Optional (nicht in der ausgelieferten Datei). Globale Beinahe-Duplikaterkennung am Ende jedes Scans ausführen. Standardmäßig aus: der Durchlauf liest alle pHashes und Embeddings der Bibliothek, und `hide_duplicates` ist standardmäßig an, sodass das Aktivieren beim nächsten Scan Fotos ausblendet. `--detect-duplicates` startet ihn bei Bedarf |
 | `similarity_threshold_percent` | `90` | Strikte pHash-Schranke (90 % = Hamming-Distanz <= 6 von 64 Bits); der einzige Test, wenn einem der beiden Fotos ein Embedding fehlt |
 | `prefilter_hamming` | `12` | Optional (nicht in der ausgelieferten Datei). Lockere Hamming-Schranke für Kandidaten, wenn beide Fotos Embeddings besitzen (mindestens die strikte Schranke) |
 | `embedding_cosine_threshold` | `0.90` | Optional (nicht in der ausgelieferten Datei). Ein Kandidat wird nur zusammengeführt, wenn der SigLIP/CLIP-Kosinus >= diesem Wert ist |

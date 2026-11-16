@@ -1155,7 +1155,7 @@ Finds duplicate photos across the whole library: loose pHash candidates, confirm
 
 | Setting | Default | Description |
 |---------|---------|-------------|
-| `enabled` | `true` | Run global near-duplicate detection automatically at the end of each scan |
+| `enabled` | `false` | Optional (not in the shipped file). Run global near-duplicate detection at the end of each scan. Off by default: the pass reads every pHash and embedding in the library, and `hide_duplicates` is on by default, so enabling it hides photos on the next scan. `--detect-duplicates` runs it on demand |
 | `similarity_threshold_percent` | `90` | Strict pHash gate (90% = Hamming distance <= 6 of 64 bits); the only test when either photo lacks an embedding |
 | `prefilter_hamming` | `12` | Optional (not in the shipped file). Loose Hamming gate for candidates when both photos have embeddings (at least the strict gate) |
 | `embedding_cosine_threshold` | `0.90` | Optional (not in the shipped file). A candidate merges only when SigLIP/CLIP cosine >= this |

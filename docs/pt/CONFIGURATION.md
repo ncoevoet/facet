@@ -1152,7 +1152,7 @@ Encontra fotos duplicadas em toda a biblioteca: candidatos de pHash frouxo, conf
 
 | Configuração | Padrão | Descrição |
 |--------------|--------|-----------|
-| `enabled` | `true` | Executar automaticamente a detecção global de quase duplicatas ao final de cada escaneamento |
+| `enabled` | `false` | Opcional (ausente no arquivo distribuído). Executa a detecção global de quase duplicatas ao final de cada escaneamento. Desativado por padrão: a passada lê todos os pHash e embeddings da biblioteca, e `hide_duplicates` vem ativo por padrão, então ativá-la oculta fotos no próximo escaneamento. `--detect-duplicates` a executa sob demanda |
 | `similarity_threshold_percent` | `90` | Filtro estrito de pHash (90% = distância de Hamming <= 6 de 64 bits); é o único teste quando falta o embedding de alguma das fotos |
 | `prefilter_hamming` | `12` | Opcional (ausente no arquivo distribuído). Filtro frouxo de Hamming para os candidatos quando ambas as fotos têm embeddings (pelo menos igual ao filtro estrito) |
 | `embedding_cosine_threshold` | `0.90` | Opcional (ausente no arquivo distribuído). Um candidato só é mesclado quando o cosseno SigLIP/CLIP >= este valor |

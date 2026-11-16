@@ -842,7 +842,7 @@ class ScoringConfig:
 
         Two-stage near-dup keys (with safe defaults when absent):
         - enabled: run global near-duplicate detection at the end of a scan
-          (default True).
+          (default False).
         - similarity_threshold_percent: strict pHash-only Hamming gate used when
           an embedding is missing for either photo (backward-compatible path).
         - prefilter_hamming: looser Hamming gate for the stage-1 candidate set
@@ -852,7 +852,7 @@ class ScoringConfig:
           a loose-pHash candidate only merges if cosine >= this.
         """
         return self.config.get('duplicate_detection', {
-            'enabled': True,
+            'enabled': False,
             'similarity_threshold_percent': 90,
             'prefilter_hamming': 12,
             'embedding_cosine_threshold': 0.90,

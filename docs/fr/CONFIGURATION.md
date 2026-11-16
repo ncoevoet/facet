@@ -1156,7 +1156,7 @@ Trouve les photos en double dans toute la bibliothèque : candidats pHash large
 
 | Réglage | Défaut | Description |
 |---------|--------|-------------|
-| `enabled` | `true` | Exécuter automatiquement la détection globale des quasi-doublons à la fin de chaque scan |
+| `enabled` | `false` | Optionnel (absent du fichier livré). Exécuter la détection globale des quasi-doublons à la fin de chaque scan. Désactivé par défaut : la passe lit tous les pHash et embeddings de la bibliothèque, et `hide_duplicates` est actif par défaut, donc l'activer masque des photos dès le scan suivant. `--detect-duplicates` la lance à la demande |
 | `similarity_threshold_percent` | `90` | Seuil strict du pHash (90 % = distance de Hamming <= 6 sur 64 bits) ; le seul test lorsqu'une des photos n'a pas d'embedding |
 | `prefilter_hamming` | `12` | Optionnel (absent du fichier livré). Seuil de Hamming large pour les candidats lorsque les deux photos ont des embeddings (au moins le seuil strict) |
 | `embedding_cosine_threshold` | `0.90` | Optionnel (absent du fichier livré). Un candidat n'est fusionné que si le cosinus SigLIP/CLIP est >= à cette valeur |

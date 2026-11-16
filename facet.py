@@ -219,6 +219,22 @@ def _gather_scan_files(photo_paths, scanning_settings):
     return all_files
 
 
+def _maybe_detect_duplicates(scorer):
+    """Run the library-wide duplicate pass at the end of a scan when ``duplicate_detection.enabled``.
+
+    Off by default: the pass reads every pHash and embedding in the library, and
+    ``hide_duplicates`` defaults to on, so enabling it silently hides photos on the
+    next scan. A failure is logged and never fails the scan.
+    """
+    if not scorer.config.get_duplicate_detection_settings().get('enabled', False):
+        return
+    from utils.duplicate import detect_duplicates
+    try:
+        detect_duplicates(scorer.db_path, config_path=scorer.config.config_path)
+    except Exception:
+        logger.warning("Duplicate detection failed (non-fatal)", exc_info=True)
+
+
 def _photos_saved(processor):
     """How many photos the scan's processor saved (``metrics['photos_saved']``)."""
     return processor.metrics['photos_saved']
@@ -2281,13 +2297,8 @@ def _run_scan_pipeline(args, resumed_run, lifecycle):
     report_progress('sequences', force=True)
     detect_all_sequences(scorer.db_path, scorer.config.config_path, incremental=True)
 
-    # 5b. Global near-duplicate detection (lightweight, no GPU)
-    if scorer.config.get_duplicate_detection_settings().get('enabled', True):
-        from utils.duplicate import detect_duplicates
-        try:
-            detect_duplicates(scorer.db_path, config_path=scorer.config.config_path)
-        except Exception:
-            logger.warning("Duplicate detection failed (non-fatal)", exc_info=True)
+    # 5b. Opt-in global near-duplicate detection
+    _maybe_detect_duplicates(scorer)
     ledger.end('sequences')
 
     # 6. Auto-tag photos using stored CLIP/SigLIP embeddings
