@@ -173,7 +173,7 @@ Questi comandi aggiornano metriche o derivano nuovi dati senza rieseguire l'inte
 | `python facet.py --discover-moments` | Propone un vocabolario di momenti dalle tue didascalie in `scoring_config.discovered.json` |
 | `python facet.py --detect-junk` | Segnala screenshot, documenti, ricevute, meme e diapositive (eseguito dopo ogni scansione) |
 | `python facet.py --recompute-junk` | Rivaluta `junk_kind` per l'intera libreria |
-| `python facet.py --recompute-saliency` | `[GPU]` Ricalcola la salienza del soggetto dalle miniature memorizzate; `--force` rifà tutto |
+| `python facet.py --recompute-saliency [percorsi]` | `[GPU]` Ricalcola la salienza del soggetto dalle miniature memorizzate; `--force` rifà tutto. I percorsi (file o cartelle) limitano il ricalcolo alle foto memorizzate al loro interno |
 | `python facet.py --recompute-composition-cpu` | Ricalcola la composizione, basata su regole (CPU, qualsiasi profilo) |
 | `python facet.py --recompute-composition-gpu` | `[GPU]` Ricalcola la composizione con SAMP-Net |
 | `python facet.py --recompute-iqa` | `[GPU]` Riempie i punteggi mancanti di TOPIQ IAA, NR-Face e LIQE dalle miniature memorizzate. Attivo su ogni profilo; su CPU (`legacy`) è molto più lento. Elabora per lotti, quindi la memoria resta stabile sulle librerie grandi; si può interrompere e rieseguire in sicurezza. |

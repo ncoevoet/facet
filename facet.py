@@ -219,6 +219,18 @@ def _gather_scan_files(photo_paths, scanning_settings):
     return all_files
 
 
+def _paths_under(paths, roots):
+    """The stored ``paths`` that are one of ``roots`` or live below one of them.
+
+    Stored paths are resolved at scan time, so the roots are resolved the same way.
+    A root matches whole path components only: ``/photos/trip`` does not claim
+    ``/photos/trip2``.
+    """
+    resolved = tuple(os.path.realpath(str(r)) for r in roots)
+    return [p for p in paths
+            if any(p == root or p.startswith(root.rstrip(os.sep) + os.sep) for root in resolved)]
+
+
 def _maybe_detect_duplicates(scorer):
     """Run the library-wide duplicate pass at the end of a scan when ``duplicate_detection.enabled``.
 
@@ -3327,11 +3339,7 @@ def main():
             ).fetchall()]
 
         if args.photo_paths:
-            resolved_prefixes = tuple(os.path.realpath(str(p)) for p in args.photo_paths)
-            paths = [
-                p for p in paths
-                if any(p == pref or p.startswith(pref + os.sep) for pref in resolved_prefixes)
-            ]
+            paths = _paths_under(paths, args.photo_paths)
 
         if not paths:
             logger.info("No photos need saliency recompute (use --force to redo all).")

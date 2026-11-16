@@ -173,7 +173,7 @@ Diese Befehle aktualisieren Metriken oder leiten neue Daten ab, ohne die vollst�
 | `python facet.py --discover-moments` | Aus Ihren Bildunterschriften ein Moment-Vokabular in `scoring_config.discovered.json` vorschlagen |
 | `python facet.py --detect-junk` | Screenshots, Dokumente, Belege, Memes und Folien kennzeichnen (läuft nach jedem Scan) |
 | `python facet.py --recompute-junk` | `junk_kind` für die gesamte Bibliothek neu bewerten |
-| `python facet.py --recompute-saliency` | `[GPU]` Motiv-Salienz aus gespeicherten Thumbnails neu berechnen; `--force` wiederholt alle |
+| `python facet.py --recompute-saliency [Pfade]` | `[GPU]` Motiv-Salienz aus gespeicherten Thumbnails neu berechnen; `--force` wiederholt alle. Pfade (Dateien oder Ordner) beschränken die Neuberechnung auf die darunter gespeicherten Fotos |
 | `python facet.py --recompute-composition-cpu` | Komposition regelbasiert neu berechnen (CPU, beliebiges Profil) |
 | `python facet.py --recompute-composition-gpu` | `[GPU]` Komposition mit SAMP-Net neu berechnen |
 | `python facet.py --recompute-iqa` | `[GPU]` Fehlende TOPIQ-IAA-, NR-Face- und LIQE-Scores aus gespeicherten Thumbnails füllen. Läuft auf allen Profilen; auf der CPU (`legacy`) deutlich langsamer. Verarbeitet in Batches, der Speicherbedarf bleibt auch bei großen Bibliotheken konstant; kann gefahrlos unterbrochen und erneut gestartet werden. |

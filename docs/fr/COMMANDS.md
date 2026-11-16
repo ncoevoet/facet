@@ -173,7 +173,7 @@ Ces commandes mettent à jour des métriques ou dérivent de nouvelles données 
 | `python facet.py --discover-moments` | Propose un vocabulaire de moments à partir de vos légendes dans `scoring_config.discovered.json` |
 | `python facet.py --detect-junk` | Signale captures d'écran, documents, reçus, mèmes et diapositives (s'exécute après chaque analyse) |
 | `python facet.py --recompute-junk` | Réévalue `junk_kind` pour toute la bibliothèque |
-| `python facet.py --recompute-saliency` | `[GPU]` Recalcule la saillance du sujet à partir des miniatures stockées ; `--force` refait tout |
+| `python facet.py --recompute-saliency [chemins]` | `[GPU]` Recalcule la saillance du sujet à partir des miniatures stockées ; `--force` refait tout. Des chemins (fichiers ou dossiers) limitent le recalcul aux photos stockées dessous |
 | `python facet.py --recompute-composition-cpu` | Recalcule la composition, basé sur des règles (CPU, tout profil) |
 | `python facet.py --recompute-composition-gpu` | `[GPU]` Recalcule la composition avec SAMP-Net |
 | `python facet.py --recompute-iqa` | `[GPU]` Remplit les scores TOPIQ IAA, NR-Face et LIQE manquants à partir des miniatures stockées. Fonctionne sur tous les profils ; sur CPU (`legacy`), c'est bien plus lent. Traite par lots, donc la mémoire reste stable sur les grandes bibliothèques ; on peut l'interrompre et le relancer sans risque. |

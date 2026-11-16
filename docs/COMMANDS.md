@@ -173,7 +173,7 @@ These update metrics or derive new data without re-running the full scoring pipe
 | `python facet.py --discover-moments` | Propose a moment vocabulary from your captions into `scoring_config.discovered.json` |
 | `python facet.py --detect-junk` | Flag screenshots, documents, receipts, memes and slides (runs after every scan) |
 | `python facet.py --recompute-junk` | Re-evaluate `junk_kind` for the whole library |
-| `python facet.py --recompute-saliency` | `[GPU]` Recompute subject saliency from stored thumbnails; `--force` redoes all |
+| `python facet.py --recompute-saliency [paths]` | `[GPU]` Recompute subject saliency from stored thumbnails; `--force` redoes all. Paths (files or folders) limit the recompute to the photos stored under them |
 | `python facet.py --recompute-composition-cpu` | Recompute composition, rule-based (CPU, any profile) |
 | `python facet.py --recompute-composition-gpu` | `[GPU]` Recompute composition with SAMP-Net |
 | `python facet.py --recompute-iqa` | `[GPU]` Fill missing TOPIQ IAA, NR-Face and LIQE scores from stored thumbnails. Runs on every profile; on CPU (`legacy`) it is much slower. Streams in batches, so memory stays flat on large libraries; safe to interrupt and re-run. |
