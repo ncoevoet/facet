@@ -75,7 +75,10 @@ export class I18nService {
     let result = String(value);
     if (vars) {
       for (const [k, v] of Object.entries(vars)) {
-        result = result.replaceAll(`{${k}}`, String(v));
+        // Function form: a string replacement parses `$&`/`$'`/`$$` as
+        // replacement patterns, so a filename like "$&photo.jpg" would
+        // silently rewrite the sentence around it.
+        result = result.replaceAll(`{${k}}`, () => String(v));
       }
     }
     return result;

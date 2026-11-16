@@ -5,6 +5,7 @@ import { SEQUENCE_KIND_ICONS } from '../../shared/pipes/sequence-kind.pipe';
 import type { ComparisonStats } from '../../core/api/types';
 import type { CullSuggestion } from '../../core/agent/assistant-cull-plan.service';
 import { parseScopeDate } from './culling-date-range';
+import { formatDisplayDate } from '../../shared/utils/date-format';
 
 /** Backend-supplied machine reason key + optional value for why a photo ranks lower. */
 export interface CullReason {
@@ -874,18 +875,19 @@ export class ScopeDatePipe implements PipeTransform {
 }
 
 /**
- * `from | cullDateRange: to` as "dd/MM/yyyy - dd/MM/yyyy". Either side may be missing; an unreadable
- * value is shown unchanged. Not `DatePipe`: scope dates also arrive in the EXIF colon form.
+ * `from | cullDateRange: to : locale()` as each day the viewer's language writes it (en
+ * `1 Jun 2026 - 30 Jun 2026`). Either side may be missing; an unreadable value is shown unchanged.
+ * Not `captureDate`: scope dates also arrive in the EXIF colon form of a whole-day edge.
  */
 @Pipe({ name: 'cullDateRange' })
 export class CullDateRangePipe implements PipeTransform {
-  transform(from: string | null, to: string | null): string {
+  transform(from: string | null, to: string | null, language: string): string {
     if (!from && !to) return '';
     const fmt = (v: string | null): string => {
       const d = parseScopeDate(v);
       if (!v) return '';
       if (!d) return v;
-      return `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}/${d.getFullYear()}`;
+      return formatDisplayDate(d, language);
     };
     return `${fmt(from)} - ${fmt(to)}`.trim();
   }

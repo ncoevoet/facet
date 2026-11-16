@@ -997,7 +997,7 @@ Granularidade, ordenação e categoria persistem no `localStorage`. Os controles
 
 **Triagem com escopo.** Restrinja a câmara escura com parâmetros de URL: `?group_by=scene` para cenas, `?album=<id>` para um álbum, `?from=&to=` para uma janela de horário de captura (texto EXIF ou datas ISO como `2026-06-01`). Um banner mostra o escopo com **Sair da cena**. As rajadas que cruzam a borda da janela ainda mostram todos os seus quadros.
 
-**Intervalo de datas.** O botão de **intervalo de datas** (ícone `date_range`) oferece **Últimos 7 dias**, **Últimos 30 dias**, **Este ano**, **Ano passado**, **Intervalo personalizado...** e **Todas as datas**. As datas aparecem como dd/MM/yyyy.
+**Intervalo de datas.** O botão de **intervalo de datas** (ícone `date_range`) oferece **Últimos 7 dias**, **Últimos 30 dias**, **Este ano**, **Ano passado**, **Intervalo personalizado...** e **Todas as datas**. As datas são escritas como o idioma do visualizador as escreve (português `1 de jul. de 2026`).
 
 - Combina com o escopo de álbum. Fotos sem data de captura saem de um intervalo com datas.
 - Os padrões são resolvidas quando escolhidas, então um "Últimos 7 dias" nos favoritos é uma janela fixa.

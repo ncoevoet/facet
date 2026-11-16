@@ -1,4 +1,5 @@
 import { PhotoListExtraComponent } from './photo-list-extra.component';
+import { I18nService } from '../../../core/services/i18n.service';
 import { i18nKeys } from '../../../core/i18n/keys';
 import { sortLabelKey } from '../../utils/sort-label';
 import { Component, computed, effect, inject, input, output, signal, untracked, viewChildren, ChangeDetectionStrategy } from '@angular/core';
@@ -160,9 +161,9 @@ const DEFAULT_CLIPPING_BADGE_PERCENT = 5;
           <div class="min-w-0 text-sm leading-5">
             <div class="truncate font-medium" [title]="photo().filename">{{ photo().filename }}</div>
             @if (currentSort() !== 'date_taken') {
-              <div data-list-capture-date class="line-clamp-2 text-xs text-[var(--mat-sys-on-surface-variant)]" [title]="listCaptureDate() | captureDate">
-                <span class="@[24rem]:hidden">{{ listCaptureDate() ? (listCaptureDay() | captureDate) : (I18N.gallery.no_capture_date | translate) }}</span>
-                <span class="hidden @[24rem]:inline">{{ listCaptureDate() ? (listCaptureDate() | captureDate) : (I18N.gallery.no_capture_date | translate) }}</span>
+              <div data-list-capture-date class="line-clamp-2 text-xs text-[var(--mat-sys-on-surface-variant)]" [title]="listCaptureDate() | captureDate: locale()">
+                <span class="@[24rem]:hidden">{{ listCaptureDate() ? (listCaptureDay() | captureDate: locale()) : (I18N.gallery.no_capture_date | translate) }}</span>
+                <span class="hidden @[24rem]:inline">{{ listCaptureDate() ? (listCaptureDate() | captureDate: locale()) : (I18N.gallery.no_capture_date | translate) }}</span>
               </div>
             }
             <div class="flex min-w-0 items-center gap-1 overflow-hidden text-xs text-[var(--mat-sys-on-surface-variant)]">
@@ -175,7 +176,7 @@ const DEFAULT_CLIPPING_BADGE_PERCENT = 5;
             <div class="truncate text-[var(--mat-sys-on-surface-variant)]">{{ listSortLabel() | translate }}</div>
             <div class="font-semibold">
               @if (currentSort() === 'date_taken') {
-                <span class="block text-xs">{{ photo().date_taken ? (photo().date_taken | captureDate) : (I18N.gallery.no_capture_date | translate) }}</span>
+                <span class="block text-xs">{{ photo().date_taken ? (photo().date_taken | captureDate: locale()) : (I18N.gallery.no_capture_date | translate) }}</span>
               } @else if (currentSort() === 'shutter_speed') {
                 <span class="block truncate">{{ (photo().shutter_speed | shutterSpeed) || '—' }}</span>
               } @else if (listSortText(); as text) { <span class="block truncate" [title]="text">{{ text }}</span> }
@@ -537,7 +538,7 @@ const DEFAULT_CLIPPING_BADGE_PERCENT = 5;
             </span>
           </div>
           @if (photo().date_taken) {
-            <div class="text-[var(--mat-sys-on-surface-variant)]">{{ photo().date_taken | captureDate }}</div>
+            <div class="text-[var(--mat-sys-on-surface-variant)]">{{ photo().date_taken | captureDate: locale() }}</div>
           } @else {
             <div class="text-[var(--mat-sys-on-surface-variant)]">{{ I18N.gallery.no_capture_date | translate }}</div>
           }
@@ -610,6 +611,8 @@ const DEFAULT_CLIPPING_BADGE_PERCENT = 5;
   `,
 })
 export class PhotoCardComponent {
+  /** The viewer's language, the argument of the date pipes. */
+  protected readonly locale = inject(I18nService).locale;
   protected readonly I18N = i18nKeys();
   private readonly keymap = inject(KeyboardMappingService).keymap;
   /** The remappable keys the focused-card hint names, as the user set them. */

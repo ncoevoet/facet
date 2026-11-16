@@ -1,4 +1,5 @@
 import { DecimalPipe, NgTemplateOutlet } from '@angular/common';
+import { I18nService } from '../../core/services/i18n.service';
 import { Component, inject, computed, DestroyRef, ChangeDetectionStrategy, effect, signal, viewChild, TemplateRef } from '@angular/core';
 import { Router, ActivatedRoute } from '@angular/router';
 import { toSignal } from '@angular/core/rxjs-interop';
@@ -146,7 +147,7 @@ function readDensityVisible(): boolean {
     </ng-template>
     <ng-template #rangeChip>
       @if (filters.dateFrom() || filters.dateTo()) {
-        @let range = (filters.dateFrom() ? (filters.dateFrom() | captureDate) : '…') + ' – ' + (filters.dateTo() ? (filters.dateTo() | captureDate) : '…');
+        @let range = (filters.dateFrom() ? (filters.dateFrom() | captureDate: locale()) : '…') + ' – ' + (filters.dateTo() ? (filters.dateTo() | captureDate: locale()) : '…');
         <div data-timeline-range-chip role="status" class="inline-flex shrink-0 items-center gap-1 pl-2.5 pr-1 py-0.5 rounded-full bg-[var(--mat-sys-secondary-container)] text-[var(--mat-sys-on-secondary-container)] text-xs font-medium">
           <span class="mx-0.5 max-w-64 truncate" [title]="range">{{ range }}</span>
           <button
@@ -235,6 +236,8 @@ function readDensityVisible(): boolean {
   `,
 })
 export class TimelineComponent {
+  /** The viewer's language, the argument of the date pipes. */
+  protected readonly locale = inject(I18nService).locale;
   protected readonly I18N = i18nKeys();
   private readonly router = inject(Router);
   private readonly route = inject(ActivatedRoute);

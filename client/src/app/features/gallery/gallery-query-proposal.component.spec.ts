@@ -33,7 +33,7 @@ describe('User-owned query proposal', () => {
       { provide: GalleryStore, useValue: { filters, config: signal({}), currentAlbum: signal(null), pinnedPaths: signal(null), selectedPaths: selected,
         viewScopeSelected: wholeView, filterKey: (value: unknown) => JSON.stringify(value), updateFilters: apply, loadError: signal(false),
         previewFilters: (updates: unknown) => ({ ...filters(), ...updates as object, page: 1 }) } },
-      ...(localized ? [I18nService, { provide: HttpClient, useValue: { get: vi.fn(() => of(fr)) } }] : [{ provide: I18nService, useValue: { translations: signal({}), t: (key: string) => key } }]),
+      ...(localized ? [I18nService, { provide: HttpClient, useValue: { get: vi.fn(() => of(fr)) } }] : [{ provide: I18nService, useValue: { locale: signal('en'), translations: signal({}), t: (key: string) => key } }]),
     ] });
     fixture = TestBed.createComponent(GalleryQueryProposalComponent); fixture.componentRef.setInput('active', true); fixture.detectChanges();
     actions = TestBed.inject(ViewActionRegistry);

@@ -1,4 +1,5 @@
 import { timelineRouteActivity } from './timeline-route-activity';
+import { I18nService } from '../../core/services/i18n.service';
 import { Component, DestroyRef, ElementRef, Injector, afterEveryRender, afterNextRender, computed, effect, inject, input, signal, untracked, viewChild, ChangeDetectionStrategy } from '@angular/core';
 import { Router, RouterLink } from '@angular/router';
 import { Subscription } from 'rxjs';
@@ -30,10 +31,10 @@ import { privateImageSessionKey } from '../../shared/utils/private-image-session
     <div data-timeline-days class="grid grid-cols-1 gap-4 xl:grid-cols-2 2xl:grid-cols-3">
     @for (group of groups(); track group.date) {
       <!-- The feed only grows while scrolling, so off-screen days skip layout and paint, as the gallery's cards do. -->
-      <section class="rounded-xl bg-[var(--mat-sys-surface-container)] p-3 sm:p-4" [class.col-span-full]="group.photos.length > 4" [attr.data-timeline-date]="group.date" [attr.aria-label]="group.date | captureDate"
+      <section class="rounded-xl bg-[var(--mat-sys-surface-container)] p-3 sm:p-4" [class.col-span-full]="group.photos.length > 4" [attr.data-timeline-date]="group.date" [attr.aria-label]="group.date | captureDate: locale()"
                [style.content-visibility]="'auto'" [style.contain-intrinsic-size]="'auto 22rem'">
         <header class="flex min-h-11 flex-wrap items-baseline justify-between gap-x-3 gap-y-1 py-0">
-          <h2 class="m-0 text-base font-semibold tabular-nums">{{ group.date | captureDate }}</h2>
+          <h2 class="m-0 text-base font-semibold tabular-nums">{{ group.date | captureDate: locale() }}</h2>
           <a mat-button routerLink="/" [queryParams]="group.date | timelineDayQuery:visibility()">
             {{ I18N.timeline.view_day | translate: { count: group.count } }}
             <mat-icon iconPositionEnd>chevron_right</mat-icon>
@@ -70,6 +71,8 @@ import { privateImageSessionKey } from '../../shared/utils/private-image-session
   `,
 })
 export class TimelineFeedComponent {
+  /** The viewer's language, the argument of the date pipes. */
+  protected readonly locale = inject(I18nService).locale;
   protected readonly I18N = i18nKeys();
   protected readonly filters = inject(TimelineFiltersService);
   private readonly store = inject(GalleryStore);

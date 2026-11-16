@@ -1001,7 +1001,7 @@ Granularity, sort and category persist in `localStorage`. Controls that don't ap
 
 **Scoped culling.** Narrow the darkroom with URL parameters: `?group_by=scene` for scenes, `?album=<id>` for an album, `?from=&to=` for a capture-time window (EXIF text or ISO dates such as `2026-06-01`). A banner shows the scope with **Exit scene**. Bursts that cross the window's edge still show all their frames.
 
-**Date range.** The **date range** button (icon `date_range`) offers **Last 7 days**, **Last 30 days**, **This year**, **Last year**, **Custom range...** and **All dates**. Dates show as dd/MM/yyyy.
+**Date range.** The **date range** button (icon `date_range`) offers **Last 7 days**, **Last 30 days**, **This year**, **Last year**, **Custom range...** and **All dates**. Dates are written the way the viewer's language writes them (English `1 Jul 2026`).
 
 - It combines with the album scope. Photos without a capture date drop out of a dated range.
 - Presets resolve when picked, so a bookmarked "Last 7 days" is a fixed window.

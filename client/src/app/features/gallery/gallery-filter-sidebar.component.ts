@@ -1568,7 +1568,15 @@ export class GalleryFilterSidebarComponent {
   }
 
   onDateChange(key: 'date_from' | 'date_to', event: MatDatepickerInputEvent<Date>): void {
-    this.store.updateFilters({ [key]: toIsoDateString(event.value), no_capture_date: '' });
+    const value = toIsoDateString(event.value);
+    const filters = this.store.filters();
+    // A start after the end (or an end before the start) would filter
+    // everything out and read as "no photos match": the other bound moves
+    // along, as the shared date-range filter's inputs do.
+    const update: Partial<GalleryFilters> = { [key]: value, no_capture_date: '' };
+    if (value && key === 'date_from' && filters.date_to && value > filters.date_to) update.date_to = value;
+    if (value && key === 'date_to' && filters.date_from && value < filters.date_from) update.date_from = value;
+    void this.store.updateFilters(update);
   }
 
   onMissingDateChange(checked: boolean): void {

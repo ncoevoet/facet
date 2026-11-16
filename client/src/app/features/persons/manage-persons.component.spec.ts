@@ -339,6 +339,25 @@ describe('ManagePersonsComponent', () => {
     });
   });
 
+  describe('loadNeedsNaming', () => {
+    it('keeps the newest retry when an older one settles last', async () => {
+      // Two quick Retry clicks race: the slower first response must not
+      // overwrite the second one's result (which landed in between).
+      const older = new Subject<{ persons: unknown[]; total: number }>();
+      const newer = new Subject<{ persons: unknown[]; total: number }>();
+      let calls = 0;
+      mockApi.get.mockImplementation((url: string) =>
+        url === '/persons/needs_naming' ? (++calls === 1 ? older : newer) : of({ persons: [], total: 0 }));
+      const first = component.loadNeedsNaming();
+      const second = component.loadNeedsNaming();
+      const record = { id: 7, name: null, face_count: 4, face_thumbnail: true };
+      newer.next({ persons: [record], total: 1 }); await second;
+      older.next({ persons: [], total: 0 }); await first;
+      expect(component.needsNaming().map((p) => p.id)).toEqual([7]);
+      expect(component.needsNamingError()).toBe(false);
+    });
+  });
+
   describe('hasMore computed', () => {
     it('should return false when persons length equals total', () => {
       component.persons.set(mockPersonsResponse.persons);
@@ -1081,6 +1100,91 @@ describe('ManagePersonsComponent', () => {
       reach(); await fixture.whenStable(); fixture.detectChanges();
       expect(fixture.componentInstance.ignored().map((p) => p.id)).toEqual([101, 102, 103]);
       expect(root.querySelector('[data-ignored-more]')).toBeNull();
+    });
+
+    it('retries the same page after a failed scroll page instead of skipping it', async () => {
+      // loadPersons reports the failure itself and swallows the error, so the
+      // rollback cannot live in onScrollReached's .catch — a page that failed
+      // once must be the page the next scroll asks for again.
+      const page1 = Array.from({ length: 48 }, (_, i) => ({ id: i + 1, name: `P${i}`, face_count: 10, face_thumbnail: true }));
+      const requestedPages: (number | undefined)[] = [];
+      const page2 = new Subject<{ persons: typeof page1; total: number }>();
+      mockApi.get.mockImplementation((url: string, params?: { hidden_only?: boolean; page?: number }) => {
+        if (url === '/persons/needs_naming') return of({ persons: [], total: 0 });
+        if (url === '/filter_options/persons') return of({ persons: [] });
+        if (params?.hidden_only) return of({ persons: [], total: 0 });
+        requestedPages.push(params?.page);
+        if ((params?.page ?? 1) === 1) return of({ persons: page1, total: 96 });
+        return page2.asObservable() as never;
+      });
+      withTab(null);
+      const fixture = await render();
+      expect(fixture.componentInstance.persons().length).toBe(48);
+
+      fixture.componentInstance.onScrollReached();
+      await fixture.whenStable(); fixture.detectChanges();
+      expect(requestedPages.at(-1)).toBe(2);
+
+      page2.error({ status: 500 });
+      await fixture.whenStable(); fixture.detectChanges();
+
+      // The failed page no longer sits ahead of the scroll: the counter rolled
+      // back, so the next scroll asks for the same page again. (The snackbar
+      // itself cannot be asserted here — the component imports MatSnackBarModule,
+      // so a created fixture resolves the real MatSnackBar, not this mock.)
+      expect((fixture.componentInstance as unknown as { page: number }).page).toBe(1);
+
+      fixture.componentInstance.onScrollReached();
+      await fixture.whenStable(); fixture.detectChanges();
+
+      // The failed page is asked for again, not the one after it.
+      expect(requestedPages.at(-1)).toBe(2);
+    });
+
+    it('shows the Ignored section with a Retry when its first page fails', async () => {
+      const original = mockApi.get.getMockImplementation()!;
+      mockApi.get.mockImplementation((url: string, params?: { hidden_only?: boolean }) =>
+        params?.hidden_only ? throwError(() => ({ status: 500 })) : original(url, params));
+      withTab(null);
+      const fixture = await render();
+      const root = fixture.nativeElement as HTMLElement;
+
+      // The section must exist even though nothing loaded — the failure is not
+      // allowed to read as "nobody is hidden".
+      const failed = () => root.querySelector('[data-ignored-failed]');
+      expect(failed()).not.toBeNull();
+      expect(failed()!.querySelector('[role="alert"]')?.textContent).toContain('manage_persons.error_loading_persons');
+
+      mockApi.get.mockImplementation((url: string, params?: { hidden_only?: boolean }) =>
+        params?.hidden_only ? of({ persons: [{ id: 7, name: null, face_count: 6, face_thumbnail: true, is_hidden: true }], total: 1 }) : original(url, params));
+      failed()!.querySelector<HTMLButtonElement>('button')!.click();
+      await fixture.whenStable(); fixture.detectChanges();
+
+      expect(fixture.componentInstance.ignored().map((p) => p.id)).toEqual([7]);
+      expect(root.querySelector('[data-ignored-failed]')).toBeNull();
+    });
+
+    it('keeps a loaded Ignored list without a "load more" error when its refresh fails', async () => {
+      const original = mockApi.get.getMockImplementation()!;
+      const hidden = (id: number) => ({ id, name: null, face_count: 2, face_thumbnail: true, is_hidden: true });
+      mockApi.get.mockImplementation((url: string, params?: { hidden_only?: boolean }) =>
+        params?.hidden_only ? of({ persons: [hidden(101)], total: 3 }) : original(url, params));
+      withTab(null);
+      const fixture = await render();
+      fixture.componentInstance.ignoredExpanded.set(true); fixture.detectChanges();
+      const root = fixture.nativeElement as HTMLElement;
+
+      // A full reload (the one an Undo of a hide runs) fails while rows are on
+      // screen: they stay, and nothing claims a next page failed — that
+      // message's Retry would append onto the list instead of reloading it.
+      mockApi.get.mockImplementationOnce(() => throwError(() => ({ status: 500 })));
+      await fixture.componentInstance.loadIgnored();
+      fixture.detectChanges();
+
+      expect(fixture.componentInstance.ignored().map((p) => p.id)).toEqual([101]);
+      expect(fixture.componentInstance.ignoredError()).toBe(false);
+      expect(root.querySelector('[data-ignored-more] [role="alert"]')).toBeNull();
+      expect(root.querySelector('[data-ignored-failed]')).toBeNull();
     });
 
     it('opens on Named first, even with persons waiting for a name', async () => {

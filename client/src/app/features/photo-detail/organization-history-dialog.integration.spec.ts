@@ -120,17 +120,17 @@ describe('Organization history rendered controls and HTTP', () => {
   it('gives same-kind and same-minute entries distinct accessible action names', async () => {
     await create([entry(), entry({ id: 902 })]);
     const names = sections().map(section => section.querySelector('button')!.getAttribute('aria-label'));
-    expect(names[0]).toBe('Restore… · Location · 24/10/2026 10:11 · #901');
-    expect(names[1]).toBe('Restore… · Location · 24/10/2026 10:11 · #902');
+    expect(names[0]).toBe('Restore… · Location · 24 Oct 2026 10:11 · #901');
+    expect(names[1]).toBe('Restore… · Location · 24 Oct 2026 10:11 · #902');
     expect(new Set(names).size).toBe(2);
     expect(sections().map(section => section.querySelector('h3')?.textContent?.trim()))
-      .toEqual(['Location · 24/10/2026 10:11', 'Location · 24/10/2026 10:11']);
+      .toEqual(['Location · 24 Oct 2026 10:11', 'Location · 24 Oct 2026 10:11']);
     http.expectNone(request => request.method === 'POST');
   });
 
   for (const [kind, before, after, lines] of [
     ['gps', [null, 2, 0], [3, 4, 1], ['Location: Unknown → 3, 4', 'Manual location: No → Yes']],
-    ['date', ['2024:01:01 00:00:00', 0], ['2024:01:01 00:01:00', 1], ['Capture date: 01/01/2024 00:00 → 01/01/2024 00:01', 'Manual date: No → Yes']],
+    ['date', ['2024:01:01 00:00:00', 0], ['2024:01:01 00:01:00', 1], ['Capture date: 1 Jan 2024 00:00 → 1 Jan 2024 00:01', 'Manual date: No → Yes']],
     ['review', [4, 0, 0, 1], [0, 0, 1, 0], ['Stars: 4 → Unknown', 'Decision: Kept → Rejected']],
   ] as const) {
     it(`lists only the changed ${kind} fields of each photo after expansion`, async () => {

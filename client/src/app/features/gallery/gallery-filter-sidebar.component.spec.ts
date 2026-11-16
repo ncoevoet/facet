@@ -116,6 +116,17 @@ describe('GalleryFilterSidebarComponent', () => {
     expect(UNIT_PANEL['no_capture_date']).toBe('date');
   });
 
+  it('pulls a reversed date range back into order instead of filtering everything out', () => {
+    const filters = mockStore['filters'] as ReturnType<typeof signal<GalleryFilters>>;
+    filters.update(current => ({ ...current, date_to: '2026-06-15' }));
+    component.onDateChange('date_from', { value: new Date(2026, 10, 1) } as any);
+    expect(mockStore['updateFilters']).toHaveBeenLastCalledWith({ date_from: '2026-11-01', date_to: '2026-11-01', no_capture_date: '' });
+
+    filters.update(current => ({ ...current, date_from: '2026-11-01', date_to: '2026-11-01' }));
+    component.onDateChange('date_to', { value: new Date(2026, 5, 1) } as any);
+    expect(mockStore['updateFilters']).toHaveBeenLastCalledWith({ date_to: '2026-06-01', date_from: '2026-06-01', no_capture_date: '' });
+  });
+
   describe('unavailable metrics (commercial mode)', () => {
     const ids = () => component.advancedFilterGroups().flatMap(g => g.filters.map(f => f.id));
 

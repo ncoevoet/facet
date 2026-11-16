@@ -64,7 +64,7 @@ describe('ConnectAssistantDialogComponent', () => {
       providers: [
         { provide: ApiService, useValue: { listMcpTokens, createMcpToken, revokeMcpToken } },
         { provide: AuthService, useValue: { isMultiUser: () => multiUser, isEdition: () => edition, loginPasswordRequired: () => loginRequired, status: () => ({ features: { mcp_inpage: inpage } }) } },
-        { provide: I18nService, useValue: { t: (key: string, vars?: Record<string, string>) => (vars ? `${key} ${Object.values(vars).join(' ')}` : key), translations: signal({}) } },
+        { provide: I18nService, useValue: { locale: signal('en'), t: (key: string, vars?: Record<string, string>) => (vars ? `${key} ${Object.values(vars).join(' ')}` : key), translations: signal({}) } },
         { provide: MatSnackBar, useValue: { open: vi.fn() } },
         { provide: MatDialogRef, useValue: { close: vi.fn() } },
         { provide: AgentBridgeService, useValue: { tabId: 'tab123', connected } },
@@ -73,12 +73,12 @@ describe('ConnectAssistantDialogComponent', () => {
     });
   });
 
-  it('lists tokens with the prefix only as a tooltip, with dd/MM/yyyy dates and no plaintext', async () => {
+  it('lists tokens with the prefix only as a tooltip, with dates in the viewer language and no plaintext', async () => {
     await create();
     expect(queryAll('[data-testid="token-row"]')).toHaveLength(1);
     expect(query('[data-testid="token-row"] [title]')?.getAttribute('title')).toBe('fct_ab12…');
     expect(query('[data-testid="token-row"]')?.textContent).not.toContain('fct_ab12');
-    expect(text()).toContain('03/09/2026');
+    expect(text()).toContain('3 Sept 2026');
     expect(query('[data-testid="reveal"]')).toBeNull();
     expect(query('[data-testid="prompt"]')).toBeNull();
     expect(text()).not.toContain('SECRET');
@@ -124,7 +124,7 @@ describe('ConnectAssistantDialogComponent', () => {
       providers: [
         { provide: ApiService, useValue: { listMcpTokens, createMcpToken, revokeMcpToken } },
         { provide: AuthService, useValue: { isMultiUser: () => true, isEdition: () => true, loginPasswordRequired: () => true, status: signal({ features: { mcp_inpage: false } }) } },
-        { provide: I18nService, useValue: { t: (key: string, vars?: Record<string, string>) => (vars ? `${key} ${Object.values(vars).join(' ')}` : key), translations: signal({}) } },
+        { provide: I18nService, useValue: { locale: signal('en'), t: (key: string, vars?: Record<string, string>) => (vars ? `${key} ${Object.values(vars).join(' ')}` : key), translations: signal({}) } },
         { provide: MatSnackBar, useValue: { open: vi.fn() } },
         { provide: MatDialogRef, useValue: { close: vi.fn() } },
         { provide: AgentBridgeService, useValue: { tabId: 'tab123', connected } },

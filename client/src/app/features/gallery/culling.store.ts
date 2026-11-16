@@ -630,7 +630,7 @@ export class CullingStore {
   });
   /** The scope as a whole (album, scene, else the date range): names the highlights album. */
   readonly scopeLabel = computed(() =>
-    this.albumScopeLabel() ?? (this.dateRangeActive() ? new CullDateRangePipe().transform(this.scopeFrom(), this.scopeTo()) : null));
+    this.albumScopeLabel() ?? (this.dateRangeActive() ? new CullDateRangePipe().transform(this.scopeFrom(), this.scopeTo(), this.i18n.locale()) : null));
 
   /** The darkroom lightbox's current photo, mirrored by the component for `ui_get_context`; null when no lightbox is open. */
 

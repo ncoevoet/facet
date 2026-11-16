@@ -60,7 +60,7 @@ interface CalendarCell {
             <button data-timeline-result
               class="relative h-full w-full overflow-hidden rounded-xl transition-shadow"
               [disabled]="cell.count === 0"
-              [attr.aria-label]="(cell.date | captureDate) + ': ' + cell.count + ' ' + (I18N.timeline.photos_count | translate)"
+              [attr.aria-label]="(cell.date | captureDate: locale()) + ': ' + cell.count + ' ' + (I18N.timeline.photos_count | translate)"
               [class]="cell.count > 0 ? 'cursor-pointer hover:shadow-lg bg-[var(--mat-sys-surface-container)]' : 'opacity-40 bg-[var(--mat-sys-surface-container)] cursor-default'"
               (click)="cell.count > 0 && daySelected.emit(cell.date)">
               @if (cell.hero_photo_path) {
@@ -89,6 +89,8 @@ interface CalendarCell {
 export class TimelineDaysComponent extends TimelineCollectionReader {
   protected readonly I18N = i18nKeys();
   private readonly i18n = inject(I18nService);
+  /** The viewer's language, the argument of the date pipes. */
+  protected readonly locale = this.i18n.locale;
   private readonly filters = inject(TimelineFiltersService);
   private readonly store = inject(GalleryStore);
 

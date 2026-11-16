@@ -53,7 +53,7 @@ describe('Typed album rule values', () => {
   const persons = signal([{ id: 7, name: 'Alice', face_count: 3 }, { id: 8, name: null, face_count: 1 }]);
   const make = (bundle: object) => {
     TestBed.configureTestingModule({ providers: [
-      { provide: I18nService, useValue: { t: (key: string, params?: Record<string, unknown>) => translated(bundle, key).replace('{id}', String(params?.['id'])) } },
+      { provide: I18nService, useValue: { locale: signal('en'), t: (key: string, params?: Record<string, unknown>) => translated(bundle, key).replace('{id}', String(params?.['id'])) } },
       { provide: GalleryStore, useValue: { persons } },
     ] });
     return TestBed.runInInjectionContext(() => new AlbumRuleValuePipe());
@@ -75,7 +75,7 @@ describe('Typed album rule values', () => {
   it('translates known choices only and preserves literal or unknown values', () => {
     const bundle = signal<object>(fr);
     TestBed.configureTestingModule({ providers: [
-      { provide: I18nService, useValue: { t: (key: string) => translated(bundle(), key) } },
+      { provide: I18nService, useValue: { locale: signal('en'), t: (key: string) => translated(bundle(), key) } },
       { provide: GalleryStore, useValue: { persons: signal([]) } },
     ] });
     const pipe = TestBed.runInInjectionContext(() => new AlbumRuleValuePipe());
@@ -87,7 +87,7 @@ describe('Typed album rule values', () => {
     expect(pipe.transform('kept', 'review_status')).toBe(fr.gallery.sidebar.review.values.kept);
     expect(pipe.transform('portrait', 'type')).toBe(fr.category_names.portrait);
     for (const key of ['type', 'sort', 'sort_direction', 'review_status']) expect(pipe.transform('custom-value', key)).toBe('custom-value');
-    expect(pipe.transform('2024-03-01', 'date_from')).toBe('01/03/2024');
+    expect(pipe.transform('2024-03-01', 'date_from')).toBe('1 Mar 2024');
     bundle.set(en);
     expect(pipe.transform('true', 'favorites_only')).toBe(en.organization_history.yes);
     expect(pipe.transform('portrait', 'type')).toBe(en.category_names.portrait);

@@ -1,4 +1,5 @@
 import { CategoryLabelPipe } from '../../shared/pipes/category-label.pipe';
+import { I18nService } from '../../core/services/i18n.service';
 import { Component, DestroyRef, computed, effect, inject, input, output, signal, untracked, viewChild, viewChildren, ElementRef, ChangeDetectionStrategy } from '@angular/core';
 import { NgTemplateOutlet } from '@angular/common';
 import { Router } from '@angular/router';
@@ -115,7 +116,7 @@ const KEY_SCORES = [
               @if (p.date_taken) {
                 <span class="text-[var(--facet-tooltip-text-muted)] text-[11px] font-normal shrink-0"
                   [class.block]="!isLandscape()"
-                data-capture-date>{{ p.date_taken | captureDate }}</span>
+                data-capture-date>{{ p.date_taken | captureDate: locale() }}</span>
               }
             </div>
 
@@ -306,6 +307,8 @@ const KEY_SCORES = [
   `,
 })
 export class PhotoTooltipComponent {
+  /** The viewer's language, the argument of the date pipes. */
+  protected readonly locale = inject(I18nService).locale;
   readonly photo = input<Photo | null>(null);
   /** Clipping threshold for the histogram's markers, from `viewer.clipping`.
    *  Passed in rather than read from config here so the tooltip, the detail

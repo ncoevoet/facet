@@ -1,6 +1,7 @@
 import { ChangeDetectionStrategy, Component, DestroyRef, effect, inject, OnInit, signal } from '@angular/core';
+import { I18nService } from '../../core/services/i18n.service';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
-import { DatePipe, NgTemplateOutlet, SlicePipe } from '@angular/common';
+import { NgTemplateOutlet, SlicePipe } from '@angular/common';
 import { NavigationStart, Router, RouterLink } from '@angular/router';
 import { MatDialogModule, MatDialogRef } from '@angular/material/dialog';
 import { MatButtonModule } from '@angular/material/button';
@@ -15,6 +16,7 @@ import { ThumbnailUrlPipe } from '../../shared/pipes/thumbnail-url.pipe';
 import { TranslatePipe } from '../../shared/pipes/translate.pipe';
 import { GalleryStore } from '../gallery/gallery.store';
 import { HistoryDiffPipe } from './organization-history-diff.pipe';
+import { TimestampPipe } from '../../shared/pipes/timestamp.pipe';
 
 type Entry = components['schemas']['OrganizationEntry'];
 type History = components['schemas']['OrganizationHistory'];
@@ -27,7 +29,7 @@ const REVERT_ERROR_BY_STATUS: Record<number, 'conflict' | 'unavailable'> = { 409
 @Component({
   selector: 'app-organization-history-dialog',
   standalone: true,
-  imports: [MatDialogModule, MatButtonModule, RouterLink, NgTemplateOutlet, TranslatePipe, DatePipe, SlicePipe, PluralKeyPipe, FilenamePipe, ThumbnailUrlPipe, HistoryDiffPipe],
+  imports: [MatDialogModule, MatButtonModule, RouterLink, NgTemplateOutlet, TranslatePipe, TimestampPipe, SlicePipe, PluralKeyPipe, FilenamePipe, ThumbnailUrlPipe, HistoryDiffPipe],
   changeDetection: ChangeDetectionStrategy.Eager,
   template: `
     <h2 mat-dialog-title>{{ I18N.organization_history.title | translate }}</h2>
@@ -39,10 +41,10 @@ const REVERT_ERROR_BY_STATUS: Record<number, 'conflict' | 'unavailable'> = { 409
       @if (error() && failedEntryId() === null) { <p role="alert" class="my-3">{{ I18N.organization_history[error()!] | translate }}</p> }
       @if (changed() !== null) { <p role="status" class="my-3">{{ I18N.organization_history.success | translate:{ count: changed() ?? 0 } }}</p> }
       @for (entry of entries(); track entry.id) {
-        @let diff = entry | historyDiff;
+        @let diff = entry | historyDiff: locale();
         <section class="border border-current/20 rounded-lg p-3 mb-3">
           @if (failedEntryId() === entry.id && error(); as failure) { <p role="alert">{{ I18N.organization_history[failure] | translate }}</p> }
-          <h3 class="font-medium">{{ I18N.organization_history[entry.kind] | translate }} · {{ entry.created_at | date:'dd/MM/yyyy HH:mm' }}</h3>
+          <h3 class="font-medium">{{ I18N.organization_history[entry.kind] | translate }} · {{ entry.created_at | timestamp: locale() }}</h3>
           @if (diff.summary.length) {
             <p data-history-summary class="text-sm mt-1 break-words">@for (change of diff.summary; track change.label; let last = $last) {<ng-container [ngTemplateOutlet]="changeText" [ngTemplateOutletContext]="{ $implicit: change }" />@if (!last) { · }}</p>
           }
@@ -77,7 +79,7 @@ const REVERT_ERROR_BY_STATUS: Record<number, 'conflict' | 'unavailable'> = { 409
             }
           </details>
           <button mat-button [disabled]="busy() || entry.reverted || entry.superseded" [attr.aria-describedby]="entry.superseded && !entry.reverted ? 'history-superseded-' + entry.id : null" (click)="previewRestore(entry)"
-            [attr.aria-label]="I18N.organization_history.entry_action | translate:{ action: ((entry.reverted ? I18N.organization_history.reverted : I18N.organization_history.preview_action) | translate), kind: (I18N.organization_history[entry.kind] | translate), date: ((entry.created_at | date:'dd/MM/yyyy HH:mm') ?? ''), id: entry.id }">{{ (entry.reverted ? I18N.organization_history.reverted : I18N.organization_history.preview_action) | translate }}</button>
+            [attr.aria-label]="I18N.organization_history.entry_action | translate:{ action: ((entry.reverted ? I18N.organization_history.reverted : I18N.organization_history.preview_action) | translate), kind: (I18N.organization_history[entry.kind] | translate), date: ((entry.created_at | timestamp: locale()) ?? ''), id: entry.id }">{{ (entry.reverted ? I18N.organization_history.reverted : I18N.organization_history.preview_action) | translate }}</button>
           @if (entry.superseded && !entry.reverted) { <p data-history-superseded [id]="'history-superseded-' + entry.id" class="my-1 text-xs text-[var(--mat-sys-on-surface-variant)]">{{ I18N.organization_history.superseded | translate }}</p> }
           @if (restorePlan()?.id === entry.id) {
             <section data-history-preview class="my-2 rounded border border-[var(--mat-sys-outline-variant)] p-3 text-sm">
@@ -98,6 +100,8 @@ const REVERT_ERROR_BY_STATUS: Record<number, 'conflict' | 'unavailable'> = { 409
   `,
 })
 export class OrganizationHistoryDialogComponent implements OnInit {
+  /** The viewer's language, the argument of the date pipes. */
+  protected readonly locale = inject(I18nService).locale;
   protected readonly I18N = i18nKeys();
   private readonly api = inject(ApiService);
   private readonly store = inject(GalleryStore);

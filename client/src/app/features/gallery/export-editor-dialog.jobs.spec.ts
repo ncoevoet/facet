@@ -51,7 +51,7 @@ describe('Export editor background jobs with HttpClient', () => {
       { provide: MAT_DIALOG_DATA, useValue: data },
       { provide: MatDialogRef, useValue: { close, beforeClosed: () => beforeClosed } },
       { provide: MatSnackBar, useValue: { open: snack } },
-      { provide: I18nService, useValue: { translations: signal({}), t: (key: string, params?: unknown) => `${key} ${JSON.stringify(params ?? {})}` } },
+      { provide: I18nService, useValue: { locale: signal('en'), translations: signal({}), t: (key: string, params?: unknown) => `${key} ${JSON.stringify(params ?? {})}` } },
     ] });
     http = TestBed.inject(HttpTestingController);
     fixture = TestBed.createComponent(ExportEditorDialogComponent);
@@ -208,11 +208,11 @@ describe('Export editor background jobs with HttpClient', () => {
     http.expectNone(request => request.method === 'POST');
   });
 
-  it('renders receipt dates in the project day/month/year and 24-hour format', async () => {
+  it('renders receipt dates day first in the viewer language, with a 24-hour time', async () => {
     build({ paths: ['/a.jpg'] }, false);
     http.expectOne('/api/export/sidecar_jobs').flush([job({ started_at: new Date(2026, 9, 25, 14, 7).getTime() / 1000 })]);
     await flushMicrotasks(2); fixture!.detectChanges();
-    expect(fixture!.nativeElement.textContent).toContain('25/10/2026 14:07');
+    expect(fixture!.nativeElement.textContent).toContain('25 Oct 2026 14:07');
   });
 
   it('gives current-status and recent-history refresh controls distinct accessible names', async () => {

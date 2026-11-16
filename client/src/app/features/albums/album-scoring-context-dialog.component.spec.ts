@@ -269,6 +269,54 @@ describe('AlbumScoringContextDialogComponent', () => {
     expect(component.phase()).toBe('recompute_done');
   });
 
+  it('a single failed poll keeps the recompute running; recovery lands recompute_done', async () => {
+    // The recompute POST succeeds; the status polls then fail twice and
+    // recover. One transient failure must not declare a minutes-long
+    // recompute failed.
+    let failStatusPolls = true;
+    build();
+    get.mockImplementation((url: string) => {
+      if (url === '/scan/recompute_status') {
+        return failStatusPolls ? throwError(() => new Error('transient')) : of({ running: false, kind: 'recompute', progress: null, exit_code: 0 });
+      }
+      return of({});
+    });
+    await component.ngOnInit();
+    await component.save();
+
+    const poll = () => (component as unknown as { pollRecomputeStatus(): Promise<void> }).pollRecomputeStatus();
+    const failures = () => (component as unknown as { pollFailures: number }).pollFailures;
+    await component.recompute();
+    console.log('DBG-A failures=', failures(), 'phase=', component.phase());
+    await poll();  // failure 2: still holding on (internal poll was failure 1)
+    console.log('DBG-B failures=', failures(), 'phase=', component.phase());
+    expect(component.phase()).toBe('recomputing');
+
+    failStatusPolls = false;
+    await poll();  // recovery: done
+    expect(component.phase()).toBe('recompute_done');
+  });
+
+  it('three consecutive poll failures declare the recompute failed', async () => {
+    build();
+    get.mockImplementation((url: string) => {
+      if (url === '/scan/recompute_status') return throwError(() => new Error('down'));
+      return of({});
+    });
+    await component.ngOnInit();
+    await component.save();
+
+    const poll = () => (component as unknown as { pollRecomputeStatus(): Promise<void> }).pollRecomputeStatus();
+    const stop = () => (component as unknown as { stopPolling(): void }).stopPolling();
+    await component.recompute();
+    stop();  // detach the real interval; drive the counter deterministically
+    await poll();
+    await poll();
+    await poll();
+
+    expect(component.phase()).toBe('recompute_error');
+  });
+
   it('recompute() surfaces a busy error on 409 without leaving the saved phase', async () => {
     build();
     await component.ngOnInit();

@@ -22,7 +22,7 @@ describe('TimelineDatePipe', () => {
   describe('day format (YYYY-MM-DD)', () => {
     it('formats a day in the viewer date format', () => {
       const result = pipe.transform('2024-06-15');
-      expect(result).toBe('15/06/2024');
+      expect(result).toBe('15 Jun 2024');
     });
 
     it('should handle January dates', () => {

@@ -30,7 +30,7 @@ describe('TimelineDaysComponent', () => {
         provideRouter([]),
         { provide: AuthService, useValue: { status: signal({ user_id: 'alice' }), session: signal('alice|a'), token: 'a' } },
         { provide: ApiService, useValue: mockApi },
-        { provide: I18nService, useValue: { t: (key: string) => `T(${key})`, translations: () => ({}) } },
+        { provide: I18nService, useValue: { locale: signal('en'), t: (key: string) => `T(${key})`, translations: () => ({}) } },
         TimelineFiltersService,
         { provide: GalleryStore, useValue: mockStore },
         { provide: I18nService, useValue: { locale, translations: () => ({}), t: (key: string) => key } },
@@ -97,7 +97,7 @@ describe('TimelineDaysComponent', () => {
       const populated = buttons.find(button => button.textContent?.includes('15'))!;
       expect(empty.disabled).toBe(true);
       expect(populated.disabled).toBe(false);
-      expect(populated.getAttribute('aria-label')).toContain('15/06/2024');
+      expect(populated.getAttribute('aria-label')).toContain('15 Jun 2024');
       expect(populated.getAttribute('aria-label')).toContain('3');
       fixture.destroy();
     });

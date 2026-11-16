@@ -1,5 +1,5 @@
 import { ContextHelpComponent } from '../../shared/components/context-help/context-help.component';
-import { Component, inject, signal, ChangeDetectionStrategy } from '@angular/core';
+import { afterNextRender, Component, DestroyRef, ElementRef, inject, Injector, signal, viewChild, ChangeDetectionStrategy } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { MatDialogModule, MatDialogRef, MAT_DIALOG_DATA } from '@angular/material/dialog';
 import { MatFormFieldModule } from '@angular/material/form-field';
@@ -8,7 +8,10 @@ import { MatButtonModule } from '@angular/material/button';
 import { MatTooltipModule } from '@angular/material/tooltip';
 import { firstValueFrom } from 'rxjs';
 import { UserActivityJournal, activityName } from '../../core/agent/user-activity-journal.service';
+import { AuthService } from '../../core/services/auth.service';
 import { AlbumService } from '../../core/services/album.service';
+import { AlbumDialogContext } from './album-dialog-context';
+import { Router } from '@angular/router';
 import { TranslatePipe } from '../../shared/pipes/translate.pipe';
 import { i18nKeys } from '../../core/i18n/keys';
 
@@ -28,6 +31,9 @@ import { i18nKeys } from '../../core/i18n/keys';
         <input matInput [(ngModel)]="name" maxlength="200" (keydown.enter)="save()" />
       </mat-form-field>
       <app-context-help [label]="I18N.albums.creation.help" [keys]="helpKeys" />
+      @if (saveFailed()) {
+        <p #saveError role="alert" tabindex="-1" class="rounded-md bg-[var(--mat-sys-error-container)] p-3 text-[var(--mat-sys-on-error-container)]">{{ I18N.albums.save_error | translate }}</p>
+      }
     </mat-dialog-content>
     <mat-dialog-actions align="end">
       <button mat-button mat-dialog-close>{{ I18N.ui.buttons.cancel | translate }}</button>
@@ -44,21 +50,33 @@ export class SaveSmartAlbumDialogComponent {
   private journal = inject(UserActivityJournal);
   private dialogRef = inject(MatDialogRef<SaveSmartAlbumDialogComponent>);
   private data = inject<{ filterJson: string }>(MAT_DIALOG_DATA);
+  // The other album dialogs' stale-session guard: the result of a save that
+  // lands after a sign-out or navigation must not touch the store.
+  private readonly guard = new AlbumDialogContext(inject(AuthService), inject(Router), inject(DestroyRef));
+  private readonly errorElement = viewChild<ElementRef<HTMLElement>>('saveError');
+  private readonly injectorRef = inject(Injector);
 
   name = '';
   readonly saving = signal(false);
+  readonly saveFailed = signal(false);
 
   async save(): Promise<void> {
-    if (!this.name.trim() || this.saving()) return;
+    if (!this.name.trim() || this.saving() || !this.guard.canStart()) return;
     this.saving.set(true);
+    this.saveFailed.set(false);
     try {
       const album = await firstValueFrom(
         this.albumService.create(this.name.trim(), '', true, this.data.filterJson),
       );
+      if (!await this.guard.settled()) return;
       this.journal.record('album', [], { album_id: album.id, action: 'create', name: activityName(album.name), is_smart: true });
-      this.dialogRef.close(true);
+      this.dialogRef.close(album);
     } catch {
-      this.saving.set(false);
+      if (await this.guard.settled()) {
+        this.saving.set(false);
+        this.saveFailed.set(true);
+        afterNextRender(() => this.errorElement()?.nativeElement.focus(), { injector: this.injectorRef });
+      }
     }
   }
 }

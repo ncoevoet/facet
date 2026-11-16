@@ -312,10 +312,10 @@ interface SceneSummary {
             <div class="relative inline-flex shrink-0">
               <button mat-button class="${TOUCH_TEXT_BUTTON} !min-w-0 !px-3 shrink-0 ${XL_LABEL_BUTTON}" data-testid="cull-date-range" [matMenuTriggerFor]="dateRangeMenu"
                       [class.!text-[var(--mat-sys-primary)]]="cull.dateRangeActive()"
-                      [matTooltip]="cull.dateRangeActive() ? (cull.scopeFrom() | cullDateRange: cull.scopeTo()) : (I18N.culling.date_range.label | translate)"
-                      [attr.aria-label]="(I18N.culling.date_range.label | translate) + (cull.dateRangeActive() ? ': ' + (cull.scopeFrom() | cullDateRange: cull.scopeTo()) : '')">
+                      [matTooltip]="cull.dateRangeActive() ? (cull.scopeFrom() | cullDateRange: cull.scopeTo(): locale()) : (I18N.culling.date_range.label | translate)"
+                      [attr.aria-label]="(I18N.culling.date_range.label | translate) + (cull.dateRangeActive() ? ': ' + (cull.scopeFrom() | cullDateRange: cull.scopeTo(): locale()) : '')">
                 <mat-icon>date_range</mat-icon>
-                <span class="hidden xl:inline text-sm">{{ cull.dateRangeActive() ? (cull.scopeFrom() | cullDateRange: cull.scopeTo()) : (I18N.culling.date_range.label | translate) }}</span>
+                <span class="hidden xl:inline text-sm">{{ cull.dateRangeActive() ? (cull.scopeFrom() | cullDateRange: cull.scopeTo(): locale()) : (I18N.culling.date_range.label | translate) }}</span>
               </button>
               <mat-date-range-input #rangeInput [rangePicker]="rangePicker" aria-hidden="true"
                                     class="absolute inset-0 overflow-hidden opacity-0 pointer-events-none">
@@ -1684,6 +1684,8 @@ export class BurstCullingComponent implements OnDestroy {
   private readonly route = inject(ActivatedRoute);
   private readonly snackBar = inject(MatSnackBar);
   private readonly i18n = inject(I18nService);
+  /** The viewer's language, the argument of the date pipes. */
+  protected readonly locale = this.i18n.locale;
   private readonly pageHelp = inject(PageHelpService);
   private readonly headerSlot = inject(HeaderSlotService);
   private readonly albumService = inject(AlbumService);
@@ -3239,7 +3241,10 @@ export class BurstCullingComponent implements OnDestroy {
       labelKey: keep ? I18N.culling.swipe.kept : I18N.culling.swipe.rejected,
       labelParams: { filename: photo.filename },
       undo: () => {
-        this.cull.restoreSelection(group, previousKept);
+        // Restore ONLY the swiped frame's own kept-state: the group snapshot
+        // would also wipe every per-frame decision made after the swipe
+        // (e.g. the user tap-selecting another photo, then undoing the swipe).
+        this.cull.setPhotoKept(group, photo.path, previousKept.has(photo.path));
         this.lightboxIndex.set(previousIndex);
         return Promise.resolve();
       },
