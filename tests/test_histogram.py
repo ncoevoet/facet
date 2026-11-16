@@ -318,6 +318,22 @@ class TestColorSimilarityAcrossFormats:
         assert results[1]['path'] == '/diff.jpg'
         assert results[1]['similarity'] < 0.65
 
+    def test_one_legacy_candidate_puts_the_whole_request_on_luma(self, tmp_path):
+        # A rescanned candidate with a different chroma must not rank below a
+        # legacy one only because it is the one that carries RGB channels.
+        src_blob = pack_histogram(_spike(100), _spike(200), _spike(50), _spike(10))
+        rescanned = pack_histogram(_spike(100), _spike(10), _spike(50), _spike(200))
+        legacy = _legacy_blob(_spike(100))
+        conn = self._conn(tmp_path, [
+            ("/src.jpg", src_blob), ("/rescanned.jpg", rescanned), ("/legacy.jpg", legacy),
+        ])
+        results, reason = self._run(conn, src_blob)
+        assert reason is None
+        assert {r['path']: r['similarity'] for r in results} == {
+            '/rescanned.jpg': pytest.approx(_PERFECT_COLOUR_MATCH, abs=1e-3),
+            '/legacy.jpg': pytest.approx(_PERFECT_COLOUR_MATCH, abs=1e-3),
+        }
+
     def test_source_without_a_histogram_reports_the_reason(self, tmp_path):
         conn = self._conn(tmp_path, [("/src.jpg", None)])
         assert self._run(conn, None) == ([], 'no_histogram')

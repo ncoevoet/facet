@@ -55,7 +55,7 @@ from db.ai_edits import attach_ai_edit_sources_async
 from db.preview_versions import attach_preview_versions_async
 from db.metadata_provenance import photo_provenance
 from api.related_files import related_files
-from utils.histogram import unpack_histogram
+from utils.histogram import LEGACY_HISTOGRAM_BLOB_SIZE, unpack_histogram
 from utils.sequence import BRACKET as BRACKET_KIND
 
 try:
@@ -1823,9 +1823,6 @@ def _find_similar_color(conn, source, photo_path, min_similarity, vis_sql, vis_p
         total = arr.sum()
         return arr / total if total > 0 else arr
 
-    # Blend R/G/B and luminance channel intersections when both photos carry the
-    # 4-channel histogram format; fall back to luminance-only whenever either
-    # side is a legacy luma-only blob so mixed libraries score uniformly on luma.
     src_hist = _norm_hist(src_decoded['luma'])
     src_rgb = tuple(_norm_hist(c) for c in src_decoded['rgb']) if src_decoded.get('rgb') is not None else None
 
@@ -1840,6 +1837,14 @@ def _find_similar_color(conn, source, photo_path, min_similarity, vis_sql, vis_p
               AND {vis_sql}
     """, [photo_path, src_mono, src_sat] + vis_params).fetchall()
 
+    # Blend R/G/B with luminance only when the source AND every candidate carry the
+    # 4-channel format. A library mid-rescan holds both formats; scoring some
+    # pairs on four channels and the rest on luma alone would put rescanned and
+    # legacy candidates on different scales and order the list by scan date, not
+    # by colour. One legacy candidate therefore puts the whole request on luma.
+    use_rgb = src_rgb is not None and all(
+        len(r['histogram_data']) != LEGACY_HISTOGRAM_BLOB_SIZE for r in rows)
+
     results = []
     for r in rows:
         r = dict(r)
@@ -1848,11 +1853,10 @@ def _find_similar_color(conn, source, photo_path, min_similarity, vis_sql, vis_p
             continue
         cand_hist = _norm_hist(cand_decoded['luma'])
 
-        # Histogram intersection (0..1): 4-channel RGB+luma when both have RGB, else luma-only
+        # Histogram intersection (0..1): 4-channel RGB+luma when use_rgb, else luma-only
         luma_sim = float(np.minimum(src_hist, cand_hist).sum())
-        cand_raw_rgb = cand_decoded.get('rgb')
-        if src_rgb is not None and cand_raw_rgb is not None:
-            cand_rgb = tuple(_norm_hist(c) for c in cand_raw_rgb)
+        if use_rgb and cand_decoded.get('rgb') is not None:
+            cand_rgb = tuple(_norm_hist(c) for c in cand_decoded['rgb'])
             r_sim = float(np.minimum(src_rgb[0], cand_rgb[0]).sum())
             g_sim = float(np.minimum(src_rgb[1], cand_rgb[1]).sum())
             b_sim = float(np.minimum(src_rgb[2], cand_rgb[2]).sum())
