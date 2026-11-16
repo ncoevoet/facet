@@ -1,4 +1,4 @@
-import { signal } from '@angular/core';
+import { signal, WritableSignal } from '@angular/core';
 import type { Mock } from 'vitest';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { By } from '@angular/platform-browser';
@@ -33,7 +33,7 @@ describe('BurstCullingComponent', () => {
   let store: CullingStore;
   let mockApi: { get: Mock; post: Mock };
   let mockSnackBar: { open: Mock };
-  let mockI18n: { t: Mock; translations: Mock };
+  let mockI18n: { t: Mock; translations: Mock; locale: WritableSignal<string> };
 
   const mockCullingGroupsResponse = {
     groups: [
@@ -84,7 +84,7 @@ describe('BurstCullingComponent', () => {
     };
     // `translations` is the bundle signal the (impure) translate pipe reads when
     // a test actually renders the template.
-    mockI18n = { t: vi.fn((key: string) => key), translations: vi.fn(() => ({})) };
+    mockI18n = { t: vi.fn((key: string) => key), translations: vi.fn(() => ({})), locale: signal('en') };
 
     TestBed.configureTestingModule({
       providers: [
@@ -5507,7 +5507,7 @@ describe('BurstCullingComponent date range', () => {
         provideRouter([]),
         { provide: ApiService, useValue: { get: vi.fn(() => of(emptyFeed)), post: vi.fn(() => of({})), thumbnailUrl: vi.fn(() => '/thumb'), imageUrl: vi.fn(() => '/image') } },
         { provide: MatSnackBar, useValue: { open: vi.fn(() => ({ onAction: () => new Subject<void>(), afterDismissed: () => new Subject<void>() })) } },
-        { provide: I18nService, useValue: { t: (key: string) => key, translations: () => ({}) } },
+        { provide: I18nService, useValue: { locale: signal('en'), t: (key: string) => key, translations: () => ({}) } },
         { provide: GalleryStore, useValue: { config: () => null } },
         { provide: AuthService, useValue: { status: signal({ user_id: 'editor' }), token: 'fixture',  isEdition: () => true, identity: () => '0|' } },
         { provide: AssistantChangesService, useValue: { batch$: new Subject<AssistantChangeBatch>().asObservable() } },
@@ -5553,16 +5553,16 @@ describe('BurstCullingComponent date range', () => {
     expect(dateButton()!.className).not.toContain('text-[var(--mat-sys-primary)]');
   });
 
-  it('lights the button and names the window dd/MM/yyyy when the URL carries one', () => {
+  it('lights the button and names the window in the viewer language when the URL carries one', () => {
     mount({ from: '2026-07-01', to: '2026-07-31' });
-    expect(dateButton()!.getAttribute('aria-label')).toBe('culling.date_range.label: 01/07/2026 - 31/07/2026');
+    expect(dateButton()!.getAttribute('aria-label')).toBe('culling.date_range.label: 1 Jul 2026 - 31 Jul 2026');
     expect(dateButton()!.getAttribute('aria-label')).toContain(dateButton()!.querySelector('span.text-sm')!.textContent!.trim());
     expect(dateButton()!.className).toContain('text-[var(--mat-sys-primary)]');
   });
 
   it('reads the EXIF form of a plan\'s window too', () => {
     mount({ from: '2026:07:01 00:00:00', to: '2026:07:31 23:59:59' });
-    expect(dateButton()!.getAttribute('aria-label')).toBe('culling.date_range.label: 01/07/2026 - 31/07/2026');
+    expect(dateButton()!.getAttribute('aria-label')).toBe('culling.date_range.label: 1 Jul 2026 - 31 Jul 2026');
     expect(dateButton()!.getAttribute('aria-label')).toContain(dateButton()!.querySelector('span.text-sm')!.textContent!.trim());
   });
 
@@ -5576,7 +5576,7 @@ describe('BurstCullingComponent date range', () => {
   it('shows the live window as the visible date label, and the plain label once cleared', async () => {
     mount({ from: '2026-07-01', to: '2026-07-31' });
     const visible = (): string => dateButton()!.querySelector('span.text-sm')!.textContent!.trim();
-    expect(visible()).toBe('01/07/2026 - 31/07/2026');
+    expect(visible()).toBe('1 Jul 2026 - 31 Jul 2026');
     component['onDateRange'](null, null);
     await settle();
     expect(visible()).toBe('culling.date_range.label');

@@ -1000,7 +1000,7 @@ La granularidad, la ordenación y la categoría se guardan en `localStorage`. Lo
 
 **Descarte con ámbito.** Acota el cuarto oscuro con parámetros de URL: `?group_by=scene` para escenas, `?album=<id>` para un álbum, `?from=&to=` para una ventana de hora de captura (texto EXIF o fechas ISO como `2026-06-01`). Un banner muestra el ámbito con **Salir de la escena**. Las ráfagas que cruzan el borde de la ventana siguen mostrando todos sus fotogramas.
 
-**Intervalo de fechas.** El botón de **intervalo de fechas** (icono `date_range`) ofrece **Últimos 7 días**, **Últimos 30 días**, **Este año**, **El año pasado**, **Intervalo personalizado...** y **Todas las fechas**. Las fechas se muestran como dd/MM/yyyy.
+**Intervalo de fechas.** El botón de **intervalo de fechas** (icono `date_range`) ofrece **Últimos 7 días**, **Últimos 30 días**, **Este año**, **El año pasado**, **Intervalo personalizado...** y **Todas las fechas**. Las fechas se escriben como las escribe el idioma del visor (español `1 jul 2026`).
 
 - Se combina con el ámbito del álbum. Las fotos sin fecha de captura salen de un intervalo con fechas.
 - Los valores predefinidos se resuelven al elegirlos, así que un "Últimos 7 días" guardado en marcadores es una ventana fija.

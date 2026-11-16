@@ -1000,7 +1000,7 @@ Granularität, Sortierung und Kategorie bleiben im `localStorage` erhalten. Nich
 
 **Eingegrenztes Aussortieren.** Grenzen Sie die Dunkelkammer mit URL-Parametern ein: `?group_by=scene` für Szenen, `?album=<id>` für ein Album, `?from=&to=` für ein Aufnahmezeit-Fenster (EXIF-Text oder ISO-Daten wie `2026-06-01`). Ein Banner zeigt den Bereich mit **Szene verlassen**. Serien, die über den Fensterrand hinausreichen, zeigen weiterhin alle ihre Aufnahmen.
 
-**Datumsbereich.** Die Schaltfläche **Datumsbereich** (Symbol `date_range`) bietet **Letzte 7 Tage**, **Letzte 30 Tage**, **Dieses Jahr**, **Letztes Jahr**, **Eigener Bereich...** und **Alle Daten**. Daten erscheinen als dd/MM/yyyy.
+**Datumsbereich.** Die Schaltfläche **Datumsbereich** (Symbol `date_range`) bietet **Letzte 7 Tage**, **Letzte 30 Tage**, **Dieses Jahr**, **Letztes Jahr**, **Eigener Bereich...** und **Alle Daten**. Daten erscheinen so, wie die Sprache des Viewers sie schreibt (Deutsch `1. Juli 2026`).
 
 - Er lässt sich mit dem Albumbereich kombinieren. Fotos ohne Aufnahmedatum fallen aus einem datierten Bereich heraus.
 - Voreinstellungen werden bei der Wahl aufgelöst, daher ist ein mit Lesezeichen versehenes „Letzte 7 Tage“ ein festes Fenster.

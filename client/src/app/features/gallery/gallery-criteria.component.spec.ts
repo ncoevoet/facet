@@ -26,7 +26,7 @@ function createCriteria(edition = false) {
  {provide:ApiService,useValue:api},
  {provide:MatDialog,useValue:{open:vi.fn(()=>({afterClosed:()=>of(null)}))}},
  {provide:MatSnackBar,useValue:{open:vi.fn()}},
- {provide:I18nService,useValue:{t:(key:string)=>key,translations:signal({}),lang:signal('en')}},
+ {provide:I18nService,useValue:{t:(key:string)=>key,translations:signal({}),lang:signal('en'),locale:signal('en')}},
  ]});
  const fixture=TestBed.createComponent(GalleryCriteriaComponent);
  return {app:fixture.componentInstance,fixture,filtersSignal,personsSignal,mockStore,mockRouter,navigation,api,authStatus};
@@ -131,7 +131,7 @@ describe('recent collection visits',()=>{
   expect(texts[1]).toContain(': Portrait');
   expect(texts[2]).toContain(': Yes');
   expect(texts[2]).not.toContain('true');
-  expect(texts[3]).toContain('Mar 1, 2024');
+  expect(texts[3]).toContain('1 Mar 2024');
   expect(texts[3]).not.toContain('2024-03-01');
  });
 
@@ -478,7 +478,7 @@ describe('collection criteria ownership and full disclosure', () => {
     filtersSignal.update(f=>({...f,hide_blinks:true,hide_bursts:true,hide_rejected:true,review_status:'kept',blinks_only:true,date_from:'2026-10-31',date_to:'2026-11-02'}));
     expect((app as any).visibilityRules()).toEqual([]);
     const date=(app as any).activeFilterChips().find((chip:any)=>chip.id==='date_from');
-    expect(date.value).toBe('Oct 31, 2026–Nov 2, 2026');
+    expect(date.value).toBe('31 Oct 2026–2 Nov 2026');
     filtersSignal.update(f=>({...f,blinks_only:false}));
     expect((app as any).visibilityRules().some((rule:any)=>rule.id==='hide_bursts')).toBe(true);
     expect((app as any).visibilityRules().some((rule:any)=>rule.id==='hide_rejected')).toBe(false);

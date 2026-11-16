@@ -19,7 +19,7 @@ import { I18nService } from '../../core/services/i18n.service';
 import { AuthService } from '../../core/services/auth.service';
 import { folderDisplayName } from '../folders/folders.util';
 import { isUnavailableKey, unavailableSet } from '../../shared/utils/unavailable-metrics';
-import { CaptureDatePipe } from '../../shared/pipes/capture-date.pipe';
+import { formatCaptureDate } from '../../shared/utils/date-format';
 import { GalleryAlbumRulesComponent } from './gallery-album-rules.component';
 import { GalleryVisit, GalleryVisitHistoryService } from './gallery-visit-history.service';
 import { DEFAULT_FILTERS, filterUnit, hasZeroStarFilter } from './gallery-filters.util';
@@ -223,7 +223,6 @@ export class GalleryCriteriaComponent {
    settled: event => { if(event instanceof NavigationEnd && this.canAct()) this.history.remember(event.urlAfterRedirects); },
  });
  protected readonly canAct=computed(()=>this.active()&&!this.pending()&&!this.pinned());
- private readonly date = new CaptureDatePipe();
  private readonly tooltips = viewChildren(MatTooltip);
  private readonly quickDetails = viewChild<ElementRef<HTMLDetailsElement>>('quickFilters');
  private readonly quickSummary = viewChild<ElementRef<HTMLElement>>('quickSummary');
@@ -455,8 +454,8 @@ protected readonly activeFilterChips = computed<{ id: string; labelKey: string; 
       if (scorePolicies?.[minKey] === 'missing_only') continue;
       const rawMin = (f as unknown as Record<string, string>)[minKey];
       const rawMax = (f as unknown as Record<string, string>)[maxKey];
-      const min = minKey === 'date_from' ? this.date.transform(rawMin) : rawMin;
-      const max = maxKey === 'date_to' ? this.date.transform(rawMax) : rawMax;
+      const min = minKey === 'date_from' ? formatCaptureDate(rawMin, this.i18n.locale()) : rawMin;
+      const max = maxKey === 'date_to' ? formatCaptureDate(rawMax, this.i18n.locale()) : rawMax;
       if (min || max) {
         const value = (min && max) ? `${min}–${max}` : min ? `≥${min}` : `≤${max}`;
         chips.push({ id: minKey, labelKey, value, clearKeys: [minKey, maxKey] });

@@ -1,13 +1,14 @@
 import { afterNextRender, ChangeDetectionStrategy, Component, computed, DestroyRef, effect, ElementRef, inject, Injector, output, signal } from '@angular/core';
-import { DatePipe } from '@angular/common';
 import { ScanService, RecordedScanRun, ScanRetryPreview } from '../../core/services/scan.service';
 import { AuthService } from '../../core/services/auth.service';
 import { StalenessGuardFactory } from '../../core/services/staleness-guard.service';
 import { TranslatePipe } from '../../shared/pipes/translate.pipe';
 import { I18N } from '../../core/i18n/keys';
+import { I18nService } from '../../core/services/i18n.service';
+import { TimestampPipe } from '../../shared/pipes/timestamp.pipe';
 
 @Component({
-  selector: 'app-scan-history', imports: [DatePipe, TranslatePipe], changeDetection: ChangeDetectionStrategy.OnPush,
+  selector: 'app-scan-history', imports: [TimestampPipe, TranslatePipe], changeDetection: ChangeDetectionStrategy.OnPush,
   host: { class: 'block' }, template: `
     <details data-scan-history class="mt-4 border-t border-[var(--mat-sys-outline-variant)] pt-2" (toggle)="onToggle($event)">
       <summary class="min-h-11 cursor-pointer text-sm font-medium">{{ I18N.scan.history.title | translate }}</summary>
@@ -20,7 +21,7 @@ import { I18N } from '../../core/i18n/keys';
         @for (run of rows(); track run.id) {
           <li class="py-2 text-xs">
             <div class="flex flex-wrap gap-x-2 gap-y-1 font-medium"><span>#{{ run.id }}</span><span>{{ run.statusKey | translate }}</span><span class="min-w-0 [overflow-wrap:anywhere]">{{ run.mode }}</span></div>
-            <p class="my-1">{{ run.started_at ? (run.started_at | date:'dd/MM/yyyy HH:mm':'UTC') : '—' }} · UTC</p>
+            <p class="my-1">{{ run.started_at ? (run.started_at | timestamp: locale(): 'datetime': 'UTC') : '—' }} · UTC</p>
             <p class="my-1">{{ I18N.scan.history.counts | translate:{ processed: run.processed_files ?? '—', total: run.total_files ?? '—', failed: run.failed_files ?? '—' } }}</p>
             @if (run.jobStatusKey; as pipelineState) {
               <details class="my-1">
@@ -66,6 +67,8 @@ import { I18N } from '../../core/i18n/keys';
   `,
 })
 export class ScanHistoryComponent {
+  /** The viewer's language, the argument of the date pipes. */
+  protected readonly locale = inject(I18nService).locale;
   readonly retrySubmitted = output<void>();
   readonly retryAccepted = output<string>();
   protected readonly I18N = I18N;

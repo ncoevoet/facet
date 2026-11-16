@@ -11,7 +11,7 @@ import { UiToolError, type JsonSchema, type UiToolContractFile } from '../../cor
 import { validateAgainstSchema } from '../../core/agent/schema-validate';
 import { I18N } from '../../core/i18n/keys';
 import { TranslatePipe } from '../../shared/pipes/translate.pipe';
-import { CaptureDatePipe } from '../../shared/pipes/capture-date.pipe';
+import { formatCaptureDate } from '../../shared/utils/date-format';
 import { GalleryStore } from './gallery.store';
 import type { GalleryFilters } from './gallery-filters.util';
 
@@ -134,7 +134,6 @@ export class GalleryQueryProposalComponent {
     if (!this.applying() || !plan?.sessionCurrent() || event.url.split('?')[0] !== plan.routePath) this.clear();
   } });
 
-  private readonly date = new CaptureDatePipe();
   private trigger: HTMLElement | null = null;
   readonly rows = computed(() => Object.entries(this.proposal()?.patch ?? {}).map(([key, value]) => ({
     key, value, label: this.fieldLabel(key), fraction: key === 'semantic_threshold' || key === 'min_similarity' || ADDITIONAL_FILTERS.some(row => (row.minKey === key || row.maxKey === key) && row.sliderMax === 1),
@@ -145,20 +144,21 @@ export class GalleryQueryProposalComponent {
     if (accepted) return { ...accepted, changes: accepted.changes.map(change => ({ ...change, label: this.fieldLabel(change.key) })) };
     const plan = this.proposal();
     if (!plan || (!plan.replace && !Object.keys(plan.patch).length) || Object.values(plan.patch).some(value => typeof value === 'number' && !Number.isFinite(value)) || validateAgainstSchema(plan.schema, plan.patch).length) return null;
+    const language = this.i18n.locale();
     try {
       const requested = plan.normalize(plan.patch);
       const updates = { ...(plan.replace ? plan.reset : {}), ...requested };
       const next = this.store.previewFilters(updates), before = this.store.filters();
       for (const date of [next.date_from, next.date_to]) {
-        if (date && (!/^\d{4}-\d{2}-\d{2}$/.test(date) || this.date.transform(date) === date)) return null;
+        if (date && (!/^\d{4}-\d{2}-\d{2}$/.test(date) || formatCaptureDate(date, language) === date)) return null;
       }
       if (next.date_from && next.date_to && next.date_from > next.date_to) return null;
       const keys = Object.keys(next) as (keyof GalleryFilters)[];
       const conflicts = (Object.keys(requested) as (keyof GalleryFilters)[]).filter(key => requested[key] !== next[key]).map(key => this.fieldLabel(key));
       return { updates, next,
         changes: keys.filter(key => key !== 'page' && next[key] !== before[key]).map(key => ({ key, label: this.fieldLabel(key),
-          before: key === 'date_from' || key === 'date_to' ? this.date.transform(String(before[key])) : String(before[key]),
-          after: key === 'date_from' || key === 'date_to' ? this.date.transform(String(next[key])) : String(next[key]) })),
+          before: key === 'date_from' || key === 'date_to' ? formatCaptureDate(String(before[key]), language) : String(before[key]),
+          after: key === 'date_from' || key === 'date_to' ? formatCaptureDate(String(next[key]), language) : String(next[key]) })),
         conflicts, conflictText: conflicts.join(', ') };
     } catch { return null; }
   });

@@ -1,16 +1,17 @@
 import { TestBed } from '@angular/core/testing';
-import { Component } from '@angular/core';
+import { Component, inject } from '@angular/core';
 import { DensityPeriodPipe } from './timeline-density-period.pipe';
 import { I18nService } from '../../core/services/i18n.service';
 
 @Component({
   standalone: true,
   imports: [DensityPeriodPipe],
-  template: `<span data-week>{{ bucket | densityPeriod: 'week' }}</span>`,
+  template: `<span data-week>{{ bucket | densityPeriod: 'week': locale() }}</span>`,
 })
 class WeekHostComponent {
   // A bucket whose data never changes across the test: the label must still
-  // follow the language (the pipe is impure because of exactly this).
+  // follow the language, which reaches the pure pipe as its argument.
+  readonly locale = inject(I18nService).locale;
   readonly bucket = { key: '2026-W45', label: '2026-W45', from: '2026-11-02', to: '2026-11-08', count: 3 };
 }
 
@@ -21,7 +22,7 @@ describe('DensityPeriodPipe', () => {
     const fixture = TestBed.createComponent(WeekHostComponent);
     fixture.detectChanges();
     expect((fixture.nativeElement as HTMLElement).querySelector('[data-week]')!.textContent!.trim())
-      .toBe('Nov 2, 2026 – Nov 8, 2026');
+      .toBe('2 Nov 2026 – 8 Nov 2026');
   });
 
   it('re-formats the labels of unchanged buckets when the language changes in place', () => {
@@ -31,7 +32,7 @@ describe('DensityPeriodPipe', () => {
     const fixture = TestBed.createComponent(WeekHostComponent);
     fixture.detectChanges();
     const el = (fixture.nativeElement as HTMLElement).querySelector('[data-week]') as HTMLElement;
-    expect(el.textContent).toContain('Nov 2, 2026');
+    expect(el.textContent).toContain('2 Nov 2026');
 
     i18n.locale.set('zh');
     fixture.detectChanges();

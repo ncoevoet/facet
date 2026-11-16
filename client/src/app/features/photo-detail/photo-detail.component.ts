@@ -1,4 +1,5 @@
 import { ControlPopoverComponent } from '../../shared/components/control-popover/control-popover.component';
+import { I18nService } from '../../core/services/i18n.service';
 import { LogicalAssetApplied } from '../../shared/models/logical-asset-change';
 import { buildSyncParams } from '../gallery/gallery-filters.util';
 import { refineTagQuery } from '../gallery/tag-query.util';
@@ -441,7 +442,7 @@ function inDetectedSet(photo: Photo): boolean {
                       <mat-icon class="!text-base !w-4 !h-4 !leading-4">edit_calendar</mat-icon>
                     </button>
                   }
-                  @if (p.date_taken) { <span class="leading-4">{{ p.date_taken | captureDate }}</span> }
+                  @if (p.date_taken) { <span class="leading-4">{{ p.date_taken | captureDate: locale() }}</span> }
                   @else { <span>{{ I18N.gallery.no_capture_date | translate }}</span> }
                 </span>
               }
@@ -707,6 +708,8 @@ function inDetectedSet(photo: Photo): boolean {
   host: { class: 'flex flex-col h-full overflow-y-auto lg:overflow-y-hidden' },
 })
 export class PhotoDetailComponent extends PhotoDetailBase implements OnInit {
+  /** The viewer's language, the argument of the date pipes. */
+  protected readonly locale = inject(I18nService).locale;
   protected readonly I18N = i18nKeys();
   protected readonly photoAspect = computed(() => {
     const photo = this.photo();

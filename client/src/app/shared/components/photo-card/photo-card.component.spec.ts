@@ -95,7 +95,7 @@ describe('PhotoCardComponent', () => {
     expect(fixture.nativeElement.querySelector('[data-list-capture-date]')).not.toBeNull();
     fixture.componentInstance.currentSort.set('date_taken'); fixture.detectChanges();
     expect(fixture.nativeElement.querySelector('[data-list-capture-date]')).toBeNull();
-    expect((fixture.nativeElement.querySelector('[data-list-sort]') as HTMLElement).textContent).toContain('Oct 29, 2026 10:12');
+    expect((fixture.nativeElement.querySelector('[data-list-sort]') as HTMLElement).textContent).toContain('29 Oct 2026 10:12');
   });
 
   it.each([

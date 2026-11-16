@@ -54,7 +54,7 @@ describe('Query proposal with real Router, Store and HTTP', () => {
     localStorage.clear(); sessionStorage.clear();
     TestBed.configureTestingModule({ providers: [provideHttpClient(withXhr()), provideHttpClientTesting(), provideLocationMocks(),
       provideRouter([{ path: '', component: QueryHost }, { path: 'persons', component: OtherPage }]),
-      { provide: I18nService, useValue: { translations: signal({}), t: (key: string) => key } },
+      { provide: I18nService, useValue: { locale: signal('en'), translations: signal({}), t: (key: string) => key } },
       { provide: AssistantChangesService, useValue: { batch$: new Subject<AssistantChangeBatch>() } },
       { provide: MatSnackBar, useValue: { open: vi.fn(() => ({ onAction: () => NEVER, afterDismissed: () => NEVER })) } },
     ] });

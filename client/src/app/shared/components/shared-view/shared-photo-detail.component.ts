@@ -1,4 +1,5 @@
 import { ContextHelpComponent } from '../context-help/context-help.component';
+import { I18nService } from '../../../core/services/i18n.service';
 import { Component, inject, signal, OnInit, HostListener, ChangeDetectionStrategy, DestroyRef } from '@angular/core';
 import { ActivatedRoute, Router } from '@angular/router';
 import { MatIconModule } from '@angular/material/icon';
@@ -83,7 +84,7 @@ import { sharedAssetPhoto, type SharedAsset, sharedAlbumMediaUrl } from '../../u
           <div>
             <div class="font-semibold text-lg">{{ p.filename }}</div>
             @if (p.date_taken) {
-              <div class="text-[var(--mat-sys-on-surface-variant)] text-xs">{{ p.date_taken | captureDate }}</div>
+              <div class="text-[var(--mat-sys-on-surface-variant)] text-xs">{{ p.date_taken | captureDate: locale() }}</div>
             }
             <div class="flex items-center gap-2 mt-1">
               @if (p.category) {
@@ -271,6 +272,8 @@ import { sharedAssetPhoto, type SharedAsset, sharedAlbumMediaUrl } from '../../u
   `,
 })
 export class SharedPhotoDetailComponent extends PhotoDetailBase implements OnInit {
+  /** The viewer's language, the argument of the date pipes. */
+  protected readonly locale = inject(I18nService).locale;
   protected readonly I18N = i18nKeys();
   private readonly route = inject(ActivatedRoute);
   private readonly router = inject(Router);

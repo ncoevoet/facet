@@ -1,4 +1,5 @@
 import { DOCUMENT } from '@angular/common';
+import { I18nService } from '../../core/services/i18n.service';
 import { afterNextRender, Component, ChangeDetectionStrategy, DestroyRef, ElementRef, computed, effect, inject, input, output, signal, untracked, viewChild } from '@angular/core';
 import { DecimalPipe } from '@angular/common';
 import { Router } from '@angular/router';
@@ -55,14 +56,14 @@ function bucketTone(selected: boolean, active: boolean): string {
           <p role="status" data-density-readout [class]="scrubbed() ? 'absolute inset-0 m-0 flex min-w-0 flex-col justify-center' : 'sr-only'">
             @if (scrubbed(); as bucket) {
               @if (holding() && range(); as draft) {
-                <span class="truncate text-sm font-medium tabular-nums">{{ draft.from | captureDate }} – {{ draft.to | captureDate }}</span>
+                <span class="truncate text-sm font-medium tabular-nums">{{ draft.from | captureDate: locale() }} – {{ draft.to | captureDate: locale() }}</span>
                 <span class="truncate text-xs text-[var(--mat-sys-on-surface-variant)]">{{ I18N.timeline.scrub_range_hint | translate }}</span>
               } @else {
-                <span class="truncate text-sm font-medium tabular-nums">{{ I18N.timeline.period_count | translate: { period: bucket | densityPeriod: unit(), count: (bucket.count | number) ?? '' } }}</span>
+                <span class="truncate text-sm font-medium tabular-nums">{{ I18N.timeline.period_count | translate: { period: bucket | densityPeriod: unit(): locale(), count: (bucket.count | number) ?? '' } }}</span>
                 <span class="truncate text-xs text-[var(--mat-sys-on-surface-variant)]">{{ I18N.timeline.scrub_hint | translate }}</span>
               }
             } @else if (range(); as draft) {
-              {{ I18N.timeline.range_draft | translate: { from: draft.from | captureDate, to: draft.to | captureDate } }}
+              {{ I18N.timeline.range_draft | translate: { from: draft.from | captureDate: locale(), to: draft.to | captureDate: locale() } }}
             }
           </p>
           @if (year()) {
@@ -97,7 +98,7 @@ function bucketTone(selected: boolean, active: boolean): string {
               role="group" [attr.aria-label]="unitLabel() | translate" [attr.aria-describedby]="helpId"
               (keydown)="onKey($event)" (pointermove)="move($event)" (contextmenu)="holdMenu($event)">
               @for (bucket of rendered(); track bucket.key) {
-                @let period = bucket | densityPeriod: unit();
+                @let period = bucket | densityPeriod: unit(): locale();
                 <button type="button" [attr.data-density-key]="bucket.key" [tabindex]="bucket.key === tabKey() ? 0 : -1"
                   class="flex h-23 min-w-11 flex-1 flex-col justify-end gap-1 rounded px-0.5 py-1 hover:bg-[var(--mat-sys-surface-container)] focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-[var(--mat-sys-primary)] max-lg:min-w-0 max-lg:px-0"
                   [class]="bucket.tone"
@@ -121,6 +122,8 @@ function bucketTone(selected: boolean, active: boolean): string {
   `,
 })
 export class TimelineDensityComponent {
+  /** The viewer's language, the argument of the date pipes. */
+  protected readonly locale = inject(I18nService).locale;
   private static nextId = 0;
   protected readonly helpId = `timeline-density-${TimelineDensityComponent.nextId++}`;
   protected readonly I18N = i18nKeys();
