@@ -749,6 +749,7 @@ class TestPreloadCudaRuntimeLibraries:
         assert first == second == [str(lib_dir / "libcudnn.so.9")]
         assert len(loaded) == 1
 
+    @pytest.mark.skipif(sys.platform != "linux", reason="the preload only runs on Linux")
     def test_importing_the_module_loads_no_library(self, tmp_path):
         """A CPU run imports ``utils.device`` too; an import-time preload cost it about 220 MiB."""
         import subprocess
@@ -757,8 +758,7 @@ class TestPreloadCudaRuntimeLibraries:
         lib_dir.mkdir(parents=True)
         (lib_dir / "libcublasLt.so.12").write_bytes(b"")
         probe = (
-            "import ctypes, site, sys\n"
-            "sys.platform = 'linux'\n"
+            "import ctypes, site\n"
             f"site.getsitepackages = lambda: [{str(tmp_path)!r}]\n"
             "site.getusersitepackages = lambda: ''\n"
             "loaded = []\n"
