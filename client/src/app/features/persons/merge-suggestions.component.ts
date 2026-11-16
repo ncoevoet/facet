@@ -327,19 +327,23 @@ export class MergeSuggestionsComponent implements OnInit, OnDestroy {
   }
 
   async confirmAcceptAll(): Promise<void> {
-    const count = this.suggestions().length;
-    if (count === 0) return;
+    const pending = this.suggestions();
+    if (pending.length === 0) return;
 
     const ref = this.dialog.open(ConfirmDialogComponent, {
       data: {
         title: this.i18n.t(I18N.persons.confirm_merge_title),
-        message: this.i18n.t(I18N.persons.confirm_merge_all_message, { count }),
+        message: this.i18n.t(I18N.persons.confirm_merge_all_message, { count: pending.length }),
       },
     });
 
     const confirmed = await firstValueFrom(ref.afterClosed());
     if (!confirmed) return;
-
+    // The confirmation covered the pairs on screen when the dialog opened. If
+    // any of them moved while it was up — a failed rejection rolling its pair
+    // back, a single merge or rejection — ask again rather than submit more
+    // than was shown.
+    if (this.suggestions() !== pending) return this.confirmAcceptAll();
     await this.acceptAll();
   }
 

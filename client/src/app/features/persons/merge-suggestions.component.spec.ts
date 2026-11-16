@@ -309,6 +309,55 @@ describe('MergeSuggestionsComponent', () => {
 
       expect(mockApi.post).not.toHaveBeenCalled();
     });
+
+    it('re-asks instead of submitting pairs the confirmation never showed', async () => {
+      const s65 = makeSuggestion(1, 'Alice', 10, 2, 'Bob', 5);
+      const s80 = makeSuggestion(5, 'Eve', 12, 6, 'Frank', 7);
+      component.suggestions.set([s65, s80]);
+
+      // One rejection is in flight, so the screen (and the confirm dialog)
+      // shows a single pair.
+      const rejection = new Subject<void>();
+      mockApi.post.mockReturnValueOnce(rejection.asObservable());
+      const rejecting = component.rejectSuggestion(s80);
+      expect(component.suggestions()).toEqual([s65]);
+
+      const answers: Subject<boolean>[] = [];
+      mockDialog.open.mockImplementation(() => ({
+        afterClosed: () => {
+          const answer = new Subject<boolean>();
+          answers.push(answer);
+          return answer.asObservable();
+        },
+      }));
+
+      const confirming = component.confirmAcceptAll();
+      expect(mockDialog.open).toHaveBeenCalledTimes(1);
+
+      // The rejection fails: its pair rolls back onto the screen while the
+      // dialog is open, and the user confirms the one pair they saw.
+      rejection.error(new Error('offline'));
+      await rejecting;
+      expect(component.suggestions()).toEqual([s65, s80]);
+      answers[0].next(true); answers[0].complete();
+      await new Promise((r) => setTimeout(r));
+
+      // Nothing was submitted; the dialog re-opens over the true count.
+      expect(mockApi.post).not.toHaveBeenCalledWith('/persons/merge_batch', expect.anything());
+      expect(mockDialog.open).toHaveBeenCalledTimes(2);
+
+      answers[1].next(true); answers[1].complete();
+      await confirming;
+
+      // The second confirmation covers exactly the two pairs it showed.
+      expect(mockApi.post).toHaveBeenCalledWith('/persons/merge_batch', {
+        merges: [
+          { source_id: 2, target_id: 1 },
+          { source_id: 6, target_id: 5 },
+        ],
+      });
+      expect(component.suggestions()).toEqual([]);
+    });
   });
 
   describe('acceptAll', () => {
