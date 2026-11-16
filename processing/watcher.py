@@ -76,14 +76,14 @@ def _build_scan_command(directories, db_path, config_path, extra_scan_args=None)
     if config_path:
         cmd += ['--config', config_path]
     # The modifier flags the user started --watch with ride along: a watched
-    # scan that quietly ignored --force was an --force that did nothing.
+    # scan that quietly ignored them broke a promise nobody could see.
     if extra_scan_args:
         cmd += list(extra_scan_args)
     return cmd
 
 
 def run_watch_loop(directories, db_path, config_path=None, debounce_seconds=30,
-                   initial_scan=True, extra_scan_args=None):
+                   initial_scan=True, extra_scan_args=None, initial_scan_args=None):
     """Re-scan whenever directory contents settle, until Ctrl+C or a give-up.
 
     Returns True when the user stopped watching (Ctrl+C) and False when
@@ -96,8 +96,11 @@ def run_watch_loop(directories, db_path, config_path=None, debounce_seconds=30,
         config_path: Optional scoring config path passed through to scans
         debounce_seconds: Quiet period required before a scan fires
         initial_scan: Run one incremental scan immediately on startup
-        extra_scan_args: Scan modifier flags (``--force`` and friends) forwarded
-            verbatim to every scan this loop spawns
+        extra_scan_args: Scan modifier flags (``--single-pass`` and friends)
+            forwarded verbatim to every scan this loop spawns
+        initial_scan_args: Flags added to the initial scan only, after
+            ``extra_scan_args`` -- ``--force``, which would otherwise re-score
+            the whole library on every change
     """
     try:
         from watchdog.observers import Observer
@@ -139,10 +142,11 @@ def run_watch_loop(directories, db_path, config_path=None, debounce_seconds=30,
         logger.info("Watching %d directories (polling)", len(directories))
 
     cmd = _build_scan_command(directories, db_path, config_path, extra_scan_args)
+    initial_cmd = cmd + list(initial_scan_args or ())
 
-    def _run_scan(reason):
+    def _run_scan(reason, scan_cmd=cmd):
         logger.info("Starting scan (%s)...", reason)
-        result = subprocess.run(cmd)
+        result = subprocess.run(scan_cmd)
         if result.returncode == 0:
             logger.info("Scan finished.")
             return True
@@ -168,7 +172,7 @@ def run_watch_loop(directories, db_path, config_path=None, debounce_seconds=30,
         if initial_scan:
             # A failing initial scan counts as the streak's first failure, so a
             # broken install cannot watch forever while every scan crashes.
-            if _run_scan('initial') is False:
+            if _run_scan('initial', initial_cmd) is False:
                 consecutive_failures = 1
         logger.info("Watch mode active - new files trigger a scan after %ds of quiet "
                     "(Ctrl+C to stop)", debounce_seconds)

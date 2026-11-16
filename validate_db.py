@@ -110,8 +110,13 @@ def main():
                 return 1 if _unfixed_remain(results) else 0
             else:
                 with get_connection(args.db, row_factory=False) as conn:
-                    for result in fixable_results:
-                        validator.interactive_fix(result, conn)
+                    # interactive_fix returns False for a skipped or failed fix:
+                    # that issue still stands, so the run must not read as clean.
+                    fixed = [validator.interactive_fix(result, conn) for result in fixable_results]
+                if not all(fixed):
+                    logger.error("%d of %d issue(s) were skipped or failed to fix. Re-run validation to see what remains.",
+                                 fixed.count(False), len(fixed))
+                    return 1
                 logger.info("Fixes applied. Re-run validation to verify.")
                 return 1 if _unfixed_remain(results) else 0
         finally:

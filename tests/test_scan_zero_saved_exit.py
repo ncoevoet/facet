@@ -5,6 +5,7 @@ saved 0 photos and still exited rc=0. A legitimately empty scan (no inputs, or e
 already scanned) still exits 0.
 """
 
+import os
 import sys
 
 import pytest
@@ -150,9 +151,33 @@ def test_unreadable_root_counts_as_dead(tmp_path, monkeypatch, caplog):
         return iter(())
 
     monkeypatch.setattr("os.walk", denied_walk)
-    with caplog.at_level("ERROR", logger="facet"), pytest.raises(SystemExit) as raised:
+    with caplog.at_level("WARNING", logger="facet"), pytest.raises(SystemExit) as raised:
         _run(tmp_path, monkeypatch, _processor(saved=0))
     assert raised.value.code == SCAN_DID_NOT_RUN_EXIT_CODE
+    assert "Path is unreadable" in caplog.text
+
+
+@pytest.mark.timeout(30)
+def test_unreadable_subfolder_under_a_readable_root_is_not_dead(tmp_path, monkeypatch, caplog):
+    # A root-owned lost+found (or any restricted album) loses that folder only:
+    # a fully scanned library with nothing new must still exit 0.
+    lib = tmp_path / "photos"
+    lib.mkdir()
+    Image.new("RGB", (8, 8), (120, 120, 120)).save(lib / "a.jpg", "JPEG")
+    real_walk = os.walk
+
+    def walk_with_locked_subfolder(top, onerror=None):
+        yield from real_walk(top)
+        if onerror:
+            onerror(PermissionError(13, "Permission denied", str(lib / "lost+found")))
+
+    monkeypatch.setattr("os.walk", walk_with_locked_subfolder)
+    assert facet._gather_scan_files([str(lib)], {})[1] == []
+    with caplog.at_level("WARNING", logger="facet"):
+        _run(tmp_path, monkeypatch, _processor(saved=0), already_scanned=True,
+             photo_dir_exists=False)
+    assert "Scan did not run" not in caplog.text
+    assert "lost+found" in caplog.text
 
 
 @pytest.mark.timeout(30)

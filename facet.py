@@ -216,28 +216,36 @@ def _gather_scan_files(photo_paths, scanning_settings):
                 logger.warning("Unsupported file type: %s", path_str)
         else:
             walk_errors = []
+            root_listed = False
             for root, dirs, files in os.walk(base_path, onerror=walk_errors.append):
+                # os.walk yields a directory only once it listed it, so the root
+                # appearing here means the root itself is readable.
+                root_listed = root_listed or Path(root) == base_path
                 dirs[:] = _prune_scan_dirs(dirs, skip_hidden, skip_globs)
                 for f in files:
                     p = Path(root) / f
                     if p.suffix.lower() in valid_suffixes:
                         all_files.append(p)
-            if walk_errors:
-                # A root that lists nothing AND raised while walking is unreadable,
-                # not empty: the walk swallowed every failure silently before.
-                logger.warning("Path is unreadable (%d error(s) walking it): %s", len(walk_errors), path_str)
+            if not root_listed:
+                # A root that could not be listed is unreadable, not empty: the
+                # walk swallowed that failure silently before.
+                logger.warning("Path is unreadable: %s", path_str)
                 dead_roots.append(path_str)
+            for error in walk_errors:
+                # An unreadable subfolder (a root-owned lost+found, a restricted
+                # album) loses only that folder, never the whole root.
+                if error.filename is None or Path(error.filename) != base_path:
+                    logger.warning("Skipping unreadable folder: %s", error.filename or error)
     return all_files, dead_roots
 
 
 def _watch_scan_args(args):
-    """The scan modifier flags --watch forwards to the scans it spawns. A flag
-    the user started --watch with that quietly did nothing -- --force promising
-    a forced rescan that never happened -- was a promise silently broken; the
-    one-shot worklists (--retry-failed, --retry-plan) stay refused instead."""
+    """The scan modifier flags --watch forwards to every scan it spawns. A flag
+    the user started --watch with that quietly did nothing was a promise
+    silently broken. --force is not here: it re-scores the whole library, so it
+    applies to the initial scan only (``initial_scan_args``). --force-since is
+    safe on every scan, since rows rescanned after the date drop out of it."""
     extra = []
-    if args.force:
-        extra.append('--force')
     if args.force_since:
         extra += ['--force-since', args.force_since]
     if args.single_pass:
@@ -1858,7 +1866,6 @@ def _run_scan_pipeline(args, resumed_run, lifecycle):
 
     # 1. Gather files recursively from subfolders (or single files)
     if retry_plan is not None:
-        from processing.scan_retry import retry_plan_paths
         all_files, dead_roots = retry_plan_paths(retry_plan), []
     else:
         all_files, dead_roots = _gather_scan_files(args.photo_paths, scorer.config.get_scanning_settings())
@@ -1970,8 +1977,9 @@ def _run_scan_pipeline(args, resumed_run, lifecycle):
         # Every root gone is not "nothing new": the library was never seen. A
         # non-zero exit is what cron, wrapper scripts and --watch need to tell
         # a dead mount from a clean, empty run.
-        if (dead_roots and len(dead_roots) == len(args.photo_paths)
-                and retry_plan is None and not args.retry_failed):
+        # --retry-failed still walks the roots, but its worklist comes from
+        # scan_failures, so dead roots must not turn it into a failure.
+        if dead_roots and len(dead_roots) == len(args.photo_paths) and not args.retry_failed:
             logger.error(
                 "Scan did not run: all %d scan root(s) are missing or unreadable: %s. "
                 "If these live on a network mount, check that it is mounted.",
@@ -4531,15 +4539,15 @@ def main():
 
     # Watch mode: long-running daemon spawning incremental scans on changes
     if args.watch:
-        if not args.photo_paths:
-            # The gate above lets a bare --watch through when --retry-failed or
-            # --retry-plan stands in for the paths; with nothing to watch the
-            # loop sat there forever, firing and saying nothing.
-            logger.error("--watch needs at least one photo path to watch")
-            exit(1)
+        # The more specific refusal first: `--watch --retry-failed` with no path
+        # is a worklist misuse, not a missing path.
         if args.retry_failed or args.retry_plan:
             logger.error("--watch scans are incremental; --retry-failed and "
                          "--retry-plan are one-shot worklists and cannot be combined with --watch")
+            exit(1)
+        # An empty path list would watch nothing and never fire.
+        if not args.photo_paths:
+            logger.error("--watch needs at least one photo path to watch")
             exit(1)
         from processing.watcher import run_watch_loop
         # Giving up after consecutive failures is a fault, not a clean stop:
@@ -4550,6 +4558,9 @@ def main():
             config_path=args.config,
             debounce_seconds=args.watch_debounce,
             extra_scan_args=_watch_scan_args(args),
+            # --force re-scores every file under the watched roots, so it runs
+            # once at startup; each later change scan stays incremental.
+            initial_scan_args=['--force'] if args.force else None,
         )
         exit(0 if watch_ok else 1)
 

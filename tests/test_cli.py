@@ -98,15 +98,43 @@ def seeded_db(tmp_path):
 # ---------------------------------------------------------------------------
 
 def test_watch_scan_args_forwards_the_modifier_flags_the_user_started_watch_with():
+    # --force is not forwarded to every scan: it rides the initial scan only.
     args = SimpleNamespace(force=True, force_since='2024-01-01', single_pass=False,
                            single_pass_name=None)
-    assert facet._watch_scan_args(args) == ['--force', '--force-since', '2024-01-01']
+    assert facet._watch_scan_args(args) == ['--force-since', '2024-01-01']
     args = SimpleNamespace(force=False, force_since=None, single_pass=True,
                            single_pass_name='portrait')
     assert facet._watch_scan_args(args) == ['--single-pass', '--pass', 'portrait']
     args = SimpleNamespace(force=False, force_since=None, single_pass=False,
                            single_pass_name=None)
     assert facet._watch_scan_args(args) == []
+
+
+def test_suggest_person_merges_spawns_the_viewer_on_the_given_library(tmp_path, monkeypatch):
+    import socket
+    import time
+    import webbrowser
+    spawned = []
+
+    class _Viewer:
+        def wait(self):
+            pass
+
+    def fake_popen(cmd, **kw):
+        spawned.append(kw.get('env'))
+        return _Viewer()
+
+    monkeypatch.setattr(subprocess, 'Popen', fake_popen)
+    monkeypatch.setattr(socket.socket, 'connect_ex', lambda self, addr: 1)
+    monkeypatch.setattr(webbrowser, 'open', lambda url: None)
+    monkeypatch.setattr(time, 'sleep', lambda s: None)
+    monkeypatch.setenv('DB_PATH', '/somewhere/else.db')
+    db = tmp_path / 'mine.db'
+    monkeypatch.setattr(sys, 'argv', ['facet.py', '--suggest-person-merges',
+                                      '--merge-threshold', '0.5', '--db', str(db)])
+    with pytest.raises(SystemExit):
+        facet.main()
+    assert [env['DB_PATH'] for env in spawned] == [str(db.resolve())]
 
 
 def test_viewer_spawn_env_targets_the_library_the_command_targets(tmp_path, monkeypatch):
@@ -1052,3 +1080,38 @@ class TestWatchExitCode:
         with pytest.raises(SystemExit) as stopped:
             facet.main()
         assert (stopped.value.code or 0) == code
+
+    def test_watch_forwards_force_to_the_initial_scan_only(self, monkeypatch, tmp_path):
+        import facet
+        import processing.watcher
+
+        calls = []
+        monkeypatch.setattr(processing.watcher, 'run_watch_loop',
+                            lambda *a, **kw: calls.append(kw) or True)
+        monkeypatch.setattr(sys, 'argv', ['facet.py', str(tmp_path), '--watch', '--force',
+                                          '--single-pass', '--db', str(tmp_path / 'x.db')])
+        with pytest.raises(SystemExit):
+            facet.main()
+        assert calls[0]['extra_scan_args'] == ['--single-pass']
+        assert calls[0]['initial_scan_args'] == ['--force']
+
+    @pytest.mark.parametrize('flags, message', [
+        (['--retry-failed'], 'one-shot worklists'),
+        (['PATH', '--retry-failed'], 'one-shot worklists'),
+    ])
+    def test_watch_refuses_worklists(self, monkeypatch, tmp_path, caplog, flags, message):
+        import facet
+        import processing.watcher
+
+        calls = []
+        monkeypatch.setattr(processing.watcher, 'run_watch_loop',
+                            lambda *a, **kw: calls.append(kw) or True)
+        argv = [str(tmp_path) if f == 'PATH' else f
+                for f in flags]
+        monkeypatch.setattr(sys, 'argv', ['facet.py', *argv, '--watch',
+                                          '--db', str(tmp_path / 'x.db')])
+        with caplog.at_level('ERROR'), pytest.raises(SystemExit) as stopped:
+            facet.main()
+        assert stopped.value.code == 1
+        assert message in caplog.text
+        assert calls == []

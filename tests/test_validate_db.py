@@ -249,7 +249,8 @@ class _FakeFixConn:
         return _Cursor()
 
 
-def _run_validate(monkeypatch, tmp_path, argv, results, fix_fails=False, answer='n'):
+def _run_validate(monkeypatch, tmp_path, argv, results, fix_fails=False, answer='n',
+                  interactive_ok=True):
     """Drive validate_db.main() with a scripted validator; returns SystemExit."""
     db = tmp_path / "v.db"
     db.write_text("")
@@ -257,7 +258,7 @@ def _run_validate(monkeypatch, tmp_path, argv, results, fix_fails=False, answer=
     validator = SimpleNamespace(
         run_all_checks=lambda: results,
         generate_report=lambda: "report",
-        interactive_fix=lambda result, conn: None,
+        interactive_fix=lambda result, conn: interactive_ok,
     )
     monkeypatch.setattr(validate_db, "DatabaseValidator", lambda _db: validator)
     monkeypatch.setattr(validate_db, "get_connection", lambda _db, **kw: _FakeFixConn(fix_fails))
@@ -295,3 +296,24 @@ def test_validate_db_unfixable_issues_exits_one(monkeypatch, tmp_path):
     # No fixable issues at all: the UNFIXABLE listing must not read as green.
     assert _run_validate(monkeypatch, tmp_path, ["--report-only"],
                          [_result(has_issues=True, fixable=False)]) == 1
+
+
+def test_validate_db_interactive_fix_applied_exits_zero(monkeypatch, tmp_path):
+    assert _run_validate(monkeypatch, tmp_path, [], [_result(fixable=True)], answer='y') == 0
+
+
+def test_validate_db_interactive_fix_skipped_or_failed_exits_one(monkeypatch, tmp_path):
+    # interactive_fix returns False for [s] Skip and for a fix that raised: the
+    # issue still stands, so the run must not read as clean.
+    assert _run_validate(monkeypatch, tmp_path, [], [_result(fixable=True)], answer='y',
+                         interactive_ok=False) == 1
+
+
+def test_validate_db_auto_fix_with_unfixable_left_exits_one(monkeypatch, tmp_path):
+    assert _run_validate(monkeypatch, tmp_path, ["--auto-fix"],
+                         [_result(fixable=True), _result(fixable=False)]) == 1
+
+
+def test_validate_db_informational_findings_alone_exit_zero(monkeypatch, tmp_path):
+    assert _run_validate(monkeypatch, tmp_path, ["--report-only"],
+                         [_result(fixable=False, informational=True)]) == 0

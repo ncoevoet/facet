@@ -210,9 +210,34 @@ def test_run_watch_loop_forwards_extra_scan_args_to_every_spawn(monkeypatch, tmp
 
     db_path = str(tmp_path / "photos.db")
     watcher.run_watch_loop(["/library"], db_path, initial_scan=True,
-                           extra_scan_args=["--force"])
+                           extra_scan_args=["--single-pass"])
 
-    assert runs == [_build_scan_command(["/library"], db_path, None, extra_scan_args=["--force"])]
+    assert runs == [_build_scan_command(["/library"], db_path, None, extra_scan_args=["--single-pass"])]
+
+
+def test_run_watch_loop_forces_the_initial_scan_only(monkeypatch, tmp_path):
+    # --force re-scores the whole library: once at startup, never per change.
+    native = _FakeObserver()
+    monkeypatch.setattr(watchdog.observers, "Observer", lambda: native)
+    monkeypatch.setattr(watchdog.observers.polling, "PollingObserver", lambda: _FakeObserver())
+    runs = []
+    monkeypatch.setattr(
+        watcher.subprocess, "run",
+        lambda cmd, *a, **kw: runs.append(cmd) or SimpleNamespace(returncode=0),
+    )
+    batches = iter([["/library/new.jpg"]])
+    monkeypatch.setattr(watcher._PendingChanges, "take_if_settled",
+                        lambda self, debounce: next(batches, None))
+    ticks = iter(range(2))
+    monkeypatch.setattr(watcher.time, "sleep",
+                        lambda seconds: next(ticks, None) is None and (_ for _ in ()).throw(KeyboardInterrupt))
+
+    db_path = str(tmp_path / "photos.db")
+    watcher.run_watch_loop(["/library"], db_path, initial_scan=True,
+                           extra_scan_args=["--single-pass"], initial_scan_args=["--force"])
+
+    base = _build_scan_command(["/library"], db_path, None, extra_scan_args=["--single-pass"])
+    assert runs == [base + ["--force"], base]
 
 
 class TestRunWatchLoopMissingWatchdog:
