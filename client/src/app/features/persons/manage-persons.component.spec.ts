@@ -339,6 +339,25 @@ describe('ManagePersonsComponent', () => {
     });
   });
 
+  describe('loadNeedsNaming', () => {
+    it('keeps the newest retry when an older one settles last', async () => {
+      // Two quick Retry clicks race: the slower first response must not
+      // overwrite the second one's result (which landed in between).
+      const older = new Subject<{ persons: unknown[]; total: number }>();
+      const newer = new Subject<{ persons: unknown[]; total: number }>();
+      let calls = 0;
+      mockApi.get.mockImplementation((url: string) =>
+        url === '/persons/needs_naming' ? (++calls === 1 ? older : newer) : of({ persons: [], total: 0 }));
+      const first = component.loadNeedsNaming();
+      const second = component.loadNeedsNaming();
+      const record = { id: 7, name: null, face_count: 4, face_thumbnail: true };
+      newer.next({ persons: [record], total: 1 }); await second;
+      older.next({ persons: [], total: 0 }); await first;
+      expect(component.needsNaming().map((p) => p.id)).toEqual([7]);
+      expect(component.needsNamingError()).toBe(false);
+    });
+  });
+
   describe('hasMore computed', () => {
     it('should return false when persons length equals total', () => {
       component.persons.set(mockPersonsResponse.persons);
