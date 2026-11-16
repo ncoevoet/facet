@@ -970,7 +970,7 @@ Regroupe les photos similaires prises en succession rapide.
 | `similarity_threshold_percent` | `70` | Seuil de similarité des empreintes d'image |
 | `time_window_minutes` | `0.8` | Temps maximal entre deux photos |
 | `rapid_burst_seconds` | `0.4` | Photos prises dans cet intervalle automatiquement regroupées |
-| `embedding_cosine_threshold` | `0.0` | Seuil cosinus CLIP/SigLIP optionnel pour les rafales (`0.0` = désactivé) |
+| `embedding_cosine_threshold` | `0.0` | Optionnel (absent du fichier livré). Une photo candidate ne rejoint une rafale que si le cosinus CLIP/SigLIP de la paire est >= à cette valeur (`0.0` = désactivé). Une paire dont une photo n'a pas d'embedding, ou dont les dimensions diffèrent, est regroupée sur le seul pHash. Charge tous les embeddings en mémoire pendant le regroupement (environ `4 x dim` octets par photo, soit près de 460 Mo pour 100 000 photos avec SigLIP) |
 
 ---
 

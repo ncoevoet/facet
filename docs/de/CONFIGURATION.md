@@ -973,7 +973,7 @@ Gruppiert ähnliche Fotos, die in schneller Folge aufgenommen wurden.
 | `similarity_threshold_percent` | `70` | Schwellenwert für die Image-Hash-Ähnlichkeit |
 | `time_window_minutes` | `0.8` | Maximale Zeit zwischen Fotos |
 | `rapid_burst_seconds` | `0.4` | Fotos innerhalb dieser Zeit werden automatisch gruppiert |
-| `embedding_cosine_threshold` | `0.0` | Optionales CLIP/SigLIP-Kosinus-Gate für Serienbilder (`0.0` = deaktiviert) |
+| `embedding_cosine_threshold` | `0.0` | Optional (nicht in der ausgelieferten Datei). Ein Serienbild-Kandidat wird nur aufgenommen, wenn der CLIP/SigLIP-Kosinus des Paars >= diesem Wert ist (`0.0` = deaktiviert). Ein Paar, bei dem ein Foto kein Embedding hat oder die Breiten abweichen, wird allein per pHash gruppiert. Lädt beim Gruppieren alle Embeddings in den Speicher (etwa `4 x dim` Byte pro Foto, bei 100.000 Fotos mit SigLIP rund 460 MB) |
 
 ---
 

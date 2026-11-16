@@ -974,7 +974,7 @@ Raggruppa foto simili scattate in rapida successione.
 | `similarity_threshold_percent` | `70` | Soglia di similarità dell'hash dell'immagine |
 | `time_window_minutes` | `0.8` | Tempo massimo tra le foto |
 | `rapid_burst_seconds` | `0.4` | Foto entro questo intervallo raggruppate automaticamente |
-| `embedding_cosine_threshold` | `0.0` | Soglia coseno CLIP/SigLIP facoltativa per le raffiche (`0.0` = disattivata) |
+| `embedding_cosine_threshold` | `0.0` | Facoltativo (assente dal file fornito). Un candidato entra in una raffica solo se il coseno CLIP/SigLIP della coppia è >= questo valore (`0.0` = disattivata). Una coppia in cui una foto non ha embedding, o con dimensioni diverse, viene raggruppata solo con il pHash. Carica tutti gli embedding in memoria durante il raggruppamento (circa `4 x dim` byte per foto, quasi 460 MB con 100.000 foto e SigLIP) |
 
 ---
 

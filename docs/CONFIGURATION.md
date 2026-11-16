@@ -970,7 +970,7 @@ Groups similar photos taken in quick succession.
 | `similarity_threshold_percent` | `70` | Image hash similarity threshold |
 | `time_window_minutes` | `0.8` | Maximum time between photos |
 | `rapid_burst_seconds` | `0.4` | Photos within this auto-grouped |
-| `embedding_cosine_threshold` | `0.0` | Optional CLIP/SigLIP cosine gate for burst candidates (`0.0` = disabled) |
+| `embedding_cosine_threshold` | `0.0` | Optional (not in the shipped file). A burst candidate only joins when the CLIP/SigLIP cosine of the pair is >= this (`0.0` = disabled). A pair where either photo has no embedding, or the two differ in width, is grouped on pHash alone. Loads every embedding into memory while grouping (about `4 x dim` bytes per photo, roughly 460 MB at 100k photos with SigLIP) |
 
 ---
 

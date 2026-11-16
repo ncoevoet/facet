@@ -3321,15 +3321,16 @@ def process_bursts(db_path, config_path=None):
             for row in face_data:
                 photo_persons.setdefault(row['photo_path'], set()).add(row['person_id'])
 
-        # Load normalized embeddings only when an embedding cosine gate is configured
+        # Load normalized embeddings only when an embedding cosine gate is configured.
+        # Streamed row by row: a fetchall would hold every raw BLOB next to its decoded
+        # vector, doubling the peak (about 4 * dim bytes per photo is the floor).
         photo_embeddings = {}
         if embedding_cosine_threshold > 0:
             from utils.embedding import bytes_to_normalized_embedding
-            emb_rows = conn.execute(
+            for er in conn.execute(
                 "SELECT path, clip_embedding FROM photos "
                 "WHERE phash IS NOT NULL AND clip_embedding IS NOT NULL"
-            ).fetchall()
-            for er in emb_rows:
+            ):
                 vec = bytes_to_normalized_embedding(er['clip_embedding'])
                 if vec is not None:
                     photo_embeddings[er['path']] = vec

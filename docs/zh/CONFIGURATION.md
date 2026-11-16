@@ -968,7 +968,7 @@ IEC 61966-2-1。NCLX 传递特征值 16：ISO/IEC 23001-8 / ITU-T H.273。
 | `similarity_threshold_percent` | `70` | 图像哈希相似度阈值 |
 | `time_window_minutes` | `0.8` | 照片之间的最大时间间隔 |
 | `rapid_burst_seconds` | `0.4` | 在此间隔内的照片自动归为一组 |
-| `embedding_cosine_threshold` | `0.0` | 可选的连拍 CLIP/SigLIP 余弦门限（`0.0` = 禁用） |
+| `embedding_cosine_threshold` | `0.0` | 可选（随附文件中没有）。只有该照片对的 CLIP/SigLIP 余弦值 >= 此值时，候选才会加入连拍（`0.0` = 禁用）。任一照片没有嵌入、或维度不同的照片对，仅按 pHash 分组。分组时会把所有嵌入载入内存（每张照片约 `4 x dim` 字节，10 万张 SigLIP 照片约 460 MB） |
 
 ---
 

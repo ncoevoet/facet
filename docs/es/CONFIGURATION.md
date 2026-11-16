@@ -972,7 +972,7 @@ Agrupa fotos similares tomadas en rápida sucesión.
 | `similarity_threshold_percent` | `70` | Umbral de similitud del hash de imagen |
 | `time_window_minutes` | `0.8` | Tiempo máximo entre fotos |
 | `rapid_burst_seconds` | `0.4` | Fotos dentro de este intervalo se agrupan automáticamente |
-| `embedding_cosine_threshold` | `0.0` | Filtro coseno CLIP/SigLIP opcional para candidatos de ráfaga (`0.0` = desactivado) |
+| `embedding_cosine_threshold` | `0.0` | Opcional (ausente en el archivo incluido). Un candidato solo se une a una ráfaga si el coseno CLIP/SigLIP del par es >= esto (`0.0` = desactivado). Un par en el que alguna foto no tiene embedding, o con dimensiones distintas, se agrupa solo por pHash. Carga todos los embeddings en memoria al agrupar (unos `4 x dim` bytes por foto, cerca de 460 MB con 100 000 fotos y SigLIP) |
 
 ---
 
