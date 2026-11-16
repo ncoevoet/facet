@@ -402,8 +402,10 @@ export type NamingSort = 'faces' | 'recent';
           <mat-spinner diameter="36" [attr.aria-label]="I18N.ui.labels.loading | translate" />
         </div>
       }
-      <!-- Ignored: hidden persons (staff, strangers), with Restore -->
-      @if (auth.isEdition() && ignored().length > 0) {
+      <!-- Ignored: hidden persons (staff, strangers), with Restore. A first
+           page that fails still shows the section, with its Retry, instead of
+           reading as "nobody is hidden". -->
+      @if (auth.isEdition() && (ignored().length > 0 || ignoredError())) {
         <div class="mt-6 rounded-xl border border-[var(--mat-sys-outline-variant)] bg-[var(--mat-sys-surface-container)] overflow-hidden">
           <button
             class="flex items-center w-full px-4 py-2 gap-2 text-left hover:bg-[var(--mat-sys-surface-container-high)] transition-colors cursor-pointer"
@@ -413,7 +415,13 @@ export type NamingSort = 'faces' | 'recent';
             <mat-icon class="opacity-60">{{ ignoredExpanded() ? 'expand_more' : 'chevron_right' }}</mat-icon>
             <span class="font-medium flex-1" [matTooltip]="I18N.persons.ignored_help | translate">{{ I18N.persons.ignored_section | translate }} ({{ ignoredTotal() }})</span>
           </button>
-          @if (ignoredExpanded()) {
+          @if (ignored().length === 0 && ignoredError()) {
+            <div data-ignored-failed class="flex flex-col items-center py-16 text-[var(--mat-sys-on-surface-variant)]">
+              <mat-icon class="!text-5xl !w-12 !h-12 mb-4">person_off</mat-icon>
+              <p role="alert" class="m-0">{{ I18N.manage_persons.error_loading_persons | translate }}</p>
+              <button mat-button class="mt-2" (click)="loadIgnored()">{{ I18N.gallery.load_error.retry | translate }}</button>
+            </div>
+          } @else if (ignoredExpanded()) {
             <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4 p-4">
               @for (p of ignored(); track p.id) {
                 <app-person-card
@@ -741,8 +749,10 @@ export class ManagePersonsComponent implements OnInit {
       // ends the list instead of re-arming the scroll sentinel forever.
       this.ignoredTotal.set(append && !added.length ? this.ignored().length : res.total ?? page.length);
     } catch {
-      // A first page fails silently: the section just won't render.
-      if (append) this.ignoredError.set(true);
+      // A first-page failure must not leave nothing on screen either: the
+      // section renders an error with a Retry (mirroring Needs naming), and
+      // an appended page keeps its inline one.
+      if (!this.destroyRef.destroyed) this.ignoredError.set(true);
     } finally {
       this.ignoredLoading.set(false);
     }
@@ -908,6 +918,11 @@ export class ManagePersonsComponent implements OnInit {
       }
       this.total.set(res.total);
     } catch {
+      // A failed page must not be skipped forever: give the scroll another
+      // chance at the same page. loadPersons reports the failure itself and
+      // swallows the error, so the rollback has to live here — an outer
+      // .catch on this promise would never run.
+      if (current() && !reset) this.page--;
       if (current()) this.snackBar.open(this.i18n.t(I18N.persons.error_loading), '', { duration: 3000 });
     } finally {
       // An invalidated latest read still owns its spinner, but never a newer read's.
@@ -918,11 +933,9 @@ export class ManagePersonsComponent implements OnInit {
   onScrollReached(): void {
     if (this.hasMore() && !this.loading()) {
       this.page++;
-      this.loadPersons(false).catch(() => {
-        // A failed page must not be skipped forever: give the scroll another
-        // chance at the same page (B8's rollback, fourth instance).
-        this.page--;
-      });
+      // The rollback lives in loadPersons' catch; the next scroll retries the
+      // same page.
+      void this.loadPersons(false);
     }
   }
 

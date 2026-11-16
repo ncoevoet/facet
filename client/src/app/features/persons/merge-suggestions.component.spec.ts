@@ -111,6 +111,29 @@ describe('MergeSuggestionsComponent', () => {
       expect(mockSnackBar.open).toHaveBeenCalledWith('errors.action_failed', '', { duration: 3000 });
     });
 
+    it('does not restore a rejected pair into a list a newer threshold has replaced', async () => {
+      // The rollback binds to the list version at action start: while the
+      // rejection is in flight a threshold change may replace the list, and
+      // re-inserting the pair there would let Accept all submit it.
+      const s65 = makeSuggestion(1, 'Alice', 10, 2, 'Bob', 5);
+      const s80 = makeSuggestion(5, 'Eve', 12, 6, 'Frank', 7);
+      component.suggestions.set([s65, s80]);
+      const inFlight = new Subject<void>();
+      mockApi.post.mockReturnValueOnce(inFlight.asObservable());
+
+      const rejecting = component.rejectSuggestion(s65);
+
+      mockApi.get.mockReturnValueOnce(of({ suggestions: [s80], threshold: 0.8 }));
+      await (component as unknown as { loadSuggestions(): Promise<void> }).loadSuggestions();
+      expect(component.suggestions()).toEqual([s80]);
+
+      inFlight.error(new Error('offline'));
+      await rejecting;
+
+      expect(component.suggestions()).toEqual([s80]);
+      expect(mockSnackBar.open).toHaveBeenCalledWith('errors.action_failed', '', { duration: 3000 });
+    });
+
     it('should leave other suggestions intact', () => {
       const s1 = makeSuggestion(1, 'Alice', 10, 2, 'Bob', 5);
       const s2 = makeSuggestion(3, 'Carol', 8, 4, 'Dave', 3);

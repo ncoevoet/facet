@@ -201,6 +201,9 @@ export class MergeSuggestionsComponent implements OnInit, OnDestroy {
   private readonly mergeToolbar = viewChild<TemplateRef<unknown>>('mergeToolbar');
 
   readonly suggestions = signal<MergeSuggestion[]>([]);
+  /** Bumped whenever the list is replaced wholesale: an in-flight rollback may
+   *  only touch the list it was taken from, never a newer threshold's. */
+  private suggestionsVersion = 0;
   private readonly destroyRef = inject(DestroyRef);
   private readonly latestSuggestions = new LatestRequest(this.destroyRef);
   readonly loading = signal(false);
@@ -260,6 +263,7 @@ export class MergeSuggestionsComponent implements OnInit, OnDestroy {
       ));
       if (!handle.isCurrent()) return;
       this.suggestions.set(res.suggestions);
+      this.suggestionsVersion++;
       if (this.userThreshold === null) this.threshold.set(res.threshold);
     } catch {
       if (!handle.isCurrent()) return;
@@ -298,6 +302,7 @@ export class MergeSuggestionsComponent implements OnInit, OnDestroy {
     // the entry back where it was: the user must not believe a pair was
     // rejected when the server never heard about it.
     const index = this.suggestions().indexOf(suggestion);
+    const version = this.suggestionsVersion;
     this.removeSuggestion(suggestion);
     try {
       await firstValueFrom(
@@ -307,11 +312,16 @@ export class MergeSuggestionsComponent implements OnInit, OnDestroy {
         }),
       );
     } catch {
-      this.suggestions.update((list) => {
-        const restored = [...list];
-        restored.splice(Math.min(index, restored.length), 0, suggestion);
-        return restored;
-      });
+      // But only into that same list: a threshold change (or an accept-all)
+      // may have replaced it while the request was in flight, and re-inserting
+      // a pair the newer list filtered out would let Accept all submit it.
+      if (this.suggestionsVersion === version) {
+        this.suggestions.update((list) => {
+          const restored = [...list];
+          restored.splice(Math.min(index, restored.length), 0, suggestion);
+          return restored;
+        });
+      }
       this.snackBar.open(this.i18n.t(I18N.errors.action_failed), '', { duration: 3000 });
     }
   }
@@ -353,6 +363,7 @@ export class MergeSuggestionsComponent implements OnInit, OnDestroy {
 
       const count = this.suggestions().length;
       this.suggestions.set([]);
+      this.suggestionsVersion++;
       this.snackBar.open(this.i18n.t(I18N.persons.batch_merged, { count }), '', { duration: 2000 });
     } catch {
       this.snackBar.open(this.i18n.t(I18N.persons.merge_error), '', { duration: 3000 });
