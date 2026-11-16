@@ -48,6 +48,9 @@ class FaceAnalyzer:
         # for silhouette/profile detection. Costs ~5MB extra ONNX weights.
         self.enable_3d_landmarks = enable_3d_landmarks
         try:
+            if device == 'cuda':
+                from utils.device import preload_cuda_runtime_libraries
+                preload_cuda_runtime_libraries()
             from insightface.app import FaceAnalysis
             # IMPORTANT: We include 'recognition' for face embeddings used in clustering
             allowed = ['detection', 'landmark_2d_106', 'recognition']
