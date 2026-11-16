@@ -234,7 +234,9 @@ def migrate_user_preferences(username, db_path=DEFAULT_DB_PATH):
     if 'user_preferences' not in tables:
         logger.error("user_preferences table not found. Run 'python database.py' to initialize schema first.")
         conn.close()
-        return
+        # A scheduled migration must not read as done: exit 0 let cron consider
+        # it applied while not one rating moved.
+        sys.exit(1)
 
     # Count existing photos with ratings
     row = conn.execute("""

@@ -27,8 +27,11 @@ import stat
 import subprocess
 import sys
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
+
+import facet
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 VENV_PY = REPO_ROOT / 'venv' / 'bin' / 'python'
@@ -88,6 +91,42 @@ def seeded_db(tmp_path):
     conn.commit()
     conn.close()
     return str(db_path)
+
+
+# ---------------------------------------------------------------------------
+# Watch mode flag forwarding + spawned-viewer environment (B149/B150)
+# ---------------------------------------------------------------------------
+
+def test_watch_scan_args_forwards_the_modifier_flags_the_user_started_watch_with():
+    args = SimpleNamespace(force=True, force_since='2024-01-01', single_pass=False,
+                           single_pass_name=None)
+    assert facet._watch_scan_args(args) == ['--force', '--force-since', '2024-01-01']
+    args = SimpleNamespace(force=False, force_since=None, single_pass=True,
+                           single_pass_name='portrait')
+    assert facet._watch_scan_args(args) == ['--single-pass', '--pass', 'portrait']
+    args = SimpleNamespace(force=False, force_since=None, single_pass=False,
+                           single_pass_name=None)
+    assert facet._watch_scan_args(args) == []
+
+
+def test_viewer_spawn_env_targets_the_library_the_command_targets(tmp_path, monkeypatch):
+    monkeypatch.setenv('DB_PATH', '/somewhere/else.db')
+    db = tmp_path / 'mine.db'
+    db.write_text('')
+    env = facet._viewer_spawn_env(str(db))
+    assert env['DB_PATH'] == str(db.resolve())
+
+
+def test_migrate_user_preferences_missing_table_exits_non_zero(tmp_path, monkeypatch):
+    # The missing-table branch used to log and return: cron read the migration
+    # as applied while not one rating moved.
+    import database
+    db = tmp_path / 'x.db'
+    sqlite3.connect(str(db)).close()
+    monkeypatch.setattr(database, 'init_database', lambda *a, **k: None)
+    with pytest.raises(SystemExit) as raised:
+        database.migrate_user_preferences('someone', str(db))
+    assert raised.value.code == 1
 
 
 # ---------------------------------------------------------------------------

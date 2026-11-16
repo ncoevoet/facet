@@ -185,6 +185,36 @@ class TestBuildScanCommand:
         ]
 
 
+class TestBuildScanCommandExtraArgs:
+    def test_modifier_flags_ride_along(self):
+        cmd = _build_scan_command(["/a"], "/data/photos.db", None,
+                                  extra_scan_args=["--force", "--single-pass"])
+        assert cmd == [sys.executable, FACET_SCRIPT, "/a", "--db", "/data/photos.db",
+                       "--force", "--single-pass"]
+
+    def test_no_extra_args_changes_nothing(self):
+        cmd = _build_scan_command(["/a"], "/data/photos.db", None)
+        assert cmd == [sys.executable, FACET_SCRIPT, "/a", "--db", "/data/photos.db"]
+
+
+def test_run_watch_loop_forwards_extra_scan_args_to_every_spawn(monkeypatch, tmp_path):
+    native = _FakeObserver()
+    monkeypatch.setattr(watchdog.observers, "Observer", lambda: native)
+    monkeypatch.setattr(watchdog.observers.polling, "PollingObserver", lambda: _FakeObserver())
+    runs = []
+    monkeypatch.setattr(
+        watcher.subprocess, "run",
+        lambda cmd, *a, **kw: runs.append(cmd) or SimpleNamespace(returncode=0),
+    )
+    monkeypatch.setattr(watcher.time, "sleep", lambda seconds: (_ for _ in ()).throw(KeyboardInterrupt))
+
+    db_path = str(tmp_path / "photos.db")
+    watcher.run_watch_loop(["/library"], db_path, initial_scan=True,
+                           extra_scan_args=["--force"])
+
+    assert runs == [_build_scan_command(["/library"], db_path, None, extra_scan_args=["--force"])]
+
+
 class TestRunWatchLoopMissingWatchdog:
     def test_missing_watchdog_package_exits(self, monkeypatch, caplog):
         monkeypatch.setitem(sys.modules, "watchdog.observers", None)

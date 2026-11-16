@@ -13,3 +13,9 @@ LIBRARY_LOCK_HELD_EXIT_CODE = 75
 # required model never loaded). Distinct from 1 so a supervisor (``--watch``) can tell it from a
 # crash; the scan's own log says which.
 SAVED_NOTHING_EXIT_CODE = 4
+
+# A scan that never inspected the library at all: every given scan root is
+# missing or unreadable (a dead NAS mount, a renamed folder). Distinct from 4
+# ("ran, saved nothing") and 1 (crashed) so cron and --watch know the library
+# was never seen, not scanned with no result.
+SCAN_DID_NOT_RUN_EXIT_CODE = 5

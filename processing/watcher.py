@@ -70,16 +70,20 @@ def _has_scannable_path(paths):
     return any(os.path.splitext(path)[1].lower() in SCANNABLE_IMAGE_EXTENSIONS for path in paths)
 
 
-def _build_scan_command(directories, db_path, config_path):
+def _build_scan_command(directories, db_path, config_path, extra_scan_args=None):
     facet_script = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'facet.py')
     cmd = [sys.executable, facet_script, *directories, '--db', db_path]
     if config_path:
         cmd += ['--config', config_path]
+    # The modifier flags the user started --watch with ride along: a watched
+    # scan that quietly ignored --force was an --force that did nothing.
+    if extra_scan_args:
+        cmd += list(extra_scan_args)
     return cmd
 
 
 def run_watch_loop(directories, db_path, config_path=None, debounce_seconds=30,
-                   initial_scan=True):
+                   initial_scan=True, extra_scan_args=None):
     """Re-scan whenever directory contents settle, until Ctrl+C or a give-up.
 
     Returns True when the user stopped watching (Ctrl+C) and False when
@@ -92,6 +96,8 @@ def run_watch_loop(directories, db_path, config_path=None, debounce_seconds=30,
         config_path: Optional scoring config path passed through to scans
         debounce_seconds: Quiet period required before a scan fires
         initial_scan: Run one incremental scan immediately on startup
+        extra_scan_args: Scan modifier flags (``--force`` and friends) forwarded
+            verbatim to every scan this loop spawns
     """
     try:
         from watchdog.observers import Observer
@@ -132,7 +138,7 @@ def run_watch_loop(directories, db_path, config_path=None, debounce_seconds=30,
         observer = _start_observer(PollingObserver)
         logger.info("Watching %d directories (polling)", len(directories))
 
-    cmd = _build_scan_command(directories, db_path, config_path)
+    cmd = _build_scan_command(directories, db_path, config_path, extra_scan_args)
 
     def _run_scan(reason):
         logger.info("Starting scan (%s)...", reason)

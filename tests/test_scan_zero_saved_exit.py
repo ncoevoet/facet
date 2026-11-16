@@ -12,6 +12,7 @@ from PIL import Image
 
 import facet
 from config import ScoringConfig
+from utils.exit_codes import SCAN_DID_NOT_RUN_EXIT_CODE
 from db.schema import init_database
 
 
@@ -39,12 +40,14 @@ def _processor(saved):
     return _Processor
 
 
-def _run(tmp_path, monkeypatch, processor, already_scanned=False, extra_args=()):
+def _run(tmp_path, monkeypatch, processor, already_scanned=False, extra_args=(),
+         photo_dir_exists=True, more_paths=()):
     db_path = str(tmp_path / "scan.db")
     init_database(db_path)
     photo_dir = tmp_path / "photos"
-    photo_dir.mkdir()
-    Image.new("RGB", (8, 8), (120, 120, 120)).save(photo_dir / "a.jpg", "JPEG")
+    if photo_dir_exists:
+        photo_dir.mkdir()
+        Image.new("RGB", (8, 8), (120, 120, 120)).save(photo_dir / "a.jpg", "JPEG")
 
     class Facet(_FakeFacet):
         def __init__(self, *a, **k):
@@ -63,7 +66,9 @@ def _run(tmp_path, monkeypatch, processor, already_scanned=False, extra_args=())
     monkeypatch.setattr(facet, "run_moment_detection", lambda *a, **k: {})
     monkeypatch.setattr(facet, "run_junk_detection", lambda *a, **k: {})
     monkeypatch.setattr(facet, "_print_scan_summary", lambda *a, **k: None)
-    monkeypatch.setattr(sys, "argv", ["facet.py", str(photo_dir), "--db", db_path, *extra_args])
+    monkeypatch.setattr(sys, "argv",
+                        ["facet.py", str(photo_dir), *[str(p) for p in more_paths],
+                         "--db", db_path, *extra_args])
     facet.main()
 
 
@@ -121,3 +126,49 @@ def test_single_pass_sums_the_calibration_and_main_saves(
         assert raised.value.code == 4
     else:
         run()
+
+
+# ---------------------------------------------------------------------------
+# Dead scan roots (B147): a scan whose roots are all gone never saw the
+# library, so it must not read as a clean "nothing new".
+# ---------------------------------------------------------------------------
+
+@pytest.mark.timeout(30)
+def test_all_roots_missing_exits_scan_did_not_run(tmp_path, monkeypatch, caplog):
+    with caplog.at_level("ERROR", logger="facet"), pytest.raises(SystemExit) as raised:
+        _run(tmp_path, monkeypatch, _processor(saved=0), photo_dir_exists=False)
+    assert raised.value.code == SCAN_DID_NOT_RUN_EXIT_CODE
+    assert "missing or unreadable" in caplog.text
+
+
+@pytest.mark.timeout(30)
+def test_unreadable_root_counts_as_dead(tmp_path, monkeypatch, caplog):
+    # A mount that exists but denies every listdir is not an empty library.
+    def denied_walk(top, onerror=None):
+        if onerror:
+            onerror(OSError(13, "Permission denied"))
+        return iter(())
+
+    monkeypatch.setattr("os.walk", denied_walk)
+    with caplog.at_level("ERROR", logger="facet"), pytest.raises(SystemExit) as raised:
+        _run(tmp_path, monkeypatch, _processor(saved=0))
+    assert raised.value.code == SCAN_DID_NOT_RUN_EXIT_CODE
+
+
+@pytest.mark.timeout(30)
+def test_partial_missing_roots_proceed_and_name_what_is_gone(tmp_path, monkeypatch, caplog):
+    missing = tmp_path / "gone"
+    with caplog.at_level("ERROR", logger="facet"):
+        _run(tmp_path, monkeypatch, _processor(saved=1), more_paths=[missing])
+    assert str(missing) in caplog.text
+    assert "Scan proceeds without" in caplog.text
+
+
+@pytest.mark.timeout(30)
+def test_retry_failed_mode_ignores_dead_roots(tmp_path, monkeypatch, caplog):
+    # The worklist comes from scan_failures, not the walk: dead roots must not
+    # turn a retry into a hard failure (there may be genuinely nothing left).
+    with caplog.at_level("ERROR", logger="facet"):
+        _run(tmp_path, monkeypatch, _processor(saved=0), photo_dir_exists=False,
+             extra_args=("--retry-failed",))
+    assert "Scan did not run" not in caplog.text

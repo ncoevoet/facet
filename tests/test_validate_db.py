@@ -3,8 +3,13 @@
 import os
 import shlex
 import sqlite3
+import sys
+from types import SimpleNamespace
 
 import pytest
+
+import facet
+import validate_db
 
 from db.schema import init_database
 from validation.database_validator import DatabaseValidator
@@ -204,3 +209,89 @@ def test_viewer_export_names_the_tables_and_the_databases_to_inspect(tmp_path):
     for name in ('photo_scores.db', 'viewer.db'):
         path = shlex.quote(os.path.abspath(tmp_path / name))
         assert f'validate_db.py --report-only --db {path}' in message
+
+
+# ---------------------------------------------------------------------------
+# main()'s exit-status contract (B151): cron and wrappers read the code, so a
+# nightly validation must not come back green while its report lists issues.
+# ---------------------------------------------------------------------------
+
+
+def _result(has_issues=True, fixable=True, informational=False):
+    return SimpleNamespace(has_issues=has_issues, fixable=fixable, informational=informational,
+                           fix_query="UPDATE photos SET star_rating = NULL WHERE path = 'x'",
+                           fix_function=None, description="desc", count=1)
+
+
+class _FakeFixConn:
+    def __init__(self, fail):
+        self._fail = fail
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *exc):
+        return False
+
+    def commit(self):
+        pass
+
+    def cursor(self):
+        outer = self
+
+        class _Cursor:
+            rowcount = 3
+
+            def execute(self, sql):
+                if outer._fail:
+                    raise RuntimeError("locked")
+
+        return _Cursor()
+
+
+def _run_validate(monkeypatch, tmp_path, argv, results, fix_fails=False, answer='n'):
+    """Drive validate_db.main() with a scripted validator; returns SystemExit."""
+    db = tmp_path / "v.db"
+    db.write_text("")
+    monkeypatch.setattr(sys, "argv", ["validate_db.py", "--db", str(db), *argv])
+    validator = SimpleNamespace(
+        run_all_checks=lambda: results,
+        generate_report=lambda: "report",
+        interactive_fix=lambda result, conn: None,
+    )
+    monkeypatch.setattr(validate_db, "DatabaseValidator", lambda _db: validator)
+    monkeypatch.setattr(validate_db, "get_connection", lambda _db, **kw: _FakeFixConn(fix_fails))
+    monkeypatch.setattr(facet, "hold_library_lock_or_exit",
+                        lambda *_a, **_k: SimpleNamespace(release=lambda: None))
+    monkeypatch.setattr("builtins.input", lambda *a: answer)
+    # main() returns the code; the __main__ wrapper turns it into sys.exit.
+    return validate_db.main()
+
+
+def test_validate_db_report_only_with_issues_exits_one(monkeypatch, tmp_path):
+    assert _run_validate(monkeypatch, tmp_path, ["--report-only"],
+                         [_result(fixable=False)]) == 1
+
+
+def test_validate_db_report_only_clean_exits_zero(monkeypatch, tmp_path):
+    assert _run_validate(monkeypatch, tmp_path, ["--report-only"], []) == 0
+
+
+def test_validate_db_failed_auto_fix_exits_two(monkeypatch, tmp_path):
+    assert _run_validate(monkeypatch, tmp_path, ["--auto-fix"],
+                         [_result(fixable=True)], fix_fails=True) == 2
+
+
+def test_validate_db_successful_auto_fix_exits_zero(monkeypatch, tmp_path):
+    assert _run_validate(monkeypatch, tmp_path, ["--auto-fix"],
+                         [_result(fixable=True)]) == 0
+
+
+def test_validate_db_declined_interactive_fix_exits_one(monkeypatch, tmp_path):
+    assert _run_validate(monkeypatch, tmp_path, [], [_result(fixable=True)]) == 1
+
+
+def test_validate_db_unfixable_issues_exits_one(monkeypatch, tmp_path):
+    # No fixable issues at all: the UNFIXABLE listing must not read as green.
+    assert _run_validate(monkeypatch, tmp_path, ["--report-only"],
+                         [_result(has_issues=True, fixable=False)]) == 1
