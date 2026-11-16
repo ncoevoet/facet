@@ -13,7 +13,9 @@ DEFAULT_GLOBS = ["@eaDir", "#recycle", "#snapshot", "@Recycle"]
 
 def _gather(paths, settings):
     from facet import _gather_scan_files
-    return _gather_scan_files([str(p) for p in paths], settings)
+    # (files, dead_roots): the pruning tests exercise roots that exist, so the
+    # dead-root half stays empty.
+    return _gather_scan_files([str(p) for p in paths], settings)[0]
 
 
 def _names(files):
