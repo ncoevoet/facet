@@ -483,6 +483,12 @@ export type NamingSort = 'faces' | 'recent';
                     />
                   }
                 </div>
+              } @else if (needsNamingError()) {
+                <div data-needs-naming-failed class="flex flex-col items-center py-16 text-[var(--mat-sys-on-surface-variant)]">
+                  <mat-icon class="!text-5xl !w-12 !h-12 mb-4">how_to_reg</mat-icon>
+                  <p role="alert" class="m-0">{{ I18N.manage_persons.error_loading_persons | translate }}</p>
+                  <button mat-button class="mt-2" (click)="loadNeedsNaming()">{{ I18N.gallery.load_error.retry | translate }}</button>
+                </div>
               } @else {
                 <div data-needs-naming-empty class="text-center py-16 text-[var(--mat-sys-on-surface-variant)] max-w-md mx-auto">
                   <mat-icon class="!text-5xl !w-12 !h-12 mb-4">how_to_reg</mat-icon>
@@ -609,6 +615,7 @@ export class ManagePersonsComponent implements OnInit {
   readonly ignoredLoading = signal(false);
   /** A next page of the Ignored section failed; scrolling stops loading until Retry. */
   readonly ignoredError = signal(false);
+  readonly needsNamingError = signal(false);
   readonly ignoredExpanded = signal(false);
   private readonly ignoredPerPage = 200;
 
@@ -748,8 +755,11 @@ export class ManagePersonsComponent implements OnInit {
         this.api.get<{ persons: Person[]; total: number }>('/persons/needs_naming'),
       );
       this.needsNaming.set(res.persons ?? []);
+      this.needsNamingError.set(false);
     } catch {
-      // silent — the section just won't render
+      // A first-page failure must not read as "everyone is named": surface it
+      // with the section's Retry instead of silently not rendering.
+      if (!this.destroyRef.destroyed) this.needsNamingError.set(true);
     }
   }
 
@@ -908,7 +918,11 @@ export class ManagePersonsComponent implements OnInit {
   onScrollReached(): void {
     if (this.hasMore() && !this.loading()) {
       this.page++;
-      this.loadPersons(false);
+      this.loadPersons(false).catch(() => {
+        // A failed page must not be skipped forever: give the scroll another
+        // chance at the same page (B8's rollback, fourth instance).
+        this.page--;
+      });
     }
   }
 

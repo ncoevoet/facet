@@ -10,7 +10,7 @@ import { DateRangeFilterComponent } from './date-range-filter.component';
   template: `
     <app-date-range-filter
       [from]="from()" [to]="to()" [fromClass]="fromClass()" [toClass]="toClass()"
-      (fromChange)="lastFrom = $event" (toChange)="lastTo = $event" />
+      (fromChange)="onFrom($event)" (toChange)="onTo($event)" />
   `,
 })
 class HostComponent {
@@ -20,6 +20,18 @@ class HostComponent {
   toClass = signal('');
   lastFrom = '';
   lastTo = '';
+
+  // Mirrors the real consumers, which write the emitted values back into the
+  // signals bound to [from]/[to].
+  onFrom(value: string): void {
+    this.from.set(value);
+    this.lastFrom = value;
+  }
+
+  onTo(value: string): void {
+    this.to.set(value);
+    this.lastTo = value;
+  }
 }
 
 describe('DateRangeFilterComponent', () => {
@@ -66,6 +78,31 @@ describe('DateRangeFilterComponent', () => {
     to.value = '2025-07-15';
     to.dispatchEvent(new Event('change'));
     expect(fixture.componentInstance.lastTo).toBe('2025-07-15');
+  });
+
+  it('pulls the other bound along to keep the range ordered', () => {
+    // Setting "from" past "to" must move "to" along: an inverted range would
+    // silently produce an empty result in every consumer, indistinguishable
+    // from "no photos".
+    const inputs = dateInputs();
+    inputs[0].value = '2025-06-01';
+    inputs[0].dispatchEvent(new Event('change'));
+    fixture.detectChanges();
+
+    expect(fixture.componentInstance.lastFrom).toBe('2025-06-01');
+    expect(fixture.componentInstance.lastTo).toBe('2025-06-01');
+    expect((inputs[1] as HTMLInputElement).value).toBe('2025-06-01');
+  });
+
+  it('pulls "from" back when "to" is set before it', () => {
+    const inputs = dateInputs();
+    inputs[1].value = '2023-03-01';
+    inputs[1].dispatchEvent(new Event('change'));
+    fixture.detectChanges();
+
+    expect(fixture.componentInstance.lastTo).toBe('2023-03-01');
+    expect(fixture.componentInstance.lastFrom).toBe('2023-03-01');
+    expect((inputs[0] as HTMLInputElement).value).toBe('2023-03-01');
   });
 
   it('sizes both Material fields from fromClass and falls back to it for the to field', () => {

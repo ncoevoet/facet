@@ -4939,6 +4939,29 @@ describe('BurstCullingComponent swipe-to-decide (rendered, touch)', () => {
     expect(component['lightboxIndex']()).toBe(0);
   });
 
+  it('an Undo after another decision restores only the swiped frame', async () => {
+    // Swipe keeps frame 0 (the group's own selection set now holds it), then
+    // the user tap-selects frame 1. Undoing the swipe must restore frame 0 to
+    // unkept WITHOUT also wiping frame 1's keep.
+    openDarkroom();
+
+    drag(OVER);
+    await settle();
+    const swiped = store.groups()[0].photos[0].path;
+    expect(keptPaths()).toEqual([swiped]);
+
+    const other = store.groups()[0].photos[1].path;
+    store.setPhotoKept(store.groups()[0], other, true);
+    await settle();
+    expect(keptPaths().sort()).toEqual([other, swiped].sort());
+
+    undoAction.next();
+    await settle();
+
+    expect(keptPaths()).toEqual([other]);
+    expect(component['lightboxIndex']()).toBe(0);
+  });
+
   it('shows the swipe hint until it is dismissed, and remembers that', () => {
     openDarkroom();
     const dismissButton = () => [...(fixture.nativeElement as HTMLElement).querySelectorAll('button')]

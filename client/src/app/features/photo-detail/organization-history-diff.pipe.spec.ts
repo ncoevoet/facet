@@ -44,7 +44,7 @@ describe('HistoryDiffPipe', () => {
     const flagOnly = pipe.transform(entry('date', [[['2024:01:01 00:00:00', 1], ['2024:01:01 00:00:00', 0]]]));
     expect(flagOnly.summary).toEqual([{ label: H.manual_date, before: key(H.yes), after: key(H.no) }]);
     const both = pipe.transform(entry('date', [[[null, 0], ['2024:01:01 00:01:00', 1]]]));
-    const date = { label: H.capture_date, before: key(H.unknown), after: text('01/01/2024 00:01') };
+    const date = { label: H.capture_date, before: key(H.unknown), after: text('Jan 1, 2024 00:01') };
     expect(both.summary).toEqual([date]);
     expect(both.photos[0].changes).toEqual([date, { label: H.manual_date, before: key(H.no), after: key(H.yes) }]);
   });
@@ -62,9 +62,9 @@ describe('HistoryDiffPipe', () => {
 
   it('reports a capture-date shift of under a minute, showing the seconds that changed', () => {
     const diff = pipe.transform(entry('date', [[['2024:01:01 10:00:10', 1], ['2024:01:01 10:00:40', 1]]]));
-    expect(diff.summary).toEqual([{ label: H.capture_date, before: text('01/01/2024 10:00:10'), after: text('01/01/2024 10:00:40') }]);
+    expect(diff.summary).toEqual([{ label: H.capture_date, before: text('Jan 1, 2024 10:00:10'), after: text('Jan 1, 2024 10:00:40') }]);
     const minutes = pipe.transform(entry('date', [[['2024:01:01 10:00:10', 1], ['2024:01:01 10:05:10', 1]]]));
-    expect(minutes.summary).toEqual([{ label: H.capture_date, before: text('01/01/2024 10:00'), after: text('01/01/2024 10:05') }]);
+    expect(minutes.summary).toEqual([{ label: H.capture_date, before: text('Jan 1, 2024 10:00'), after: text('Jan 1, 2024 10:05') }]);
   });
 
   it('reports a location move smaller than the rounding, at full precision', () => {

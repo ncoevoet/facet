@@ -126,7 +126,7 @@ describe('PhotoTooltipComponent', () => {
 
   it('formats camera-local dates and keeps a single labeled assessment in the docked inspector', () => {
     renderDocked(makePhotoFull({ date_taken: '2026:10:29 10:12:00', aggregate: 0 }), 'quality');
-    expect(fixture.nativeElement.querySelector('[data-capture-date]').textContent).toBe('29/10/2026 10:12');
+    expect(fixture.nativeElement.querySelector('[data-capture-date]').textContent).toBe('Oct 29, 2026 10:12');
     expect(fixture.nativeElement.querySelectorAll('app-photo-assessment')).toHaveLength(1);
     expect(fixture.nativeElement.querySelector('app-photo-assessment').textContent).toContain('photo_detail.assessment.score');
     expect(fixture.nativeElement.querySelector('app-photo-assessment').textContent).toContain('0.0');

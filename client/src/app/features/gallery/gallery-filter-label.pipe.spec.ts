@@ -87,7 +87,7 @@ describe('Typed album rule values', () => {
     expect(pipe.transform('kept', 'review_status')).toBe(fr.gallery.sidebar.review.values.kept);
     expect(pipe.transform('portrait', 'type')).toBe(fr.category_names.portrait);
     for (const key of ['type', 'sort', 'sort_direction', 'review_status']) expect(pipe.transform('custom-value', key)).toBe('custom-value');
-    expect(pipe.transform('2024-03-01', 'date_from')).toBe('01/03/2024');
+    expect(pipe.transform('2024-03-01', 'date_from')).toBe('Mar 1, 2024');
     bundle.set(en);
     expect(pipe.transform('true', 'favorites_only')).toBe(en.organization_history.yes);
     expect(pipe.transform('portrait', 'type')).toBe(en.category_names.portrait);

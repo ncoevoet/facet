@@ -3239,7 +3239,10 @@ export class BurstCullingComponent implements OnDestroy {
       labelKey: keep ? I18N.culling.swipe.kept : I18N.culling.swipe.rejected,
       labelParams: { filename: photo.filename },
       undo: () => {
-        this.cull.restoreSelection(group, previousKept);
+        // Restore ONLY the swiped frame's own kept-state: the group snapshot
+        // would also wipe every per-frame decision made after the swipe
+        // (e.g. the user tap-selecting another photo, then undoing the swipe).
+        this.cull.setPhotoKept(group, photo.path, previousKept.has(photo.path));
         this.lightboxIndex.set(previousIndex);
         return Promise.resolve();
       },

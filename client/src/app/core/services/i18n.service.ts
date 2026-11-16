@@ -1,6 +1,7 @@
 import { Injectable, inject, signal, computed } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { firstValueFrom } from 'rxjs';
+import { setCaptureDateLocaleReader } from '../../shared/pipes/capture-date.pipe';
 
 export interface LanguageInfo {
   code: string;
@@ -19,6 +20,13 @@ export class I18nService {
   /** Supported languages (code + native name), fetched from /api/i18n/languages. */
   readonly languages = this._languages.asReadonly();
   readonly locale = signal<string>(this.detectLocale());
+
+  constructor() {
+    // The capture-date pipe is constructed at module scope in places (the
+    // organization history diff shares one instance) and has no injector to
+    // ask; it reads the viewer's locale through this reader instead.
+    setCaptureDateLocaleReader(() => this.locale());
+  }
   readonly isLoaded = computed(() => Object.keys(this._translations()).length > 0);
 
   /** Fetch the supported-language list (data-driven switcher). */
@@ -75,7 +83,10 @@ export class I18nService {
     let result = String(value);
     if (vars) {
       for (const [k, v] of Object.entries(vars)) {
-        result = result.replaceAll(`{${k}}`, String(v));
+        // Function form: a string replacement parses `$&`/`$'`/`$$` as
+        // replacement patterns, so a filename like "$&photo.jpg" would
+        // silently rewrite the sentence around it.
+        result = result.replaceAll(`{${k}}`, () => String(v));
       }
     }
     return result;

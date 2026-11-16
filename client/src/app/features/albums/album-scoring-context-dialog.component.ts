@@ -197,6 +197,7 @@ export class AlbumScoringContextDialogComponent implements OnInit {
   });
 
   private pollTimer: ReturnType<typeof setInterval> | null = null;
+  private pollFailures = 0;
 
   constructor() {
     this.destroyRef.onDestroy(() => this.stopPolling());
@@ -280,19 +281,26 @@ export class AlbumScoringContextDialogComponent implements OnInit {
       this.recomputeError.set(err instanceof HttpErrorResponse && err.status === 409 ? 'busy' : 'failed');
       return;
     }
-    this.pollTimer = setInterval(() => this.pollRecomputeStatus(), 1000);
+    this.pollFailures = 0;
+    this.pollTimer = setInterval(() => this.pollRecomputeStatus(), 2000);
     this.pollRecomputeStatus();
   }
 
   private async pollRecomputeStatus(): Promise<void> {
     try {
       const status = await firstValueFrom(this.api.get<RecomputeStatusResponse>('/scan/recompute_status'));
+      // A success re-arms the failure counter: one transient poll failure must
+      // not declare a minutes-long recompute failed, and the next poll waits
+      // a little longer so a busy server gets some room.
+      this.pollFailures = 0;
       this.recomputeProgress.set(status.progress);
       if (!status.running) {
         this.stopPolling();
         this.phase.set(status.exit_code === 0 ? 'recompute_done' : 'recompute_error');
       }
     } catch {
+      this.pollFailures++;
+      if (this.pollFailures < 3) return;
       this.stopPolling();
       this.phase.set('recompute_error');
     }

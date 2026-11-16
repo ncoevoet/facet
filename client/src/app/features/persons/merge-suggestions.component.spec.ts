@@ -1,6 +1,6 @@
 import type { Mock } from 'vitest';
 import { TestBed } from '@angular/core/testing';
-import { from, of, throwError } from 'rxjs';
+import { Subject, from, of, throwError } from 'rxjs';
 import { MatDialog } from '@angular/material/dialog';
 import { MatSnackBar } from '@angular/material/snack-bar';
 import { signal } from '@angular/core';
@@ -99,6 +99,18 @@ describe('MergeSuggestionsComponent', () => {
       expect(component.suggestions()).toEqual([s2]);
     });
 
+    it('puts a rejected suggestion back where it was when the request fails', async () => {
+      const s1 = makeSuggestion(1, 'Alice', 10, 2, 'Bob', 5);
+      const s2 = makeSuggestion(3, 'Carol', 8, 4, 'Dave', 3);
+      component.suggestions.set([s1, s2]);
+      mockApi.post.mockReturnValue(throwError(() => new Error('offline')));
+
+      await component.rejectSuggestion(s1);
+
+      expect(component.suggestions()).toEqual([s1, s2]);
+      expect(mockSnackBar.open).toHaveBeenCalledWith('errors.action_failed', '', { duration: 3000 });
+    });
+
     it('should leave other suggestions intact', () => {
       const s1 = makeSuggestion(1, 'Alice', 10, 2, 'Bob', 5);
       const s2 = makeSuggestion(3, 'Carol', 8, 4, 'Dave', 3);
@@ -108,6 +120,45 @@ describe('MergeSuggestionsComponent', () => {
       component.rejectSuggestion(s2);
 
       expect(component.suggestions()).toEqual([s1, s3]);
+    });
+  });
+
+  describe('loadSuggestions staleness', () => {
+    it('the newest request wins: a slow older response never overwrites it', async () => {
+      const old05 = makeSuggestion(1, 'Old', 10, 2, 'Old2', 5);
+      const new08 = makeSuggestion(5, 'New', 12, 6, 'New2', 7);
+      const first = new Subject<{ suggestions: unknown[]; threshold: number }>();
+      const second = new Subject<{ suggestions: unknown[]; threshold: number }>();
+      mockApi.get.mockReturnValueOnce(first.asObservable())
+                 .mockReturnValueOnce(second.asObservable());
+
+      const p1 = (component as unknown as { loadSuggestions(): Promise<void> }).loadSuggestions();
+      const p2 = (component as unknown as { loadSuggestions(): Promise<void> }).loadSuggestions();
+      second.next({ suggestions: [new08], threshold: 0.8 }); second.complete();
+      first.next({ suggestions: [old05], threshold: 0.5 }); first.complete();
+      await Promise.all([p1, p2]);
+
+      // The slider reads 0.8; the list must agree with it, not with the late
+      // 0.5 response.
+      expect(component.suggestions()).toEqual([new08]);
+      expect(component.threshold()).toBe(0.8);
+    });
+
+    it('a superseded failure stays silent: the newest request still owns the view', async () => {
+      const ok = makeSuggestion(5, 'New', 12, 6, 'New2', 7);
+      const first = new Subject<{ suggestions: unknown[]; threshold: number }>();
+      const second = new Subject<{ suggestions: unknown[]; threshold: number }>();
+      mockApi.get.mockReturnValueOnce(first.asObservable())
+                 .mockReturnValueOnce(second.asObservable());
+
+      const p1 = (component as unknown as { loadSuggestions(): Promise<void> }).loadSuggestions();
+      const p2 = (component as unknown as { loadSuggestions(): Promise<void> }).loadSuggestions();
+      second.next({ suggestions: [ok], threshold: 0.8 }); second.complete();
+      first.error(new Error('late failure'));
+      await Promise.all([p1, p2]);
+
+      expect(component.suggestions()).toEqual([ok]);
+      expect(mockSnackBar.open).not.toHaveBeenCalled();
     });
   });
 

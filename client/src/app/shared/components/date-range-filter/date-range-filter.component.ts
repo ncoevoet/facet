@@ -40,6 +40,15 @@ export class DateRangeFilterComponent {
 
   protected onInput(which: 'from' | 'to', event: Event): void {
     const value = (event.target as HTMLInputElement).value;
+    // An inverted range (from > to) silently produces an empty result in every
+    // consumer, indistinguishable from "no photos". Keep the two inputs in a
+    // legal order: setting one past the other pulls the other along.
+    const from = which === 'from' ? value : this.from();
+    const to = which === 'to' ? value : this.to();
+    if (from && to && from > to) {
+      if (which === 'from') this.toChange.emit(value);
+      else this.fromChange.emit(value);
+    }
     (which === 'from' ? this.fromChange : this.toChange).emit(value);
   }
 }
