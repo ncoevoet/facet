@@ -9,7 +9,8 @@
       "type": "object",
       "properties": {
         "skip_hidden_directories": { "type": "boolean" },
-        "skip_directories": { "type": "array", "items": { "type": "string" } }
+        "skip_directories": { "type": "array", "items": { "type": "string" } },
+        "skip_raw": { "type": "boolean" }
       }
     },
     "categories": {

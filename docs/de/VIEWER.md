@@ -489,7 +489,7 @@ Antwortfelder und Statuscodes: [API.md](../API.md).
 
 Klicken Sie bei einem Foto auf **Ähnliche** und wählen Sie einen Modus:
 
-- **Visuell** (Standard) — pHash-Ähnlichkeit (70%) + CLIP/SigLIP-Ähnlichkeit (30%). Teilen zwei Fotos nur eines der beiden Signale, zählt es voll; Fotos ohne eines davon werden nie aufgeführt. Alle Treffer über dem Schwellenwert werden seitenweise geliefert. Hat das Foto keines von beiden, scannen Sie es mit `--force` neu (ein einfaches `python facet.py <dir>` überspringt bereits verarbeitete Dateien).
+- **Visuell** (Standard) — pHash-Ähnlichkeit (30%) + CLIP/SigLIP-Ähnlichkeit (70%). Teilen zwei Fotos nur eines der beiden Signale, zählt es voll; Fotos ohne eines davon werden nie aufgeführt. Alle Treffer über dem Schwellenwert werden seitenweise geliefert. Hat das Foto keines von beiden, scannen Sie es mit `--force` neu (ein einfaches `python facet.py <dir>` überspringt bereits verarbeitete Dateien).
 - **Farbe** — Histogrammschnittmenge (70%) + Sättigungsdistanz (10%) + Helligkeitsdistanz (10%) + Monochrom-Bonus (10%). Vorfilterung nach Monochrom-Flag und Sättigungsbereich.
 - **Person** — Fotos mit derselben Person bzw. denselben Personen, über `person_id`, wenn verfügbar, sonst über die Ähnlichkeit der Gesichts-Embeddings.
 

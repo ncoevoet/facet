@@ -740,7 +740,8 @@ class ScoringConfig:
         """
         return self.config.get('scanning', {
             'skip_hidden_directories': True,
-            'skip_directories': ['@eaDir', '#recycle', '#snapshot', '@Recycle']
+            'skip_directories': ['@eaDir', '#recycle', '#snapshot', '@Recycle'],
+            'skip_raw': False,
         })
 
     def get_exif_adjustments(self):
@@ -810,11 +811,12 @@ class ScoringConfig:
         })
 
     def get_burst_detection_settings(self):
-        """Get burst detection settings (similarity threshold percent, time window, rapid burst)."""
+        """Get burst detection settings (similarity threshold, time window, rapid burst, cosine gate)."""
         return self.config.get('burst_detection', {
             'similarity_threshold_percent': 70,
             'time_window_minutes': 0.8,
-            'rapid_burst_seconds': 0.4
+            'rapid_burst_seconds': 0.4,
+            'embedding_cosine_threshold': 0.0,
         })
 
     def get_sequence_detection_settings(self):
@@ -839,6 +841,8 @@ class ScoringConfig:
         """Get duplicate detection settings.
 
         Two-stage near-dup keys (with safe defaults when absent):
+        - enabled: run global near-duplicate detection at the end of a scan
+          (default False).
         - similarity_threshold_percent: strict pHash-only Hamming gate used when
           an embedding is missing for either photo (backward-compatible path).
         - prefilter_hamming: looser Hamming gate for the stage-1 candidate set
@@ -848,6 +852,7 @@ class ScoringConfig:
           a loose-pHash candidate only merges if cosine >= this.
         """
         return self.config.get('duplicate_detection', {
+            'enabled': False,
             'similarity_threshold_percent': 90,
             'prefilter_hamming': 12,
             'embedding_cosine_threshold': 0.90,

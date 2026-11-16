@@ -2025,6 +2025,9 @@ def _ort_providers(device):
 
 
 def _insightface_app(device, modules):
+    if device == 'cuda':
+        from utils.device import preload_cuda_runtime_libraries
+        preload_cuda_runtime_libraries()
     from insightface.app import FaceAnalysis
     app = FaceAnalysis(name='buffalo_l', root='~/.insightface', allowed_modules=modules,
                        providers=_ort_providers(device))

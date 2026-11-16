@@ -55,7 +55,7 @@ from db.ai_edits import attach_ai_edit_sources_async
 from db.preview_versions import attach_preview_versions_async
 from db.metadata_provenance import photo_provenance
 from api.related_files import related_files
-from utils.histogram import unpack_histogram
+from utils.histogram import LEGACY_HISTOGRAM_BLOB_SIZE, unpack_histogram
 from utils.sequence import BRACKET as BRACKET_KIND
 
 try:
@@ -1817,15 +1817,14 @@ def _find_similar_color(conn, source, photo_path, min_similarity, vis_sql, vis_p
     src_sat = source.get('mean_saturation', 0) or 0
     src_lum = source.get('mean_luminance', 0) or 0
 
-    # Luminance only, even for a photo whose blob carries the R/G/B channels: a
-    # library mid-rescan holds both formats, so a per-channel term would score
-    # rescanned candidates on a different scale than legacy ones and shuffle the
-    # ranking by scan order rather than by colour. The chroma signal stays in the
-    # saturation and monochrome terms below, which every row has.
-    src_hist = src_decoded['luma']
-    src_norm = src_hist.sum()
-    if src_norm > 0:
-        src_hist = src_hist / src_norm
+    def _norm_hist(arr):
+        if arr is None:
+            return None
+        total = arr.sum()
+        return arr / total if total > 0 else arr
+
+    src_hist = _norm_hist(src_decoded['luma'])
+    src_rgb = tuple(_norm_hist(c) for c in src_decoded['rgb']) if src_decoded.get('rgb') is not None else None
 
     # Pre-filter: match monochrome flag, limit saturation distance
     rows = conn.execute(f"""
@@ -1838,19 +1837,32 @@ def _find_similar_color(conn, source, photo_path, min_similarity, vis_sql, vis_p
               AND {vis_sql}
     """, [photo_path, src_mono, src_sat] + vis_params).fetchall()
 
+    # Blend R/G/B with luminance only when the source AND every candidate carry the
+    # 4-channel format. A library mid-rescan holds both formats; scoring some
+    # pairs on four channels and the rest on luma alone would put rescanned and
+    # legacy candidates on different scales and order the list by scan date, not
+    # by colour. One legacy candidate therefore puts the whole request on luma.
+    use_rgb = src_rgb is not None and all(
+        len(r['histogram_data']) != LEGACY_HISTOGRAM_BLOB_SIZE for r in rows)
+
     results = []
     for r in rows:
         r = dict(r)
         cand_decoded = unpack_histogram(r['histogram_data'])
         if cand_decoded is None:
             continue
-        cand_hist = cand_decoded['luma']
-        cand_norm = cand_hist.sum()
-        if cand_norm > 0:
-            cand_hist = cand_hist / cand_norm
+        cand_hist = _norm_hist(cand_decoded['luma'])
 
-        # Histogram intersection (0..1)
-        hist_sim = float(np.minimum(src_hist, cand_hist).sum())
+        # Histogram intersection (0..1): 4-channel RGB+luma when use_rgb, else luma-only
+        luma_sim = float(np.minimum(src_hist, cand_hist).sum())
+        if use_rgb and cand_decoded.get('rgb') is not None:
+            cand_rgb = tuple(_norm_hist(c) for c in cand_decoded['rgb'])
+            r_sim = float(np.minimum(src_rgb[0], cand_rgb[0]).sum())
+            g_sim = float(np.minimum(src_rgb[1], cand_rgb[1]).sum())
+            b_sim = float(np.minimum(src_rgb[2], cand_rgb[2]).sum())
+            hist_sim = 0.4 * luma_sim + 0.2 * r_sim + 0.2 * g_sim + 0.2 * b_sim
+        else:
+            hist_sim = luma_sim
 
         # Saturation distance (0..1, inverted)
         cand_sat = r.get('mean_saturation', 0) or 0
@@ -1975,7 +1987,7 @@ async def api_similar_photos(
 
     Modes:
       - visual: scored on the features both photos carry -- pHash similarity
-        (70%) + CLIP/SigLIP cosine (30%) when both are shared, the one shared
+        (30%) + CLIP/SigLIP cosine (70%) when both are shared, the one shared
         feature at full weight otherwise; a photo sharing neither is never
         listed. ``total`` counts the complete thresholded set.
       - color: histogram intersection + saturation/luminance distance

@@ -489,7 +489,7 @@ Campos de respuesta y códigos de estado: [API.md](../API.md).
 
 Haz clic en **Similar** en una foto y elige un modo:
 
-- **Visual** (por defecto): similitud pHash (70 %) + similitud CLIP/SigLIP (30 %). Cuando dos fotos comparten solo una de las dos señales, cuenta con su peso completo; las fotos que no comparten ninguna nunca se listan. Se devuelven todas las coincidencias por encima del umbral, página a página. Si la foto no tiene ninguna señal, reescanéala con `--force` (un simple `python facet.py <dir>` omite los archivos procesados).
+- **Visual** (por defecto): similitud pHash (30 %) + similitud CLIP/SigLIP (70 %). Cuando dos fotos comparten solo una de las dos señales, cuenta con su peso completo; las fotos que no comparten ninguna nunca se listan. Se devuelven todas las coincidencias por encima del umbral, página a página. Si la foto no tiene ninguna señal, reescanéala con `--force` (un simple `python facet.py <dir>` omite los archivos procesados).
 - **Color**: intersección de histogramas (70 %) + distancia de saturación (10 %) + distancia de luminancia (10 %) + bonificación monocroma (10 %). Prefiltra por el indicador monocromo y el rango de saturación.
 - **Persona**: fotos con la misma(s) persona(s), por `person_id` cuando está disponible; si no, por similitud de embeddings faciales.
 

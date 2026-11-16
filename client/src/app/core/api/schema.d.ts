@@ -5291,7 +5291,7 @@ export interface paths {
          *
          *     Modes:
          *       - visual: scored on the features both photos carry -- pHash similarity
-         *         (70%) + CLIP/SigLIP cosine (30%) when both are shared, the one shared
+         *         (30%) + CLIP/SigLIP cosine (70%) when both are shared, the one shared
          *         feature at full weight otherwise; a photo sharing neither is never
          *         listed. ``total`` counts the complete thresholded set.
          *       - color: histogram intersection + saturation/luminance distance

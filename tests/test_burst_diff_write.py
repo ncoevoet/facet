@@ -17,6 +17,7 @@ Private ``init_database`` databases only (``.claude/patterns/test-fixtures.md``)
 every row, so it must not touch the shared session database.
 """
 
+import json
 import logging
 import random
 import sqlite3
@@ -387,3 +388,82 @@ def test_head_burst_statement_still_plans_the_pinned_order(tmp_path):
     _build_library(db_path, 1, with_faces=False, with_learned=False)
     plan = head_order_plan(db_path)
     assert HEAD_ORDER_PLAN in plan[0], plan
+
+
+def test_burst_embedding_cosine_gate_splits_false_phash_matches(tmp_path):
+    """Incidental pHash matches within the time window stay separate when embeddings diverge."""
+    from utils.embedding import embedding_to_bytes
+
+    db_path = str(tmp_path / "burst_cos.db")
+    init_database(db_path)
+    emb_a = embedding_to_bytes(np.array([1.0, 0.0, 0.0, 0.0], dtype=np.float32))
+    emb_b = embedding_to_bytes(np.array([0.0, 1.0, 0.0, 0.0], dtype=np.float32))
+
+    conn = sqlite3.connect(db_path)
+    try:
+        conn.execute(
+            "INSERT INTO photos (path, filename, date_taken, phash, clip_embedding, aggregate) "
+            "VALUES (?, ?, ?, ?, ?, ?)",
+            ("/a.jpg", "a.jpg", "2024:05:01 10:00:00", "0" * 16, emb_a, 7.0),
+        )
+        conn.execute(
+            "INSERT INTO photos (path, filename, date_taken, phash, clip_embedding, aggregate) "
+            "VALUES (?, ?, ?, ?, ?, ?)",
+            ("/b.jpg", "b.jpg", "2024:05:01 10:00:05", "0" * 16, emb_b, 8.0),
+        )
+        conn.commit()
+    finally:
+        conn.close()
+
+    cfg_path = tmp_path / "burst_config.json"
+    cfg_path.write_text(json.dumps({
+        "burst_detection": {
+            "similarity_threshold_percent": 70,
+            "time_window_minutes": 0.8,
+            "rapid_burst_seconds": 0.4,
+            "embedding_cosine_threshold": 0.75,
+        }
+    }), encoding="utf-8")
+
+    process_bursts(db_path, config_path=str(cfg_path))
+
+    stored = _stored(db_path)
+    assert stored["/a.jpg"] == (1, None)
+    assert stored["/b.jpg"] == (1, None)
+
+
+@pytest.mark.parametrize("emb_b", [
+    None,
+    np.array([0.0, 1.0, 0.0], dtype=np.float32),
+], ids=["missing", "other-dimension"])
+def test_burst_embedding_cosine_gate_stays_open_when_a_pair_is_not_comparable(tmp_path, emb_b):
+    """A photo with no embedding, or one of another width, is grouped on pHash alone."""
+    from utils.embedding import embedding_to_bytes
+
+    db_path = str(tmp_path / "burst_cos_open.db")
+    init_database(db_path)
+    emb_a = embedding_to_bytes(np.array([1.0, 0.0, 0.0, 0.0], dtype=np.float32))
+    blob_b = None if emb_b is None else embedding_to_bytes(emb_b)
+    conn = sqlite3.connect(db_path)
+    try:
+        for path, date, emb, aggregate in (
+            ("/a.jpg", "2024:05:01 10:00:00", emb_a, 7.0),
+            ("/b.jpg", "2024:05:01 10:00:05", blob_b, 8.0),
+        ):
+            conn.execute(
+                "INSERT INTO photos (path, filename, date_taken, phash, clip_embedding, aggregate) "
+                "VALUES (?, ?, ?, ?, ?, ?)",
+                (path, path[1:], date, "0" * 16, emb, aggregate),
+            )
+        conn.commit()
+    finally:
+        conn.close()
+    cfg_path = tmp_path / "burst_config.json"
+    cfg_path.write_text(json.dumps({"burst_detection": {
+        "similarity_threshold_percent": 70, "time_window_minutes": 0.8,
+        "rapid_burst_seconds": 0.4, "embedding_cosine_threshold": 0.75,
+    }}), encoding="utf-8")
+    process_bursts(db_path, config_path=str(cfg_path))
+    stored = _stored(db_path)
+    assert stored["/a.jpg"][1] is not None and stored["/a.jpg"][1] == stored["/b.jpg"][1]
+    assert (stored["/a.jpg"][0], stored["/b.jpg"][0]) == (0, 1)

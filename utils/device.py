@@ -68,6 +68,66 @@ def serialise_hf_weight_loading(platform: str, environ: MutableMapping[str, str]
 
 serialise_hf_weight_loading(sys.platform, os.environ)
 
+
+_preloaded_cuda_libraries: list[str] | None = None
+
+
+def preload_cuda_runtime_libraries(search_roots: list[str] | None = None) -> list[str]:
+    """Pre-load bundled CUDA/cuBLAS/cuDNN runtime libraries with ``RTLD_GLOBAL``.
+
+    Pip/conda-installed wheels (``nvidia-cublas-cu12``, ``nvidia-cudnn-cu12``, etc.)
+    reside in ``site-packages/nvidia/*/lib``. ONNX Runtime's ``CUDAExecutionProvider``
+    loads via ``dlopen('libcublasLt.so.12')`` and fails if those directories are
+    not on ``LD_LIBRARY_PATH`` (issue #229). Loading them with ``RTLD_GLOBAL``
+    makes them visible to subsequent ``dlopen`` calls without altering environment
+    variables. Returns the library paths that loaded successfully.
+
+    Call it only just before a CUDA execution provider is requested, never at import:
+    the wheels map about 220 MiB into every process that loads them, CPU runs included.
+    The default search runs once per process; a later call returns the first result.
+    """
+    global _preloaded_cuda_libraries
+    if search_roots is None and _preloaded_cuda_libraries is not None:
+        return _preloaded_cuda_libraries
+    if sys.platform != "linux":
+        return []
+    import ctypes
+    import glob
+    import site
+
+    search_roots_given = search_roots is not None
+    if search_roots is None:
+        search_roots = []
+        try:
+            search_roots.extend(site.getsitepackages())
+        except Exception:
+            pass
+        try:
+            user_site = site.getusersitepackages()
+            if user_site:
+                search_roots.append(user_site)
+        except Exception:
+            pass
+        search_roots.extend(glob.glob("/opt/conda/lib/python*/site-packages"))
+
+    seen: set[str] = set()
+    loaded: list[str] = []
+    for root in search_roots:
+        for path in sorted(glob.glob(os.path.join(root, "nvidia", "*", "lib", "*.so*"))):
+            if path in seen or "nvblas" in os.path.basename(path):
+                # NVBLAS intercepts CPU BLAS calls and aborts when nvblas.conf is absent.
+                continue
+            seen.add(path)
+            try:
+                ctypes.CDLL(path, mode=ctypes.RTLD_GLOBAL)
+                loaded.append(path)
+            except OSError:
+                pass
+    if not search_roots_given:
+        _preloaded_cuda_libraries = loaded
+    return loaded
+
+
 _DEVICE_ENV = "FACET_DEVICE"
 _VALID_DEVICES = {"auto", "cpu", "cuda", "mps"}
 
