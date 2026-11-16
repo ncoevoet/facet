@@ -130,7 +130,7 @@ describe('Organization history rendered controls and HTTP', () => {
 
   for (const [kind, before, after, lines] of [
     ['gps', [null, 2, 0], [3, 4, 1], ['Location: Unknown → 3, 4', 'Manual location: No → Yes']],
-    ['date', ['2024:01:01 00:00:00', 0], ['2024:01:01 00:01:00', 1], ['Capture date: 01/01/2024 00:00 → 01/01/2024 00:01', 'Manual date: No → Yes']],
+    ['date', ['2024:01:01 00:00:00', 0], ['2024:01:01 00:01:00', 1], ['Capture date: Jan 1, 2024 00:00 → Jan 1, 2024 00:01', 'Manual date: No → Yes']],
     ['review', [4, 0, 0, 1], [0, 0, 1, 0], ['Stars: 4 → Unknown', 'Decision: Kept → Rejected']],
   ] as const) {
     it(`lists only the changed ${kind} fields of each photo after expansion`, async () => {
