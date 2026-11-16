@@ -10,6 +10,7 @@ export const SORT_ICONS: Readonly<Record<string, string>> = {
   aesthetic: FEATURE_MARK,
   quality_score: 'high_quality',
   date_taken: 'event',
+  date_added: 'add_photo_alternate',
   star_rating: 'star',
   face_quality: 'portrait',
   eye_sharpness: 'visibility',

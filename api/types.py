@@ -181,10 +181,11 @@ VALID_SORT_COLS = [opt[0] for opt in SORT_OPTIONS] + ['top_picks_score', 'learne
 
 # Sort columns that can be NULL: learned_score / narrative_moment_confidence when
 # untrained / unlabelled, and the supplementary IQA scores, where a photo the model
-# could not score stores NULL, never 5.0. ``shutter_speed`` is not listed: it sorts
+# could not score stores NULL, never 5.0, and ``date_added`` on a row that predates
+# the column. ``shutter_speed`` is not listed: it sorts
 # through its own seconds expression (see ``order_by_clause``) and always sinks its
 # missing and invalid values.
-NULLABLE_SORT_COLS = ('learned_score', 'narrative_moment_confidence', 'aesthetic_iaa',
+NULLABLE_SORT_COLS = ('learned_score', 'narrative_moment_confidence', 'aesthetic_iaa', 'date_added',
                       'liqe_score', 'face_quality_iqa') + DATA_GATED_SORT_COLS
 
 

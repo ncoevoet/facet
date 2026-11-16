@@ -228,11 +228,13 @@ Il pulsante di ordinamento nell'intestazione (e nella barra mobile) mostra l'ico
 
 Le velocità dell'otturatore si ordinano per durata, quindi `1/250` e `0.004` sono uguali. I valori mancanti o non validi vanno in fondo in entrambe le direzioni.
 
+**Data di aggiunta** ordina in base a quando Facet ha analizzato una foto per la prima volta, così una nuova importazione compare per prima in ordine decrescente qualunque sia la sua data di scatto. Una nuova analisi, anche con `--force`, la conserva. Una foto che hai spostato tu stesso torna come una foto nuova, a meno che non esegui [`--relink-photos`](RELINK.md). Le foto già presenti nella libreria al momento dell'aggiornamento non hanno una data finché un'analisi non le riscrive (prendono allora l'ora della loro analisi precedente), e vanno in fondo in entrambe le direzioni. I link degli album condivisi non mostrano questa data né consentono di ordinare in base a essa.
+
 Colonne ordinabili per gruppo (da `viewer.sort_options`):
 
 | Gruppo | Colonne |
 |-------|---------|
-| **Generale** | Punteggio aggregato, Estetica, Punteggio di qualità, Data di scatto, Valutazione a stelle, Estetica (IAA), Punteggio LIQE, Q-ReAlign (Estetica), DeQA, Estetica v2.5 (gli ultimi tre compaiono quando una foto ha quel punteggio) |
+| **Generale** | Punteggio aggregato, Estetica, Punteggio di qualità, Data di scatto, Data di aggiunta, Valutazione a stelle, Estetica (IAA), Punteggio LIQE, Q-ReAlign (Estetica), DeQA, Estetica v2.5 (gli ultimi tre compaiono quando una foto ha quel punteggio) |
 | **Metriche volti** | Qualità del volto, Qualità del volto (IQA), Nitidezza degli occhi, Nitidezza del volto, Rapporto del volto, Numero di volti |
 | **Tecnica** | Nitidezza tecnica, Contrasto, Livello di rumore |
 | **Colore** | Punteggio colore, Saturazione |

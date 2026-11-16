@@ -44,8 +44,16 @@ from utils.image_bounds import LIQE_MIN_SHORT_SIDE, liqe_input_too_small
 from utils.selection import LEAD_SCORE_COLUMNS_SQL
 
 
+# A row that predates date_added inherits its old scanned_at: SET reads the stored row.
+DATE_ADDED_NOW_SQL = "strftime('%Y-%m-%dT%H:%M:%SZ', 'now')"
+DATE_ADDED_KEEP_SET = ("date_added=COALESCE(photos.date_added, "
+                       "replace(photos.scanned_at, ' ', 'T') || 'Z', excluded.date_added)")
+
+
 def _manual_override_set(c):
     """``SET`` fragment for column ``c``: a hand-set GPS or capture date survives a rescan."""
+    if c == 'date_added':
+        return DATE_ADDED_KEEP_SET
     if c in ('gps_latitude', 'gps_longitude'):
         return f"{c}=CASE WHEN photos.gps_manually_set=1 THEN photos.{c} ELSE excluded.{c} END"
     if c in ('date_taken', 'date_manually_set'):
@@ -99,12 +107,13 @@ def _photos_partial_upsert(computed_columns):
     conflict update, so an existing row keeps everything the pass did not touch —
     no reset of ``scanned_at`` (``--force-since`` reads it), no thumbnail
     re-encode, no NULLing of another pass's data, and no stamp claiming a
-    thumbnail this pass never rebuilt.
+    thumbnail this pass never rebuilt. ``date_added`` is only ever filled, never
+    replaced (``DATE_ADDED_KEEP_SET``).
     """
     insert_cols = list(_PARTIAL_CORE_COLUMNS) + list(computed_columns)
-    placeholders = [f":{c}" for c in insert_cols] + ["datetime('now')", str(DISPLAY_RENDER_VERSION)]
-    all_cols = insert_cols + ['scanned_at', 'render_version']
-    updates = ', '.join(_manual_override_set(c) for c in computed_columns)
+    placeholders = [f":{c}" for c in insert_cols] + ["datetime('now')", str(DISPLAY_RENDER_VERSION), DATE_ADDED_NOW_SQL]
+    all_cols = insert_cols + ['scanned_at', 'render_version', 'date_added']
+    updates = ', '.join([*(_manual_override_set(c) for c in computed_columns), DATE_ADDED_KEEP_SET])
     return (
         f"INSERT INTO photos ({', '.join(all_cols)}) "
         f"VALUES ({', '.join(placeholders)}) "
@@ -3018,7 +3027,7 @@ class Facet:
                         form_symmetry, form_balance, form_edge_entropy, form_fractal, color_harmony,
                         gps_latitude, gps_longitude,
                         file_size, exposure_compensation, flash, white_balance, metering_mode,
-                        artist, copyright, scanned_at, render_version
+                        artist, copyright, scanned_at, render_version, date_added
                     )
                     VALUES (
                         :path, :filename, :category, :image_width, :image_height,
@@ -3041,7 +3050,7 @@ class Facet:
                         :form_symmetry, :form_balance, :form_edge_entropy, :form_fractal, :color_harmony,
                         :gps_latitude, :gps_longitude,
                         :file_size, :exposure_compensation, :flash, :white_balance, :metering_mode,
-                        :artist, :copyright, datetime('now'), {DISPLAY_RENDER_VERSION}
+                        :artist, :copyright, datetime('now'), {DISPLAY_RENDER_VERSION}, {DATE_ADDED_NOW_SQL}
                     )
                 '''), res)
                 # A full save replaces the observation even when two scans land

@@ -1273,7 +1273,7 @@ async def get_shared_album(
                 pass
 
         sort = explicit_sort or saved_sort or 'aggregate'
-        private_sort_columns = get_preference_columns()
+        private_sort_columns = {*get_preference_columns(), 'date_added'}
         if sort not in VALID_SORT_COLS or sort in private_sort_columns:
             sort = 'aggregate'
         effective_sort_dir = explicit_sort_dir or saved_sort_dir or 'DESC'

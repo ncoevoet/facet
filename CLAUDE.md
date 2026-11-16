@@ -253,6 +253,11 @@ than a copy. The semantics you cannot read off a column name:
   bakes for a bracketed frame. Read it against `sequence_kind`, never alone — a `1` is
   current for an ordinary photo and stale for one a later pass groups into a bracket.
   See `db/render_version.py`.
+- **`date_added`** is set on INSERT and only ever filled afterwards (`DATE_ADDED_KEEP_SET` in
+  `processing/scorer.py`), so it survives `--force`, unlike `scanned_at`. NULL means the row
+  predates the column and no scan has rewritten it since. There is deliberately no upgrade
+  backfill: any UPDATE of a `photos` row rewrites its inline thumbnail, so a one-column backfill
+  rewrites the whole table.
 - **`channel_clip_shadow_pct` / `channel_clip_highlight_pct`** are per-channel clipping
   percentages (worst of R/G/B), `NULL` until `--backfill-clipping` or a rescan derives
   them from a stored histogram — `NULL` means *unknown*, never *clean*, so the row

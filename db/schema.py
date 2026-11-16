@@ -188,6 +188,11 @@ PHOTOS_COLUMNS = [
 
     # Scan bookkeeping (ISO timestamp of last successful scoring)
     ('scanned_at', 'TEXT'),
+    # When the row was first inserted (ISO UTC, `...Z`); never updated afterwards, so it
+    # survives a forced rescan that rewrites scanned_at. NULL for a row that predates
+    # the column until a scan rewrites it (it then inherits the old scanned_at): an
+    # upgrade-time backfill would rewrite every row, thumbnail and all.
+    ('date_added', 'TEXT'),
 
     # Narrative moment (opt-in --detect-moments; NULL until that pass runs)
     ('narrative_moment', 'TEXT'),              # e.g. 'celebration', 'beach', 'other'
@@ -495,6 +500,8 @@ INDEXES = [
     # idx_qrealign_score (dropped on upgrade): CREATE INDEX IF NOT EXISTS cannot
     # reshape an index, hence the new name.
     ('idx_qrealign_sort', 'photos', 'qrealign_score DESC, path'),
+    # "Date Added" sort: same (X DESC, path) shape and ANALYZE-on-build.
+    ('idx_date_added_sort', 'photos', 'date_added DESC, path'),
     # DeQA sort + min/max_deqa range filter: same (X DESC, path) shape and ANALYZE-on-build
     # as idx_qrealign_sort. Replaces the bare idx_deqa_score (dropped on upgrade).
     ('idx_deqa_sort', 'photos', 'deqa_score DESC, path'),
@@ -1820,7 +1827,7 @@ ANALYZE_KEY_INDEXES = ('idx_moment_confidence', 'idx_gallery_aggregate')
 # without a sqlite_stat1 row for the new index the planner ignores it next to
 # stale partial stats. A one-index ANALYZE scans the small covering index, not the
 # 16 GB table, so it costs seconds where ``ANALYZE photos`` costs the whole file.
-ANALYZE_ON_BUILD_INDEXES = ('idx_post_scan', 'idx_date_asc_cover', 'idx_qrealign_sort',
+ANALYZE_ON_BUILD_INDEXES = ('idx_post_scan', 'idx_date_asc_cover', 'idx_qrealign_sort', 'idx_date_added_sort',
                             'idx_deqa_sort', 'idx_aesthetic_v25_sort', 'idx_faces_photo_person')
 
 

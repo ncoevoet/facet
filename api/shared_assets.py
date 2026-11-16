@@ -15,7 +15,9 @@ MAX_ASSET_REFERENCE_LENGTH = 85  # signed int64 rowid + dot + SHA-256 hex digest
 
 _REFERENCE = re.compile(r'(-?[1-9][0-9]{0,18}|0)\.([0-9a-f]{64})')
 # Authorship (artist, copyright) names the owner; a link recipient gets the photo, not who took it.
-_PRIVATE_FIELDS = frozenset({'path', 'star_rating', 'is_favorite', 'is_rejected', 'is_kept', 'artist', 'copyright'})
+# date_added is when the owner imported it: library history, not the photo's.
+_PRIVATE_FIELDS = frozenset({'path', 'star_rating', 'is_favorite', 'is_rejected', 'is_kept', 'artist', 'copyright',
+                             'date_added'})
 
 
 def public_photo_fields(photo: dict) -> dict:

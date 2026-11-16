@@ -1683,6 +1683,7 @@
                   "learned_score",
                   "star_rating",
                   "filename",
+                  "date_added",
                   null
                 ],
                 "type": [
@@ -2241,5 +2242,5 @@
       "name": "ui_show_comparison"
     }
   ],
-  "version": "e7d6bbe8ae66aa9b"
+  "version": "ff57ad2b8e91ffe3"
 }

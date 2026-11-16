@@ -3487,6 +3487,10 @@
           "label": "Date Taken"
         },
         {
+          "column": "date_added",
+          "label": "Date Added"
+        },
+        {
           "column": "star_rating",
           "label": "Star Rating"
         },

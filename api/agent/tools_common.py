@@ -77,7 +77,7 @@ FilterValue = Union[str, int, float, bool]
 SortColumn = Literal[
     "aggregate", "aesthetic", "date_taken", "comp_score", "face_quality", "tech_sharpness",
     "exposure_score", "color_score", "contrast_score", "topiq_score", "quality_score",
-    "top_picks_score", "learned_score", "star_rating", "filename",
+    "top_picks_score", "learned_score", "star_rating", "filename", "date_added",
 ]
 
 

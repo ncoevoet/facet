@@ -228,11 +228,13 @@ Le bouton de tri de l'en-tête (et de la barre d'outils mobile) affiche l'icône
 
 Les vitesses d'obturation sont triées par durée, donc `1/250` et `0.004` sont égales. Les valeurs manquantes ou invalides apparaissent en dernier dans les deux sens.
 
+**Date d'ajout** trie selon le moment où Facet a analysé une photo pour la première fois : un nouvel import arrive en tête en ordre décroissant, quelle que soit sa date de prise de vue. Une nouvelle analyse, même avec `--force`, la conserve. Une photo que vous avez déplacée vous-même revient comme une nouvelle photo, sauf si vous lancez [`--relink-photos`](RELINK.md). Les photos déjà présentes dans la bibliothèque lors de la mise à jour n'ont pas de date tant qu'une analyse ne les réécrit pas (elles prennent alors l'heure de leur analyse précédente), et apparaissent en dernier dans les deux sens. Les liens d'albums partagés n'affichent pas cette date et ne permettent pas de trier selon elle.
+
 Colonnes triables par groupe (d'après `viewer.sort_options`) :
 
 | Groupe | Colonnes |
 |-------|---------|
-| **Général** | Score global, Esthétique, Score de qualité, Date de prise de vue, Note en étoiles, Esthétique (IAA), Score LIQE, Q-ReAlign (Esthétique), DeQA, Esthétique v2.5 (les trois derniers apparaissent dès qu'une photo a ce score) |
+| **Général** | Score global, Esthétique, Score de qualité, Date de prise de vue, Date d'ajout, Note en étoiles, Esthétique (IAA), Score LIQE, Q-ReAlign (Esthétique), DeQA, Esthétique v2.5 (les trois derniers apparaissent dès qu'une photo a ce score) |
 | **Métriques de visage** | Qualité du visage, Qualité du visage (IQA), Netteté des yeux, Netteté du visage, Proportion du visage, Nombre de visages |
 | **Technique** | Netteté technique, Contraste, Niveau de bruit |
 | **Couleur** | Score de couleur, Saturation |

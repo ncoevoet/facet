@@ -401,6 +401,16 @@ def test_date_sorted_pages_walk_their_covering_index(gallery, traced, sparse_db,
     assert not _uses(_plans(sparse_db, found)["page"], index)
 
 
+def test_date_added_desc_page_walks_its_sort_index(gallery, traced, sparse_db):
+    client = gallery(sparse_db)
+    found = _capture(client, traced, f"{HIDES}&sort=date_added&dir=DESC")
+    page = _plan(sparse_db, found["page"])
+    assert _uses(page, "idx_date_added_sort") and not _temp_sort(page), page
+
+    _drop_registry(sparse_db, ["idx_date_added_sort"])
+    assert _temp_sort(_plan(sparse_db, found["page"]))
+
+
 def test_category_filter_is_a_covering_search_on_the_category_index(gallery, traced, sparse_db):
     client = gallery(sparse_db)
     queries = [f"{HIDES}&category=portrait", f"{HIDES}&category=landscape&sort=date_taken"]
