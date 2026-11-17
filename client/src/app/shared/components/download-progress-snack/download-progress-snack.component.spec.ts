@@ -34,6 +34,19 @@ describe('DownloadProgressSnackComponent', () => {
     expect(el.querySelector('mat-progress-bar')?.getAttribute('aria-valuenow')).toBe('25');
   });
 
+  it('follows the batch as it runs, holding at the total on the last file', () => {
+    const fixture = TestBed.createComponent(DownloadProgressSnackComponent);
+    fixture.detectChanges();
+    const el = fixture.nativeElement as HTMLElement;
+    expect(el.textContent).toContain('gallery.selection.download_progress {"done":1,"total":4}');
+    expect(el.querySelector('mat-progress-bar')?.getAttribute('aria-valuenow')).toBe('0');
+    done.set(4); failed.set(1);
+    fixture.detectChanges();
+    expect(el.textContent).toContain('gallery.selection.download_progress {"done":4,"total":4}');
+    expect(el.textContent).toContain('gallery.selection.download_progress_failed {"failed":1}');
+    expect(el.querySelector('mat-progress-bar')?.getAttribute('aria-valuenow')).toBe('100');
+  });
+
   it('mentions failures once there are some', () => {
     done.set(2); failed.set(1);
     expect(render().textContent).toContain('gallery.selection.download_progress_failed {"failed":1}');

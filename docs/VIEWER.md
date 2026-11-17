@@ -953,7 +953,7 @@ Download photos from photo detail or the selection bar. The per-photo download m
 
 A newly added RAW companion can take up to five minutes to appear in this menu.
 
-Downloading several selected photos — in the gallery or a shared album — shows a notification with the running count, a progress bar and **Cancel**, then a message once the last file is saved. A photo that fails (a darktable render error, a file gone from disk) is skipped and counted, and the rest still download.
+Downloading several selected photos — in the gallery or a shared album — shows a notification with the running count, a progress bar and **Cancel**, then a message once the last file is saved. A photo that fails (a darktable render error, a file gone from disk) is skipped and counted, and the rest still download. A lost connection or session, or three failures in a row (a revoked shared link, a server that is down), stops the batch instead. The final message waits for an **Undo** offer still on screen rather than replacing it.
 
 **Saliency-aware social crop.** With `viewer.features.show_social_export` on (default `true`) and edition unlocked, the photo detail download bar has a **Social crop** menu. It lists `social_export.presets` (square 1:1, portrait 4:5, story 9:16 by default). Choosing one downloads a full-resolution JPEG cropped to that aspect and centered on the subject. The subject comes from the BiRefNet subject box (`photos.subject_bbox`, from `--recompute-saliency`), else the detected faces, else the center. The menu tooltip shows which was used (`saliency` / `faces` / `center`).
 

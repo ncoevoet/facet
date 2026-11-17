@@ -12,20 +12,7 @@ export function downloadBlob(blob: Blob, filename: string): void {
   URL.revokeObjectURL(blobUrl);
 }
 
-async function triggerBlobDownload(
-  fetchBlob: () => Observable<Blob>,
-  filename: string,
-): Promise<void> {
-  downloadBlob(await firstValueFrom(fetchBlob()), filename);
-}
-
-export async function downloadAll(
-  paths: string[],
-  buildUrl: (path: string) => string,
-  getRaw: (url: string) => Observable<Blob>,
-): Promise<void> {
-  for (const path of paths) {
-    const filename = path.split(/[\\/]/).pop() ?? '';
-    await triggerBlobDownload(() => getRaw(buildUrl(path)), filename);
-  }
+/** Fetch one file and save it as `filename`; rejects, saving nothing, when the fetch fails. */
+export async function downloadFile(blob$: Observable<Blob>, filename: string): Promise<void> {
+  downloadBlob(await firstValueFrom(blob$), filename);
 }

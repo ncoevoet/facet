@@ -1,7 +1,7 @@
-import { of, Observable } from 'rxjs';
-import { downloadAll } from './download';
+import { of, throwError } from 'rxjs';
+import { downloadFile } from './download';
 
-describe('downloadAll', () => {
+describe('downloadFile', () => {
   let revokeObjectURLSpy: ReturnType<typeof vi.spyOn>;
   let appendChildSpy: ReturnType<typeof vi.spyOn>;
   let removeChildSpy: ReturnType<typeof vi.spyOn>;
@@ -44,28 +44,10 @@ describe('downloadAll', () => {
     vi.restoreAllMocks();
   });
 
-  function getRaw(): Observable<Blob> {
-    return of(new Blob(['data'], { type: 'text/plain' }));
-  }
+  const blob = () => of(new Blob(['data'], { type: 'text/plain' }));
 
-  it('does nothing for an empty path list', async () => {
-    const buildUrl = vi.fn((p: string) => `http://api/raw?path=${p}`);
-    const rawFn = vi.fn(getRaw);
-    await downloadAll([], buildUrl, rawFn);
-
-    expect(buildUrl).not.toHaveBeenCalled();
-    expect(rawFn).not.toHaveBeenCalled();
-    expect(clickSpy).not.toHaveBeenCalled();
-  });
-
-  it('builds the URL, fetches the blob, and triggers a download for a single path', async () => {
-    const buildUrl = vi.fn((p: string) => `http://api/raw?path=${p}`);
-    const rawFn = vi.fn(getRaw);
-
-    await downloadAll(['photos/IMG_1234.jpg'], buildUrl, rawFn);
-
-    expect(buildUrl).toHaveBeenCalledWith('photos/IMG_1234.jpg');
-    expect(rawFn).toHaveBeenCalledWith('http://api/raw?path=photos/IMG_1234.jpg');
+  it('fetches the blob and saves it under the given filename', async () => {
+    await downloadFile(blob(), 'IMG_1234.jpg');
 
     // Assert on the operation's own anchor, not the global URL.* call counts:
     // createObjectURL/revokeObjectURL are shared globals other specs also touch,
@@ -81,34 +63,9 @@ describe('downloadAll', () => {
     expect(revokeObjectURLSpy).toHaveBeenCalledWith(a.href); // blob URL freed (no leak)
   });
 
-  it('derives the filename from the last path segment, supporting both / and \\ separators', async () => {
-    const buildUrl = (p: string) => p;
-    await downloadAll(['C:\\Users\\me\\pics\\shot.cr3'], buildUrl, getRaw);
+  it('rejects and saves nothing when the fetch fails', async () => {
+    await expect(downloadFile(throwError(() => new Error('gone')), 'x.jpg')).rejects.toThrow('gone');
 
-    expect(anchors[0].download).toBe('shot.cr3');
-  });
-
-  it('uses an empty filename when the path has no segments', async () => {
-    const buildUrl = (p: string) => p;
-    await downloadAll([''], buildUrl, getRaw);
-
-    expect(anchors[0].download).toBe('');
-  });
-
-  it('processes multiple paths sequentially, one download each', async () => {
-    const buildUrl = (p: string) => `url:${p}`;
-    const rawFn = vi.fn(getRaw);
-
-    await downloadAll(['a/one.jpg', 'b/two.jpg', 'c/three.jpg'], buildUrl, rawFn);
-
-    expect(rawFn).toHaveBeenCalledTimes(3);
-    expect(clickSpy).toHaveBeenCalledTimes(3);
-    expect(anchors.map((a) => a.download)).toEqual(['one.jpg', 'two.jpg', 'three.jpg']);
-    // One blob URL created (href set) and freed per download — scoped to this
-    // operation's anchors so it can't flake on sibling specs' global URL.* calls.
-    for (const a of anchors) {
-      expect(a.href).toContain('blob:mock/');
-      expect(revokeObjectURLSpy).toHaveBeenCalledWith(a.href);
-    }
+    expect(clickSpy).not.toHaveBeenCalled();
   });
 });

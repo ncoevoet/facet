@@ -246,7 +246,7 @@ describe('SharedViewComponent', () => {
     await component.downloadSelected();
     expect(component.error()).toBe('');
     expect(component.photos()).toHaveLength(2);
-    expect(notice).toHaveBeenCalled();
+    expect(notice).toHaveBeenCalledWith('gallery.selection.download_partial', '', { duration: 5000 });
   });
 
   it('retains the filter drawer while a filter refresh is pending', async () => {

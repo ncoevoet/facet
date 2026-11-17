@@ -23,12 +23,16 @@ export interface DownloadProgressState {
 }
 
 const RESULT_TOAST_MS = 5000;
-const AUTH_REFUSALS = new Set([401, 403]);
+/** A lost connection (0) or session (401, 403) fails every later file too. */
+const HALT_STATUSES = new Set([0, 401, 403]);
+/** Failures in a row that stop the batch: a revoked shared link answers 404, a down server 5xx. */
+const MAX_CONSECUTIVE_FAILURES = 3;
 
 /**
  * Downloads a batch of files one after another behind a persistent progress
  * snackbar with Cancel, then one toast that says how the batch ended. A failed
- * file is counted and skipped rather than aborting the rest.
+ * file is counted and skipped rather than aborting the rest, until the failures
+ * show the rest cannot succeed either.
  */
 @Injectable({ providedIn: 'root' })
 export class DownloadProgressService {
@@ -43,6 +47,8 @@ export class DownloadProgressService {
     const failed = signal(0);
     const cancelled = new Subject<void>();
     let stopped = false;
+    let halted = false;
+    let finished = false;
     const state: DownloadProgressState = {
       done: done.asReadonly(),
       failed: failed.asReadonly(),
@@ -52,34 +58,47 @@ export class DownloadProgressService {
     // A failed render must not raise the global 5xx toast: the snackbar shows
     // one message at a time, so it would replace the progress notification.
     const context = new HttpContext().set(HANDLE_SERVER_ERROR_LOCALLY, true);
-    let shown = this.openProgress(state);
+    let progress!: MatSnackBarRef<DownloadProgressSnackComponent>;
+    // Another snackbar (an Undo offer, say) replaces the progress one: bring it
+    // back as soon as that one has gone, never over it.
+    const showProgress = () => {
+      progress = this.snackBar.openFromComponent(DownloadProgressSnackComponent, { data: state });
+      progress.afterDismissed().subscribe(() => {
+        if (!finished) this.whenNoOtherSnackbar(() => { if (!finished) showProgress(); });
+      });
+    };
+    showProgress();
+    let streak = 0;
     try {
       for (const item of items) {
         if (stopped || !current()) break;
-        // Another snackbar (an Undo offer, say) replaced the progress one: bring it
-        // back once that one has gone, never over it.
-        if (!shown.visible && !this.snackBar._openedSnackBarRef) shown = this.openProgress(state);
-        let refused = false;
         try {
           const blob = await firstValueFrom(this.api.getRaw(item.url, context).pipe(takeUntil(cancelled)), { defaultValue: null });
           if (blob === null || !current()) break;
           downloadBlob(blob, item.filename);
+          streak = 0;
         } catch (ex) {
           failed.update(n => n + 1);
-          // A refused session refuses every later file too: one logout or
-          // access toast from the interceptor, not one per remaining photo.
-          refused = ex instanceof HttpErrorResponse && AUTH_REFUSALS.has(ex.status);
+          streak++;
+          // One logout or access toast from the interceptor, not one failed
+          // request per remaining photo.
+          halted = (ex instanceof HttpErrorResponse && HALT_STATUSES.has(ex.status)) || streak >= MAX_CONSECUTIVE_FAILURES;
         }
         done.update(n => n + 1);
-        if (refused) break;
+        if (halted) break;
       }
     } finally {
-      shown.ref.dismiss();
+      finished = true;
+      progress.dismiss();
       cancelled.complete();
     }
     if (!current()) return;
-    const message = this.resultMessage(done() - failed(), failed(), items.length, stopped);
-    this.snackBar.open(message, '', { duration: RESULT_TOAST_MS });
+    const message = this.resultMessage(done() - failed(), failed(), items.length, stopped || halted);
+    // The result replaces the progress notification, but waits for any other
+    // snackbar still showing: opening over an Undo offer would dismiss it.
+    this.whenNoOtherSnackbar(() => {
+      if (current()) this.snackBar.open(message, '', { duration: RESULT_TOAST_MS });
+    }, progress);
   }
 
   private resultMessage(saved: number, failed: number, total: number, stopped: boolean): string {
@@ -90,10 +109,17 @@ export class DownloadProgressService {
     return this.i18n.t(keys.download_done, { count: saved });
   }
 
-  private openProgress(state: DownloadProgressState): { ref: MatSnackBarRef<DownloadProgressSnackComponent>; visible: boolean } {
-    const ref = this.snackBar.openFromComponent(DownloadProgressSnackComponent, { data: state });
-    const shown = { ref, visible: true };
-    ref.afterDismissed().subscribe(() => { shown.visible = false; });
-    return shown;
+  /**
+   * Runs `show` once no snackbar but `own` is on screen. `_openedSnackBarRef` is
+   * Material's only handle on the snackbar showing at any level, opened by any
+   * caller; it is underscore-named, so the spec pins it against the real service.
+   */
+  private whenNoOtherSnackbar(show: () => void, own?: MatSnackBarRef<unknown>): void {
+    const other = this.snackBar._openedSnackBarRef;
+    if (!other || other === own) {
+      show();
+      return;
+    }
+    other.afterDismissed().subscribe(() => this.whenNoOtherSnackbar(show, own));
   }
 }
