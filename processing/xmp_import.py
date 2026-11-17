@@ -593,7 +593,7 @@ def _import_sidecars(conn, root, *, user_id, overwrite_manual_gps, dry_run, fiel
                     conn, row['path'], [
                         path for path in parsed['hierarchy_paths'] if _hierarchy_key(path) not in generated],
                     pending_prefixes=projected_prefixes if dry_run else None,
-                    tables_snapshot=schema_tables, table_exists=hierarchy_table)
+                    tables_snapshot=schema_tables)
                 diagnostics.extend(hierarchy_diagnostics)
         new_keywords = [
             tag for tag in _foreign_keywords(conn, row["path"], row["tags"], keywords, diagnostics)

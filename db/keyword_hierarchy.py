@@ -228,21 +228,19 @@ def photo_hierarchies(conn, photo_path, *, table_exists=None):
     return load_hierarchy_map(conn, [photo_path], table_exists=table_exists).get(photo_path, [])
 
 
-def plan_path_import(conn, photo_path, paths, *, pending_prefixes=None,
-                     tables_snapshot=None, table_exists=None):
+def plan_path_import(conn, photo_path, paths, *, pending_prefixes=None, tables_snapshot=None):
     """Read-only additive import plan, also valid on released schemas.
 
     Do not create speculative nodes for protected removals. The caller applies
     this plan under its writer transaction; previews never allocate identities.
-    ``tables_snapshot`` (the set of table names) and ``table_exists`` (whether
-    ``photo_keyword_nodes`` is among them) let a bulk importer probe the schema
-    once for its whole run instead of once per photo.
+    ``tables_snapshot`` (the set of table names) lets a bulk importer probe the
+    schema once for its whole run instead of once per photo.
     """
     tables = tables_snapshot
     if tables is None:
         tables = {row[0] for row in conn.execute("SELECT name FROM sqlite_master WHERE type='table'")}
     supported = 'photo_keyword_nodes' in tables
-    current = photo_hierarchies(conn, photo_path, table_exists=table_exists) if supported else []
+    current = photo_hierarchies(conn, photo_path, table_exists=True) if supported else []
     assigned = {tuple(name.casefold() for name in item['segments']): item for item in current}
     tombstones = list(conn.execute('SELECT path_key,node_id FROM keyword_assignment_deletions WHERE photo_path=?',
                                    (photo_path,))) if supported else []

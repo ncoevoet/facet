@@ -20,8 +20,7 @@ _NOISE_KERNEL = np.array([[1, -2, 1],
                           [-2, 4, -2],
                           [1, -2, 1]], dtype=np.float32)
 
-# ``cv2.calcHist`` counts in float32, which stops being exact at 2**24 pixels in one bin
-# (a 17 MP frame of a single grey level is realistic: a lens-cap shot, a clipped sky).
+
 def histogram_percentile(hist, q):
     """``np.percentile(gray, q)`` (method ``linear``) from a 256-bin histogram, bit for bit.
 

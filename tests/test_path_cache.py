@@ -1,8 +1,8 @@
-"""One resolve per path string per process (B141): a network share turns every
+"""One resolve per recent path string (B141): a network share turns every
 ``Path.resolve()`` into a latency-bound round trip, and the pipelines resolved
-the same string up to four times per photo."""
+the same string up to four times per photo. The cache is bounded so a
+library-wide scan does not retain every path it has seen."""
 
-import threading
 from pathlib import Path
 
 import pytest
@@ -12,12 +12,13 @@ from utils.path_cache import cached_resolve
 
 
 @pytest.fixture()
-def fresh_cache(monkeypatch):
-    monkeypatch.setattr(path_cache, '_CACHE', {})
-    return path_cache._CACHE
+def fresh_cache():
+    path_cache._resolve.cache_clear()
+    yield
+    path_cache._resolve.cache_clear()
 
 
-def test_resolves_like_path_resolve(tmp_path):
+def test_resolves_like_path_resolve(tmp_path, fresh_cache):
     target = tmp_path / 'photo.jpg'
     target.write_bytes(b'x')
     assert cached_resolve(target) == str(target.resolve())
@@ -47,17 +48,22 @@ def test_distinct_strings_resolve_distinctly(tmp_path, fresh_cache):
     assert a != b
 
 
-def test_concurrent_first_resolves_share_one_value(tmp_path, fresh_cache):
-    target = tmp_path / 'photo.jpg'
-    target.write_bytes(b'x')
-    results = []
+def test_cache_is_bounded(tmp_path, fresh_cache, monkeypatch):
+    # A library-wide scan must not retain every path it resolved: the oldest
+    # entries fall out once the bound is reached, and the newest stay cached.
+    bound = path_cache._MAX_ENTRIES
+    for i in range(bound + 50):
+        cached_resolve(tmp_path / f'{i}.jpg')
+    assert path_cache._resolve.cache_info().currsize == bound
+    calls = []
+    real_resolve = Path.resolve
 
-    def worker():
-        results.append(cached_resolve(target))
+    def counting_resolve(self, *a, **k):
+        calls.append(self)
+        return real_resolve(self, *a, **k)
 
-    threads = [threading.Thread(target=worker) for _ in range(8)]
-    for t in threads:
-        t.start()
-    for t in threads:
-        t.join()
-    assert len(set(results)) == 1
+    monkeypatch.setattr(Path, 'resolve', counting_resolve)
+    cached_resolve(tmp_path / f'{bound + 49}.jpg')
+    assert calls == []
+    cached_resolve(tmp_path / '0.jpg')
+    assert len(calls) == 1

@@ -6,6 +6,8 @@ import cv2
 import numpy as np
 
 
+# ``cv2.calcHist`` counts in float32, which stops being exact at 2**24 pixels in one bin
+# (a 17 MP frame of a single grey level is realistic: a lens-cap shot, a clipped sky).
 # Counting row bands of at most this many pixels keeps every partial count exact.
 _HIST_BAND_PIXELS = 1 << 22
 
