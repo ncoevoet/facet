@@ -11,12 +11,12 @@ test('the burst strip offers the AI edit beside its original', async ({ page }) 
 
   await test.step("2. The original's strip lists the edit as an AI edit", async () => {
     await page.goto('/photo?path=' + encodeURIComponent(libraryPath('burst', 'IMG_0001.jpg')));
-    await expect(page.getByRole('button', { name: 'Frame 3 of 3, AI edit' })).toBeVisible();
-    await expect(page.getByRole('button', { name: /^Frame [12] of 3$/ })).toHaveCount(2);
+    await expect(page.getByRole('button', { name: 'File 3 of 3, AI edit' })).toBeVisible();
+    await expect(page.getByRole('button', { name: /^File [12] of 3$/ })).toHaveCount(2);
   });
 
   await test.step('3. Choosing the edit in the strip opens the edit', async () => {
-    await page.getByRole('button', { name: 'Frame 3 of 3, AI edit' }).click();
+    await page.getByRole('button', { name: 'File 3 of 3, AI edit' }).click();
     await expect(page).toHaveURL(/IMG_0001_agy_1\.jpg/);
   });
 });
