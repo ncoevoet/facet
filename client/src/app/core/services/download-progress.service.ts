@@ -47,7 +47,6 @@ export class DownloadProgressService {
     const failed = signal(0);
     const cancelled = new Subject<void>();
     let stopped = false;
-    let halted = false;
     let finished = false;
     const state: DownloadProgressState = {
       done: done.asReadonly(),
@@ -58,16 +57,18 @@ export class DownloadProgressService {
     // A failed render must not raise the global 5xx toast: the snackbar shows
     // one message at a time, so it would replace the progress notification.
     const context = new HttpContext().set(HANDLE_SERVER_ERROR_LOCALLY, true);
-    let progress!: MatSnackBarRef<DownloadProgressSnackComponent>;
-    // Another snackbar (an Undo offer, say) replaces the progress one: bring it
-    // back as soon as that one has gone, never over it.
+    let progress: MatSnackBarRef<DownloadProgressSnackComponent> | undefined;
+    // Never open over another snackbar (an Undo offer, say): opening would
+    // dismiss it. Show the progress once that one has gone, and bring it back
+    // the same way whenever another snackbar replaces it.
     const showProgress = () => {
+      if (finished) return;
       progress = this.snackBar.openFromComponent(DownloadProgressSnackComponent, { data: state });
       progress.afterDismissed().subscribe(() => {
-        if (!finished) this.whenNoOtherSnackbar(() => { if (!finished) showProgress(); });
+        if (!finished) this.whenNoOtherSnackbar(showProgress);
       });
     };
-    showProgress();
+    this.whenNoOtherSnackbar(showProgress);
     let streak = 0;
     try {
       for (const item of items) {
@@ -82,18 +83,18 @@ export class DownloadProgressService {
           streak++;
           // One logout or access toast from the interceptor, not one failed
           // request per remaining photo.
-          halted = (ex instanceof HttpErrorResponse && HALT_STATUSES.has(ex.status)) || streak >= MAX_CONSECUTIVE_FAILURES;
+          stopped ||= (ex instanceof HttpErrorResponse && HALT_STATUSES.has(ex.status)) || streak >= MAX_CONSECUTIVE_FAILURES;
         }
         done.update(n => n + 1);
-        if (halted) break;
+        if (stopped) break;
       }
     } finally {
       finished = true;
-      progress.dismiss();
+      progress?.dismiss();
       cancelled.complete();
     }
     if (!current()) return;
-    const message = this.resultMessage(done() - failed(), failed(), items.length, stopped || halted);
+    const message = this.resultMessage(done() - failed(), failed(), items.length, stopped);
     // The result replaces the progress notification, but waits for any other
     // snackbar still showing: opening over an Undo offer would dismiss it.
     this.whenNoOtherSnackbar(() => {

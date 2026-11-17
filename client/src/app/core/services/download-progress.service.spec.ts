@@ -7,6 +7,7 @@ import { ApiService } from './api.service';
 import { I18nService } from './i18n.service';
 import { DownloadProgressService, DownloadProgressState } from './download-progress.service';
 import { HANDLE_SERVER_ERROR_LOCALLY } from '../utils/http-error-context';
+import { DownloadProgressSnackComponent } from '../../shared/components/download-progress-snack/download-progress-snack.component';
 
 describe('DownloadProgressService', () => {
   let getRaw: ReturnType<typeof vi.fn>;
@@ -98,6 +99,34 @@ describe('DownloadProgressService', () => {
     expect(getRaw).toHaveBeenCalledTimes(1);
     expect(saved).toEqual([]);
     expect(dismiss).toHaveBeenCalled();
+    expect(open).not.toHaveBeenCalled();
+  });
+
+  it('fetches nothing more when the file in flight fails after the caller stopped being current', async () => {
+    let live = true;
+    const pending = new Subject<Blob>();
+    getRaw.mockReturnValueOnce(pending);
+    const run = service.run(items('a.jpg', 'b.jpg'), () => live);
+    live = false;
+    pending.error(new HttpErrorResponse({ status: 500 }));
+    await run;
+    expect(getRaw).toHaveBeenCalledTimes(1);
+    expect(open).not.toHaveBeenCalled();
+  });
+
+  it('drops a result toast that waited behind another snackbar once the caller is no longer current', async () => {
+    let live = true;
+    const pending = new Subject<Blob>();
+    getRaw.mockReturnValueOnce(pending);
+    const run = service.run(items('a.jpg'), () => live);
+    const undoGone = new Subject<void>();
+    snackBar._openedSnackBarRef = { afterDismissed: () => undoGone };
+    pending.next(new Blob(['x'])); pending.complete();
+    await run;
+    expect(open).not.toHaveBeenCalled();
+    live = false;
+    snackBar._openedSnackBarRef = null;
+    undoGone.next();
     expect(open).not.toHaveBeenCalled();
   });
 
@@ -204,6 +233,19 @@ describe('DownloadProgressService with the real MatSnackBar', () => {
   });
 
   afterEach(() => vi.restoreAllMocks());
+
+  it('leaves an Undo offer already showing alone and shows the progress once it has gone', async () => {
+    const pending = new Subject<Blob>();
+    TestBed.overrideProvider(ApiService, { useValue: { getRaw: vi.fn(() => pending) } });
+    const snackBar = TestBed.inject(MatSnackBar);
+    const undo = snackBar.open('undo offer', 'Undo');
+    const run = TestBed.inject(DownloadProgressService).run([{ url: '/api/download?path=a.jpg', filename: 'a.jpg' }]);
+    expect(snackBar._openedSnackBarRef).toBe(undo);
+    undo.dismiss();
+    await vi.waitFor(() => expect(snackBar._openedSnackBarRef?.instance).toBeInstanceOf(DownloadProgressSnackComponent));
+    pending.next(new Blob(['x'])); pending.complete();
+    await run;
+  });
 
   it('waits for an Undo offer opened during the batch before showing its result', async () => {
     const pending = new Subject<Blob>();
