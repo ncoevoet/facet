@@ -1983,6 +1983,11 @@ def _run_scan_pipeline(args, resumed_run, lifecycle):
     # Filter the list to only include new or un-scanned files
     todo_list = [f for f in all_files if _resolved(f) in unscanned
                  and not _raw_paired_with_jpeg(f)]
+    # The pipelines resolve each path again (EXIF lookup, chunk lookups, override
+    # lookup, result dict); hand them the answers the walk above already paid for.
+    from utils.path_cache import seed_resolved
+    todo_paths = [str(f) for f in todo_list]
+    seed_resolved({p: _resolved(f) for p, f in zip(todo_paths, todo_list)})
     raw_paired_files = [f for f in all_files if _raw_paired_with_jpeg(f)]
     raw_paired_skipped = len(raw_paired_files)
 
@@ -2156,7 +2161,6 @@ def _run_scan_pipeline(args, resumed_run, lifecycle):
             from models.model_manager import ModelManager
 
             model_manager = ModelManager(scorer.config)
-            todo_paths = [str(f) for f in todo_list]
             processed = run_single_pass(todo_paths, args.single_pass_name, scorer, model_manager)
             if processed == 0:
                 # A pass the commercial policy refuses did nothing: say so in the
@@ -2186,7 +2190,6 @@ def _run_scan_pipeline(args, resumed_run, lifecycle):
             }
 
             tuning_enabled = auto_tuning.get('enabled', True)
-            todo_paths = [str(f) for f in todo_list]
 
             logger.info("Single-pass mode: %d batch, %d workers",
                         current_settings['batch_size'], current_settings['num_workers'])
@@ -2252,7 +2255,6 @@ def _run_scan_pipeline(args, resumed_run, lifecycle):
             from models.model_manager import ModelManager
 
             model_manager = ModelManager(scorer.config)
-            todo_paths = [str(f) for f in todo_list]
 
             # `processing.mode: single-pass` from config, after the TOPIQ-profile fallback
             proc_settings = scorer.config.get_processing_settings()

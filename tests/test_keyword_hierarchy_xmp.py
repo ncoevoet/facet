@@ -156,6 +156,27 @@ def test_released_schema_dry_run_plans_hierarchy_without_migration(tmp_path):
     assert db.read_bytes() == before
 
 
+def test_released_schema_write_import_refuses_hierarchy_without_migrating(tmp_path):
+    # The write path's guard reads the import's one schema snapshot: a plan
+    # that carries hierarchy on a schema without the hierarchy tables must
+    # refuse rather than create them behind the operator's back.
+    image = tmp_path / 'old.jpg'
+    image.write_bytes(b'original')
+    Path(str(image) + '.xmp').write_text(build_xmp(XmpRating(hierarchy_paths=['Places|Coast'])), encoding='utf-8')
+    db = tmp_path / 'old.db'
+    with sqlite3.connect(db) as conn:
+        schema = Path(__file__).parent / 'fixtures' / 'photo_stacks_v1_23_1_schema.sql'
+        conn.executescript(schema.read_text(encoding='utf-8'))
+        conn.execute('INSERT INTO photos(path) VALUES(?)', (str(image),))
+        conn.commit()
+    with sqlite3.connect(db) as conn:
+        conn.row_factory = sqlite3.Row
+        with pytest.raises(HierarchyError, match='Initialize the database schema'):
+            import_sidecars(conn, fields=['keywords'], dry_run=False)
+        assert conn.execute(
+            "SELECT 1 FROM sqlite_master WHERE type='table' AND name='photo_keyword_nodes'").fetchone() is None
+
+
 def test_import_cap_and_user_authority_refuse_without_creating_speculative_nodes():
     from db.keyword_hierarchy import plan_path_import
     with sqlite3.connect(':memory:') as conn:

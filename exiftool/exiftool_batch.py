@@ -11,9 +11,9 @@ import logging
 import math
 import subprocess
 import threading
-from pathlib import Path
 
 from int_affinity import storable_int
+from utils.path_cache import cached_resolve
 
 logger = logging.getLogger("facet.exiftool")
 
@@ -195,7 +195,7 @@ class ExifToolBatch:
                         for item in data:
                             source = item.get('SourceFile')
                             if source and 'Error' not in item:
-                                results[str(Path(source).resolve())] = item
+                                results[cached_resolve(source)] = item
                         chunk_success = True
                         break  # Success, no retry needed
 

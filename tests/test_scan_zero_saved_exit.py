@@ -213,3 +213,23 @@ def test_retry_failed_mode_ignores_dead_roots(tmp_path, monkeypatch, caplog):
         _run(tmp_path, monkeypatch, _processor(saved=0), photo_dir_exists=False,
              extra_args=("--retry-failed",))
     assert "Scan did not run" not in caplog.text
+
+
+@pytest.mark.timeout(30)
+def test_the_scan_seeds_the_resolve_cache_with_what_the_walk_resolved(tmp_path, monkeypatch):
+    # The walk resolves every photo to dedup it; the pipelines must reuse that
+    # answer instead of resolving each path again on a network share.
+    from pathlib import Path
+
+    from utils import path_cache
+
+    monkeypatch.setattr(path_cache, '_seeded', {})
+    seen = {}
+
+    class _Recording(_processor(saved=1)):
+        def process_directory(self, paths):
+            seen.update({p: path_cache._seeded.get(p) for p in paths})
+            return self.metrics
+
+    _run(tmp_path, monkeypatch, _Recording)
+    assert seen and all(resolved == str(Path(p).resolve()) for p, resolved in seen.items())
