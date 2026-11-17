@@ -1313,7 +1313,7 @@ Facet 会为每张照片标注它所描绘的活动。默认的 **general** 词�
 | 端点 | 返回 | 缓存 |
 |----------|---------|-------|
 | `GET /api/frame/photos?token=&count=` | `{photos: [{id, caption?, date_taken?, width, height}]}`——`count` 上限为 `frame.max_count`（默认 100），默认为 `frame.count`（20） | — |
-| `GET /api/frame/image/{id}?token=&max_edge=` | 照片 JPEG——原图缩放到 `max_edge`（上限为 `frame.max_edge`，默认 1920），原图不可达时为已存储的缩略图 | 长期不变 |
+| `GET /api/frame/image/{id}?token=&max_edge=` | 照片 JPEG——原图缩放到 `max_edge`（上限为 `frame.max_edge`，默认 1920，以及签发该 id 时的上限），原图不可达时为已存储的缩略图 | 长期不变 |
 | `GET /api/frame/next?token=` | 一张随机精选的 JPEG，每次调用都不同——适用于简单相框和 Home Assistant | `no-store` |
 
 ### 生成令牌
@@ -1352,7 +1352,7 @@ camera:
 
 把该摄像头添加到 Picture Glance / Picture Entity 卡片中，即可得到一个自动更新的相框。
 
-对于自行运行幻灯片的 **ImmichFrame 风格**客户端，请轮询 `GET /api/frame/photos?token=…&count=30` 获取 id，然后逐个获取 `GET /api/frame/image/{id}?token=…&max_edge=1920`。id 是稳定的，图片会被长期缓存，因此每张照片只需下载一次。
+对于自行运行幻灯片的 **ImmichFrame 风格**客户端，请轮询 `GET /api/frame/photos?token=…&count=30` 获取 id，然后逐个获取 `GET /api/frame/image/{id}?token=…&max_edge=1920`。只有当照片预览或 `frame.max_edge` 变化时 id 才会改变，图片会被长期缓存，因此每张照片只需下载一次。
 
 ## 手机自动上传
 

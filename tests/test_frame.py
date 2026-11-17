@@ -218,23 +218,9 @@ def _returned_names(resp, ids):
     """Map the ids in a /photos response back to seed names, by rowid: the id
     format itself is not comparable across a minting change (the payload now
     carries the frame's configured max edge)."""
-    from api.routers.frame import _resolve_id
-
-    def _rowid(pid):
-        resolved = _resolve_id(pid)
-        return None if resolved is None else resolved[0]
-
-    rowid_to_name = {}
-    for name, pid in ids.items():
-        rowid = _rowid(pid)
-        if rowid is not None:
-            rowid_to_name[rowid] = name
-    out = set()
-    for p in resp.json()["photos"]:
-        rowid = _rowid(p["id"])
-        if rowid is not None and rowid in rowid_to_name:
-            out.add(rowid_to_name[rowid])
-    return out
+    rowid_to_name = {_resolve_id(pid)[0]: name for name, pid in ids.items()}
+    returned = (_resolve_id(p["id"]) for p in resp.json()["photos"])
+    return {rowid_to_name[r[0]] for r in returned if r is not None and r[0] in rowid_to_name}
 
 
 # --- Auth / feature gate ---------------------------------------------------
@@ -361,29 +347,47 @@ class TestImage:
         assert resp.content[:2] == b"\xff\xd8"
         assert "immutable" in resp.headers["cache-control"]
 
+    @staticmethod
+    def _long_edge(client, photo_id, **params):
+        resp = client.get(f"/api/frame/image/{photo_id}", params={"token": TOKEN, **params})
+        assert resp.status_code == 200
+        with Image.open(BytesIO(resp.content)) as img:
+            return max(img.size)
+
     def test_image_respects_max_edge_cap(self, client, frame_cfg, seed):
+        # Caps below the 64 px seed image, so every bound is observable.
+        frame_cfg["max_edge"] = 32
         photos = client.get(
             "/api/frame/photos", params={"token": TOKEN, "count": 100}
         ).json()["photos"]
         photo_id = photos[0]["id"]
         # The minted id carries the configured cap: without a query it serves
         # at that cap, the query can still lower it (its documented power),
-        # and no query can raise it past the cap the id was minted with -- a
-        # config edit reaches displays through the next poll's new ids.
-        resp = client.get(f"/api/frame/image/{photo_id}", params={"token": TOKEN})
+        # and no query can raise it past the cap the id was minted with.
+        assert self._long_edge(client, photo_id) == 32
+        assert self._long_edge(client, photo_id, max_edge=16) == 16
+        assert self._long_edge(client, photo_id, max_edge=8000) == 32
+        # Raising the config cap reaches displays through the next poll's new
+        # ids; lowering it binds a live id at once, since ids never expire.
+        frame_cfg["max_edge"] = 48
+        assert self._long_edge(client, photo_id) == 32
+        frame_cfg["max_edge"] = 20
+        assert self._long_edge(client, photo_id) == 20
+
+    def test_legacy_id_clamps_against_the_config_and_honours_the_query(self, client, frame_cfg, seed):
+        frame_cfg["max_edge"] = 32
+        legacy_id = seed["good"]
+        assert _resolve_id(legacy_id)[1] is None
+        assert self._long_edge(client, legacy_id) == 32
+        assert self._long_edge(client, legacy_id, max_edge=16) == 16
+
+    def test_an_unparseable_max_edge_falls_back_to_the_default(self, client, frame_cfg, seed):
+        frame_cfg["max_edge"] = "1920px"
+        resp = client.get("/api/frame/photos", params={"token": TOKEN, "count": 100})
         assert resp.status_code == 200
-        with Image.open(BytesIO(resp.content)) as img:
-            assert max(img.size) <= 1920
-        resp = client.get(
-            f"/api/frame/image/{photo_id}", params={"token": TOKEN, "max_edge": 16}
-        )
-        with Image.open(BytesIO(resp.content)) as img:
-            assert max(img.size) <= 16
-        resp = client.get(
-            f"/api/frame/image/{photo_id}", params={"token": TOKEN, "max_edge": 8000}
-        )
-        with Image.open(BytesIO(resp.content)) as img:
-            assert max(img.size) <= 1920
+        photo_id = resp.json()["photos"][0]["id"]
+        assert _resolve_id(photo_id)[1] == 1920
+        assert self._long_edge(client, photo_id) == 64
 
     def test_unknown_id_404(self, client, frame_cfg, seed):
         resp = client.get(

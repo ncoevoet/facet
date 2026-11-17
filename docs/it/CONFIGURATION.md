@@ -1698,7 +1698,7 @@ Visualizzazione e comportamento della galleria web.
 | `security_headers.content_security_policy` | _(predefinito sicuro per la SPA)_ | Header Content-Security-Policy; `""` lo disattiva, oppure fornisci una policy più restrittiva |
 | `security_headers.hsts` | `false` | Invia `Strict-Transport-Security`. Abilita solo quando il viewer è servito via HTTPS. |
 | **Altro** | | |
-| `cache_ttl_seconds` | `3600` | TTL delle cache in memoria di statistiche/query; tienilo più lungo di un calcolo completo delle statistiche (può richiedere minuti) |
+| `cache_ttl_seconds` | `3600` | TTL delle cache in memoria di statistiche/query; tienilo più lungo di un calcolo completo delle statistiche (può richiedere minuti); un valore non analizzabile o non finito torna a `3600` con un avviso, `0` o un valore negativo fa scadere subito le voci |
 | `notification_duration_ms` | `2000` | Durata del toast |
 | `moment_confidence_min` | `0` | Le etichette dei momenti sotto questa confidenza (0–1) appaiono attenuate con «(incerto)»; `0` = mai attenuate |
 
@@ -1846,7 +1846,6 @@ Note:
 | `features.show_proofing` | `false` | Interruttore principale per la revisione del cliente sugli album condivisi |
 | `proofing.pin` | `""` | PIN facoltativo che un cliente deve inserire con il link di condivisione; vuoto = nessun PIN (i tentativi hanno un limite di frequenza) |
 | `proofing.session_minutes` | `1440` | Durata della sessione del cliente in minuti (24h); termina subito se l'album non è più condiviso o la revisione è disattivata; un valore non analizzabile o non positivo torna al valore predefinito, al massimo una settimana |
-
 
 ### Mappatura dei percorsi
 
@@ -2648,8 +2647,7 @@ Distribuisce gli «scatti migliori» curati a dispositivi in modalità chiosco s
 | `count` | `20` | Numero predefinito di foto restituite da `/api/frame/photos` |
 | `max_count` | `100` | Limite rigido del parametro di query `count` |
 | `min_aggregate` | `7.0` | Punteggio aggregato minimo perché una foto venga curata |
-| `max_edge` | `1920` | Limite del lato lungo (px) dei JPEG serviti; il parametro `max_edge` può solo abbassarlo; gli id delle foto emessi portano questo limite, una modifica arriva ai display al loro prossimo sondaggio |
-
+| `max_edge` | `1920` | Limite del lato lungo (px) dei JPEG serviti; il parametro `max_edge` può solo abbassarlo. Gli id delle foto emessi portano il limite: alzarlo arriva ai display al loro prossimo sondaggio, abbassarlo si applica subito |
 | `favorites_only` | `false` | Se `true`, vengono curate solo le foto preferite |
 | `categories` | `[]` | Elenco consentito di nomi di categoria (vuoto = tutte) |
 

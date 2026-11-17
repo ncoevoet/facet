@@ -1313,7 +1313,7 @@ Les cadres photo connectés, les tableaux de bord Home Assistant et les affichag
 | Point d'accès | Renvoie | Cache |
 |----------|---------|-------|
 | `GET /api/frame/photos?token=&count=` | `{photos: [{id, caption?, date_taken?, width, height}]}` — `count` plafonné à `frame.max_count` (100 par défaut), vaut par défaut `frame.count` (20) | — |
-| `GET /api/frame/image/{id}?token=&max_edge=` | le JPEG de la photo — original réduit à `max_edge` (plafonné par `frame.max_edge`, 1920 par défaut), ou la miniature stockée si l'original est inaccessible | immuable longue durée |
+| `GET /api/frame/image/{id}?token=&max_edge=` | le JPEG de la photo — original réduit à `max_edge` (plafonné par `frame.max_edge`, 1920 par défaut, et par le plafond avec lequel l'identifiant a été émis), ou la miniature stockée si l'original est inaccessible | immuable longue durée |
 | `GET /api/frame/next?token=` | un JPEG sélectionné au hasard, différent à chaque appel — pour les cadres simples et Home Assistant | `no-store` |
 
 ### Générer un jeton
@@ -1352,7 +1352,7 @@ camera:
 
 Ajoutez la caméra à une carte Picture Glance / Picture Entity pour obtenir un cadre photo qui se met à jour tout seul.
 
-Pour un client de type **ImmichFrame** qui gère son propre diaporama, interrogez `GET /api/frame/photos?token=…&count=30` pour obtenir les identifiants, puis récupérez chacun avec `GET /api/frame/image/{id}?token=…&max_edge=1920`. Les identifiants sont stables et les images sont mises en cache longtemps, donc chaque photo n'est téléchargée qu'une fois.
+Pour un client de type **ImmichFrame** qui gère son propre diaporama, interrogez `GET /api/frame/photos?token=…&count=30` pour obtenir les identifiants, puis récupérez chacun avec `GET /api/frame/image/{id}?token=…&max_edge=1920`. Un identifiant ne change que si l'aperçu de la photo ou `frame.max_edge` change, et les images sont mises en cache longtemps, donc chaque photo n'est téléchargée qu'une fois.
 
 ## Envoi automatique depuis le téléphone
 

@@ -1311,7 +1311,7 @@ Molduras de fotos inteligentes, painéis do Home Assistant e telas no estilo Imm
 | Endpoint | Retorna | Cache |
 |----------|---------|-------|
 | `GET /api/frame/photos?token=&count=` | `{photos: [{id, caption?, date_taken?, width, height}]}` — `count` limitado a `frame.max_count` (padrão 100), com padrão `frame.count` (20) | — |
-| `GET /api/frame/image/{id}?token=&max_edge=` | o JPEG da foto — original reduzido a `max_edge` (limitado por `frame.max_edge`, padrão 1920), ou a miniatura armazenada se o original estiver inacessível | imutável de longa duração |
+| `GET /api/frame/image/{id}?token=&max_edge=` | o JPEG da foto — original reduzido a `max_edge` (limitado por `frame.max_edge`, padrão 1920, e pelo limite com que o id foi emitido), ou a miniatura armazenada se o original estiver inacessível | imutável de longa duração |
 | `GET /api/frame/next?token=` | um JPEG curado aleatório, diferente a cada chamada — para molduras simples e Home Assistant | `no-store` |
 
 ### Gerando um token
@@ -1350,7 +1350,7 @@ camera:
 
 Adicione a câmera a um cartão Picture Glance / Picture Entity para obter uma moldura de fotos que se atualiza sozinha.
 
-Para um cliente **no estilo ImmichFrame** que executa a própria apresentação, consulte `GET /api/frame/photos?token=…&count=30` para obter ids e então busque cada `GET /api/frame/image/{id}?token=…&max_edge=1920`. Os ids são estáveis e as imagens ficam em cache de longa duração, então cada foto é baixada uma única vez.
+Para um cliente **no estilo ImmichFrame** que executa a própria apresentação, consulte `GET /api/frame/photos?token=…&count=30` para obter ids e então busque cada `GET /api/frame/image/{id}?token=…&max_edge=1920`. Um id só muda quando a pré-visualização da foto ou `frame.max_edge` muda, e as imagens ficam em cache de longa duração, então cada foto é baixada uma única vez.
 
 ## Envio Automático do Telefone
 

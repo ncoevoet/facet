@@ -1694,7 +1694,7 @@ Web gallery display and behavior.
 | `security_headers.content_security_policy` | _(SPA-safe default)_ | Content-Security-Policy header; `""` disables it, or supply a stricter policy |
 | `security_headers.hsts` | `false` | Send `Strict-Transport-Security`. Enable only when the viewer is served over HTTPS. |
 | **Other** | | |
-| `cache_ttl_seconds` | `3600` | TTL of the in-memory stats/query caches; keep it longer than a full stats computation (can take minutes) |
+| `cache_ttl_seconds` | `3600` | TTL of the in-memory stats/query caches; keep it longer than a full stats computation (can take minutes); an unparseable or non-finite value falls back to `3600` with a warning, `0` or a negative value expires entries at once |
 | `notification_duration_ms` | `2000` | Toast duration |
 | `moment_confidence_min` | `0` | Moment labels below this confidence (0–1) render dimmed with "(uncertain)"; `0` = never dim |
 
@@ -2643,7 +2643,7 @@ Serves curated best shots to kiosk devices without a login: smart photo frames, 
 | `count` | `20` | Default number of photos returned by `/api/frame/photos` |
 | `max_count` | `100` | Hard cap on the `count` query parameter |
 | `min_aggregate` | `7.0` | Minimum aggregate score for a photo to be curated |
-| `max_edge` | `1920` | Long-edge cap (px) for served JPEGs; minted photo ids carry the cap, so a change here reaches displays on their next poll; the `max_edge` query parameter can only lower it |
+| `max_edge` | `1920` | Long-edge cap (px) for served JPEGs; the `max_edge` query parameter can only lower it. Minted photo ids carry the cap: raising it reaches displays on their next poll, lowering it applies at once |
 | `favorites_only` | `false` | When `true`, only favorited photos are curated |
 | `categories` | `[]` | Allow-list of category names (empty = all categories) |
 

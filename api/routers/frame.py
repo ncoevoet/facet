@@ -19,6 +19,7 @@ from typing import Optional
 
 from fastapi import APIRouter, Header, HTTPException, Query, Request, Response
 
+from api.config import warn_bad_config_once
 from api.database import get_db
 from api.path_validation import resolve_photo_disk_path
 from api.token_auth import TokenFailureLimiter, require_static_token_throttled
@@ -114,9 +115,8 @@ def _resolve_id(photo_id: str) -> Optional[tuple]:
     payloads all resolve: the trailing ingredients exist to change the cache
     key, not the identity, so any authentic combination serves the row's
     current image. The edge is set only by ids minted after the config's
-    ``max_edge`` joined the payload -- for those, the edge is what was signed
-    and a ``?max_edge=`` query is ignored (one immutable id addresses one
-    rendering); legacy ids keep honouring the query.
+    ``max_edge`` joined the payload; it caps the rendering together with the
+    current config, and a ``?max_edge=`` query can only lower it further.
     """
     if not photo_id or _ID_SEP not in photo_id:
         return None
@@ -147,8 +147,17 @@ def _clamp_count(count: Optional[int], cfg: dict) -> int:
     return max(1, min(requested, max_count))
 
 
-def _clamp_edge(max_edge: Optional[int], cfg: dict) -> int:
-    cap = int(cfg.get("max_edge", _DEFAULT_MAX_EDGE))
+def _edge_cap(cfg: dict) -> int:
+    """``frame.max_edge``, falling back to the default on a value ``int()`` refuses."""
+    raw = cfg.get("max_edge", _DEFAULT_MAX_EDGE)
+    try:
+        return max(1, int(raw))
+    except (TypeError, ValueError, OverflowError):
+        warn_bad_config_once("frame.max_edge", raw, f"{_DEFAULT_MAX_EDGE} px")
+        return _DEFAULT_MAX_EDGE
+
+
+def _clamp_edge(max_edge: Optional[int], cap: int) -> int:
     requested = cap if max_edge is None else max_edge
     return max(1, min(requested, cap))
 
@@ -246,10 +255,10 @@ def frame_photos(
                                    limiter=_token_limiter)
     rows = _sample(cfg, _clamp_count(count, cfg), _META_COLS)
     photos = []
+    edge = _edge_cap(cfg)
     for row in rows:
         entry = {
-            "id": _sign_rowid(row["rowid"], row["preview_revision"],
-                              edge=_clamp_edge(None, cfg)),
+            "id": _sign_rowid(row["rowid"], row["preview_revision"], edge=edge),
             "width": row["image_width"],
             "height": row["image_height"],
         }
@@ -287,15 +296,15 @@ def frame_image(
         ).fetchone()
     if not row:
         raise HTTPException(status_code=404, detail="Unknown photo")
-    # The id carries the cap it was minted with: a config edit reaches a
-    # display on its next poll (new ids, new immutable cache keys), never by
-    # silently changing the pixels behind a live id. The query keeps its
-    # documented power to lower the edge; it can never raise it past the cap
-    # the id was minted with. A legacy id clamps against the config as before.
-    cap = signed_edge if signed_edge is not None else _clamp_edge(None, cfg)
-    requested = cap if max_edge is None else max_edge
-    edge = max(1, min(requested, cap))
-    data = _render_jpeg(row["path"], row["thumbnail"], edge)
+    # The id carries the cap it was minted with, so raising the config cap
+    # reaches a display on its next poll (new ids, new immutable cache keys)
+    # rather than by changing the pixels behind a live id. Lowering it binds at
+    # once: ids never expire, and an old one must not keep fetching the larger
+    # rendering. The query can only lower the edge further.
+    cap = _edge_cap(cfg)
+    if signed_edge is not None:
+        cap = min(signed_edge, cap)
+    data = _render_jpeg(row["path"], row["thumbnail"], _clamp_edge(max_edge, cap))
     if data is None:
         raise HTTPException(status_code=404, detail="Image unavailable")
     return Response(content=data, media_type="image/jpeg", headers=_IMMUTABLE_HEADERS)
@@ -318,7 +327,7 @@ def frame_next(
     if not rows:
         raise HTTPException(status_code=404, detail="No photos available")
     row = rows[0]
-    data = _render_jpeg(row["path"], row["thumbnail"], _clamp_edge(max_edge, cfg))
+    data = _render_jpeg(row["path"], row["thumbnail"], _clamp_edge(max_edge, _edge_cap(cfg)))
     if data is None:
         raise HTTPException(status_code=404, detail="Image unavailable")
     return Response(content=data, media_type="image/jpeg", headers=_NO_STORE_HEADERS)

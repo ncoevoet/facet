@@ -1694,7 +1694,7 @@ Affichage et comportement de la galerie web.
 | `security_headers.content_security_policy` | _(défaut compatible SPA)_ | En-tête Content-Security-Policy ; `""` le désactive, ou fournissez une politique plus stricte |
 | `security_headers.hsts` | `false` | Envoyer `Strict-Transport-Security`. À activer uniquement lorsque la visionneuse est servie en HTTPS. |
 | **Autres** | | |
-| `cache_ttl_seconds` | `3600` | TTL des caches de statistiques/requêtes en mémoire ; gardez-le plus long qu'un calcul complet des statistiques (qui peut prendre des minutes) |
+| `cache_ttl_seconds` | `3600` | TTL des caches de statistiques/requêtes en mémoire ; gardez-le plus long qu'un calcul complet des statistiques (qui peut prendre des minutes) ; une valeur non analysable ou non finie revient à `3600` avec un avertissement, `0` ou une valeur négative fait expirer les entrées aussitôt |
 | `notification_duration_ms` | `2000` | Durée des notifications toast |
 | `moment_confidence_min` | `0` | Les libellés de moments sous cette confiance (0–1) s'affichent atténués avec « (incertain) » ; `0` = jamais atténué |
 
@@ -1842,7 +1842,6 @@ Remarques :
 | `features.show_proofing` | `false` | Interrupteur principal de l'épreuvage client sur les albums partagés |
 | `proofing.pin` | `""` | PIN facultatif que le client doit saisir avec le lien de partage ; vide = pas de PIN (les tentatives sont limitées) |
 | `proofing.session_minutes` | `1440` | Durée de vie de la session client en minutes (24 h) ; elle prend fin aussitôt si l'album n'est plus partagé ou si la validation est désactivée ; une valeur non analysable ou non positive revient à la valeur par défaut, plafonnée à une semaine |
-
 
 ### Mappage de chemins
 
@@ -2644,8 +2643,7 @@ Sert les meilleures photos sélectionnées à des appareils kiosque sans connexi
 | `count` | `20` | Nombre de photos renvoyées par défaut par `/api/frame/photos` |
 | `max_count` | `100` | Plafond strict du paramètre de requête `count` |
 | `min_aggregate` | `7.0` | Score agrégé minimal pour qu'une photo soit sélectionnée |
-| `max_edge` | `1920` | Plafond du grand côté (px) des JPEG servis ; le paramètre de requête `max_edge` ne peut que l'abaisser ; les ids de photos émis portent ce plafond, une modification atteint les écrans à leur prochain sondage |
-
+| `max_edge` | `1920` | Plafond du grand côté (px) des JPEG servis ; le paramètre de requête `max_edge` ne peut que l'abaisser. Les ids de photos émis portent ce plafond : le relever atteint les écrans à leur prochain sondage, l'abaisser s'applique aussitôt |
 | `favorites_only` | `false` | Si `true`, seules les photos favorites sont sélectionnées |
 | `categories` | `[]` | Liste blanche de noms de catégories (vide = toutes) |
 

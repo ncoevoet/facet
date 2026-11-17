@@ -1314,7 +1314,7 @@ Smarte Bilderrahmen, Home-Assistant-Dashboards und Anzeigen im Stil von ImmichFr
 | Endpunkt | Liefert | Cache |
 |----------|---------|-------|
 | `GET /api/frame/photos?token=&count=` | `{photos: [{id, caption?, date_taken?, width, height}]}` — `count` begrenzt auf `frame.max_count` (Standard 100), Vorgabe `frame.count` (20) | — |
-| `GET /api/frame/image/{id}?token=&max_edge=` | das Foto-JPEG — Original, verkleinert auf `max_edge` (begrenzt durch `frame.max_edge`, Standard 1920), oder das gespeicherte Vorschaubild, falls das Original nicht erreichbar ist | lang, unveränderlich |
+| `GET /api/frame/image/{id}?token=&max_edge=` | das Foto-JPEG — Original, verkleinert auf `max_edge` (begrenzt durch `frame.max_edge`, Standard 1920, und durch die Obergrenze, mit der die ID ausgegeben wurde), oder das gespeicherte Vorschaubild, falls das Original nicht erreichbar ist | lang, unveränderlich |
 | `GET /api/frame/next?token=` | ein zufälliges kuratiertes JPEG, bei jedem Aufruf ein anderes — für einfache Rahmen und Home Assistant | `no-store` |
 
 ### Token generieren
@@ -1353,7 +1353,7 @@ camera:
 
 Fügen Sie die Kamera einer Karte „Picture Glance / Picture Entity“ hinzu, um einen sich selbst aktualisierenden Bilderrahmen zu erhalten.
 
-Für einen Client im **ImmichFrame-Stil**, der eine eigene Diashow abspielt, rufen Sie `GET /api/frame/photos?token=…&count=30` für IDs ab und holen dann jedes `GET /api/frame/image/{id}?token=…&max_edge=1920`. IDs sind stabil und Bilder werden langfristig zwischengespeichert, sodass jedes Foto nur einmal geladen wird.
+Für einen Client im **ImmichFrame-Stil**, der eine eigene Diashow abspielt, rufen Sie `GET /api/frame/photos?token=…&count=30` für IDs ab und holen dann jedes `GET /api/frame/image/{id}?token=…&max_edge=1920`. Eine ID ändert sich nur, wenn sich die Vorschau des Fotos oder `frame.max_edge` ändert, und Bilder werden langfristig zwischengespeichert, sodass jedes Foto nur einmal geladen wird.
 
 ## Automatischer Upload vom Telefon
 

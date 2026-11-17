@@ -29,7 +29,8 @@ from api.config import (
     config_load_failed,
     get_user_config,
     is_burned_password,
-    is_multi_user_enabled
+    is_multi_user_enabled,
+    warn_bad_config_once,
 )
 
 VIEWER_PASSWORD_KEY = 'password'
@@ -606,7 +607,6 @@ async def require_scan_access(
 SHARE_CLIENT_ROLE = 'share_client'
 
 
-_PROOFING_TTL_WARNED: set = set()
 _PROOFING_TTL_DEFAULT = 1440
 _PROOFING_TTL_MAX = 10080  # a week; longer is a config mistake, not a session
 
@@ -618,21 +618,16 @@ def _proofing_session_minutes() -> int:
     straight out of ``int()`` -- every proofing link 500'd until someone fixed
     the config by hand -- and 0 or a negative number minted already-expired
     tokens that bounced the client back to the login on every request. An
-    unparseable or non-positive value falls back to the documented 1440
-    (warning once per bad value); anything above a week is clamped.
+    unparseable, non-finite or non-positive value falls back to the documented
+    1440 (warning once per bad value); anything above a week is clamped.
     """
     raw = (VIEWER_CONFIG.get('proofing', {}) or {}).get('session_minutes', 1440)
     try:
         minutes = int(raw)
-    except (TypeError, ValueError):
+    except (TypeError, ValueError, OverflowError):
         minutes = 0
     if minutes <= 0:
-        marker = repr(raw)
-        if marker not in _PROOFING_TTL_WARNED:
-            _PROOFING_TTL_WARNED.add(marker)
-            logger.warning(
-                "viewer.proofing.session_minutes=%r is not a usable session length; "
-                "falling back to %d minutes. Fix the config value to stop seeing this.", raw, _PROOFING_TTL_DEFAULT)
+        warn_bad_config_once('viewer.proofing.session_minutes', raw, f'{_PROOFING_TTL_DEFAULT} minutes')
         return _PROOFING_TTL_DEFAULT
     return min(minutes, _PROOFING_TTL_MAX)
 

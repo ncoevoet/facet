@@ -269,8 +269,32 @@ def test_the_flight_deregisters_even_if_the_store_path_raises(monkeypatch):
 
     monkeypatch.setattr(api_config, '_stats_cache', _Boom())
     flight = api_config._StatsFlight(api_config._stats_cache_generation)
-    # Whatever the publish path raises, the flight must not stay registered:
-    # a registered flight whose done never fires keeps every waiter spinning.
+    monkeypatch.setitem(api_config._stats_inflight, 'boom-key', flight)
+    # Whatever the publish path raises, the flight must not stay registered
+    # and its waiters must wake: either failure keeps every waiter spinning.
     with pytest.raises(RuntimeError):
         api_config._finish_stats_flight('boom-key', flight, {'v': 1}, None)
-    assert api_config._stats_inflight == {}
+    assert 'boom-key' not in api_config._stats_inflight
+    assert flight.done.is_set()
+    assert flight.data == {'v': 1}
+
+
+@pytest.mark.parametrize('bad', ['an hour', None, float('nan'), float('inf'), 10 ** 400])
+def test_an_unusable_ttl_falls_back_to_the_default(monkeypatch, bad):
+    monkeypatch.setitem(api_config.VIEWER_CONFIG, 'cache_ttl_seconds', bad)
+    assert api_config.viewer_cache_ttl() == 3600.0
+
+
+@pytest.mark.parametrize('ttl', [0, -5, 90, '120'])
+def test_a_numeric_ttl_is_honoured_even_when_silly(monkeypatch, ttl):
+    monkeypatch.setitem(api_config.VIEWER_CONFIG, 'cache_ttl_seconds', ttl)
+    assert api_config.viewer_cache_ttl() == float(ttl)
+
+
+def test_a_bad_ttl_warns_once_per_value(monkeypatch, caplog):
+    monkeypatch.setattr(api_config, '_BAD_CONFIG_WARNED', set())
+    monkeypatch.setitem(api_config.VIEWER_CONFIG, 'cache_ttl_seconds', 'an hour')
+    with caplog.at_level('WARNING', logger=api_config.logger.name):
+        api_config.viewer_cache_ttl()
+        api_config.viewer_cache_ttl()
+    assert sum('cache_ttl_seconds' in r.getMessage() for r in caplog.records) == 1

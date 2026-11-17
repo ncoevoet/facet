@@ -1691,7 +1691,7 @@ python facet.py --recompute-tags-vlm   # 用 VLM 标签模型重新打标签
 | `security_headers.content_security_policy` | _（兼容 SPA 的默认值）_ | Content-Security-Policy 头；`""` 表示关闭，或提供更严格的策略 |
 | `security_headers.hsts` | `false` | 发送 `Strict-Transport-Security`。仅在查看器通过 HTTPS 提供服务时才启用。 |
 | **其他** | | |
-| `cache_ttl_seconds` | `3600` | 内存中统计/查询缓存的 TTL；应比一次完整统计计算（可能耗时数分钟）更长 |
+| `cache_ttl_seconds` | `3600` | 内存中统计/查询缓存的 TTL；应比一次完整统计计算（可能耗时数分钟）更长；无法解析或非有限的值会带警告回退到 `3600`，`0` 或负值会让条目立即过期 |
 | `notification_duration_ms` | `2000` | 提示条显示时长 |
 | `moment_confidence_min` | `0` | 置信度（0–1）低于此值的时刻标签会变暗并显示“（不确定）”；`0` = 从不变暗 |
 
@@ -1838,8 +1838,7 @@ python facet.py --recompute-tags-vlm   # 用 VLM 标签模型重新打标签
 |---------|---------|-------------|
 | `features.show_proofing` | `false` | 共享相册上客户选片功能的总开关 |
 | `proofing.pin` | `""` | 客户连同分享链接必须输入的可选 PIN 码；留空 = 不需要 PIN（尝试次数有速率限制） |
-| `proofing.session_minutes` | `1440` | 客户会话的有效期（分钟，24 小时）；相册取消共享或选片功能被禁用时，会话立即失效；无法解析或非正的值回退到默认值，最长钳制到一周 | 
-
+| `proofing.session_minutes` | `1440` | 客户会话的有效期（分钟，24 小时）；相册取消共享或选片功能被禁用时，会话立即失效；无法解析或非正的值回退到默认值，最长钳制到一周 |
 
 ### 路径映射
 
@@ -2641,8 +2640,7 @@ python facet.py --recompute-text   # 重新读取整个图库
 | `count` | `20` | `/api/frame/photos` 默认返回的照片数 |
 | `max_count` | `100` | `count` 查询参数的硬上限 |
 | `min_aggregate` | `7.0` | 照片被选入所需的最低聚合分 |
-| `max_edge` | `1920` | 提供的 JPEG 的长边上限（像素）；签发的照片 id 携带此上限，修改后在显示端下一次轮询时生效；`max_edge` 查询参数只能调低它 |
-
+| `max_edge` | `1920` | 提供的 JPEG 的长边上限（像素）；`max_edge` 查询参数只能调低它。签发的照片 id 携带此上限：调高后在显示端下一次轮询时生效，调低则立即生效 |
 | `favorites_only` | `false` | 为 `true` 时只选入已收藏的照片 |
 | `categories` | `[]` | 类别名白名单（为空 = 所有类别） |
 

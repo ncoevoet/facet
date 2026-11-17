@@ -1314,7 +1314,7 @@ Los marcos de fotos inteligentes, los paneles de Home Assistant y las pantallas 
 | Endpoint | Devuelve | Caché |
 |----------|---------|-------|
 | `GET /api/frame/photos?token=&count=` | `{photos: [{id, caption?, date_taken?, width, height}]}` — `count` limitado por `frame.max_count` (por defecto 100), por defecto `frame.count` (20) | — |
-| `GET /api/frame/image/{id}?token=&max_edge=` | el JPEG de la foto — original reducido a `max_edge` (limitado por `frame.max_edge`, por defecto 1920), o la miniatura almacenada si el original no es accesible | inmutable de larga duración |
+| `GET /api/frame/image/{id}?token=&max_edge=` | el JPEG de la foto — original reducido a `max_edge` (limitado por `frame.max_edge`, por defecto 1920, y por el tope con el que se emitió el id), o la miniatura almacenada si el original no es accesible | inmutable de larga duración |
 | `GET /api/frame/next?token=` | un JPEG curado aleatorio, distinto en cada llamada — para marcos sencillos y Home Assistant | `no-store` |
 
 ### Generar un token
@@ -1353,7 +1353,7 @@ camera:
 
 Añade la cámara a una tarjeta Picture Glance / Picture Entity para tener un marco de fotos que se actualiza solo.
 
-Para un cliente **al estilo ImmichFrame** que ejecuta su propia presentación, consulta periódicamente `GET /api/frame/photos?token=…&count=30` para obtener ids, y luego descarga cada `GET /api/frame/image/{id}?token=…&max_edge=1920`. Los ids son estables y las imágenes se guardan en caché a largo plazo, así que cada foto se descarga una vez.
+Para un cliente **al estilo ImmichFrame** que ejecuta su propia presentación, consulta periódicamente `GET /api/frame/photos?token=…&count=30` para obtener ids, y luego descarga cada `GET /api/frame/image/{id}?token=…&max_edge=1920`. Un id solo cambia cuando cambian la vista previa de la foto o `frame.max_edge`, y las imágenes se guardan en caché a largo plazo, así que cada foto se descarga una vez.
 
 ## Subida automática desde el teléfono
 
