@@ -341,6 +341,18 @@ def _uses(plan_lines, index):
     return any(f"INDEX {index}" in line for line in plan_lines)
 
 
+# Every index carrying the whole gallery cover tuple answers the count and summary alone.
+# Which one wins is a cost tie the planner breaks on the photos table's width (the
+# covering-scan cost divides by it), so one more photos column can move it to another.
+_GALLERY_COVER_INDEXES = tuple(
+    name for name, table, expr in schema.INDEXES
+    if table == 'photos' and set(schema.GALLERY_COVER_COLUMNS) <= {c.strip() for c in expr.split(',')})
+
+
+def _gallery_cover_read(plan_lines):
+    return any(f"COVERING INDEX {name}" in line for line in plan_lines for name in _GALLERY_COVER_INDEXES)
+
+
 def _bare_scan(plan_lines):
     return any(line.strip() == "SCAN photos" for line in plan_lines)
 
@@ -354,16 +366,16 @@ def test_default_gallery_statements_use_the_covering_indexes(gallery, traced, sp
     found = _capture(client, traced, f"{HIDES}&sort=aggregate&dir=DESC")
     plans = _plans(sparse_db, found)
 
-    assert any("COVERING INDEX idx_gallery_" in line for line in plans["count"]), plans["count"]
-    assert any("COVERING INDEX idx_gallery_" in line for line in plans["summary"]), plans["summary"]
+    assert _gallery_cover_read(plans["count"]), plans["count"]
+    assert _gallery_cover_read(plans["summary"]), plans["summary"]
     assert not _bare_scan(plans["count"]) and not _bare_scan(plans["summary"])
     assert _uses(plans["page"], "idx_gallery_aggregate"), plans["page"]
     assert not _temp_sort(plans["page"]), plans["page"]
 
     # Control: without the new indexes the same statements scan the table.
-    _drop_registry(sparse_db)
+    _drop_registry(sparse_db, sorted({*EXPECTED_REGISTRY, *_GALLERY_COVER_INDEXES}))
     control = _plans(sparse_db, found)
-    assert not any("COVERING INDEX idx_gallery_" in line for line in control["count"])
+    assert not _gallery_cover_read(control["count"]), control["count"]
     assert not _uses(control["page"], "idx_gallery_aggregate")
 
 
@@ -395,7 +407,7 @@ def test_date_sorted_pages_walk_their_covering_index(gallery, traced, sparse_db,
     plans = _plans(sparse_db, found)
     assert _uses(plans["page"], index), plans["page"]
     assert not _temp_sort(plans["page"]), plans["page"]
-    assert any("COVERING INDEX idx_gallery_" in line for line in plans["count"])
+    assert _gallery_cover_read(plans["count"])
 
     _drop_registry(sparse_db)
     assert not _uses(_plans(sparse_db, found)["page"], index)
@@ -444,7 +456,7 @@ def test_camera_and_lens_filters(gallery, traced, sparse_db):
     # aggregate-leading superset or the camera-led one, whichever is narrower),
     # never the table.
     for role in ("count", "summary"):
-        assert any("COVERING INDEX idx_gallery_" in line for line in lens_plans[role]), \
+        assert _gallery_cover_read(lens_plans[role]), \
             lens_plans[role]
         assert not _bare_scan(lens_plans[role]), lens_plans[role]
 
@@ -667,8 +679,8 @@ def test_junk_any_plans_come_from_the_covering_indexes(gallery, traced, sparse_d
 
     found = _capture(client, traced, f"{HIDES}&junk_kind=any&sort=aggregate&dir=DESC")
     plans = _plans(db_path, found)
-    assert any("COVERING INDEX idx_gallery_" in line for line in plans["count"]), plans["count"]
-    assert any("COVERING INDEX idx_gallery_" in line for line in plans["summary"]), plans["summary"]
+    assert _gallery_cover_read(plans["count"]), plans["count"]
+    assert _gallery_cover_read(plans["summary"]), plans["summary"]
     assert not _bare_scan(plans["count"]) and not _bare_scan(plans["summary"])
     assert not any(_bare_scan([line]) for line in plans["page"])
     assert not _temp_sort(plans["page"]), plans["page"]
@@ -681,16 +693,17 @@ def test_junk_any_plans_come_from_the_covering_indexes(gallery, traced, sparse_d
 def test_junk_covering_control_the_sparse_count_flips_without_junk_kind(gallery, traced, sparse_db):
     client = gallery(sparse_db)
     found = _capture(client, traced, f"{HIDES}&junk_kind=any&sort=aggregate&dir=DESC")
-    assert any("COVERING INDEX idx_gallery_" in line for line in _plan(sparse_db, found["count"]))
+    assert _gallery_cover_read(_plan(sparse_db, found["count"]))
 
-    covered = {n: _entries()[n][1] for n in EXPECTED_REGISTRY if n not in _NOT_COVERING}
+    covered = {n: _entries()[n][1] for n in sorted({*EXPECTED_REGISTRY, *_GALLERY_COVER_INDEXES})
+               if n not in _NOT_COVERING}
     _drop_registry(sparse_db, list(covered))
     with sqlite3.connect(sparse_db) as conn:
         for name, expr in covered.items():
             _create_entry(conn, name, expr.replace(", junk_kind", ""))
         conn.execute("ANALYZE photos")
     flipped = _plan(sparse_db, found["count"])
-    assert not any("COVERING INDEX idx_gallery_" in line for line in flipped), flipped
+    assert not _gallery_cover_read(flipped), flipped
 
 
 def test_junk_filter_over_every_stored_shape(edition_client, seed_photos_prefix):
@@ -896,8 +909,8 @@ def test_a_deferred_start_on_an_unanalyzed_library_leaves_plans_on_the_gallery_i
         analyzed = {r[0] for r in conn.execute("SELECT idx FROM sqlite_stat1 WHERE tbl = 'photos'")}
     assert {'idx_gallery_aggregate', 'idx_moment_confidence'} <= analyzed
     plans = _plans(sparse_db, found)
-    assert any("COVERING INDEX idx_gallery_" in line for line in plans["count"]), plans["count"]
-    assert any("COVERING INDEX idx_gallery_" in line for line in plans["summary"]), plans["summary"]
+    assert _gallery_cover_read(plans["count"]), plans["count"]
+    assert _gallery_cover_read(plans["summary"]), plans["summary"]
     assert _uses(plans["page"], "idx_gallery_aggregate"), plans["page"]
     assert not _temp_sort(plans["page"]), plans["page"]
 
