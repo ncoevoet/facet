@@ -54,3 +54,7 @@ FACET_E2E_PYTHON=../venv/bin/python npm run e2e
 | `02-hide-bursts` | Hide bursts folds each burst behind its lead; Show all brings every frame back |
 | `03-reused-name-new-picture` | An edit imported under a deleted edit's name shows the new picture, not the cached thumbnail (fails without `apply_ai_edit_captions`' fresh `preview_revision`) |
 | `04-delete-burst-lead` | Deleting the AI edit that leads its burst keeps the burst in the gallery (fails without `_reassign_dead_burst_leads`) |
+| `05-route-smoke` | Each top-level page (`/albums`, `/capsules`, `/compare`, `/culling`, `/folders`, `/junk`, `/map`, `/persons`, `/scenes`, `/stats`, `/timeline`) loads on its own URL with no page error, console error or 5xx |
+| `06-photo-page` | A double click on a gallery card opens that photo's page; the Quality panel carries the seeded score, the Histogram tab swaps the panel, and Back returns to the gallery |
+| `07-album-lifecycle` | An album made through the API lists on `/albums`, opens to its photo, and leaves `/albums` once deleted while its photo stays in the library |
+| `08-edition-gate` | Without the edition password a delete and an album create are refused, a wrong password is refused, and no photo is deleted |

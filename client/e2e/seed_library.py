@@ -29,7 +29,7 @@ XDG_DATA_HOME = os.path.join(WORK, 'xdg-data')
 
 sys.path.insert(0, REPO)
 
-# folder -> [(file name, colour, aggregate, burst lead, AI edit of)]. One burst per folder.
+# folder -> [(file name, colour, aggregate, burst lead, AI edit of)]. One burst per folder, except 'review'.
 PHOTOS = {
     # 01 strip + 02 hide bursts (read-only): the edit outscores both frames and leads.
     'burst': [('IMG_0001.jpg', '#3c6e47', 5.0, 0, None),
@@ -43,8 +43,13 @@ PHOTOS = {
     'lead': [('IMG_0200.jpg', '#1971c2', 5.0, 0, None),
              ('IMG_0201.jpg', '#5f3dc4', 3.0, 0, None),
              ('IMG_0200_agy_1.jpg', '#f08c00', 7.0, 1, 'IMG_0200.jpg')],
+    # 06-09 photo page, albums, edition gate, rating: two plain photos, no burst, no AI edit.
+    # Each is a one-photo group so none is folded away by Hide bursts.
+    'review': [('IMG_0300.jpg', '#0c8599', 6.0, 1, None),
+               ('IMG_0301.jpg', '#c2255c', 4.0, 1, None)],
 }
-DATE = {'burst': '2026:01:10 10:00:', 'reuse': '2026:01:11 10:00:', 'lead': '2026:01:12 10:00:'}
+DATE = {'burst': '2026:01:10 10:00:', 'reuse': '2026:01:11 10:00:', 'lead': '2026:01:12 10:00:',
+        'review': '2026:01:13 10:00:'}
 
 
 def _jpeg(colour, size):
@@ -82,7 +87,8 @@ def _seed_folder(conn, folder):
     photos = PHOTOS[folder]
     os.makedirs(os.path.join(LIBRARY, folder))
     for second, (name, colour, aggregate, lead, _) in enumerate(photos):
-        _insert_photo(conn, folder, name, colour, aggregate, lead, group, second)
+        _insert_photo(conn, folder, name, colour, aggregate, lead, group * 100 + second if folder == 'review' else group,
+                      second)
     for revision, (name, _, _, _, source) in enumerate((p for p in photos if p[4]), start=1):
         conn.execute('INSERT INTO photo_ai_edits (edit_path, source_path, tool, note, revision, captioned) '
                      "VALUES (?, ?, 'antigravity-gemini', 'e2e edit', ?, 1)",
