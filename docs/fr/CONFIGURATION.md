@@ -1841,7 +1841,8 @@ Remarques :
 |---------|--------|-------------|
 | `features.show_proofing` | `false` | Interrupteur principal de l'épreuvage client sur les albums partagés |
 | `proofing.pin` | `""` | PIN facultatif que le client doit saisir avec le lien de partage ; vide = pas de PIN (les tentatives sont limitées) |
-| `proofing.session_minutes` | `1440` | Durée de vie de la session client en minutes (24 h) ; elle prend fin aussitôt si l'album n'est plus partagé ou si la validation est désactivée |
+| `proofing.session_minutes` | `1440` | Durée de vie de la session client en minutes (24 h) ; elle prend fin aussitôt si l'album n'est plus partagé ou si la validation est désactivée ; une valeur non analysable ou non positive revient à la valeur par défaut, plafonnée à une semaine |
+
 
 ### Mappage de chemins
 
@@ -2643,7 +2644,8 @@ Sert les meilleures photos sélectionnées à des appareils kiosque sans connexi
 | `count` | `20` | Nombre de photos renvoyées par défaut par `/api/frame/photos` |
 | `max_count` | `100` | Plafond strict du paramètre de requête `count` |
 | `min_aggregate` | `7.0` | Score agrégé minimal pour qu'une photo soit sélectionnée |
-| `max_edge` | `1920` | Plafond du grand côté (px) des JPEG servis ; le paramètre de requête `max_edge` ne peut que l'abaisser |
+| `max_edge` | `1920` | Plafond du grand côté (px) des JPEG servis ; le paramètre de requête `max_edge` ne peut que l'abaisser ; les ids de photos émis portent ce plafond, une modification atteint les écrans à leur prochain sondage |
+
 | `favorites_only` | `false` | Si `true`, seules les photos favorites sont sélectionnées |
 | `categories` | `[]` | Liste blanche de noms de catégories (vide = toutes) |
 

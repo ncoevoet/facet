@@ -1835,7 +1835,8 @@ Notas:
 |--------------|--------|-----------|
 | `features.show_proofing` | `false` | Interruptor mestre para a aprovação de cliente em álbuns compartilhados |
 | `proofing.pin` | `""` | PIN opcional que o cliente deve inserir com o link de compartilhamento; vazio = sem PIN (as tentativas têm limite de taxa) |
-| `proofing.session_minutes` | `1440` | Tempo de vida da sessão do cliente em minutos (24h); termina de imediato se o álbum deixa de ser compartilhado ou a aprovação é desativada |
+| `proofing.session_minutes` | `1440` | Tempo de vida da sessão do cliente em minutos (24h); termina de imediato se o álbum deixa de ser compartilhado ou a aprovação é desativada; um valor não analisável ou não positivo volta ao padrão, com máximo de uma semana |
+
 
 ### Mapeamento de Caminhos
 
@@ -2634,7 +2635,8 @@ Serve as melhores fotos curadas para dispositivos de quiosque sem início de ses
 | `count` | `20` | Número padrão de fotos devolvidas por `/api/frame/photos` |
 | `max_count` | `100` | Limite máximo do parâmetro de consulta `count` |
 | `min_aggregate` | `7.0` | Pontuação agregada mínima para uma foto ser curada |
-| `max_edge` | `1920` | Limite do lado maior (px) dos JPEG servidos; o parâmetro `max_edge` só pode reduzi-lo |
+| `max_edge` | `1920` | Limite do lado maior (px) dos JPEG servidos; o parâmetro `max_edge` só pode reduzi-lo; os ids de fotos emitidos carregam este limite, uma alteração chega aos displays na próxima enquete |
+
 | `favorites_only` | `false` | Se `true`, apenas as fotos favoritas são curadas |
 | `categories` | `[]` | Lista de nomes de categorias permitidas (vazio = todas) |
 

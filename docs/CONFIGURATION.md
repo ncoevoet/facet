@@ -1841,7 +1841,7 @@ Notes:
 |---------|---------|-------------|
 | `features.show_proofing` | `false` | Master switch for client proofing on shared albums |
 | `proofing.pin` | `""` | Optional PIN a client must enter with the share link; empty = no PIN (attempts are rate-limited) |
-| `proofing.session_minutes` | `1440` | Client session lifetime in minutes (24h); ends at once if the album is unshared or proofing is off |
+| `proofing.session_minutes` | `1440` | Client session lifetime in minutes (24h), clamped to at most a week; an unparseable or non-positive value falls back to the default; ends at once if the album is unshared or proofing is off |
 
 ### Path Mapping
 
@@ -2643,7 +2643,7 @@ Serves curated best shots to kiosk devices without a login: smart photo frames, 
 | `count` | `20` | Default number of photos returned by `/api/frame/photos` |
 | `max_count` | `100` | Hard cap on the `count` query parameter |
 | `min_aggregate` | `7.0` | Minimum aggregate score for a photo to be curated |
-| `max_edge` | `1920` | Long-edge cap (px) for served JPEGs; the `max_edge` query parameter can only lower it |
+| `max_edge` | `1920` | Long-edge cap (px) for served JPEGs; minted photo ids carry the cap, so a change here reaches displays on their next poll; the `max_edge` query parameter can only lower it |
 | `favorites_only` | `false` | When `true`, only favorited photos are curated |
 | `categories` | `[]` | Allow-list of category names (empty = all categories) |
 

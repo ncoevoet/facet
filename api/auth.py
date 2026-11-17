@@ -606,6 +606,37 @@ async def require_scan_access(
 SHARE_CLIENT_ROLE = 'share_client'
 
 
+_PROOFING_TTL_WARNED: set = set()
+_PROOFING_TTL_DEFAULT = 1440
+_PROOFING_TTL_MAX = 10080  # a week; longer is a config mistake, not a session
+
+
+def _proofing_session_minutes() -> int:
+    """``viewer.proofing.session_minutes`` clamped to a usable session length.
+
+    Session minting read this raw: a hand edit like "12h" or null raised
+    straight out of ``int()`` -- every proofing link 500'd until someone fixed
+    the config by hand -- and 0 or a negative number minted already-expired
+    tokens that bounced the client back to the login on every request. An
+    unparseable or non-positive value falls back to the documented 1440
+    (warning once per bad value); anything above a week is clamped.
+    """
+    raw = (VIEWER_CONFIG.get('proofing', {}) or {}).get('session_minutes', 1440)
+    try:
+        minutes = int(raw)
+    except (TypeError, ValueError):
+        minutes = 0
+    if minutes <= 0:
+        marker = repr(raw)
+        if marker not in _PROOFING_TTL_WARNED:
+            _PROOFING_TTL_WARNED.add(marker)
+            logger.warning(
+                "viewer.proofing.session_minutes=%r is not a usable session length; "
+                "falling back to %d minutes. Fix the config value to stop seeing this.", raw, _PROOFING_TTL_DEFAULT)
+        return _PROOFING_TTL_DEFAULT
+    return min(minutes, _PROOFING_TTL_MAX)
+
+
 def create_share_client_token(album_id: int, share_token: str, client_name: str = '') -> str:
     """Mint a short-lived JWT for a proofing client on one shared album.
 
@@ -613,9 +644,9 @@ def create_share_client_token(album_id: int, share_token: str, client_name: str 
     dedicated role. ``get_optional_user`` rejects that role outright, so the
     token authenticates nothing but ``require_share_client`` on this album's
     picks routes. Expiry comes from ``viewer.proofing.session_minutes``
-    (default 1440 = 24h).
+    (default 1440 = 24h, clamped to a week).
     """
-    minutes = int((VIEWER_CONFIG.get('proofing', {}) or {}).get('session_minutes', 1440))
+    minutes = _proofing_session_minutes()
     return create_access_token(
         {
             'sub': f'share:{album_id}',

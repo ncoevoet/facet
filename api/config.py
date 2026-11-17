@@ -1254,6 +1254,36 @@ def load_viewer_config(config=None):
 
 VIEWER_CONFIG = load_viewer_config(_FULL_CONFIG)
 
+_CACHE_TTL_WARNED: set = set()
+
+
+def viewer_cache_ttl() -> float:
+    """``viewer.cache_ttl_seconds`` as a float, defensive against hand edits.
+
+    The stats cache used to read this raw: a mistyped value (a string, null)
+    raised inside the flight that computes a stats endpoint -- raised before
+    that flight deregistered itself, so the flight stayed in the registry, its
+    ``done`` never fired and every later request for that key waited forever
+    until the thread pool starved every synchronous endpoint. An unparseable or
+    NaN TTL now falls back to the documented default (3600 s), warning once per
+    bad value; a parsed-but-silly value (0, negative) is honored as "expires
+    immediately", which only costs cache hits.
+    """
+    raw = VIEWER_CONFIG.get('cache_ttl_seconds', 3600)
+    try:
+        ttl = float(raw)
+    except (TypeError, ValueError):
+        ttl = float('nan')
+    if ttl != ttl:  # NaN: float() succeeded on garbage or the value was null
+        marker = repr(raw)
+        if marker not in _CACHE_TTL_WARNED:
+            _CACHE_TTL_WARNED.add(marker)
+            logger.warning(
+                "viewer.cache_ttl_seconds=%r is not a usable TTL; falling back to 3600 s. "
+                "Fix the config value to stop seeing this.", raw)
+        return 3600.0
+    return ttl
+
 
 def cull_allow_trash(viewer_config: dict) -> bool:
     """Whether OS-trash culling (``POST /api/cull/apply``'s ``trash_rejects``
@@ -1574,13 +1604,17 @@ def _finish_stats_flight(cache_key, flight, data, error):
     whole TTL.
     """
     with _stats_cache_lock:
-        if error is None and flight.generation == _stats_cache_generation:
-            _stats_cache[cache_key] = {
-                'data': data,
-                'expires': time.time() + VIEWER_CONFIG['cache_ttl_seconds'],
-            }
-        if _stats_inflight.get(cache_key) is flight:
-            del _stats_inflight[cache_key]
+        try:
+            if error is None and flight.generation == _stats_cache_generation:
+                _stats_cache[cache_key] = {
+                    'data': data,
+                    'expires': time.time() + viewer_cache_ttl(),
+                }
+        finally:
+            # Deregister before anything the store path can raise: a flight
+            # that stays registered keeps every waiter waiting forever.
+            if _stats_inflight.get(cache_key) is flight:
+                del _stats_inflight[cache_key]
     flight.data = data
     flight.error = error
     flight.done.set()

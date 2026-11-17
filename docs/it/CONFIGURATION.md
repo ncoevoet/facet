@@ -1845,7 +1845,8 @@ Note:
 |---------|---------|-------------|
 | `features.show_proofing` | `false` | Interruttore principale per la revisione del cliente sugli album condivisi |
 | `proofing.pin` | `""` | PIN facoltativo che un cliente deve inserire con il link di condivisione; vuoto = nessun PIN (i tentativi hanno un limite di frequenza) |
-| `proofing.session_minutes` | `1440` | Durata della sessione del cliente in minuti (24h); termina subito se l'album non è più condiviso o la revisione è disattivata |
+| `proofing.session_minutes` | `1440` | Durata della sessione del cliente in minuti (24h); termina subito se l'album non è più condiviso o la revisione è disattivata; un valore non analizzabile o non positivo torna al valore predefinito, al massimo una settimana |
+
 
 ### Mappatura dei percorsi
 
@@ -2647,7 +2648,8 @@ Distribuisce gli «scatti migliori» curati a dispositivi in modalità chiosco s
 | `count` | `20` | Numero predefinito di foto restituite da `/api/frame/photos` |
 | `max_count` | `100` | Limite rigido del parametro di query `count` |
 | `min_aggregate` | `7.0` | Punteggio aggregato minimo perché una foto venga curata |
-| `max_edge` | `1920` | Limite del lato lungo (px) dei JPEG serviti; il parametro `max_edge` può solo abbassarlo |
+| `max_edge` | `1920` | Limite del lato lungo (px) dei JPEG serviti; il parametro `max_edge` può solo abbassarlo; gli id delle foto emessi portano questo limite, una modifica arriva ai display al loro prossimo sondaggio |
+
 | `favorites_only` | `false` | Se `true`, vengono curate solo le foto preferite |
 | `categories` | `[]` | Elenco consentito di nomi di categoria (vuoto = tutte) |
 

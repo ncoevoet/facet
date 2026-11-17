@@ -237,3 +237,40 @@ class TestAsyncSingleFlight:
             gate.set()
             tick_task.cancel()
             leader.join(timeout=10)
+
+
+# ---------------------------------------------------------------------------
+# A mistyped viewer.cache_ttl_seconds used to kill the flight that hit it:
+# the TypeError fired before the flight deregistered, so the flight stayed in
+# the registry, `done` never fired and every waiter spun until the thread pool
+# starved every synchronous endpoint. The TTL is read defensively now.
+# ---------------------------------------------------------------------------
+
+
+def test_string_ttl_falls_back_and_the_flight_completes(monkeypatch):
+    monkeypatch.setitem(api_config.VIEWER_CONFIG, 'cache_ttl_seconds', 'an hour')
+    entry = api_config._get_stats_cached('typo', lambda: {'value': 1})
+    assert entry == {'value': 1}
+    # The flight is gone: the next read is a fresh cache hit, not a wait.
+    assert api_config._stats_inflight == {}
+    assert api_config._get_stats_cached('typo', _fail_if_computed) == {'value': 1}
+
+
+def test_null_ttl_falls_back_and_the_flight_completes(monkeypatch):
+    monkeypatch.setitem(api_config.VIEWER_CONFIG, 'cache_ttl_seconds', None)
+    assert api_config._get_stats_cached('null-ttl', lambda: 7) == 7
+    assert api_config._stats_inflight == {}
+
+
+def test_the_flight_deregisters_even_if_the_store_path_raises(monkeypatch):
+    class _Boom(dict):
+        def __setitem__(self, key, value):
+            raise RuntimeError('store blew up')
+
+    monkeypatch.setattr(api_config, '_stats_cache', _Boom())
+    flight = api_config._StatsFlight(api_config._stats_cache_generation)
+    # Whatever the publish path raises, the flight must not stay registered:
+    # a registered flight whose done never fires keeps every waiter spinning.
+    with pytest.raises(RuntimeError):
+        api_config._finish_stats_flight('boom-key', flight, {'v': 1}, None)
+    assert api_config._stats_inflight == {}

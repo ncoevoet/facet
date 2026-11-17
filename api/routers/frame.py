@@ -82,46 +82,62 @@ def _resolve_token(query_token: str, header_token: Optional[str],
     return query_token
 
 
-def _sign_rowid(rowid: int, revision: Optional[str] = None) -> str:
+def _sign_rowid(rowid: int, revision: Optional[str] = None,
+                edge: Optional[int] = None) -> str:
     """Signed opaque id for a photo row.
 
-    The optional content revision (``preview_revision``) rides along so a
-    display's ``immutable`` cache key changes when the image is re-rendered in
-    place — photo refresh keeps the rowid, so a revision-less id would pin the
-    old pixels for a year on every client that honoured the header. Old-format
-    ids keep resolving until the display's next poll delivers revised ones."""
-    payload = str(rowid) if revision is None else f"{rowid}.{revision}"
+    Cache-key ingredients ride along so a display's ``immutable`` id changes
+    whenever the pixels it addresses would change: the content revision
+    (``preview_revision``, bumped by photo refresh, which keeps the rowid) and
+    the frame's configured ``max_edge`` cap (bumped by a config edit, which
+    keeps everything else). Old-format ids keep resolving — and keep honouring
+    their ``?max_edge=`` query — until the display's next poll delivers ids
+    that carry the edge.
+    """
+    payload = str(rowid)
+    if edge is not None:
+        # Always the full three-ingredient shape: a bare "rowid.edge" would be
+        # indistinguishable from a legacy "rowid.revision".
+        payload += f"{_ID_SEP}{revision if revision is not None else ''}{_ID_SEP}{edge}"
+    elif revision is not None:
+        payload += f"{_ID_SEP}{revision}"
     sig = hmac.new(
         _secret().encode("utf-8"), payload.encode("utf-8"), hashlib.sha256
     ).hexdigest()[:_SIG_LEN]
     return f"{payload}{_ID_SEP}{sig}"
 
 
-def _resolve_id(photo_id: str) -> Optional[int]:
-    """Return the rowid for a valid signed id, or None for a forged/malformed one.
+def _resolve_id(photo_id: str) -> Optional[tuple]:
+    """Return ``(rowid, edge)`` for a valid signed id, or None for a forged one.
 
-    Both ``rowid`` and ``rowid.revision`` payloads resolve: the revision exists
-    to change the cache key, not the identity, so any authentic revision serves
-    the row's current image."""
+    ``rowid``, ``rowid.revision``, ``rowid.revision.edge`` and ``rowid..edge``
+    payloads all resolve: the trailing ingredients exist to change the cache
+    key, not the identity, so any authentic combination serves the row's
+    current image. The edge is set only by ids minted after the config's
+    ``max_edge`` joined the payload -- for those, the edge is what was signed
+    and a ``?max_edge=`` query is ignored (one immutable id addresses one
+    rendering); legacy ids keep honouring the query.
+    """
     if not photo_id or _ID_SEP not in photo_id:
         return None
     parts = photo_id.split(_ID_SEP)
-    if len(parts) == 3:
-        rowid_str, revision, sig = parts
-        payload = f"{rowid_str}.{revision}"
-    elif len(parts) == 2:
-        rowid_str, sig = parts
-        payload = rowid_str
-    else:
+    if len(parts) < 2:
         return None
-    if not rowid_str.isdigit():
+    payload = _ID_SEP.join(parts[:-1])
+    sig = parts[-1]
+    if not parts[0].isdigit():
         return None
     expected = hmac.new(
         _secret().encode("utf-8"), payload.encode("utf-8"), hashlib.sha256
     ).hexdigest()[:_SIG_LEN]
     if not hmac.compare_digest(expected.encode("utf-8"), sig.encode("utf-8")):
         return None
-    return int(rowid_str)
+    edge = None
+    if len(parts) >= 4 and parts[-2].isdigit():
+        # The edge is the ingredient before the signature, present only in ids
+        # minted after it joined the payload (parts: rowid[.revision].edge.sig).
+        edge = int(parts[-2])
+    return int(parts[0]), edge
 
 
 def _clamp_count(count: Optional[int], cfg: dict) -> int:
@@ -232,7 +248,8 @@ def frame_photos(
     photos = []
     for row in rows:
         entry = {
-            "id": _sign_rowid(row["rowid"], row["preview_revision"]),
+            "id": _sign_rowid(row["rowid"], row["preview_revision"],
+                              edge=_clamp_edge(None, cfg)),
             "width": row["image_width"],
             "height": row["image_height"],
         }
@@ -258,9 +275,10 @@ def frame_image(
     require_static_token_throttled(request, cfg.get("tokens"),
                                    _resolve_token(token, x_frame_token, authorization), _FEATURE,
                                    limiter=_token_limiter)
-    rowid = _resolve_id(photo_id)
-    if rowid is None:
+    resolved = _resolve_id(photo_id)
+    if resolved is None:
         raise HTTPException(status_code=404, detail="Unknown photo")
+    rowid, signed_edge = resolved
     where, params = _curation_clause(cfg)
     with get_db() as conn:
         row = conn.execute(
@@ -269,7 +287,15 @@ def frame_image(
         ).fetchone()
     if not row:
         raise HTTPException(status_code=404, detail="Unknown photo")
-    data = _render_jpeg(row["path"], row["thumbnail"], _clamp_edge(max_edge, cfg))
+    # The id carries the cap it was minted with: a config edit reaches a
+    # display on its next poll (new ids, new immutable cache keys), never by
+    # silently changing the pixels behind a live id. The query keeps its
+    # documented power to lower the edge; it can never raise it past the cap
+    # the id was minted with. A legacy id clamps against the config as before.
+    cap = signed_edge if signed_edge is not None else _clamp_edge(None, cfg)
+    requested = cap if max_edge is None else max_edge
+    edge = max(1, min(requested, cap))
+    data = _render_jpeg(row["path"], row["thumbnail"], edge)
     if data is None:
         raise HTTPException(status_code=404, detail="Image unavailable")
     return Response(content=data, media_type="image/jpeg", headers=_IMMUTABLE_HEADERS)

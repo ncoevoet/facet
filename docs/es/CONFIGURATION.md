@@ -1843,7 +1843,8 @@ Notas:
 |---------|---------|-------------|
 | `features.show_proofing` | `false` | Interruptor principal de la revisión de cliente en los álbumes compartidos |
 | `proofing.pin` | `""` | PIN opcional que un cliente debe introducir con el enlace de compartir; vacío = sin PIN (los intentos tienen límite de frecuencia) |
-| `proofing.session_minutes` | `1440` | Duración de la sesión del cliente en minutos (24 h); termina de inmediato si se deja de compartir el álbum o se desactiva la revisión |
+| `proofing.session_minutes` | `1440` | Duración de la sesión del cliente en minutos (24 h); termina de inmediato si se deja de compartir el álbum o se desactiva la revisión; un valor no analizable o no positivo vuelve al valor predeterminado, con un máximo de una semana |
+
 
 ### Mapeo de rutas
 
@@ -2645,7 +2646,8 @@ Sirve las mejores tomas curadas a dispositivos de tipo quiosco sin inicio de ses
 | `count` | `20` | Número predeterminado de fotos que devuelve `/api/frame/photos` |
 | `max_count` | `100` | Tope estricto del parámetro de consulta `count` |
 | `min_aggregate` | `7.0` | Puntuación agregada mínima para que una foto se cure |
-| `max_edge` | `1920` | Tope del lado largo (px) de los JPEG servidos; el parámetro de consulta `max_edge` solo puede reducirlo |
+| `max_edge` | `1920` | Tope del lado largo (px) de los JPEG servidos; el parámetro de consulta `max_edge` solo puede reducirlo; los ids de foto emitidos llevan este tope, un cambio llega a las pantallas en su siguiente sondeo |
+
 | `favorites_only` | `false` | Si es `true`, solo se curan las fotos favoritas |
 | `categories` | `[]` | Lista blanca de nombres de categorías (vacío = todas) |
 

@@ -154,13 +154,20 @@ def unrenderable_seed():
 def test_revised_id_resolves_and_forgery_does_not():
     """A revision rides in the signed payload: it changes the cache key, not
     the identity, and only an authentic revision resolves."""
-    assert _resolve_id(_sign_rowid(5, "abc123")) == 5
-    assert _resolve_id(_sign_rowid(5)) == 5  # legacy revision-less ids keep resolving
+    assert _resolve_id(_sign_rowid(5, "abc123")) == (5, None)
+    assert _resolve_id(_sign_rowid(5)) == (5, None)  # legacy ids keep resolving
     assert _resolve_id(_sign_rowid(5, "abc123").replace("abc123", "ffffff")) is None
     assert _resolve_id("5.abc123.deadbeef") is None
 
     # The revision is what busts a display's immutable cache key.
     assert _sign_rowid(5, "abc123") != _sign_rowid(5, "ffffff")
+
+    # The configured max edge rides in the payload too (B67): a config edit
+    # changes every minted id, and the signed edge is what a photo render uses.
+    assert _resolve_id(_sign_rowid(5, edge=1024)) == (5, 1024)
+    assert _resolve_id(_sign_rowid(5, "abc123", edge=800)) == (5, 800)
+    assert _resolve_id(_sign_rowid(5, edge=1024).replace("1024", "800")) is None
+    assert _sign_rowid(5, "abc123", edge=800) != _sign_rowid(5, "abc123", edge=1024)
 
 
 def test_photos_ids_change_when_the_render_revision_bumps(client, frame_cfg, seed):
@@ -184,13 +191,50 @@ def test_photos_ids_change_when_the_render_revision_bumps(client, frame_cfg, see
     assert resp.status_code == 200
     fresh = {p["id"] for p in resp.json()["photos"]}
     assert old_id not in fresh
-    assert any(_resolve_id(p) == row["rowid"] and ".cafe1." in p for p in fresh)
+    assert any(_resolve_id(p)[0] == row["rowid"] and ".cafe1." in p for p in fresh)
+
+
+def test_photos_ids_change_when_the_max_edge_cap_changes(client, frame_cfg, seed):
+    """A frame.max_edge config edit keeps every rowid and preview_revision: the
+    minted ids must still change, or displays honouring the immutable header
+    would serve the old-sized pixels for a year (B67)."""
+    resp = client.get("/api/frame/photos", params={"token": TOKEN, "count": 100})
+    before = {p["id"] for p in resp.json()["photos"]}
+    assert before
+
+    from api import config
+    prev = config._FULL_CONFIG["frame"]["max_edge"]
+    config._FULL_CONFIG["frame"]["max_edge"] = 800 if prev != 800 else 1600
+    try:
+        resp = client.get("/api/frame/photos", params={"token": TOKEN, "count": 100})
+        after = {p["id"] for p in resp.json()["photos"]}
+        assert after
+        assert not (before & after), "a cap edit must rotate every minted id"
+    finally:
+        config._FULL_CONFIG["frame"]["max_edge"] = prev
 
 
 def _returned_names(resp, ids):
-    """Map the ids in a /photos response back to seed names."""
-    id_to_name = {v: k for k, v in ids.items()}
-    return {id_to_name[p["id"]] for p in resp.json()["photos"] if p["id"] in id_to_name}
+    """Map the ids in a /photos response back to seed names, by rowid: the id
+    format itself is not comparable across a minting change (the payload now
+    carries the frame's configured max edge)."""
+    from api.routers.frame import _resolve_id
+
+    def _rowid(pid):
+        resolved = _resolve_id(pid)
+        return None if resolved is None else resolved[0]
+
+    rowid_to_name = {}
+    for name, pid in ids.items():
+        rowid = _rowid(pid)
+        if rowid is not None:
+            rowid_to_name[rowid] = name
+    out = set()
+    for p in resp.json()["photos"]:
+        rowid = _rowid(p["id"])
+        if rowid is not None and rowid in rowid_to_name:
+            out.add(rowid_to_name[rowid])
+    return out
 
 
 # --- Auth / feature gate ---------------------------------------------------
@@ -322,12 +366,24 @@ class TestImage:
             "/api/frame/photos", params={"token": TOKEN, "count": 100}
         ).json()["photos"]
         photo_id = photos[0]["id"]
+        # The minted id carries the configured cap: without a query it serves
+        # at that cap, the query can still lower it (its documented power),
+        # and no query can raise it past the cap the id was minted with -- a
+        # config edit reaches displays through the next poll's new ids.
+        resp = client.get(f"/api/frame/image/{photo_id}", params={"token": TOKEN})
+        assert resp.status_code == 200
+        with Image.open(BytesIO(resp.content)) as img:
+            assert max(img.size) <= 1920
         resp = client.get(
             f"/api/frame/image/{photo_id}", params={"token": TOKEN, "max_edge": 16}
         )
-        assert resp.status_code == 200
         with Image.open(BytesIO(resp.content)) as img:
             assert max(img.size) <= 16
+        resp = client.get(
+            f"/api/frame/image/{photo_id}", params={"token": TOKEN, "max_edge": 8000}
+        )
+        with Image.open(BytesIO(resp.content)) as img:
+            assert max(img.size) <= 1920
 
     def test_unknown_id_404(self, client, frame_cfg, seed):
         resp = client.get(

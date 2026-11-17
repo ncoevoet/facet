@@ -1852,7 +1852,8 @@ Hinweise:
 |---------|---------|-------------|
 | `features.show_proofing` | `false` | Hauptschalter für Client-Proofing auf geteilten Alben |
 | `proofing.pin` | `""` | Optionale PIN, die ein Client zusammen mit dem Freigabelink eingeben muss; leer = keine PIN (Versuche sind ratenbegrenzt) |
-| `proofing.session_minutes` | `1440` | Lebensdauer der Client-Sitzung in Minuten (24 h); endet sofort, wenn die Albumfreigabe aufgehoben oder Proofing deaktiviert wird |
+| `proofing.session_minutes` | `1440` | Lebensdauer der Client-Sitzung in Minuten (24 h); endet sofort, wenn die Albumfreigabe aufgehoben oder Proofing deaktiviert wird; ein nicht analysierbarer oder nicht positiver Wert fällt auf den Standard zurück, höchstens eine Woche |
+
 
 ### Path Mapping
 
@@ -2661,7 +2662,8 @@ Liefert kuratierte beste Aufnahmen an Kiosk-Geräte ohne Anmeldung: smarte Bilde
 | `count` | `20` | Standardanzahl der von `/api/frame/photos` zurückgegebenen Fotos |
 | `max_count` | `100` | Harte Obergrenze für den Abfrageparameter `count` |
 | `min_aggregate` | `7.0` | Mindest-Aggregatwert, damit ein Foto kuratiert wird |
-| `max_edge` | `1920` | Obergrenze der langen Kante (px) für ausgelieferte JPEGs; der Abfrageparameter `max_edge` kann sie nur senken |
+| `max_edge` | `1920` | Obergrenze der langen Kante (px) für ausgelieferte JPEGs; der Abfrageparameter `max_edge` kann sie nur senken; die ausgegebene Foto-ID trägt diese Obergrenze, eine Änderung erreicht die Displays bei deren nächstem Poll |
+
 | `favorites_only` | `false` | Wenn `true`, werden nur favorisierte Fotos kuratiert |
 | `categories` | `[]` | Positivliste von Kategorienamen (leer = alle) |
 
