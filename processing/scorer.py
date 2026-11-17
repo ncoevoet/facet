@@ -143,6 +143,7 @@ from config.category_filter import _to_float, with_face_defaults
 logger = logging.getLogger("facet.scorer")
 
 # Import shared utilities (lightweight, no cv2/torch dependency)
+from utils.path_cache import cached_resolve
 from utils import (
     get_tag_params, detect_silhouette, tags_to_string,
     load_image_from_path, thumbnail_source,
@@ -1781,7 +1782,7 @@ class Facet:
             # 6. Get EXIF data first so we can use it in scoring
             exif_data = self.get_exif_data(metadata_source)
 
-            resolved_path = str(Path(metadata_source).resolve())
+            resolved_path = cached_resolve(metadata_source)
             photo_override = get_photo_scoring_overrides(self.db_path, paths=[resolved_path]).get(resolved_path, {})
 
             # 7. Generate semantic tags from CLIP embedding

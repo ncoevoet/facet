@@ -436,3 +436,54 @@ class TestLeadingLines:
         out = CompositionAnalyzer.detect_leading_lines(img)
         assert out['line_count'] >= 1
         assert out['leading_lines_score'] > 0
+
+
+# ---------------------------------------------------------------------------
+# The ImageCache holds one exact gray histogram (B142): the exposure,
+# dynamic-range and contrast analyzers each used to walk the same frame again.
+# ---------------------------------------------------------------------------
+
+
+def _sample_image(seed=5):
+    import numpy as np
+    rng = np.random.default_rng(seed)
+    return rng.integers(0, 255, (60, 80, 3)).astype(np.uint8)
+
+
+def test_image_cache_holds_the_exact_gray_histogram():
+    from analyzers.image_cache import ImageCache, gray_histogram
+    img = _sample_image()
+    cache = ImageCache(img)
+    assert list(cache.gray_histogram) == list(gray_histogram(cache.gray))
+
+
+def test_histogram_cache_matches_the_uncached_path_bit_for_bit():
+    from analyzers.image_cache import ImageCache
+    from analyzers.technical import TechnicalAnalyzer
+    img = _sample_image(9)
+    cached = {
+        'dynamic_range': TechnicalAnalyzer.get_dynamic_range(img, cache=ImageCache(img)),
+        'contrast': TechnicalAnalyzer.get_contrast_score(img, cache=ImageCache(img)),
+        'histogram': TechnicalAnalyzer.get_histogram_data(img, cache=ImageCache(img)),
+    }
+    assert TechnicalAnalyzer.get_dynamic_range(img) == cached['dynamic_range']
+    assert TechnicalAnalyzer.get_contrast_score(img) == cached['contrast']
+    uncached = TechnicalAnalyzer.get_histogram_data(img)
+    assert uncached['histogram_bytes'] == cached['histogram']['histogram_bytes']
+    assert {k: v for k, v in uncached.items() if k != 'histogram_bytes'} == \
+        {k: v for k, v in cached['histogram'].items() if k != 'histogram_bytes'}
+
+
+def test_laplacian_variance_matches_the_float64_pipeline_within_tolerance():
+    # The CV_16S path is not bit-identical to the float64 Laplacian the face
+    # analyzers used before: pin the documented ~6e-15 relative agreement so a
+    # regression in the fast path cannot silently move eye/face sharpness.
+    import cv2
+    import numpy as np
+    from analyzers.image_cache import laplacian_variance
+    rng = np.random.default_rng(11)
+    for shape in ((200, 200), (37, 51), (1, 9)):
+        gray = rng.integers(0, 255, shape).astype(np.uint8)
+        expected = float(cv2.Laplacian(gray, cv2.CV_64F).var())
+        got = laplacian_variance(gray)
+        assert abs(expected - got) <= 1e-12 * max(expected, 1.0)

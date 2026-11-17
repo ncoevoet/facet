@@ -3,6 +3,22 @@ Image cache for pre-computed transformations.
 """
 
 import cv2
+import numpy as np
+
+
+# Counting row bands of at most this many pixels keeps every partial count exact.
+_HIST_BAND_PIXELS = 1 << 22
+
+
+def gray_histogram(gray):
+    """Exact 256-bin int64 histogram of a uint8 grey image (any strides)."""
+    height, width = gray.shape[:2]
+    rows = max(1, _HIST_BAND_PIXELS // max(width, 1))
+    hist = np.zeros(256, dtype=np.int64)
+    for top in range(0, height, rows):
+        band = cv2.calcHist([gray[top:top + rows]], [0], None, [256], [0, 256])
+        hist += band.ravel().astype(np.int64)
+    return hist
 
 
 def laplacian_variance(gray):
@@ -29,7 +45,7 @@ class ImageCache:
         sharpness_data = tech_analyzer.get_sharpness_data(img_cv, cache=cache)
         color_data = tech_analyzer.get_color_harmony_data(img_cv, cache=cache)
     """
-    __slots__ = ['gray', 'hsv', 'laplacian_variance', 'height', 'width']
+    __slots__ = ['gray', 'gray_histogram', 'hsv', 'laplacian_variance', 'height', 'width']
 
     def __init__(self, img_cv):
         """
@@ -40,6 +56,9 @@ class ImageCache:
         """
         self.height, self.width = img_cv.shape[:2]
         self.gray = cv2.cvtColor(img_cv, cv2.COLOR_BGR2GRAY)
+        # One exact 256-bin histogram per image: the exposure, dynamic-range and
+        # contrast analyzers each used to walk the same 20 MP frame again.
+        self.gray_histogram = gray_histogram(self.gray)
         self.hsv = cv2.cvtColor(img_cv, cv2.COLOR_BGR2HSV)
         self.laplacian_variance = laplacian_variance(self.gray)
 
