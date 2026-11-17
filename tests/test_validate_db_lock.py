@@ -9,7 +9,7 @@ import sys
 import pytest
 
 from db.schema import init_database
-from facet import LibraryLock
+from facet import LibraryLock, LibraryLockError
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -96,6 +96,62 @@ def test_confirmation_rechecks_issues_before_repair(library, monkeypatch):
 
     monkeypatch.setattr('builtins.input', confirm)
     assert validate_db.main() == 0
+    assert _blink(db) == 0
+    with LibraryLock(str(db), kind='scan'):
+        pass
+
+
+@pytest.mark.parametrize('flags', [(), ('--auto-fix',)])
+@pytest.mark.parametrize('new_issues', [False, True])
+def test_repair_exit_status_uses_post_repair_database(library, flags, new_issues):
+    db, _ = library
+    with sqlite3.connect(db) as conn:
+        # Repairing face_count can expose blink/metric inconsistencies. Clearing
+        # metrics can also resolve an initially unfixable score-range finding.
+        conn.execute('UPDATE photos SET face_count=?, face_quality=?, eye_sharpness=5, is_blink=?',
+                     (1 if new_issues else 0, 5 if new_issues else 11, 1 if new_issues else 0))
+
+    repaired = _run(library, *flags)
+    reported = _run(library, '--report-only')
+
+    expected = 3 if new_issues else 0
+    assert repaired.returncode == expected, repaired.stdout + repaired.stderr
+    assert reported.returncode == expected, reported.stdout + reported.stderr
+    with sqlite3.connect(db) as conn:
+        face_count, quality = conn.execute('SELECT face_count, face_quality FROM photos').fetchone()
+    assert face_count == 0
+    assert quality == (5 if new_issues else 0)
+    with LibraryLock(str(db), kind='scan'):
+        pass
+
+
+@pytest.mark.parametrize('check_fails', [False, True])
+def test_post_repair_check_holds_lock_and_releases_it_on_error(library, monkeypatch, check_fails):
+    import validate_db
+    from validation import DatabaseValidator
+
+    db, _ = library
+    monkeypatch.setattr(sys, 'argv', ['validate_db.py', '--db', str(db), '--auto-fix'])
+    original = DatabaseValidator.run_all_checks
+    rounds = []
+
+    def checks(self):
+        rounds.append(self)
+        if len(rounds) == 3:
+            assert self is not rounds[1], 'post-repair findings must not accumulate old results'
+            with pytest.raises(LibraryLockError), LibraryLock(str(db), kind='scan'):
+                pass
+            if check_fails:
+                raise sqlite3.DatabaseError('post-repair read failed')
+        return original(self)
+
+    monkeypatch.setattr(DatabaseValidator, 'run_all_checks', checks)
+    if check_fails:
+        with pytest.raises(sqlite3.DatabaseError, match='post-repair read failed'):
+            validate_db.main()
+    else:
+        assert validate_db.main() == 0
+    assert len(rounds) == 3
     assert _blink(db) == 0
     with LibraryLock(str(db), kind='scan'):
         pass

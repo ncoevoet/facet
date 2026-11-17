@@ -206,12 +206,19 @@ def _gather_scan_files(photo_paths, scanning_settings):
     all_files = []
     dead_roots = []
     for path_str in photo_paths:
-        base_path = Path(path_str).resolve()
-        if not base_path.exists():
+        try:
+            base_path = Path(path_str).resolve()
+            exists = base_path.exists()
+            is_file = base_path.is_file() if exists else False
+        except OSError as root_error:
+            logger.warning("Path is unreadable: %s (%s)", path_str, root_error)
+            dead_roots.append(path_str)
+            continue
+        if not exists:
             logger.warning("Path does not exist: %s", path_str)
             dead_roots.append(path_str)
             continue
-        if base_path.is_file():
+        if is_file:
             if base_path.suffix.lower() in valid_suffixes:
                 all_files.append(base_path)
             else:

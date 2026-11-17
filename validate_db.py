@@ -56,11 +56,6 @@ def main():
     def _issues_remain(checks):
         return any(r.has_issues and not r.informational for r in checks)
 
-    def _unfixed_remain(checks):
-        # What a just-run fix round could not touch: fixable issues it repaired
-        # no longer count against the run that repaired them.
-        return any(r.has_issues and not r.fixable and not r.informational for r in checks)
-
     # Handle fixes
     fixable_results = [r for r in results if r.has_issues and r.fixable]
 
@@ -107,8 +102,7 @@ def main():
                     logger.error("%d of %d auto-fix(es) failed. Re-run validation to see what remains.",
                                  fix_failures, len(fixable_results))
                     return 2
-                logger.info("All auto-fixes applied. Re-run validation to verify.")
-                return VALIDATION_ISSUES_EXIT_CODE if _unfixed_remain(results) else 0
+                logger.info("All auto-fixes applied.")
             else:
                 with get_connection(args.db, row_factory=False) as conn:
                     # interactive_fix returns False for a skipped or failed fix:
@@ -118,8 +112,14 @@ def main():
                     logger.error("%d of %d issue(s) were skipped or failed to fix. Re-run validation to see what remains.",
                                  fixed.count(False), len(fixed))
                     return VALIDATION_ISSUES_EXIT_CODE
-                logger.info("Fixes applied. Re-run validation to verify.")
-                return VALIDATION_ISSUES_EXIT_CODE if _unfixed_remain(results) else 0
+                logger.info("Fixes applied.")
+            # Repairs can expose new inconsistencies or clear findings that
+            # originally looked unfixable. Use a fresh validator (its results
+            # accumulate) and keep the library lock through the final check.
+            validator = DatabaseValidator(args.db)
+            results = validator.run_all_checks()
+            logger.info(validator.generate_report())
+            return VALIDATION_ISSUES_EXIT_CODE if _issues_remain(results) else 0
         finally:
             lock.release()
     else:

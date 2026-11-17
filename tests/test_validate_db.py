@@ -252,11 +252,14 @@ class _FakeFixConn:
 
 def _run_validate(monkeypatch, tmp_path, argv, results, fix_fails=False, answer='n',
                   interactive_ok=True, recheck_results=None):
-    """Drive validate_db.main() with a scripted validator; returns SystemExit."""
+    """Drive validate_db.main() with scripted pre-lock and post-repair checks."""
     db = tmp_path / "v.db"
     db.write_text("")
     monkeypatch.setattr(sys, "argv", ["validate_db.py", "--db", str(db), *argv])
-    check_rounds = iter([results, results if recheck_results is None else recheck_results])
+    locked_results = results if recheck_results is None else recheck_results
+    # The fake successful fixes clear fixable findings; unfixable ones remain.
+    check_rounds = iter([results, locked_results,
+                         [r for r in locked_results if not r.fixable]])
     validator = SimpleNamespace(
         run_all_checks=lambda: next(check_rounds),
         generate_report=lambda: "report",

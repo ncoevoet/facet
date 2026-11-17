@@ -157,6 +157,22 @@ def test_unreadable_root_counts_as_dead(tmp_path, monkeypatch, caplog):
     assert "Path is unreadable" in caplog.text
 
 
+def test_root_stat_permission_error_exits_scan_did_not_run(tmp_path, monkeypatch):
+    from pathlib import Path
+    original = Path.exists
+    root = tmp_path / 'photos'
+
+    def denied(self):
+        if self == root:
+            raise PermissionError(13, 'Permission denied', str(self))
+        return original(self)
+
+    monkeypatch.setattr(Path, 'exists', denied)
+    with pytest.raises(SystemExit) as raised:
+        _run(tmp_path, monkeypatch, _processor(saved=0))
+    assert raised.value.code == SCAN_DID_NOT_RUN_EXIT_CODE
+
+
 @pytest.mark.timeout(30)
 def test_unreadable_subfolder_under_a_readable_root_is_not_dead(tmp_path, monkeypatch, caplog):
     # A root-owned lost+found (or any restricted album) loses that folder only:

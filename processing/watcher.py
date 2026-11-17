@@ -168,18 +168,34 @@ def run_watch_loop(directories, db_path, config_path=None, debounce_seconds=30,
 
     consecutive_failures = 0
     gave_up = False
+    initial_retry_at: float | None = None
     try:
         if initial_scan:
             # A failing initial scan counts as the streak's first failure, so a
             # broken install cannot watch forever while every scan crashes.
-            if _run_scan('initial', initial_cmd) is False:
+            outcome = _run_scan('initial', initial_cmd)
+            if outcome is _LIBRARY_BUSY:
+                initial_retry_at = time.monotonic() + debounce_seconds
+            elif outcome is False:
                 consecutive_failures = 1
         logger.info("Watch mode active - new files trigger a scan after %ds of quiet "
                     "(Ctrl+C to stop)", debounce_seconds)
         while True:
             time.sleep(1)
-            batch = pending.take_if_settled(debounce_seconds)
-            if batch:
+            if initial_retry_at is not None:
+                if time.monotonic() < initial_retry_at:
+                    continue
+                outcome = _run_scan('initial retry', initial_cmd)
+                if outcome is _LIBRARY_BUSY:
+                    initial_retry_at = time.monotonic() + debounce_seconds
+                    continue
+                initial_retry_at = None
+                # Do not drain events queued during the initial scan: those
+                # still need an incremental scan after the initial attempt.
+            else:
+                batch = pending.take_if_settled(debounce_seconds)
+                if not batch:
+                    continue
                 if not _has_scannable_path(batch):
                     logger.info(
                         "Skipping scan: %d changed file(s) have no extension this "
@@ -192,18 +208,18 @@ def run_watch_loop(directories, db_path, config_path=None, debounce_seconds=30,
                     for path in batch:
                         pending.add(path)
                     continue
-                if outcome is None:
-                    continue
-                if outcome:
-                    consecutive_failures = 0
-                else:
-                    consecutive_failures += 1
-                    if consecutive_failures >= MAX_CONSECUTIVE_FAILURES:
-                        logger.error(
-                            "Stopping watch mode: %d consecutive scans failed. Fix the "
-                            "underlying error and restart.", consecutive_failures)
-                        gave_up = True
-                        break
+            if outcome is None:
+                continue
+            if outcome:
+                consecutive_failures = 0
+            else:
+                consecutive_failures += 1
+                if consecutive_failures >= MAX_CONSECUTIVE_FAILURES:
+                    logger.error(
+                        "Stopping watch mode: %d consecutive scans failed. Fix the "
+                        "underlying error and restart.", consecutive_failures)
+                    gave_up = True
+                    break
     except KeyboardInterrupt:
         logger.info("Watch mode stopped.")
     finally:
