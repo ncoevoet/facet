@@ -502,6 +502,10 @@ INDEXES = [
     ('idx_qrealign_sort', 'photos', 'qrealign_score DESC, path'),
     # "Date Added" sort: same (X DESC, path) shape and ANALYZE-on-build.
     ('idx_date_added_sort', 'photos', 'date_added DESC, path'),
+    # Its ASC direction: api.types.order_by_clause keeps NULLs last with
+    # `(date_added IS NULL) ASC, date_added ASC`, which the DESC index cannot serve
+    # (each page would scan the table). The expression text must match it.
+    ('idx_date_added_asc', 'photos', '(date_added IS NULL), date_added, path'),
     # DeQA sort + min/max_deqa range filter: same (X DESC, path) shape and ANALYZE-on-build
     # as idx_qrealign_sort. Replaces the bare idx_deqa_score (dropped on upgrade).
     ('idx_deqa_sort', 'photos', 'deqa_score DESC, path'),
@@ -1828,7 +1832,7 @@ ANALYZE_KEY_INDEXES = ('idx_moment_confidence', 'idx_gallery_aggregate')
 # stale partial stats. A one-index ANALYZE scans the small covering index, not the
 # 16 GB table, so it costs seconds where ``ANALYZE photos`` costs the whole file.
 ANALYZE_ON_BUILD_INDEXES = ('idx_post_scan', 'idx_date_asc_cover', 'idx_qrealign_sort', 'idx_date_added_sort',
-                            'idx_deqa_sort', 'idx_aesthetic_v25_sort', 'idx_faces_photo_person')
+                            'idx_date_added_asc', 'idx_deqa_sort', 'idx_aesthetic_v25_sort', 'idx_faces_photo_person')
 
 
 def missing_photo_indexes(conn):

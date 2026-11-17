@@ -413,13 +413,24 @@ def test_date_sorted_pages_walk_their_covering_index(gallery, traced, sparse_db,
     assert not _uses(_plans(sparse_db, found)["page"], index)
 
 
-def test_date_added_desc_page_walks_its_sort_index(gallery, traced, sparse_db):
+@pytest.mark.parametrize("direction, index", [
+    ("DESC", "idx_date_added_sort"),
+    # ASC sorts on `(date_added IS NULL), date_added` to keep NULLs last, which the
+    # DESC index cannot serve.
+    ("ASC", "idx_date_added_asc"),
+])
+def test_date_added_pages_walk_their_sort_index(gallery, traced, sparse_db, direction, index):
+    with sqlite3.connect(sparse_db) as conn:
+        conn.execute("UPDATE photos SET date_added = '2026-01-01T00:00:00Z' WHERE rowid % 3 != 0")
+        conn.execute("ANALYZE idx_date_added_sort")
+        conn.execute("ANALYZE idx_date_added_asc")
+        conn.commit()
     client = gallery(sparse_db)
-    found = _capture(client, traced, f"{HIDES}&sort=date_added&dir=DESC")
+    found = _capture(client, traced, f"{HIDES}&sort=date_added&dir={direction}")
     page = _plan(sparse_db, found["page"])
-    assert _uses(page, "idx_date_added_sort") and not _temp_sort(page), page
+    assert _uses(page, index) and not _temp_sort(page), page
 
-    _drop_registry(sparse_db, ["idx_date_added_sort"])
+    _drop_registry(sparse_db, [index])
     assert _temp_sort(_plan(sparse_db, found["page"]))
 
 
