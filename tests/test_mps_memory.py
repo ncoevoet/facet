@@ -44,6 +44,7 @@ def _make_processor(device, model_group):
     proc.pass_groups = [model_group]
     proc.restricted = True
     proc._decode_executor = None  # no scan running: the chunk decodes synchronously
+    proc.on_step = None  # no scan dialog listening for step progress
     proc.metrics = {
         'save_time': 0.0,
         'io_time': 0.0,
