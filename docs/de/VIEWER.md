@@ -952,6 +952,8 @@ Laden Sie Fotos aus der Fotodetailansicht oder der Auswahlleiste herunter. Das D
 
 Eine neu hinzugefügte RAW-Begleitdatei kann bis zu fünf Minuten benötigen, bis sie in diesem Menü erscheint.
 
+Beim Herunterladen mehrerer ausgewählter Fotos — in der Galerie oder einem freigegebenen Album — erscheint eine Benachrichtigung mit dem laufenden Zähler, einem Fortschrittsbalken und **Abbrechen**, danach eine Meldung, sobald die letzte Datei gespeichert ist. Ein fehlgeschlagenes Foto (darktable-Renderfehler, Datei nicht mehr auf der Festplatte) wird übersprungen und gezählt; die übrigen werden weiter heruntergeladen.
+
 **Salienzbewusster Social-Zuschnitt.** Ist `viewer.features.show_social_export` an (Standard `true`) und Edition freigeschaltet, hat die Download-Leiste der Fotodetailansicht ein Menü **Social-Zuschnitt**. Es listet `social_export.presets` (standardmäßig quadratisch 1:1, Hochformat 4:5, Story 9:16). Die Wahl lädt ein JPEG in voller Auflösung herunter, auf dieses Seitenverhältnis zugeschnitten und auf das Motiv zentriert. Das Motiv stammt aus dem BiRefNet-Motivrahmen (`photos.subject_bbox`, von `--recompute-saliency`), sonst aus den erkannten Gesichtern, sonst aus der Mitte. Der Tooltip des Menüs zeigt, was verwendet wurde (`saliency` / `faces` / `center`).
 
 Endpunkte: [API.md — Download](../API.md#download).

@@ -314,6 +314,8 @@ describe('GalleryComponent', () => {
               onAction: () => new Subject<void>(),
               afterDismissed: () => new Subject<void>(),
             })),
+            // The selection download's progress notification.
+            openFromComponent: vi.fn(() => ({ afterDismissed: () => new Subject<void>(), dismiss: vi.fn() })),
           },
         },
       ],

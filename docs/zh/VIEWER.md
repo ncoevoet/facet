@@ -951,6 +951,8 @@ Facet 会从你的照片库生成胶囊：
 
 新添加的配套 RAW 文件可能需要最多五分钟才会出现在此菜单中。
 
+在图库或共享相册中下载多张选中的照片时，会显示一条通知，包含当前计数、进度条和**取消**按钮，最后一个文件保存后再显示一条完成消息。失败的照片（darktable 渲染错误、文件已不在磁盘上）会被跳过并计数，其余照片继续下载。
+
 **基于显著性的社交平台裁切。** 当 `viewer.features.show_social_export` 开启（默认 `true`）且编辑模式已解锁时，照片详情的下载栏有**社交平台裁切**菜单。它列出 `social_export.presets`（默认为方形 1:1、竖幅 4:5、快拍 9:16）。选择其一会下载按该宽高比裁切、并以主体为中心的全分辨率 JPEG。主体来自 BiRefNet 主体框（`photos.subject_bbox`，来自 `--recompute-saliency`），其次是检测到的人脸，最后是画面中心。菜单提示文字会显示所用的依据（`saliency` / `faces` / `center`）。
 
 端点：[API.md——Download](../API.md#download)。

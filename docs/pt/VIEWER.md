@@ -949,6 +949,8 @@ Baixe fotos pelo detalhe da foto ou pela barra de seleção. O menu de download 
 
 Um ficheiro RAW associado recém-adicionado pode demorar até cinco minutos a aparecer neste menu.
 
+O download de várias fotos selecionadas — na galeria ou em um álbum compartilhado — mostra uma notificação com a contagem em andamento, uma barra de progresso e **Cancelar**, e depois uma mensagem quando o último arquivo é salvo. Uma foto que falha (erro de renderização do darktable, arquivo que não está mais no disco) é ignorada e contada, e as demais continuam sendo baixadas.
+
 **Recorte social orientado pela saliência.** Com `viewer.features.show_social_export` ligado (padrão `true`) e a edição desbloqueada, a barra de download do detalhe da foto tem um menu **Recorte social**. Ele lista `social_export.presets` (quadrado 1:1, retrato 4:5, story 9:16 por padrão). Escolher um baixa um JPEG de resolução total recortado nessa proporção e centrado no sujeito. O sujeito vem da caixa de sujeito do BiRefNet (`photos.subject_bbox`, de `--recompute-saliency`), senão dos rostos detectados, senão do centro. A dica do menu mostra qual foi usado (`saliency` / `faces` / `center`).
 
 Endpoints: [API.md — Download](../API.md#download).

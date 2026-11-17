@@ -952,6 +952,8 @@ Descarga fotos desde el detalle de la foto o la barra de selección. El menú de
 
 Un archivo RAW acompañante recién añadido puede tardar hasta cinco minutos en aparecer en este menú.
 
+La descarga de varias fotos seleccionadas, en la galería o en un álbum compartido, muestra una notificación con el recuento en curso, una barra de progreso y **Cancelar**, y luego un mensaje cuando se guarda el último archivo. Una foto que falla (un error de renderizado de darktable, un archivo que ya no está en el disco) se omite y se cuenta, y el resto se sigue descargando.
+
 **Recorte social con detección de saliencia.** Con `viewer.features.show_social_export` activado (por defecto `true`) y la edición desbloqueada, la barra de descarga del detalle de la foto tiene un menú **Recorte social**. Lista `social_export.presets` (cuadrado 1:1, retrato 4:5, historia 9:16 por defecto). Al elegir uno se descarga un JPEG a resolución completa recortado a esa proporción y centrado en el sujeto. El sujeto procede del cuadro de sujeto de BiRefNet (`photos.subject_bbox`, de `--recompute-saliency`), si no de los rostros detectados, si no del centro. La información emergente del menú muestra cuál se usó (`saliency` / `faces` / `center`).
 
 Endpoints: [API.md — Descarga](../API.md#download).

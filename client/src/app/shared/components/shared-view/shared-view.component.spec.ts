@@ -93,7 +93,9 @@ describe('SharedViewComponent', () => {
     };
     mockI18n = {
       t: vi.fn((key: string) => key),
-    };
+      // Read by the translate pipe inside the selection download's progress snackbar.
+      translations: () => ({}),
+    } as typeof mockI18n;
   });
 
   it('wires shared slideshow paging and close to the shared collection', async () => {

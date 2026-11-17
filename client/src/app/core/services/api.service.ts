@@ -52,8 +52,8 @@ export class ApiService {
   }
 
   /** Get raw response (e.g., for binary thumbnails) */
-  getRaw(url: string): Observable<Blob> {
-    return this.http.get(url, { responseType: 'blob' });
+  getRaw(url: string, context?: HttpContext): Observable<Blob> {
+    return this.http.get(url, { responseType: 'blob', context });
   }
 
   /** Build thumbnail URL */
