@@ -37,8 +37,12 @@ def create_review_edit_triggers(conn):
         BEGIN UPDATE photo_metadata_edits SET photo_path=NEW.path WHERE photo_path=OLD.path; END""")
 
 
-def review_edit_state(conn, path, user_id):
-    if not table_exists(conn, 'photo_metadata_edits'):
+def review_edit_state(conn, path, user_id, *, has_table=None):
+    """``has_table``: a caller-held schema snapshot, so an import that
+    already probed sqlite_master once does not re-probe it per photo."""
+    if has_table is None:
+        has_table = table_exists(conn, 'photo_metadata_edits')
+    if not has_table:
         return {}
     return {row['field']: dict(row) for row in conn.execute(
         'SELECT * FROM photo_metadata_edits WHERE photo_path=? AND user_id=?', (path, user_id or ''))}

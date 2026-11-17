@@ -26,6 +26,7 @@ from utils import (
     load_image_and_thumbnail, get_tag_params, detect_silhouette,
     tags_to_string
 )
+from utils.path_cache import cached_resolve
 from processing.resource_monitor import ResourceMonitor, HAS_PSUTIL
 from processing.metrics_reporter import MetricsReporter
 
@@ -128,7 +129,7 @@ class BatchProcessor:
 
         pop() keeps the cache from holding entries past their consumption.
         """
-        resolved = {p: str(Path(p).resolve()) for p in paths}
+        resolved = {p: cached_resolve(p) for p in paths}
         batch_exif = {}
         with self._exif_lock:
             for rp in resolved.values():
@@ -288,7 +289,7 @@ class BatchProcessor:
             # Sticky per-photo scoring context/override, batched once per
             # batch (not per photo) so a rescan preserves them instead of
             # silently dropping them.
-            resolved_paths = [str(Path(p).resolve()) for p in paths]
+            resolved_paths = [cached_resolve(p) for p in paths]
             batch_overrides = get_photo_scoring_overrides(self.scorer.db_path, paths=resolved_paths)
 
             # Extract PIL images and pre-processed CLIP inputs
@@ -382,7 +383,7 @@ class BatchProcessor:
 
                 # Get EXIF data (from batch fetch, or fallback to per-image)
                 # Batch uses resolved paths, so resolve before lookup
-                resolved_path = str(Path(path).resolve())
+                resolved_path = cached_resolve(path)
                 exif_data = batch_exif.get(resolved_path) or self.scorer.get_exif_data(path)
                 photo_override = batch_overrides.get(resolved_path, {})
 
@@ -429,7 +430,7 @@ class BatchProcessor:
 
                 # Build result
                 res = {
-                    'path': str(Path(path).resolve()),
+                    'path': cached_resolve(path),
                     'filename': Path(path).name,
                     'category': category,
                     'image_width': img_w,

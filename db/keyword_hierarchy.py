@@ -223,20 +223,24 @@ def assign_path(conn, photo_path, segments, *, source='user', created_by=None, i
     return node_id, changed
 
 
-def photo_hierarchies(conn, photo_path):
+def photo_hierarchies(conn, photo_path, *, has_table=None):
     """Read old schemas without migrating; no invented hierarchy from flat tags."""
-    return load_hierarchy_map(conn, [photo_path]).get(photo_path, [])
+    return load_hierarchy_map(conn, [photo_path], has_table=has_table).get(photo_path, [])
 
 
-def plan_path_import(conn, photo_path, paths, *, pending_prefixes=None):
+def plan_path_import(conn, photo_path, paths, *, pending_prefixes=None, tables_snapshot=None):
     """Read-only additive import plan, also valid on released schemas.
 
     Do not create speculative nodes for protected removals. The caller applies
     this plan under its writer transaction; previews never allocate identities.
+    ``tables_snapshot`` (the set of table names) lets a bulk importer probe the
+    schema once for its whole run instead of once per photo.
     """
-    tables = {row[0] for row in conn.execute("SELECT name FROM sqlite_master WHERE type='table'")}
+    tables = tables_snapshot
+    if tables is None:
+        tables = {row[0] for row in conn.execute("SELECT name FROM sqlite_master WHERE type='table'")}
     supported = 'photo_keyword_nodes' in tables
-    current = photo_hierarchies(conn, photo_path) if supported else []
+    current = photo_hierarchies(conn, photo_path, has_table=True) if supported else []
     assigned = {tuple(name.casefold() for name in item['segments']): item for item in current}
     tombstones = list(conn.execute('SELECT path_key,node_id FROM keyword_assignment_deletions WHERE photo_path=?',
                                    (photo_path,))) if supported else []
@@ -286,13 +290,16 @@ def plan_path_import(conn, photo_path, paths, *, pending_prefixes=None):
     return proposed, diagnostics
 
 
-def load_hierarchy_map(conn, photo_paths, *, max_bytes=8 * 1024 * 1024):
+def load_hierarchy_map(conn, photo_paths, *, max_bytes=8 * 1024 * 1024, has_table=None):
     """Materialize only requested assignments and their ancestors, in chunks.
 
     Callers authorize photo paths first. API callers retain a bounded response
     budget; CLI exports may opt out while passing a bounded photo chunk.
+    ``has_table``: a caller-held schema snapshot.
     """
-    if not conn.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='photo_keyword_nodes'").fetchone():
+    if has_table is None:
+        has_table = bool(conn.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='photo_keyword_nodes'").fetchone())
+    if not has_table:
         return {}
     paths = list(dict.fromkeys(photo_paths))
     result, size = {}, 0

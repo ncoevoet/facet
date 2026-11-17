@@ -519,6 +519,13 @@ def _import_sidecars(conn, root, *, user_id, overwrite_manual_gps, dry_run, fiel
     reported: set[str] = set()
     created_by = user_id if per_user else None
     created_at = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S")
+    # One schema snapshot for the whole import: the per-photo helpers each used
+    # to re-probe sqlite_master inside the write transaction -- several probes
+    # per photo, 50k sidecars meant 200k queries stretching the import's lock.
+    schema_tables = {r[0] for r in conn.execute("SELECT name FROM sqlite_master WHERE type='table'")}
+    hierarchy_table = 'photo_keyword_nodes' in schema_tables
+    manual_tags_table = 'photo_manual_tags' in schema_tables
+    metadata_edits_table = 'photo_metadata_edits' in schema_tables
     for row in rows:
         try:
             sidecar, reason = _discover_sidecar(row["path"], sidecar_naming, shared_stems, directory_images, reported)
@@ -551,7 +558,7 @@ def _import_sidecars(conn, root, *, user_id, overwrite_manual_gps, dry_run, fiel
             _plan_entry(entries, row["path"], sidecar, {}, diagnostics)
             continue
 
-        existing = set(load_manual_tags(conn, row["path"]))
+        existing = set(load_manual_tags(conn, row["path"], has_table=manual_tags_table))
         marker = parsed.get("keyword_state") or {}
         manual = {keyword_key(tag) for tag in marker.get("manual", [])}
         # Present subjects supersede stale deletion markers: another editor
@@ -582,9 +589,11 @@ def _import_sidecars(conn, root, *, user_id, overwrite_manual_gps, dry_run, fiel
             if parsed['hierarchy_state_invalid']:
                 diagnostics.append({'field': 'hierarchy', 'reason': 'invalid_hierarchy_ownership'})
             else:
-                hierarchy_plan, hierarchy_diagnostics = plan_path_import(conn, row['path'], [
-                    path for path in parsed['hierarchy_paths'] if _hierarchy_key(path) not in generated],
-                    pending_prefixes=projected_prefixes if dry_run else None)
+                hierarchy_plan, hierarchy_diagnostics = plan_path_import(
+                    conn, row['path'], [
+                        path for path in parsed['hierarchy_paths'] if _hierarchy_key(path) not in generated],
+                    pending_prefixes=projected_prefixes if dry_run else None,
+                    tables_snapshot=schema_tables)
                 diagnostics.extend(hierarchy_diagnostics)
         new_keywords = [
             tag for tag in _foreign_keywords(conn, row["path"], row["tags"], keywords, diagnostics)
@@ -608,7 +617,8 @@ def _import_sidecars(conn, root, *, user_id, overwrite_manual_gps, dry_run, fiel
         sidecar_epoch = os.path.getmtime(sidecar) if metadata_epoch is None else metadata_epoch
         photo_epoch = _to_epoch(_parse_date(row["scanned_at"]))
         clock_scope = user_id if per_user else ''
-        clocks = review_edit_state(conn, row['path'], clock_scope)
+        clocks = review_edit_state(conn, row['path'], clock_scope,
+                                   has_table=metadata_edits_table)
         # A row with edit receipts is judged by them (the stale check below);
         # only an untracked row falls back to the legacy scan-time gate.
         sidecar_wins = overwrite_review or bool(clocks) or photo_epoch is None or sidecar_epoch >= photo_epoch
@@ -691,7 +701,7 @@ def _import_sidecars(conn, root, *, user_id, overwrite_manual_gps, dry_run, fiel
             tags_added += len(new_keywords)
             hierarchy_updated += len(hierarchy_plan)
         else:
-            if hierarchy_plan and not conn.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='photo_keyword_nodes'").fetchone():
+            if hierarchy_plan and not hierarchy_table:
                 raise HierarchyError('Initialize the database schema before importing keyword hierarchies')
             for segments, raw in hierarchy_plan:
                 _, changed = assign_path(conn, row['path'], segments, source='xmp',

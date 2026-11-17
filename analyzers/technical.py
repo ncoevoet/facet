@@ -9,7 +9,7 @@ import math
 import cv2
 import numpy as np
 
-from analyzers.image_cache import laplacian_variance
+from analyzers.image_cache import gray_histogram, laplacian_variance
 from utils.histogram import (
     CLIP_MEASURED_CHANNELS, HIGHLIGHT_CLIP_BIN, SHADOW_CLIP_BIN, pack_histogram,
 )
@@ -20,21 +20,10 @@ _NOISE_KERNEL = np.array([[1, -2, 1],
                           [-2, 4, -2],
                           [1, -2, 1]], dtype=np.float32)
 
-# ``cv2.calcHist`` counts in float32, which stops being exact at 2**24 pixels in one bin
-# (a 17 MP frame of a single grey level is realistic: a lens-cap shot, a clipped sky).
-# Counting row bands of at most this many pixels keeps every partial count exact.
-_HIST_BAND_PIXELS = 1 << 22
 
-
-def gray_histogram(gray):
-    """Exact 256-bin int64 histogram of a uint8 grey image (any strides)."""
-    height, width = gray.shape[:2]
-    rows = max(1, _HIST_BAND_PIXELS // max(width, 1))
-    hist = np.zeros(256, dtype=np.int64)
-    for top in range(0, height, rows):
-        band = cv2.calcHist([gray[top:top + rows]], [0], None, [256], [0, 256])
-        hist += band.ravel().astype(np.int64)
-    return hist
+def _gray_hist(gray, cache):
+    """The exact grey histogram: the cached one when the caller holds an ImageCache."""
+    return cache.gray_histogram if cache is not None else gray_histogram(gray)
 
 
 def histogram_percentile(hist, q):
@@ -230,8 +219,11 @@ class TechnicalAnalyzer:
         else:
             gray = cv2.cvtColor(image_cv, cv2.COLOR_BGR2GRAY)
 
-        # Compute 256-bin grayscale histogram
-        hist = cv2.calcHist([gray], [0], None, [256], [0, 256]).flatten()
+        # The exact int64 histogram the other gray analyzers reuse, cast back to the
+        # float32 the calcHist read produced: identical counts for every bin a real
+        # photo can fill (a solid 45 MP frame overflowed float32's 24-bit mantissa),
+        # and float32 keeps the stored bimodality bit-identical to earlier scans.
+        hist = _gray_hist(gray, cache).astype(np.float32)
         total = hist.sum()
         hist_normalized = hist / total if total > 0 else hist
 
@@ -342,7 +334,8 @@ class TechnicalAnalyzer:
 
         # Use 2nd and 98th percentile to avoid outliers (read off the grey histogram: exact,
         # and no sort of the whole frame)
-        hist = gray_histogram(gray)
+        # The cache holds the exact histogram the exposure analyzer already walked.
+        hist = _gray_hist(gray, cache)
         p2 = histogram_percentile(hist, 2)
         p98 = histogram_percentile(hist, 98)
 
@@ -405,7 +398,7 @@ class TechnicalAnalyzer:
         else:
             gray = cv2.cvtColor(image_cv, cv2.COLOR_BGR2GRAY)
 
-        hist = gray_histogram(gray)
+        hist = _gray_hist(gray, cache)
 
         # Percentile-based contrast (more robust than min/max which is skewed by outliers)
         p5 = histogram_percentile(hist, 5)

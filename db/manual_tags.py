@@ -65,9 +65,15 @@ def _table_exists(conn):
     ).fetchone() is not None
 
 
-def load_manual_tags(conn, photo_path):
-    """Manual tags of one photo, sorted; ``[]`` when the table does not exist yet."""
-    if not _table_exists(conn):
+def load_manual_tags(conn, photo_path, *, has_table=None):
+    """Manual tags of one photo, sorted; ``[]`` when the table does not exist yet.
+
+    ``has_table`` is a caller-held schema snapshot (an import probing once
+    for its whole run instead of per photo, inside its write transaction).
+    """
+    if has_table is None:
+        has_table = _table_exists(conn)
+    if not has_table:
         return []
     return sorted(
         row[0] for row in conn.execute(

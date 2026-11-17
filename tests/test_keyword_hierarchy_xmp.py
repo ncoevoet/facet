@@ -156,6 +156,27 @@ def test_released_schema_dry_run_plans_hierarchy_without_migration(tmp_path):
     assert db.read_bytes() == before
 
 
+def test_released_schema_write_import_refuses_hierarchy_without_migrating(tmp_path):
+    # The write path's guard reads the import's one schema snapshot: a plan
+    # that carries hierarchy on a schema without the hierarchy tables must
+    # refuse rather than create them behind the operator's back.
+    image = tmp_path / 'old.jpg'
+    image.write_bytes(b'original')
+    Path(str(image) + '.xmp').write_text(build_xmp(XmpRating(hierarchy_paths=['Places|Coast'])), encoding='utf-8')
+    db = tmp_path / 'old.db'
+    with sqlite3.connect(db) as conn:
+        schema = Path(__file__).parent / 'fixtures' / 'photo_stacks_v1_23_1_schema.sql'
+        conn.executescript(schema.read_text(encoding='utf-8'))
+        conn.execute('INSERT INTO photos(path) VALUES(?)', (str(image),))
+        conn.commit()
+    with sqlite3.connect(db) as conn:
+        conn.row_factory = sqlite3.Row
+        with pytest.raises(HierarchyError, match='Initialize the database schema'):
+            import_sidecars(conn, fields=['keywords'], dry_run=False)
+        assert conn.execute(
+            "SELECT 1 FROM sqlite_master WHERE type='table' AND name='photo_keyword_nodes'").fetchone() is None
+
+
 def test_import_cap_and_user_authority_refuse_without_creating_speculative_nodes():
     from db.keyword_hierarchy import plan_path_import
     with sqlite3.connect(':memory:') as conn:
@@ -277,3 +298,43 @@ def test_real_exiftool_reconciles_only_owned_hierarchy_and_preserves_foreign_pac
         write_metadata(str(image), rating)
     assert sidecar.read_bytes() == malformed and malformed != before
     assert hashlib.sha256(image.read_bytes()).hexdigest() == original
+
+
+def test_hierarchy_schema_probe_runs_once_per_import(tmp_path):
+    # Two hierarchised photos used to re-query sqlite_master inside the write
+    # transaction twice (50k photos = 50k probes, stretching the import's lock).
+    from db.schema import init_database
+    from processing import xmp_import
+
+    paths = []
+    for name in ('one.jpg', 'two.jpg'):
+        image = tmp_path / name
+        image.write_bytes(b'fixture bytes')
+        Path(str(image) + '.xmp').write_text(build_xmp(XmpRating(
+            hierarchy_paths=['Places|City'], category='portrait')), encoding='utf-8')
+        paths.append(str(image))
+    db = tmp_path / 'catalog.db'
+    init_database(str(db))
+    with sqlite3.connect(db) as real:
+        real.row_factory = sqlite3.Row
+        real.executemany('INSERT INTO photos(path) VALUES(?)', [(p,) for p in paths])
+        real.commit()
+
+        class _CountingConn:
+            def __init__(self, inner):
+                self._inner = inner
+                self.master_probes = 0
+
+            def execute(self, sql, *args):
+                if 'sqlite_master' in sql:
+                    self.master_probes += 1
+                return self._inner.execute(sql, *args)
+
+            def __getattr__(self, name):
+                return getattr(self._inner, name)
+
+        conn = _CountingConn(real)
+        result = xmp_import.import_sidecars(conn, fields=['keywords'])
+        assert result['hierarchy_updated'] == 2
+        # Two hierarchised photos, ONE probe.
+        assert conn.master_probes == 1

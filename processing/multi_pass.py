@@ -37,6 +37,7 @@ from processing.routing import (
 from processing.scorer import build_scoring_metrics
 from utils.device import clear_device_cache
 from utils.image_bounds import bound_to_inference_size
+from utils.path_cache import cached_resolve
 from utils.image_loading import (
     bgr_to_gray, clear_decode_timeouts, consume_decode_timeout, pil_to_bgr)
 from utils.system_memory import BYTES_PER_GB, commit_headroom_bytes, effective_memory
@@ -126,7 +127,7 @@ EXIF_CLOSE_JOIN_SECONDS = 2.0
 
 
 def _resolved(paths) -> List[str]:
-    return [str(Path(p).resolve()) for p in paths]
+    return [cached_resolve(p) for p in paths]
 
 
 class ExifPrefetcher:
@@ -1259,7 +1260,7 @@ class ChunkedMultiPassProcessor:
     def _attach_exif(self, images: Dict[str, Dict], chunk_exif: Dict[str, Any]):
         """Give decoded-ahead photos their EXIF: the chunk's batch, else the per-photo read."""
         for path, data in images.items():
-            exif_data = chunk_exif.get(str(Path(path).resolve()))
+            exif_data = chunk_exif.get(cached_resolve(path))
             if not exif_data:
                 start = time.perf_counter()
                 try:
@@ -1547,7 +1548,6 @@ class ChunkedMultiPassProcessor:
         _ensure_imports()
         import imagehash
         from concurrent.futures import ThreadPoolExecutor
-        from pathlib import Path
         from utils import load_image_and_thumbnail, load_image_from_path
         from analyzers import TechnicalAnalyzer, ImageCache, CompositionAnalyzer
         from analyzers.form_facet import compute_form_metrics, warmup
@@ -1612,7 +1612,7 @@ class ChunkedMultiPassProcessor:
             # Create ImageCache for efficient repeated operations
             cache = ImageCache(img_cv)
 
-            resolved = str(Path(path).resolve())
+            resolved = cached_resolve(path)
             exif_data = chunk_exif.get(resolved)
             if not exif_data and not defer_exif:
                 fallback_start = time.perf_counter()
@@ -2185,7 +2185,7 @@ class ChunkedMultiPassProcessor:
         # Sticky per-photo scoring context/override, batched once per chunk
         # (not per photo) so a rescan preserves them instead of silently
         # dropping them. photos.path stores resolved paths.
-        resolved_paths = [str(Path(path).resolve()) for path in results]
+        resolved_paths = [cached_resolve(path) for path in results]
         chunk_overrides = get_photo_scoring_overrides(self.scorer.db_path, paths=resolved_paths)
 
         for path, data in results.items():
@@ -2237,7 +2237,7 @@ class ChunkedMultiPassProcessor:
             # builder — the single source of truth for the scan-time feature space,
             # also used by the single-pass batch and PIL scoring paths.
             exif = img_data.get('exif', {})
-            photo_override = chunk_overrides.get(str(Path(path).resolve()), {})
+            photo_override = chunk_overrides.get(cached_resolve(path), {})
             metrics = build_scoring_metrics(
                 aesthetic=data.get('aesthetic'),
                 face_count=data.get('face_count') or 0,
@@ -2307,7 +2307,7 @@ class ChunkedMultiPassProcessor:
         """Build the shared identity + EXIF record common to full and partial saves."""
         exif = img_data.get('exif', {})
         return {
-            'path': str(Path(path).resolve()),
+            'path': cached_resolve(path),
             'filename': Path(path).name,
             'image_width': img_data['width'],
             'image_height': img_data['height'],
