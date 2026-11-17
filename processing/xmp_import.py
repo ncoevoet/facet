@@ -558,7 +558,7 @@ def _import_sidecars(conn, root, *, user_id, overwrite_manual_gps, dry_run, fiel
             _plan_entry(entries, row["path"], sidecar, {}, diagnostics)
             continue
 
-        existing = set(load_manual_tags(conn, row["path"], table_exists=manual_tags_table))
+        existing = set(load_manual_tags(conn, row["path"], has_table=manual_tags_table))
         marker = parsed.get("keyword_state") or {}
         manual = {keyword_key(tag) for tag in marker.get("manual", [])}
         # Present subjects supersede stale deletion markers: another editor
@@ -618,7 +618,7 @@ def _import_sidecars(conn, root, *, user_id, overwrite_manual_gps, dry_run, fiel
         photo_epoch = _to_epoch(_parse_date(row["scanned_at"]))
         clock_scope = user_id if per_user else ''
         clocks = review_edit_state(conn, row['path'], clock_scope,
-                                   metadata_edits_table=metadata_edits_table)
+                                   has_table=metadata_edits_table)
         # A row with edit receipts is judged by them (the stale check below);
         # only an untracked row falls back to the legacy scan-time gate.
         sidecar_wins = overwrite_review or bool(clocks) or photo_epoch is None or sidecar_epoch >= photo_epoch

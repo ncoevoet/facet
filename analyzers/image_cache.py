@@ -39,8 +39,9 @@ class ImageCache:
     """
     Pre-computes and caches commonly needed image transformations.
 
-    Creating grayscale/HSV conversions and Laplacian variance once per image
-    avoids redundant computation across multiple analyzer methods.
+    Creating grayscale/HSV conversions, the exact grey histogram and the
+    Laplacian variance once per image avoids redundant computation across
+    multiple analyzer methods.
 
     Usage:
         cache = ImageCache(img_cv)

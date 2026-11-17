@@ -445,7 +445,6 @@ class TestLeadingLines:
 
 
 def _sample_image(seed=5):
-    import numpy as np
     rng = np.random.default_rng(seed)
     return rng.integers(0, 255, (60, 80, 3)).astype(np.uint8)
 
@@ -454,12 +453,32 @@ def test_image_cache_holds_the_exact_gray_histogram():
     from analyzers.image_cache import ImageCache, gray_histogram
     img = _sample_image()
     cache = ImageCache(img)
-    assert list(cache.gray_histogram) == list(gray_histogram(cache.gray))
+    expected = np.bincount(cache.gray.ravel(), minlength=256)
+    assert cache.gray_histogram.dtype == np.int64
+    assert np.array_equal(cache.gray_histogram, expected)
+    assert np.array_equal(gray_histogram(cache.gray), expected)
+
+
+@pytest.mark.parametrize('seed', [1, 2, 3])
+def test_histogram_data_matches_the_float32_calchist_it_replaced(seed):
+    # Independent oracle: the pre-cache read, a float32 cv2.calcHist normalised
+    # and fed to kurtosis. The stored bimodality must stay bit-identical to it,
+    # or new rows would not compare with rows scanned before (it feeds the
+    # exposure recompute and the ranker).
+    import cv2
+    from scipy.stats import kurtosis
+
+    rng = np.random.default_rng(seed)
+    yy, xx = np.mgrid[0:240, 0:320]
+    base = rng.uniform(0, 255) + rng.uniform(-1, 1) * xx + rng.uniform(-1, 1) * yy
+    img = np.clip(base[..., None] + rng.normal(0, 25, (240, 320, 3)), 0, 255).astype(np.uint8)
+    hist = cv2.calcHist([cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)], [0], None, [256], [0, 256]).flatten()
+    expected = round(-kurtosis(hist / hist.sum() * 256, fisher=True), 4)
+    assert repr(float(TechnicalAnalyzer.get_histogram_data(img)['bimodality'])) == repr(float(expected))
 
 
 def test_histogram_cache_matches_the_uncached_path_bit_for_bit():
     from analyzers.image_cache import ImageCache
-    from analyzers.technical import TechnicalAnalyzer
     img = _sample_image(9)
     cached = {
         'dynamic_range': TechnicalAnalyzer.get_dynamic_range(img, cache=ImageCache(img)),
@@ -479,7 +498,6 @@ def test_laplacian_variance_matches_the_float64_pipeline_within_tolerance():
     # analyzers used before: pin the documented ~6e-15 relative agreement so a
     # regression in the fast path cannot silently move eye/face sharpness.
     import cv2
-    import numpy as np
     from analyzers.image_cache import laplacian_variance
     rng = np.random.default_rng(11)
     for shape in ((200, 200), (37, 51), (1, 9)):

@@ -10,9 +10,8 @@ import sys
 import cv2
 import numpy as np
 
-from analyzers.image_cache import laplacian_variance
-
 import licensing
+from analyzers.image_cache import laplacian_variance
 
 logger = logging.getLogger("facet.face_analyzer")
 
