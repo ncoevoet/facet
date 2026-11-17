@@ -70,16 +70,20 @@ def _has_scannable_path(paths):
     return any(os.path.splitext(path)[1].lower() in SCANNABLE_IMAGE_EXTENSIONS for path in paths)
 
 
-def _build_scan_command(directories, db_path, config_path):
+def _build_scan_command(directories, db_path, config_path, extra_scan_args=None):
     facet_script = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'facet.py')
     cmd = [sys.executable, facet_script, *directories, '--db', db_path]
     if config_path:
         cmd += ['--config', config_path]
+    # The modifier flags the user started --watch with ride along: a watched
+    # scan that quietly ignored them broke a promise nobody could see.
+    if extra_scan_args:
+        cmd += list(extra_scan_args)
     return cmd
 
 
 def run_watch_loop(directories, db_path, config_path=None, debounce_seconds=30,
-                   initial_scan=True):
+                   initial_scan=True, extra_scan_args=None, initial_scan_args=None):
     """Re-scan whenever directory contents settle, until Ctrl+C or a give-up.
 
     Returns True when the user stopped watching (Ctrl+C) and False when
@@ -92,6 +96,11 @@ def run_watch_loop(directories, db_path, config_path=None, debounce_seconds=30,
         config_path: Optional scoring config path passed through to scans
         debounce_seconds: Quiet period required before a scan fires
         initial_scan: Run one incremental scan immediately on startup
+        extra_scan_args: Scan modifier flags (``--single-pass`` and friends)
+            forwarded verbatim to every scan this loop spawns
+        initial_scan_args: Flags added to the initial scan only, after
+            ``extra_scan_args`` -- ``--force``, which would otherwise re-score
+            the whole library on every change
     """
     try:
         from watchdog.observers import Observer
@@ -132,11 +141,12 @@ def run_watch_loop(directories, db_path, config_path=None, debounce_seconds=30,
         observer = _start_observer(PollingObserver)
         logger.info("Watching %d directories (polling)", len(directories))
 
-    cmd = _build_scan_command(directories, db_path, config_path)
+    cmd = _build_scan_command(directories, db_path, config_path, extra_scan_args)
+    initial_cmd = cmd + list(initial_scan_args or ())
 
-    def _run_scan(reason):
+    def _run_scan(reason, scan_cmd=cmd):
         logger.info("Starting scan (%s)...", reason)
-        result = subprocess.run(cmd)
+        result = subprocess.run(scan_cmd)
         if result.returncode == 0:
             logger.info("Scan finished.")
             return True
@@ -158,18 +168,34 @@ def run_watch_loop(directories, db_path, config_path=None, debounce_seconds=30,
 
     consecutive_failures = 0
     gave_up = False
+    initial_retry_at: float | None = None
     try:
         if initial_scan:
             # A failing initial scan counts as the streak's first failure, so a
             # broken install cannot watch forever while every scan crashes.
-            if _run_scan('initial') is False:
+            outcome = _run_scan('initial', initial_cmd)
+            if outcome is _LIBRARY_BUSY:
+                initial_retry_at = time.monotonic() + debounce_seconds
+            elif outcome is False:
                 consecutive_failures = 1
         logger.info("Watch mode active - new files trigger a scan after %ds of quiet "
                     "(Ctrl+C to stop)", debounce_seconds)
         while True:
             time.sleep(1)
-            batch = pending.take_if_settled(debounce_seconds)
-            if batch:
+            if initial_retry_at is not None:
+                if time.monotonic() < initial_retry_at:
+                    continue
+                outcome = _run_scan('initial retry', initial_cmd)
+                if outcome is _LIBRARY_BUSY:
+                    initial_retry_at = time.monotonic() + debounce_seconds
+                    continue
+                initial_retry_at = None
+                # Do not drain events queued during the initial scan: those
+                # still need an incremental scan after the initial attempt.
+            else:
+                batch = pending.take_if_settled(debounce_seconds)
+                if not batch:
+                    continue
                 if not _has_scannable_path(batch):
                     logger.info(
                         "Skipping scan: %d changed file(s) have no extension this "
@@ -182,18 +208,18 @@ def run_watch_loop(directories, db_path, config_path=None, debounce_seconds=30,
                     for path in batch:
                         pending.add(path)
                     continue
-                if outcome is None:
-                    continue
-                if outcome:
-                    consecutive_failures = 0
-                else:
-                    consecutive_failures += 1
-                    if consecutive_failures >= MAX_CONSECUTIVE_FAILURES:
-                        logger.error(
-                            "Stopping watch mode: %d consecutive scans failed. Fix the "
-                            "underlying error and restart.", consecutive_failures)
-                        gave_up = True
-                        break
+            if outcome is None:
+                continue
+            if outcome:
+                consecutive_failures = 0
+            else:
+                consecutive_failures += 1
+                if consecutive_failures >= MAX_CONSECUTIVE_FAILURES:
+                    logger.error(
+                        "Stopping watch mode: %d consecutive scans failed. Fix the "
+                        "underlying error and restart.", consecutive_failures)
+                    gave_up = True
+                    break
     except KeyboardInterrupt:
         logger.info("Watch mode stopped.")
     finally:

@@ -70,7 +70,9 @@ def test_native_lossless_jpegxl_alpha_and_discovery(tmp_path):
     actual = image_loading.open_nonraw_image(path)
     assert actual.mode == "RGB"
     assert actual.getpixel((0, 0)) == (255, 255, 255)
-    assert _gather_scan_files([str(tmp_path)], {}) == [path]
+    files, dead_roots = _gather_scan_files([str(tmp_path)], {})
+    assert files == [path]
+    assert dead_roots == []
     assert ".jxl" in image_loading.WATCHABLE_IMAGE_EXTENSIONS
 
 

@@ -2,6 +2,8 @@
 
 import json
 import logging
+import os
+from pathlib import Path
 
 import pytest
 
@@ -13,7 +15,9 @@ DEFAULT_GLOBS = ["@eaDir", "#recycle", "#snapshot", "@Recycle"]
 
 def _gather(paths, settings):
     from facet import _gather_scan_files
-    return _gather_scan_files([str(p) for p in paths], settings)
+    # (files, dead_roots): the pruning tests exercise roots that exist, so the
+    # dead-root half stays empty.
+    return _gather_scan_files([str(p) for p in paths], settings)[0]
 
 
 def _names(files):
@@ -131,6 +135,42 @@ class TestGather:
         _touch(tmp_path, "other.nef")
         assert _names(_gather([tmp_path], {"skip_raw": False})) == ["other.nef", "shot.cr2", "shot.jpg"]
         assert _names(_gather([tmp_path], {"skip_raw": True})) == ["shot.jpg"]
+
+
+@pytest.mark.parametrize('operation', ['resolve', 'exists', 'is_file'])
+def test_unreadable_root_does_not_discard_other_roots(tmp_path, monkeypatch, operation):
+    from facet import _gather_scan_files
+    blocked = tmp_path / 'blocked'
+    blocked.mkdir()
+    good = _touch(tmp_path, 'valid/ok.jpg')
+    original = getattr(Path, operation)
+
+    def denied(self, *args, **kwargs):
+        if self == blocked:
+            raise PermissionError(13, 'Permission denied', str(self))
+        return original(self, *args, **kwargs)
+
+    monkeypatch.setattr(Path, operation, denied)
+    files, dead = _gather_scan_files([str(blocked), str(good.parent)], {})
+    assert files == [good]
+    assert dead == [str(blocked)]
+
+
+@pytest.mark.skipif(os.name == 'nt' or getattr(os, 'geteuid', lambda: 0)() == 0,
+                    reason='requires POSIX permission checks as a non-root user')
+def test_root_with_inaccessible_parent_is_classified_as_dead(tmp_path):
+    from facet import _gather_scan_files
+    blocked = tmp_path / 'blocked'
+    hidden = blocked / 'photos'
+    hidden.mkdir(parents=True)
+    good = _touch(tmp_path, 'valid/ok.jpg')
+    blocked.chmod(0)
+    try:
+        files, dead = _gather_scan_files([str(hidden), str(good.parent)], {})
+        assert files == [good]
+        assert dead == [str(hidden)]
+    finally:
+        blocked.chmod(0o700)
 
 
 class TestPathsUnder:

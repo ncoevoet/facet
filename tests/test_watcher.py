@@ -185,6 +185,97 @@ class TestBuildScanCommand:
         ]
 
 
+class TestBuildScanCommandExtraArgs:
+    def test_modifier_flags_ride_along(self):
+        cmd = _build_scan_command(["/a"], "/data/photos.db", None,
+                                  extra_scan_args=["--force", "--single-pass"])
+        assert cmd == [sys.executable, FACET_SCRIPT, "/a", "--db", "/data/photos.db",
+                       "--force", "--single-pass"]
+
+    def test_no_extra_args_changes_nothing(self):
+        cmd = _build_scan_command(["/a"], "/data/photos.db", None)
+        assert cmd == [sys.executable, FACET_SCRIPT, "/a", "--db", "/data/photos.db"]
+
+
+def test_run_watch_loop_forwards_extra_scan_args_to_every_spawn(monkeypatch, tmp_path):
+    native = _FakeObserver()
+    monkeypatch.setattr(watchdog.observers, "Observer", lambda: native)
+    monkeypatch.setattr(watchdog.observers.polling, "PollingObserver", lambda: _FakeObserver())
+    runs = []
+    monkeypatch.setattr(
+        watcher.subprocess, "run",
+        lambda cmd, *a, **kw: runs.append(cmd) or SimpleNamespace(returncode=0),
+    )
+    monkeypatch.setattr(watcher.time, "sleep", lambda seconds: (_ for _ in ()).throw(KeyboardInterrupt))
+
+    db_path = str(tmp_path / "photos.db")
+    watcher.run_watch_loop(["/library"], db_path, initial_scan=True,
+                           extra_scan_args=["--single-pass"])
+
+    assert runs == [_build_scan_command(["/library"], db_path, None, extra_scan_args=["--single-pass"])]
+
+
+def test_run_watch_loop_forces_the_initial_scan_only(monkeypatch, tmp_path):
+    # --force re-scores the whole library: once at startup, never per change.
+    native = _FakeObserver()
+    monkeypatch.setattr(watchdog.observers, "Observer", lambda: native)
+    monkeypatch.setattr(watchdog.observers.polling, "PollingObserver", lambda: _FakeObserver())
+    runs = []
+    monkeypatch.setattr(
+        watcher.subprocess, "run",
+        lambda cmd, *a, **kw: runs.append(cmd) or SimpleNamespace(returncode=0),
+    )
+    batches = iter([["/library/new.jpg"]])
+    monkeypatch.setattr(watcher._PendingChanges, "take_if_settled",
+                        lambda self, debounce: next(batches, None))
+    ticks = iter(range(2))
+    monkeypatch.setattr(watcher.time, "sleep",
+                        lambda seconds: next(ticks, None) is None and (_ for _ in ()).throw(KeyboardInterrupt))
+
+    db_path = str(tmp_path / "photos.db")
+    watcher.run_watch_loop(["/library"], db_path, initial_scan=True,
+                           extra_scan_args=["--single-pass"], initial_scan_args=["--force"])
+
+    base = _build_scan_command(["/library"], db_path, None, extra_scan_args=["--single-pass"])
+    assert runs == [base + ["--force"], base]
+
+
+@pytest.mark.parametrize('busy_attempts', [1, MAX_CONSECUTIVE_FAILURES + 1])
+@pytest.mark.parametrize('with_event', [False, True])
+def test_initial_busy_scan_retries_after_debounce_with_its_flags(
+        monkeypatch, tmp_path, busy_attempts, with_event):
+    native = _FakeObserver()
+    monkeypatch.setattr(watchdog.observers, 'Observer', lambda: native)
+    clock = [0]
+    monkeypatch.setattr(watcher.time, 'monotonic', lambda: clock[0])
+    runs = []
+    codes = iter([LIBRARY_LOCK_HELD_EXIT_CODE] * busy_attempts + [0, 0])
+
+    def run(cmd):
+        runs.append((clock[0], cmd))
+        return SimpleNamespace(returncode=next(codes))
+
+    def tick(seconds):
+        clock[0] += 10
+        if clock[0] == 10 and with_event:
+            handler, _, _ = native.scheduled[0]
+            handler.on_created(SimpleNamespace(is_directory=False, src_path='/library/new.jpg'))
+        if clock[0] > 30 * busy_attempts + 10:
+            raise KeyboardInterrupt
+
+    monkeypatch.setattr(watcher.subprocess, 'run', run)
+    monkeypatch.setattr(watcher.time, 'sleep', tick)
+    db_path = str(tmp_path / 'photos.db')
+    assert watcher.run_watch_loop(['/library'], db_path, debounce_seconds=30,
+                                  extra_scan_args=['--single-pass'], initial_scan_args=['--force'])
+    base = _build_scan_command(['/library'], db_path, None, extra_scan_args=['--single-pass'])
+    expected = [(30 * n, base + ['--force']) for n in range(busy_attempts + 1)]
+    if with_event:
+        expected.append((30 * busy_attempts + 10, base))
+    assert runs == expected
+    assert native.stop_calls == 1
+
+
 class TestRunWatchLoopMissingWatchdog:
     def test_missing_watchdog_package_exits(self, monkeypatch, caplog):
         monkeypatch.setitem(sys.modules, "watchdog.observers", None)

@@ -106,7 +106,7 @@ from metric_columns import JSON_LEGACY_SCORE_COLUMNS, JSON_SCORE_COLUMNS
 from utils.image_loading import (
     RAW_EXTENSIONS, HEIF_EXTENSIONS, JPEG_EXTENSIONS, SCANNABLE_IMAGE_EXTENSIONS,
 )
-from utils.exit_codes import LIBRARY_LOCK_HELD_EXIT_CODE, SAVED_NOTHING_EXIT_CODE
+from utils.exit_codes import LIBRARY_LOCK_HELD_EXIT_CODE, SAVED_NOTHING_EXIT_CODE, SCAN_DID_NOT_RUN_EXIT_CODE
 
 
 
@@ -192,6 +192,11 @@ def _gather_scan_files(photo_paths, scanning_settings):
 
     Walk roots are never pruned; only their descendant directories are, by the
     hidden-directory rule and the ``skip_directories`` name globs.
+
+    Returns ``(files, dead_roots)``: the second list names every root that is
+    missing or unreadable -- a dead NAS mount must be distinguishable from a
+    library that is genuinely empty, or cron and ``--watch`` read a scan that
+    never ran as a clean "nothing new".
     """
     valid_suffixes = SCANNABLE_IMAGE_EXTENSIONS
     if scanning_settings.get('skip_raw', False):
@@ -199,24 +204,71 @@ def _gather_scan_files(photo_paths, scanning_settings):
     skip_hidden = scanning_settings.get('skip_hidden_directories', True)
     skip_globs = _scan_skip_globs(scanning_settings)
     all_files = []
+    dead_roots = []
     for path_str in photo_paths:
-        base_path = Path(path_str).resolve()
-        if not base_path.exists():
-            logger.warning("Path does not exist: %s", path_str)
+        try:
+            base_path = Path(path_str).resolve()
+            exists = base_path.exists()
+            is_file = base_path.is_file() if exists else False
+        except OSError as root_error:
+            logger.warning("Path is unreadable: %s (%s)", path_str, root_error)
+            dead_roots.append(path_str)
             continue
-        if base_path.is_file():
+        if not exists:
+            logger.warning("Path does not exist: %s", path_str)
+            dead_roots.append(path_str)
+            continue
+        if is_file:
             if base_path.suffix.lower() in valid_suffixes:
                 all_files.append(base_path)
             else:
                 logger.warning("Unsupported file type: %s", path_str)
         else:
-            for root, dirs, files in os.walk(base_path):
+            walk_errors = []
+            root_listed = False
+            for root, dirs, files in os.walk(base_path, onerror=walk_errors.append):
+                # os.walk yields a directory only once it listed it, so the root
+                # appearing here means the root itself is readable.
+                root_listed = root_listed or Path(root) == base_path
                 dirs[:] = _prune_scan_dirs(dirs, skip_hidden, skip_globs)
                 for f in files:
                     p = Path(root) / f
                     if p.suffix.lower() in valid_suffixes:
                         all_files.append(p)
-    return all_files
+            if not root_listed:
+                # A root that could not be listed is unreadable, not empty: the
+                # walk swallowed that failure silently before.
+                logger.warning("Path is unreadable: %s", path_str)
+                dead_roots.append(path_str)
+            for error in walk_errors:
+                # An unreadable subfolder (a root-owned lost+found, a restricted
+                # album) loses only that folder, never the whole root.
+                if error.filename is None or Path(error.filename) != base_path:
+                    logger.warning("Skipping unreadable folder: %s", error.filename or error)
+    return all_files, dead_roots
+
+
+def _watch_scan_args(args):
+    """The scan modifier flags --watch forwards to every scan it spawns. A flag
+    the user started --watch with that quietly did nothing was a promise
+    silently broken. --force is not here: it re-scores the whole library, so it
+    applies to the initial scan only (``initial_scan_args``). --force-since is
+    safe on every scan, since rows rescanned after the date drop out of it."""
+    extra = []
+    if args.force_since:
+        extra += ['--force-since', args.force_since]
+    if args.single_pass:
+        extra.append('--single-pass')
+    if args.single_pass_name:
+        extra += ['--pass', args.single_pass_name]
+    return extra
+
+
+def _viewer_spawn_env(db_path):
+    """The environment for a viewer this command spawns: it must open the same
+    library the command targets, not viewer.py's CWD default -- without DB_PATH,
+    a multi-library user's ``--db`` silently shows another library's persons."""
+    return {**os.environ, 'DB_PATH': str(Path(db_path).resolve())}
 
 
 def _paths_under(paths, roots):
@@ -1850,8 +1902,16 @@ def _run_scan_pipeline(args, resumed_run, lifecycle):
     init_global_plugin_manager(config=scorer.config.config)
 
     # 1. Gather files recursively from subfolders (or single files)
-    all_files = (retry_plan_paths(retry_plan) if retry_plan is not None else
-                 _gather_scan_files(args.photo_paths, scorer.config.get_scanning_settings()))
+    if retry_plan is not None:
+        all_files, dead_roots = retry_plan_paths(retry_plan), []
+    else:
+        all_files, dead_roots = _gather_scan_files(args.photo_paths, scorer.config.get_scanning_settings())
+
+    # Some roots dead while others still hold the library: the scan proceeds,
+    # but a warning that scrolls away is not enough for half a library.
+    if dead_roots and len(dead_roots) < len(args.photo_paths):
+        logger.error("Scan proceeds without %d missing/unreadable root(s): %s",
+                     len(dead_roots), ', '.join(str(r) for r in dead_roots))
 
     # Deduplicate (needed for case-insensitive filesystems like Windows).
     #
@@ -1951,6 +2011,17 @@ def _run_scan_pipeline(args, resumed_run, lifecycle):
     logger.info("Found %d total, processing %d new files.", len(all_files), len(todo_list))
 
     if not todo_list:
+        # Every root gone is not "nothing new": the library was never seen. A
+        # non-zero exit is what cron, wrapper scripts and --watch need to tell
+        # a dead mount from a clean, empty run.
+        # --retry-failed still walks the roots, but its worklist comes from
+        # scan_failures, so dead roots must not turn it into a failure.
+        if dead_roots and len(dead_roots) == len(args.photo_paths) and not args.retry_failed:
+            logger.error(
+                "Scan did not run: all %d scan root(s) are missing or unreadable: %s. "
+                "If these live on a network mount, check that it is mounted.",
+                len(dead_roots), ', '.join(str(r) for r in dead_roots))
+            raise SystemExit(SCAN_DID_NOT_RUN_EXIT_CODE)
         logger.info("No new files to process.")
         emit_progress('done', extra={'saved': 0}, force=True)
         return True
@@ -3161,6 +3232,7 @@ def main():
                 [sys.executable, str(Path(__file__).resolve().parent / 'viewer.py')],
                 stdout=subprocess.DEVNULL,
                 stderr=subprocess.DEVNULL,
+                env=_viewer_spawn_env(args.db),
             )
             time.sleep(2)
         else:
@@ -4510,6 +4582,16 @@ def main():
 
     # Watch mode: long-running daemon spawning incremental scans on changes
     if args.watch:
+        # The more specific refusal first: `--watch --retry-failed` with no path
+        # is a worklist misuse, not a missing path.
+        if args.retry_failed or args.retry_plan:
+            logger.error("--watch scans are incremental; --retry-failed and "
+                         "--retry-plan are one-shot worklists and cannot be combined with --watch")
+            exit(1)
+        # An empty path list would watch nothing and never fire.
+        if not args.photo_paths:
+            logger.error("--watch needs at least one photo path to watch")
+            exit(1)
         from processing.watcher import run_watch_loop
         # Giving up after consecutive failures is a fault, not a clean stop:
         # supervisors (and --watch's own restart story) need a non-zero exit.
@@ -4518,6 +4600,10 @@ def main():
             db_path=args.db,
             config_path=args.config,
             debounce_seconds=args.watch_debounce,
+            extra_scan_args=_watch_scan_args(args),
+            # --force re-scores every file under the watched roots, so it runs
+            # once at startup; each later change scan stays incremental.
+            initial_scan_args=['--force'] if args.force else None,
         )
         exit(0 if watch_ok else 1)
 
