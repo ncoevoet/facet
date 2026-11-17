@@ -1,7 +1,6 @@
 """``photos.date_added``: written once on insert, kept by every rescan, sorted with NULLs last."""
 
 import re
-import sqlite3
 from types import SimpleNamespace
 
 import pytest
@@ -9,6 +8,7 @@ import pytest
 pytest.importorskip("imagehash")
 pytest.importorskip("cv2")
 
+from db import get_connection  # noqa: E402
 from db.schema import init_database  # noqa: E402
 from processing.scorer import Facet  # noqa: E402
 from tests.test_photo_tags_sync import _IMG, _result  # noqa: E402
@@ -37,8 +37,10 @@ def _save(lib, partial):
 
 
 def _execute(lib, sql, *params):
-    with sqlite3.connect(lib.db) as conn:
-        return conn.execute(sql, params).fetchall()
+    with get_connection(lib.db, row_factory=False) as conn:
+        result = conn.execute(sql, params).fetchall()
+        conn.commit()
+        return result
 
 
 def _date_added(lib):

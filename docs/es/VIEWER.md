@@ -228,7 +228,7 @@ El botón de ordenación de la cabecera (y de la barra de herramientas móvil) m
 
 Las velocidades de obturación se ordenan por duración, así que `1/250` y `0.004` son iguales. Los valores ausentes o no válidos van al final en cualquier dirección.
 
-**Fecha de incorporación** ordena según cuándo Facet analizó una foto por primera vez, así que una importación nueva aparece primero en orden descendente sea cual sea su fecha de captura. Un nuevo análisis, incluso con `--force`, la conserva. Una foto que usted movió por su cuenta vuelve como una foto nueva, salvo que ejecute [`--relink-photos`](RELINK.md). Las fotos que ya estaban en la biblioteca al actualizar no tienen fecha hasta que un análisis las reescribe (entonces toman la hora de su análisis anterior), y van al final en cualquier dirección. Los enlaces de álbumes compartidos no muestran esta fecha ni permiten ordenar por ella.
+**Fecha de incorporación** ordena según cuándo Facet escaneó una foto por primera vez, así que una importación nueva aparece primero en orden descendente sea cual sea su fecha de captura. Un reescaneo, incluso con `--force`, la conserva. Una foto que moviste por tu cuenta vuelve como una foto nueva, salvo que ejecutes [`--relink-photos`](RELINK.md). Las fotos que ya estaban en la biblioteca al actualizar no tienen fecha hasta que un escaneo las reescribe (entonces toman la hora de su escaneo anterior), y van al final en cualquier dirección. Los enlaces de álbumes compartidos no muestran esta fecha ni permiten ordenar por ella.
 
 Columnas ordenables por grupo (de `viewer.sort_options`):
 

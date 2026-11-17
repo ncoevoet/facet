@@ -51,7 +51,8 @@ DATE_ADDED_KEEP_SET = ("date_added=COALESCE(photos.date_added, "
 
 
 def _manual_override_set(c):
-    """``SET`` fragment for column ``c``: a hand-set GPS or capture date survives a rescan."""
+    """``SET`` fragment for column ``c``: a hand-set GPS or capture date survives a rescan,
+    and ``date_added`` is only ever filled."""
     if c == 'date_added':
         return DATE_ADDED_KEEP_SET
     if c in ('gps_latitude', 'gps_longitude'):
