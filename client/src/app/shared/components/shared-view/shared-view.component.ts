@@ -21,6 +21,7 @@ import { toIsoDateString } from '../../utils/date-format';
 import { firstValueFrom } from 'rxjs';
 import { Photo, normalisePhotoFlagsAll } from '../../models/photo.model';
 import { ApiService } from '../../../core/services/api.service';
+import { DownloadProgressService } from '../../../core/services/download-progress.service';
 import { I18nService } from '../../../core/services/i18n.service';
 import { TranslatePipe } from '../../pipes/translate.pipe';
 import { SortGroupKeyPipe } from '../../pipes/sort-group-key.pipe';
@@ -28,7 +29,6 @@ import { FilterDisplayPipe } from '../../pipes/filter-display.pipe';
 import { AdditionalFilterDef } from '../../models/filter-def.model';
 import { computeRangeFilterUpdate } from '../../utils/range-filter';
 import { useDesktopSignal } from '../../utils/media-query';
-import { downloadBlob } from '../../utils/download';
 import { SharedAlbumMediaScope, sharedAlbumMediaUrl } from '../../utils/shared-album-media';
 import { copyLines } from '../../utils/clipboard';
 import {
@@ -539,6 +539,7 @@ export class SharedViewComponent implements OnInit {
   private readonly route = inject(ActivatedRoute);
   private readonly router = inject(Router);
   private readonly api = inject(ApiService);
+  private readonly downloadProgress = inject(DownloadProgressService);
   private readonly i18n = inject(I18nService);
   private readonly snackBar = inject(MatSnackBar);
   private readonly destroyRef = inject(DestroyRef);
@@ -899,14 +900,10 @@ export class SharedViewComponent implements OnInit {
     const files = [...this.selectedFiles()];
     this.downloading.set(true);
     try {
-      for (const [path, filename] of files) {
-        if (!current()) break;
-        const blob = await firstValueFrom(this.api.getRaw(sharedAlbumMediaUrl(scope, 'download', path)));
-        if (!current()) break;
-        downloadBlob(blob, filename);
-      }
-    } catch {
-      if (current()) this.snackBar.open(this.i18n.t(I18N.errors.action_failed), '', { duration: 4000 });
+      await this.downloadProgress.run(
+        files.map(([path, filename]) => ({ url: sharedAlbumMediaUrl(scope, 'download', path), filename })),
+        current,
+      );
     } finally {
       this.downloading.set(false);
     }

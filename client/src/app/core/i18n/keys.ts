@@ -1358,6 +1358,12 @@ export const I18N = {
       paths_too_many: "gallery.selection.paths_too_many",
       download_confirm_title: "gallery.selection.download_confirm_title",
       download_confirm_message: "gallery.selection.download_confirm_message",
+      download_progress: "gallery.selection.download_progress",
+      download_progress_failed: "gallery.selection.download_progress_failed",
+      download_done: "gallery.selection.download_done",
+      download_done_one: "gallery.selection.download_done_one",
+      download_partial: "gallery.selection.download_partial",
+      download_cancelled: "gallery.selection.download_cancelled",
       mark_bracket: "gallery.selection.mark_bracket",
       marked_bracket: "gallery.selection.marked_bracket",
       targets: {

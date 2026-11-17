@@ -314,6 +314,8 @@ describe('GalleryComponent', () => {
               onAction: () => new Subject<void>(),
               afterDismissed: () => new Subject<void>(),
             })),
+            // The selection download's progress notification.
+            openFromComponent: vi.fn(() => ({ afterDismissed: () => new Subject<void>(), dismiss: vi.fn() })),
           },
         },
       ],
@@ -5247,6 +5249,23 @@ describe('GalleryComponent', () => {
       await download();
 
       expect(mockApi.getRaw).toHaveBeenCalled();
+    });
+
+    it('passes the type and profile to each URL and names each file by its basename', async () => {
+      const saved: string[] = [];
+      const created = vi.spyOn(URL, 'createObjectURL').mockReturnValue('blob:mock');
+      const revoked = vi.spyOn(URL, 'revokeObjectURL').mockImplementation(() => undefined);
+      const click = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(function (this: HTMLAnchorElement) {
+        saved.push(this.download);
+      });
+
+      await component.selectionActions.downloadSelected('darktable', 'web', ['/a/b/x.jpg', '/a/c/y.jpg']);
+
+      expect(mockApi.downloadUrl).toHaveBeenCalledWith('/a/b/x.jpg', 'darktable', 'web');
+      expect(mockApi.downloadUrl).toHaveBeenCalledWith('/a/c/y.jpg', 'darktable', 'web');
+      expect(mockApi.getRaw.mock.calls.map(call => call[0])).toEqual(['/download?path=/a/b/x.jpg', '/download?path=/a/c/y.jpg']);
+      expect(saved).toEqual(['x.jpg', 'y.jpg']);
+      created.mockRestore(); revoked.mockRestore(); click.mockRestore();
     });
 
     it('downloads without confirming at or under the limit', async () => {

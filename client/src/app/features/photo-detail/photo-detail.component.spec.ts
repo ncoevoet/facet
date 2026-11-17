@@ -1582,6 +1582,7 @@ describe('PhotoDetailComponent', () => {
       await promise;
       expect(component.downloading()).toBe(false);
       expect(mockApi.getRaw).toHaveBeenCalled();
+      expect((clickSpy.mock.contexts[0] as HTMLAnchorElement).download).toBe('test.jpg');
 
       appendSpy.mockRestore();
       removeSpy.mockRestore();
@@ -1609,6 +1610,7 @@ describe('PhotoDetailComponent', () => {
       expect(mockApi.getRaw).toHaveBeenCalledWith(
         `/api/photo/social_crop?path=${encodeURIComponent('/photos/test.jpg')}&preset=square`,
       );
+      expect((clickSpy.mock.contexts[0] as HTMLAnchorElement).download).toBe('test.jpg');
 
       appendSpy.mockRestore();
       removeSpy.mockRestore();

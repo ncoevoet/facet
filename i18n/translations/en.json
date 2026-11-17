@@ -1344,6 +1344,12 @@
       "paths_too_many": "Too many photos for this action — narrow the filters and try again",
       "download_confirm_title": "Download {count} photos?",
       "download_confirm_message": "Each photo is downloaded as a separate file. {count} of them will take a while and may overwhelm the browser.",
+      "download_progress": "Downloading {done} of {total}…",
+      "download_progress_failed": "{failed} failed",
+      "download_done": "{count} photos downloaded",
+      "download_done_one": "Photo downloaded",
+      "download_partial": "{saved} of {total} downloaded, {failed} failed",
+      "download_cancelled": "Download stopped — {saved} of {total} saved",
       "mark_bracket": "Mark as one bracket",
       "marked_bracket": "{count} photos marked as one bracket",
       "targets": {

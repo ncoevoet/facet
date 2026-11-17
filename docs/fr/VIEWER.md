@@ -951,6 +951,8 @@ Téléchargez des photos depuis le détail de la photo ou la barre de sélection
 
 Un fichier RAW associé nouvellement ajouté peut mettre jusqu’à cinq minutes à apparaître dans ce menu.
 
+Le téléchargement de plusieurs photos sélectionnées — dans la galerie ou un album partagé — affiche une notification avec le compteur en cours, une barre de progression et **Annuler**, puis un message une fois le dernier fichier enregistré. Une photo en échec (erreur de rendu darktable, fichier disparu du disque) est ignorée et comptée, et les autres continuent de se télécharger. Une connexion ou une session perdue, ou trois échecs d’affilée (un lien de partage révoqué, un serveur hors service), arrêtent le lot. Le message final attend qu’une offre **Annuler** encore affichée disparaisse au lieu de la remplacer.
+
 **Recadrage social tenant compte de la saillance.** Avec `viewer.features.show_social_export` activé (`true` par défaut) et l'édition déverrouillée, la barre de téléchargement du détail de la photo a un menu **Recadrage social**. Il liste `social_export.presets` (carré 1:1, portrait 4:5, story 9:16 par défaut). En choisir un télécharge un JPEG pleine résolution recadré à ce format et centré sur le sujet. Le sujet vient du cadre de sujet BiRefNet (`photos.subject_bbox`, issu de `--recompute-saliency`), sinon des visages détectés, sinon du centre. L'infobulle du menu indique lequel a été utilisé (`saliency` / `faces` / `center`).
 
 Points d'accès : [API.md — Téléchargement](../API.md#download).

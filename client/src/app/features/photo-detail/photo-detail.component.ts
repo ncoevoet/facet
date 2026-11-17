@@ -56,7 +56,8 @@ import { PhotoMetricsTabsComponent } from '../../shared/components/photo-metrics
 import { HistogramMode, isHistogramMode } from '../../shared/utils/histogram';
 import { ComparisonCategoryExplainerComponent } from '../comparison/comparison-category-explainer.component';
 import { DownloadOption } from '../../core/api/types';
-import { downloadAll } from '../../shared/utils/download';
+import { downloadFile } from '../../shared/utils/download';
+import { basename } from '../../shared/utils/clipboard';
 import { GalleryStore } from '../gallery/gallery.store';
 import { aspectOf } from '../gallery/gallery-rows.util';
 import { setScopePatch } from '../gallery/gallery-filters.util';
@@ -1347,11 +1348,7 @@ export class PhotoDetailComponent extends PhotoDetailBase implements OnInit {
   protected async download(path: string, type = 'original', profile?: string): Promise<void> {
     this.downloading.set(true);
     try {
-      await downloadAll(
-        [path],
-        p => this.api.downloadUrl(p, type, profile),
-        url => this.api.getRaw(url),
-      );
+      await downloadFile(this.api.getRaw(this.api.downloadUrl(path, type, profile)), basename(path));
     } catch {
       // A 404 (the file moved on disk) or a 412 passes the interceptor's 5xx
       // toast silently — the click must not look like a no-op.
@@ -1364,10 +1361,9 @@ export class PhotoDetailComponent extends PhotoDetailBase implements OnInit {
   protected async downloadSocialCrop(path: string, preset: string): Promise<void> {
     this.downloading.set(true);
     try {
-      await downloadAll(
-        [path],
-        p => `/api/photo/social_crop?path=${encodeURIComponent(p)}&preset=${encodeURIComponent(preset)}`,
-        url => this.api.getRaw(url),
+      await downloadFile(
+        this.api.getRaw(`/api/photo/social_crop?path=${encodeURIComponent(path)}&preset=${encodeURIComponent(preset)}`),
+        basename(path),
       );
     } catch {
       this.snackBar.open(this.i18n.t(I18N.errors.action_failed), '', { duration: 3000 });

@@ -951,6 +951,8 @@ Scarica le foto dal dettaglio foto o dalla barra di selezione. Il menu di downlo
 
 Un nuovo file RAW associato può impiegare fino a cinque minuti per comparire in questo menu.
 
+Il download di più foto selezionate — nella galleria o in un album condiviso — mostra una notifica con il conteggio in corso, una barra di avanzamento e **Annulla**, poi un messaggio quando l'ultimo file è salvato. Una foto non riuscita (errore di rendering darktable, file non più presente su disco) viene saltata e conteggiata, e le altre continuano a scaricarsi. Una connessione o una sessione persa, oppure tre errori consecutivi (un link di condivisione revocato, un server non raggiungibile), interrompono il download. Il messaggio finale attende che sparisca un'offerta di **Annulla** ancora visibile invece di sostituirla.
+
 **Ritaglio social basato sulla salienza.** Con `viewer.features.show_social_export` attivo (predefinito `true`) e la modifica sbloccata, la barra di download del dettaglio foto ha un menu **Ritaglio social**. Elenca `social_export.presets` (quadrato 1:1, verticale 4:5, storia 9:16 per impostazione predefinita). Sceglierne uno scarica un JPEG a piena risoluzione ritagliato a quella proporzione e centrato sul soggetto. Il soggetto proviene dal riquadro del soggetto BiRefNet (`photos.subject_bbox`, da `--recompute-saliency`), altrimenti dai volti rilevati, altrimenti dal centro. Il tooltip del menu mostra quale è stato usato (`saliency` / `faces` / `center`).
 
 Endpoint: [API.md — Download](../API.md#download).
