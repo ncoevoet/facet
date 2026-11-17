@@ -8,7 +8,7 @@ import sqlite3
 import threading
 import time
 
-from api.config import VIEWER_CONFIG, _photo_types_cache, _photo_types_lock, server_scoring_config
+from api.config import VIEWER_CONFIG, _photo_types_cache, _photo_types_lock, server_scoring_config, viewer_cache_ttl
 from api.top_picks import get_top_picks_score_sql
 from api.db_helpers import build_hide_clauses
 from api.exposure import exposure_seconds_sql
@@ -357,7 +357,7 @@ def get_photo_types(hide_blinks=False, hide_bursts=False, hide_duplicates=False,
 
     with _photo_types_lock:
         _photo_types_cache['data'][cache_key] = types
-        _photo_types_cache['expires'] = time.time() + VIEWER_CONFIG['cache_ttl_seconds']
+        _photo_types_cache['expires'] = time.time() + viewer_cache_ttl()
 
     return types
 

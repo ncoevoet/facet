@@ -154,13 +154,20 @@ def unrenderable_seed():
 def test_revised_id_resolves_and_forgery_does_not():
     """A revision rides in the signed payload: it changes the cache key, not
     the identity, and only an authentic revision resolves."""
-    assert _resolve_id(_sign_rowid(5, "abc123")) == 5
-    assert _resolve_id(_sign_rowid(5)) == 5  # legacy revision-less ids keep resolving
+    assert _resolve_id(_sign_rowid(5, "abc123")) == (5, None)
+    assert _resolve_id(_sign_rowid(5)) == (5, None)  # legacy ids keep resolving
     assert _resolve_id(_sign_rowid(5, "abc123").replace("abc123", "ffffff")) is None
     assert _resolve_id("5.abc123.deadbeef") is None
 
     # The revision is what busts a display's immutable cache key.
     assert _sign_rowid(5, "abc123") != _sign_rowid(5, "ffffff")
+
+    # The configured max edge rides in the payload too (B67): a config edit
+    # changes every minted id, and the signed edge is what a photo render uses.
+    assert _resolve_id(_sign_rowid(5, edge=1024)) == (5, 1024)
+    assert _resolve_id(_sign_rowid(5, "abc123", edge=800)) == (5, 800)
+    assert _resolve_id(_sign_rowid(5, edge=1024).replace("1024", "800")) is None
+    assert _sign_rowid(5, "abc123", edge=800) != _sign_rowid(5, "abc123", edge=1024)
 
 
 def test_photos_ids_change_when_the_render_revision_bumps(client, frame_cfg, seed):
@@ -184,13 +191,36 @@ def test_photos_ids_change_when_the_render_revision_bumps(client, frame_cfg, see
     assert resp.status_code == 200
     fresh = {p["id"] for p in resp.json()["photos"]}
     assert old_id not in fresh
-    assert any(_resolve_id(p) == row["rowid"] and ".cafe1." in p for p in fresh)
+    assert any(_resolve_id(p)[0] == row["rowid"] and ".cafe1." in p for p in fresh)
+
+
+def test_photos_ids_change_when_the_max_edge_cap_changes(client, frame_cfg, seed):
+    """A frame.max_edge config edit keeps every rowid and preview_revision: the
+    minted ids must still change, or displays honouring the immutable header
+    would serve the old-sized pixels for a year (B67)."""
+    resp = client.get("/api/frame/photos", params={"token": TOKEN, "count": 100})
+    before = {p["id"] for p in resp.json()["photos"]}
+    assert before
+
+    from api import config
+    prev = config._FULL_CONFIG["frame"]["max_edge"]
+    config._FULL_CONFIG["frame"]["max_edge"] = 800 if prev != 800 else 1600
+    try:
+        resp = client.get("/api/frame/photos", params={"token": TOKEN, "count": 100})
+        after = {p["id"] for p in resp.json()["photos"]}
+        assert after
+        assert not (before & after), "a cap edit must rotate every minted id"
+    finally:
+        config._FULL_CONFIG["frame"]["max_edge"] = prev
 
 
 def _returned_names(resp, ids):
-    """Map the ids in a /photos response back to seed names."""
-    id_to_name = {v: k for k, v in ids.items()}
-    return {id_to_name[p["id"]] for p in resp.json()["photos"] if p["id"] in id_to_name}
+    """Map the ids in a /photos response back to seed names, by rowid: the id
+    format itself is not comparable across a minting change (the payload now
+    carries the frame's configured max edge)."""
+    rowid_to_name = {_resolve_id(pid)[0]: name for name, pid in ids.items()}
+    returned = (_resolve_id(p["id"]) for p in resp.json()["photos"])
+    return {rowid_to_name[r[0]] for r in returned if r is not None and r[0] in rowid_to_name}
 
 
 # --- Auth / feature gate ---------------------------------------------------
@@ -317,17 +347,47 @@ class TestImage:
         assert resp.content[:2] == b"\xff\xd8"
         assert "immutable" in resp.headers["cache-control"]
 
+    @staticmethod
+    def _long_edge(client, photo_id, **params):
+        resp = client.get(f"/api/frame/image/{photo_id}", params={"token": TOKEN, **params})
+        assert resp.status_code == 200
+        with Image.open(BytesIO(resp.content)) as img:
+            return max(img.size)
+
     def test_image_respects_max_edge_cap(self, client, frame_cfg, seed):
+        # Caps below the 64 px seed image, so every bound is observable.
+        frame_cfg["max_edge"] = 32
         photos = client.get(
             "/api/frame/photos", params={"token": TOKEN, "count": 100}
         ).json()["photos"]
         photo_id = photos[0]["id"]
-        resp = client.get(
-            f"/api/frame/image/{photo_id}", params={"token": TOKEN, "max_edge": 16}
-        )
+        # The minted id carries the configured cap: without a query it serves
+        # at that cap, the query can still lower it (its documented power),
+        # and no query can raise it past the cap the id was minted with.
+        assert self._long_edge(client, photo_id) == 32
+        assert self._long_edge(client, photo_id, max_edge=16) == 16
+        assert self._long_edge(client, photo_id, max_edge=8000) == 32
+        # Raising the config cap reaches displays through the next poll's new
+        # ids; lowering it binds a live id at once, since ids never expire.
+        frame_cfg["max_edge"] = 48
+        assert self._long_edge(client, photo_id) == 32
+        frame_cfg["max_edge"] = 20
+        assert self._long_edge(client, photo_id) == 20
+
+    def test_legacy_id_clamps_against_the_config_and_honours_the_query(self, client, frame_cfg, seed):
+        frame_cfg["max_edge"] = 32
+        legacy_id = seed["good"]
+        assert _resolve_id(legacy_id)[1] is None
+        assert self._long_edge(client, legacy_id) == 32
+        assert self._long_edge(client, legacy_id, max_edge=16) == 16
+
+    def test_an_unparseable_max_edge_falls_back_to_the_default(self, client, frame_cfg, seed):
+        frame_cfg["max_edge"] = "1920px"
+        resp = client.get("/api/frame/photos", params={"token": TOKEN, "count": 100})
         assert resp.status_code == 200
-        with Image.open(BytesIO(resp.content)) as img:
-            assert max(img.size) <= 16
+        photo_id = resp.json()["photos"][0]["id"]
+        assert _resolve_id(photo_id)[1] == 1920
+        assert self._long_edge(client, photo_id) == 64
 
     def test_unknown_id_404(self, client, frame_cfg, seed):
         resp = client.get(

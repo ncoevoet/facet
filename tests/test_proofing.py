@@ -447,3 +447,38 @@ def test_public_picks_hide_removed_members_and_refuse_stale_asset(client, proofi
     with _connect() as conn:
         assert conn.execute('SELECT picked FROM album_client_picks WHERE album_id=? AND photo_path=?',
                             (album, PHOTO_IN_ALBUM)).fetchone()[0] == 1
+
+
+# ---------------------------------------------------------------------------
+# viewer.proofing.session_minutes is clamped to a usable session length:
+# "12h"/null used to raise straight out of int() (every proofing link 500'd
+# until the config was fixed by hand) and 0/negative minted already-expired
+# tokens that bounced the client on every request.
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize('bad', ['12h', None, 0, -5, '', float('inf'), float('nan')])
+def test_session_minutes_unparseable_or_non_positive_falls_back(monkeypatch, bad):
+    import api.auth
+
+    monkeypatch.setitem(api.auth.VIEWER_CONFIG, 'proofing', {'session_minutes': bad})
+    assert api.auth._proofing_session_minutes() == 1440
+
+
+def test_session_minutes_is_clamped_to_a_week_and_honoured_when_sane(monkeypatch):
+    import api.auth
+
+    monkeypatch.setitem(api.auth.VIEWER_CONFIG, 'proofing', {'session_minutes': 50000})
+    assert api.auth._proofing_session_minutes() == 10080
+    monkeypatch.setitem(api.auth.VIEWER_CONFIG, 'proofing', {'session_minutes': 30})
+    assert api.auth._proofing_session_minutes() == 30
+
+
+def test_a_bad_session_minutes_still_mints_a_usable_token(monkeypatch):
+    import api.auth
+
+    monkeypatch.setitem(api.auth.VIEWER_CONFIG, 'proofing', {'session_minutes': '12h'})
+    token = api.auth.create_share_client_token(3, 'share-token', 'kiosk')
+    payload = api.auth.decode_access_token(token)
+    assert payload['role'] == api.auth.SHARE_CLIENT_ROLE
+    assert payload['album_id'] == 3

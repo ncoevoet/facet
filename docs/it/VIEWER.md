@@ -1315,7 +1315,7 @@ Cornici fotografiche smart, dashboard Home Assistant e display in stile ImmichFr
 | Endpoint | Restituisce | Cache |
 |----------|---------|-------|
 | `GET /api/frame/photos?token=&count=` | `{photos: [{id, caption?, date_taken?, width, height}]}` — `count` limitato a `frame.max_count` (predefinito 100), predefinito `frame.count` (20) | — |
-| `GET /api/frame/image/{id}?token=&max_edge=` | il JPEG della foto — originale ridimensionato a `max_edge` (limitato da `frame.max_edge`, predefinito 1920), o la miniatura memorizzata se l'originale non è raggiungibile | long immutable |
+| `GET /api/frame/image/{id}?token=&max_edge=` | il JPEG della foto — originale ridimensionato a `max_edge` (limitato da `frame.max_edge`, predefinito 1920, e dal limite con cui è stato emesso l'id), o la miniatura memorizzata se l'originale non è raggiungibile | long immutable |
 | `GET /api/frame/next?token=` | un JPEG selezionato a caso, diverso a ogni chiamata — per cornici semplici e Home Assistant | `no-store` |
 
 ### Generare un token
@@ -1354,7 +1354,7 @@ camera:
 
 Aggiungi la telecamera a una scheda Picture Glance / Picture Entity per ottenere una cornice fotografica che si aggiorna da sola.
 
-Per un client in stile **ImmichFrame** che gestisce una propria presentazione, interroga `GET /api/frame/photos?token=…&count=30` per gli id, poi recupera ciascuno con `GET /api/frame/image/{id}?token=…&max_edge=1920`. Gli id sono stabili e le immagini sono messe in cache a lungo termine, quindi ogni foto viene scaricata una sola volta.
+Per un client in stile **ImmichFrame** che gestisce una propria presentazione, interroga `GET /api/frame/photos?token=…&count=30` per gli id, poi recupera ciascuno con `GET /api/frame/image/{id}?token=…&max_edge=1920`. Un id cambia solo quando cambiano l'anteprima della foto o `frame.max_edge`, e le immagini sono messe in cache a lungo termine, quindi ogni foto viene scaricata una sola volta.
 
 ## Caricamento automatico dal telefono
 

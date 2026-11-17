@@ -16,7 +16,7 @@ from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import JSONResponse, PlainTextResponse
 from pydantic import BaseModel, Field
 
-from api.config import _FULL_CONFIG
+from api.config import _FULL_CONFIG, viewer_cache_ttl
 from api.database import get_async_db, get_db
 from db import DEFAULT_DB_PATH
 
@@ -328,7 +328,7 @@ def metrics(request: Request):
         # huge positive (it's roughly wall-clock time) which the `ttl - …`
         # then clamps to 0.
         if _stats_cache:
-            ttl = max(0.0, float(_FULL_CONFIG.get("viewer", {}).get("cache_ttl_seconds", 3600)))
+            ttl = max(0.0, viewer_cache_ttl())
             now_wall = time.time()
             ages = [max(0.0, ttl - (e["expires"] - now_wall)) for e in _stats_cache.values()]
             gauge(

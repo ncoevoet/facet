@@ -1317,7 +1317,7 @@ Smart photo frames, Home Assistant dashboards and ImmichFrame / Immich-Kiosk sty
 | Endpoint | Returns | Cache |
 |----------|---------|-------|
 | `GET /api/frame/photos?token=&count=` | `{photos: [{id, caption?, date_taken?, width, height}]}` — `count` capped at `frame.max_count` (default 100), defaults to `frame.count` (20) | — |
-| `GET /api/frame/image/{id}?token=&max_edge=` | the photo JPEG — original downscaled to `max_edge` (capped by `frame.max_edge`, default 1920), or the stored thumbnail if the original is unreachable | long immutable |
+| `GET /api/frame/image/{id}?token=&max_edge=` | the photo JPEG — original downscaled to `max_edge` (capped by `frame.max_edge`, default 1920, and by the cap the id was minted with), or the stored thumbnail if the original is unreachable | long immutable |
 | `GET /api/frame/next?token=` | one random curated JPEG, different on every call — for simple frames and Home Assistant | `no-store` |
 
 ### Generating a token
@@ -1356,7 +1356,7 @@ camera:
 
 Add the camera to a Picture Glance / Picture Entity card to get a self-updating photo frame.
 
-For an **ImmichFrame-style** client that runs its own slideshow, poll `GET /api/frame/photos?token=…&count=30` for ids, then fetch each `GET /api/frame/image/{id}?token=…&max_edge=1920`. Ids are stable and images are cached long-term, so each photo downloads once.
+For an **ImmichFrame-style** client that runs its own slideshow, poll `GET /api/frame/photos?token=…&count=30` for ids, then fetch each `GET /api/frame/image/{id}?token=…&max_edge=1920`. An id changes only when the photo's preview or `frame.max_edge` changes, and images are cached long-term, so each photo downloads once.
 
 ## Phone Auto-Upload
 
