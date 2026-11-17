@@ -75,8 +75,8 @@ def test_reporting_and_declining_do_not_require_the_repair_lock(library, flags, 
         result = _run(library, *flags, answers=answers)
     # The point is that neither path takes the repair lock, and the row survives
     # untouched. Neither fixes anything, so under the exit-status contract the
-    # reported issue still stands: exit 1, not the old blanket 0.
-    assert result.returncode == 1, result.stdout + result.stderr
+    # reported issue still stands: exit 3, distinct from a runtime failure.
+    assert result.returncode == 3, result.stdout + result.stderr
     assert _blink(db) == 1
 
 
@@ -95,7 +95,7 @@ def test_confirmation_rechecks_issues_before_repair(library, monkeypatch):
         return 'y'
 
     monkeypatch.setattr('builtins.input', confirm)
-    validate_db.main()
+    assert validate_db.main() == 0
     assert _blink(db) == 0
     with LibraryLock(str(db), kind='scan'):
         pass

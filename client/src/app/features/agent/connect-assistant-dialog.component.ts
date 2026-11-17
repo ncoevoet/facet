@@ -1,5 +1,4 @@
 import { ChangeDetectionStrategy, Component, ElementRef, Injector, NgZone, OnDestroy, afterNextRender, computed, effect, inject, signal, untracked, viewChild } from '@angular/core';
-import { DatePipe } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { HttpErrorResponse } from '@angular/common/http';
 import { MatDialogModule } from '@angular/material/dialog';
@@ -17,6 +16,7 @@ import { TranslatePipe } from '../../shared/pipes/translate.pipe';
 import { i18nKeys } from '../../core/i18n/keys';
 import { copyText } from '../../shared/utils/clipboard';
 import { buildAssistantPrompt } from './assistant-prompt';
+import { TimestampPipe } from '../../shared/pipes/timestamp.pipe';
 
 /** Gap between clearing the live region and re-setting it, long enough for the empty text to render. */
 const ANNOUNCE_GAP_MS = 100;
@@ -34,7 +34,7 @@ interface LevelOption {
 @Component({
   selector: 'app-connect-assistant-dialog',
   standalone: true,
-  imports: [FormsModule, DatePipe, MatDialogModule, MatButtonModule, MatIconModule, TranslatePipe],
+  imports: [FormsModule, TimestampPipe, MatDialogModule, MatButtonModule, MatIconModule, TranslatePipe],
   changeDetection: ChangeDetectionStrategy.Eager,
   template: `
     <h2 mat-dialog-title>{{ I18N.dialog.connect_assistant.title | translate }}</h2>
@@ -105,10 +105,10 @@ interface LevelOption {
             @if (token.level === 'edition') {
               <span class="rounded bg-amber-500/20 px-1.5 text-xs text-amber-800 dark:text-amber-300" data-testid="edition-badge">{{ I18N.dialog.connect_assistant.level_edition_badge | translate }}</span>
             }
-            <span class="text-xs text-[var(--mat-sys-on-surface-variant)]">{{ I18N.dialog.connect_assistant.col_created | translate }} {{ token.created_at | date: 'dd/MM/yyyy' }}</span>
+            <span class="text-xs text-[var(--mat-sys-on-surface-variant)]">{{ I18N.dialog.connect_assistant.col_created | translate }} {{ token.created_at | timestamp: locale(): 'date' }}</span>
             <span class="text-xs text-[var(--mat-sys-on-surface-variant)]">
               {{ I18N.dialog.connect_assistant.col_last_used | translate }}
-              {{ token.last_used_at ? (token.last_used_at | date: 'dd/MM/yyyy') : (I18N.dialog.connect_assistant.never_used | translate) }}
+              {{ token.last_used_at ? (token.last_used_at | timestamp: locale(): 'date') : (I18N.dialog.connect_assistant.never_used | translate) }}
             </span>
             <span class="ml-auto flex items-center gap-1">
               @if (confirmRevokeId() === token.id) {
@@ -138,6 +138,8 @@ export class ConnectAssistantDialogComponent implements OnDestroy {
   private readonly api = inject(ApiService);
   private readonly auth = inject(AuthService);
   private readonly i18n = inject(I18nService);
+  /** The viewer's language, the argument of the date pipes. */
+  protected readonly locale = this.i18n.locale;
   private readonly snackBar = inject(MatSnackBar);
   private readonly bridge = inject(AgentBridgeService);
   private readonly serverTools = inject(ServerToolRegistry);

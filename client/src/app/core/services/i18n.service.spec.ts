@@ -100,6 +100,19 @@ describe('I18nService', () => {
       );
     });
 
+    it('treats $-sequences in values as literal text, not replacement patterns', async () => {
+      const loadPromise = service.load();
+      const req = httpTesting.expectOne(`/api/i18n/${service.locale()}`);
+      req.flush(mockTranslations);
+      await loadPromise;
+
+      // A filename like "$&photo.jpg" must not let `$&` (insert the match)
+      // or `$$` (insert a literal dollar) rewrite the sentence.
+      expect(service.t('common.greeting', { name: '$&photo.jpg', app: '$$Facet' })).toBe(
+        'Hello $&photo.jpg, welcome to $$Facet!',
+      );
+    });
+
     it('should substitute numeric variables', async () => {
       const loadPromise = service.load();
       const req = httpTesting.expectOne(`/api/i18n/${service.locale()}`);

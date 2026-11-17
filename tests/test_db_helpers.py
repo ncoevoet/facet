@@ -280,3 +280,24 @@ class TestManualTagsProbeCache:
             conn.execute("CREATE TABLE photo_objects (photo_path TEXT, label TEXT)")
         assert db_helpers.is_photo_objects_available() is True
         assert db_helpers.is_manual_tags_available() is False
+
+
+class TestGetExistingColumnsConnectionGuard:
+    def test_non_sqlite_connection_opens_sync_connection(self, tmp_path, monkeypatch):
+        db_path = tmp_path / "cols.db"
+        sync_conn = sqlite3.connect(str(db_path))
+        sync_conn.execute("CREATE TABLE photos (path TEXT PRIMARY KEY, aggregate REAL)")
+        sync_conn.commit()
+
+        class FakeAsyncConn:
+            def execute(self, *_args, **_kwargs):
+                raise AssertionError("async execute must not be called synchronously")
+
+        monkeypatch.setattr(db_helpers, "_existing_columns_cache", None)
+        monkeypatch.setattr(db_helpers, "get_db_connection", lambda: sync_conn)
+        try:
+            cols = db_helpers.get_existing_columns(FakeAsyncConn())
+            assert cols == {"path", "aggregate"}
+        finally:
+            monkeypatch.setattr(db_helpers, "_existing_columns_cache", None)
+            sync_conn.close()

@@ -175,7 +175,7 @@ Questi comandi aggiornano metriche o derivano nuovi dati senza rieseguire l'inte
 | `python facet.py --discover-moments` | Propone un vocabolario di momenti dalle tue didascalie in `scoring_config.discovered.json` |
 | `python facet.py --detect-junk` | Segnala screenshot, documenti, ricevute, meme e diapositive (eseguito dopo ogni scansione) |
 | `python facet.py --recompute-junk` | Rivaluta `junk_kind` per l'intera libreria |
-| `python facet.py --recompute-saliency` | `[GPU]` Ricalcola la salienza del soggetto dalle miniature memorizzate; `--force` rifà tutto |
+| `python facet.py --recompute-saliency [percorsi]` | `[GPU]` Ricalcola la salienza del soggetto dalle miniature memorizzate; `--force` rifà tutto. I percorsi (file o cartelle) limitano il ricalcolo alle foto memorizzate al loro interno |
 | `python facet.py --recompute-composition-cpu` | Ricalcola la composizione, basata su regole (CPU, qualsiasi profilo) |
 | `python facet.py --recompute-composition-gpu` | `[GPU]` Ricalcola la composizione con SAMP-Net |
 | `python facet.py --recompute-iqa` | `[GPU]` Riempie i punteggi mancanti di TOPIQ IAA, NR-Face e LIQE dalle miniature memorizzate. Attivo su ogni profilo; su CPU (`legacy`) è molto più lento. Elabora per lotti, quindi la memoria resta stabile sulle librerie grandi; si può interrompere e rieseguire in sicurezza. |
@@ -491,7 +491,7 @@ Il passaggio di tagging al termine di una scansione viene saltato quando `taggin
 
 Controlli: intervalli dei punteggi, metriche dei volti, corruzione dei BLOB, dimensioni degli embedding, volti orfani, righe la cui chiave esterna punta a una riga mancante, valori statistici anomali. L'esportazione del database del visualizzatore rifiuta un database con tali righe. Questo controllo elenca ognuna di queste righe e non ne elimina nessuna; solo i volti orfani, coperti anche dal controllo dei volti orfani, vengono rimossi da `--auto-fix`. La maggior parte di queste tabelle contiene valutazioni, confronti o album, che una correzione del percorso può ricollegare e un'eliminazione perderebbe.
 
-Sia le riparazioni interattive sia `--auto-fix` prendono il blocco della libreria e ricontrollano i problemi prima di scrivere. La modalità interattiva attende la tua conferma iniziale prima di prendere il blocco. Una libreria occupata termina con 75; un blocco inutilizzabile con 1. `--report-only` e il rifiuto delle riparazioni non richiedono il blocco di riparazione. Per il resto, `validate_db.py` termina con 0 solo quando non è stato trovato nulla di azionabile o ogni problema è stato corretto, con 1 quando restano problemi per una persona (solo report, riparazioni rifiutate o saltate, problemi non risolvibili), e con 2 quando una riparazione di `--auto-fix` è fallita.
+Sia le riparazioni interattive sia `--auto-fix` prendono il blocco della libreria e ricontrollano i problemi prima di scrivere. La modalità interattiva attende la tua conferma iniziale prima di prendere il blocco. Una libreria occupata termina con 75; un blocco inutilizzabile con 1. `--report-only` e il rifiuto delle riparazioni non richiedono il blocco di riparazione. Per il resto, `validate_db.py` termina con 0 solo quando non è stato trovato nulla di azionabile o ogni problema è stato corretto, con 3 quando restano problemi per una persona (solo report, riparazioni rifiutate o saltate, problemi non risolvibili), e con 2 quando una riparazione di `--auto-fix` è fallita. Il codice 1 resta riservato agli errori di esecuzione.
 
 ## Manutenzione del database
 

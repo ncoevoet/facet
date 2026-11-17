@@ -175,7 +175,7 @@ Estes comandos atualizam métricas ou derivam novos dados sem reexecutar todo o 
 | `python facet.py --discover-moments` | Propõe um vocabulário de momentos a partir das suas legendas em `scoring_config.discovered.json` |
 | `python facet.py --detect-junk` | Sinaliza capturas de tela, documentos, recibos, memes e slides (roda após cada escaneamento) |
 | `python facet.py --recompute-junk` | Reavalia `junk_kind` de toda a biblioteca |
-| `python facet.py --recompute-saliency` | `[GPU]` Recalcula a saliência do sujeito a partir das miniaturas armazenadas; `--force` refaz tudo |
+| `python facet.py --recompute-saliency [caminhos]` | `[GPU]` Recalcula a saliência do sujeito a partir das miniaturas armazenadas; `--force` refaz tudo. Os caminhos (arquivos ou pastas) limitam o recálculo às fotos armazenadas dentro deles |
 | `python facet.py --recompute-composition-cpu` | Recalcula a composição, baseada em regras (CPU, qualquer perfil) |
 | `python facet.py --recompute-composition-gpu` | `[GPU]` Recalcula a composição com o SAMP-Net |
 | `python facet.py --recompute-iqa` | `[GPU]` Preenche as pontuações TOPIQ IAA, NR-Face e LIQE ausentes a partir das miniaturas armazenadas. Roda em todos os perfis; na CPU (`legacy`) é bem mais lento. Processa em lotes, então a memória permanece estável em bibliotecas grandes; pode ser interrompido e executado de novo com segurança. |
@@ -491,7 +491,7 @@ O passo de marcação ao fim de um escaneamento é pulado quando `tagging.enable
 
 Verificações: intervalos de pontuação, métricas de rostos, corrupção de BLOB, tamanhos de embeddings, rostos órfãos, linhas cuja chave estrangeira aponta para uma linha inexistente, valores atípicos estatísticos. A exportação da base do visualizador recusa uma base com essas linhas. Esta verificação lista cada uma dessas linhas e não exclui nenhuma; só os rostos órfãos, que a verificação de rostos órfãos também cobre, são removidos por `--auto-fix`. A maioria dessas tabelas guarda avaliações, comparações ou álbuns, que uma correção de caminho pode religar e que uma exclusão perderia.
 
-Tanto os reparos interativos quanto o `--auto-fix` pegam o bloqueio da biblioteca e verificam os problemas novamente antes de gravar. O modo interativo espera a sua confirmação inicial antes de pegar o bloqueio. Uma biblioteca ocupada termina com 75; um bloqueio inutilizável, com 1. `--report-only` e recusar os reparos não precisam do bloqueio de reparo. Fora isso, `validate_db.py` termina com 0 somente quando nada acionável foi encontrado ou todo problema foi corrigido, com 1 quando restam problemas para uma pessoa (somente relatório, reparos recusados ou ignorados, problemas sem correção) e com 2 quando um reparo de `--auto-fix` falhou.
+Tanto os reparos interativos quanto o `--auto-fix` pegam o bloqueio da biblioteca e verificam os problemas novamente antes de gravar. O modo interativo espera a sua confirmação inicial antes de pegar o bloqueio. Uma biblioteca ocupada termina com 75; um bloqueio inutilizável, com 1. `--report-only` e recusar os reparos não precisam do bloqueio de reparo. Fora isso, `validate_db.py` termina com 0 somente quando nada acionável foi encontrado ou todo problema foi corrigido, com 3 quando restam problemas para uma pessoa (somente relatório, reparos recusados ou ignorados, problemas sem correção) e com 2 quando um reparo de `--auto-fix` falhou. O código 1 continua reservado para erros de execução.
 
 ## Database Maintenance
 

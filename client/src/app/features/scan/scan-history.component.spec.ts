@@ -36,7 +36,7 @@ describe('recorded scan history', () => {
       { provide: ScanService, useValue: { canLaunch: () => true, loadHistory: read,
         previewRetry: previewRead, applyRetry: apply, loadRetryReceipt: receiptRead, connect } },
       { provide: AuthService, useValue: { identity: owner, status, get token() { return token; }, isEdition: () => false } },
-      { provide: I18nService, useValue: { t: (key: string, params?: Record<string, unknown>) => key + (params ? ' ' + Object.values(params).join(' ') : ''), translations: signal({}), currentLang: signal('en') } },
+      { provide: I18nService, useValue: { locale: signal('en'), t: (key: string, params?: Record<string, unknown>) => key + (params ? ' ' + Object.values(params).join(' ') : ''), translations: signal({}), currentLang: signal('en') } },
     ] });
     fixture = TestBed.createComponent(ScanHistoryComponent); fixture.detectChanges(); root = fixture.nativeElement;
   });
@@ -52,7 +52,7 @@ describe('recorded scan history', () => {
     expect(read).not.toHaveBeenCalled(); await open();
     expect(root.textContent).toContain('scan.history.completed_failures');
     expect(root.textContent).toContain('scan.history.states.running');
-    expect(root.textContent).toContain('01/11/2026 12:00');
+    expect(root.textContent).toContain('1 Nov 2026 12:00');
     expect(root.textContent).toContain('scan.history.stages.load');
     read.mockResolvedValueOnce({ runs: [run(1)], next_before: null });
     button('scan.history.older').click(); await Promise.resolve(); fixture.detectChanges();

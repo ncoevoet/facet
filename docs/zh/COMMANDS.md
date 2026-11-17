@@ -175,7 +175,7 @@ Facet 会记录每次扫描（状态、模式、目录、计数器）以及每�
 | `python facet.py --discover-moments` | 根据你的照片描述提出一份时刻词表，写入 `scoring_config.discovered.json` |
 | `python facet.py --detect-junk` | 标出截图、文档、收据、表情包和幻灯片（每次扫描后运行） |
 | `python facet.py --recompute-junk` | 为整个照片库重新评估 `junk_kind` |
-| `python facet.py --recompute-saliency` | `[GPU]` 从已存储的缩略图重新计算主体显著性；`--force` 全部重做 |
+| `python facet.py --recompute-saliency [路径]` | `[GPU]` 从已存储的缩略图重新计算主体显著性；`--force` 全部重做。给出路径（文件或文件夹）时，只重算存放在这些路径下的照片 |
 | `python facet.py --recompute-composition-cpu` | 用基于规则的方法重新计算构图（CPU，任意档位） |
 | `python facet.py --recompute-composition-gpu` | `[GPU]` 用 SAMP-Net 重新计算构图 |
 | `python facet.py --recompute-iqa` | `[GPU]` 从已存储的缩略图补齐缺失的 TOPIQ IAA、NR-Face 和 LIQE 评分。所有档位都可运行；在 CPU 上（`legacy`）慢得多。按批次流式处理，因此在大型图库上内存保持平稳；可安全中断并重新运行。 |
@@ -491,7 +491,7 @@ python /opt/facet/viewer.py      # 仍然读取 /opt/facet/scoring_config.json�
 
 检查项：评分范围、人脸指标、BLOB 损坏、特征向量长度、孤立人脸、外键指向不存在行的记录、统计离群值。查看器数据库导出会拒绝含有此类记录的数据库。此检查逐行列出这些记录，不删除任何一行；只有孤立人脸（孤立人脸检查同样涵盖）会被 `--auto-fix` 删除。其中多数表保存评分、比较或相册，修正路径即可重新关联，删除则会丢失。
 
-交互式修复和 `--auto-fix` 都会获取照片库锁，并在写入前重新检查问题。交互模式会先等待你的初次确认，再获取锁。照片库被占用时以 75 退出；锁无法使用时以 1 退出。`--report-only` 和拒绝修复不需要修复锁。否则，只有在没有发现需要处理的问题或所有问题都已修复时，`validate_db.py` 才以 0 退出；仍有问题需要人工处理（仅报告、拒绝或跳过修复、无法修复的问题）时以 1 退出；`--auto-fix` 修复失败时以 2 退出。
+交互式修复和 `--auto-fix` 都会获取照片库锁，并在写入前重新检查问题。交互模式会先等待你的初次确认，再获取锁。照片库被占用时以 75 退出；锁无法使用时以 1 退出。`--report-only` 和拒绝修复不需要修复锁。否则，只有在没有发现需要处理的问题或所有问题都已修复时，`validate_db.py` 才以 0 退出；仍有问题需要人工处理（仅报告、拒绝或跳过修复、无法修复的问题）时以 3 退出；`--auto-fix` 修复失败时以 2 退出。 退出码 1 仍保留给运行时错误。
 
 ## 数据库维护
 

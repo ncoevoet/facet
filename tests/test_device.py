@@ -701,3 +701,73 @@ class TestCudaWithoutDevices:
         else:
             fake.cuda.device_count = count
         assert device.is_device_available("cuda", torch_module=fake) is False
+
+
+class TestPreloadCudaRuntimeLibraries:
+    """``preload_cuda_runtime_libraries`` opens nvidia wheel libs globally and skips nvblas."""
+
+    def test_loads_nvidia_libs_with_rtld_global_and_skips_nvblas(self, monkeypatch, tmp_path):
+        import ctypes
+
+        lib_dir = tmp_path / "nvidia" / "cublas" / "lib"
+        lib_dir.mkdir(parents=True)
+        cublas = lib_dir / "libcublasLt.so.12"
+        nvblas = lib_dir / "libnvblas.so.12"
+        cublas.write_bytes(b"")
+        nvblas.write_bytes(b"")
+
+        loaded = []
+        monkeypatch.setattr(sys, "platform", "linux")
+        monkeypatch.setattr(
+            ctypes,
+            "CDLL",
+            lambda path, mode=None: loaded.append((path, mode)) or mock.MagicMock(),
+        )
+
+        result = device.preload_cuda_runtime_libraries(search_roots=[str(tmp_path)])
+
+        assert result == [str(cublas)]
+        assert loaded == [(str(cublas), ctypes.RTLD_GLOBAL)]
+
+    def test_the_default_search_runs_once_per_process(self, monkeypatch, tmp_path):
+        import ctypes
+        import site
+
+        lib_dir = tmp_path / "nvidia" / "cudnn" / "lib"
+        lib_dir.mkdir(parents=True)
+        (lib_dir / "libcudnn.so.9").write_bytes(b"")
+        loaded = []
+        monkeypatch.setattr(device, "_preloaded_cuda_libraries", None)
+        monkeypatch.setattr(sys, "platform", "linux")
+        monkeypatch.setattr(site, "getsitepackages", lambda: [str(tmp_path)])
+        monkeypatch.setattr(site, "getusersitepackages", lambda: "")
+        monkeypatch.setattr(ctypes, "CDLL", lambda path, mode=None: loaded.append(path) or mock.MagicMock())
+
+        first = device.preload_cuda_runtime_libraries()
+        second = device.preload_cuda_runtime_libraries()
+
+        assert first == second == [str(lib_dir / "libcudnn.so.9")]
+        assert len(loaded) == 1
+
+    @pytest.mark.skipif(sys.platform != "linux", reason="the preload only runs on Linux")
+    def test_importing_the_module_loads_no_library(self, tmp_path):
+        """A CPU run imports ``utils.device`` too; an import-time preload cost it about 220 MiB."""
+        import subprocess
+
+        lib_dir = tmp_path / "nvidia" / "cublas" / "lib"
+        lib_dir.mkdir(parents=True)
+        (lib_dir / "libcublasLt.so.12").write_bytes(b"")
+        probe = (
+            "import ctypes, site\n"
+            f"site.getsitepackages = lambda: [{str(tmp_path)!r}]\n"
+            "site.getusersitepackages = lambda: ''\n"
+            "loaded = []\n"
+            "ctypes.CDLL = lambda path, mode=None: loaded.append(path)\n"
+            "import utils.device\n"
+            "print(loaded)\n"
+        )
+        repo_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        result = subprocess.run([sys.executable, "-c", probe], cwd=repo_root, capture_output=True,
+                                text=True, timeout=60, check=True)
+
+        assert result.stdout.strip() == "[]"

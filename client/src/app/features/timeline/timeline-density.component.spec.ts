@@ -49,7 +49,7 @@ describe('Timeline date density', () => {
       provideRouter([{ path: 'timeline', component: OtherPage }, { path: 'elsewhere', component: OtherPage }]),
       { provide: ApiService, useValue: api }, { provide: AuthService, useValue: auth },
       { provide: GalleryStore, useValue: { viewFilterParams: signal({ hide_bursts: '1' }), photos, timelineMembershipRevision, loading } },
-      { provide: I18nService, useValue: { t: (key: string, params?: object) => key + (params ? JSON.stringify(params) : ''), translations: () => ({}) } },
+      { provide: I18nService, useValue: { locale: signal('en'), t: (key: string, params?: object) => key + (params ? JSON.stringify(params) : ''), translations: () => ({}) } },
     ] });
     const router = TestBed.inject(Router); await router.navigateByUrl('/timeline');
     const navigate = vi.spyOn(router, 'navigate').mockResolvedValue(true);
@@ -199,7 +199,7 @@ describe('Timeline date density', () => {
     expect(v.api.get).toHaveBeenLastCalledWith('/timeline/dates', expect.objectContaining({ year: 2021 }), expect.anything());
     expect(v.bars()).toHaveLength(53);
     expect(v.bars()[0].textContent).toContain('2020-W53');
-    expect(v.bars()[0].getAttribute('aria-label')).toContain('"period":"01/01/2021 – 03/01/2021","count":4');
+    expect(v.bars()[0].getAttribute('aria-label')).toContain('"period":"1 Jan 2021 – 3 Jan 2021","count":4');
     v.navigate.mockClear(); v.bars()[0].click(); await v.settle();
     expect(v.filters.dateFrom()).toBe('2021-01-01'); expect(v.filters.dateTo()).toBe('2021-01-03');
     expect(v.navigate).not.toHaveBeenCalled();
@@ -309,7 +309,7 @@ describe('Timeline date density', () => {
     v.key(bars[0], 'ArrowRight', { shiftKey: true }); v.key(bars[1], 'ArrowRight', { shiftKey: true }); await v.settle();
     expect(document.activeElement).toBe(bars[2]);
     expect(bars.every(row => row.getAttribute('aria-pressed') === 'true')).toBe(true);
-    expect(v.root.querySelector('[role=status]')!.textContent).toContain('timeline.range_draft{"from":"01/01/2019","to":"31/12/2021"}');
+    expect(v.root.querySelector('[role=status]')!.textContent).toContain('timeline.range_draft{"from":"1 Jan 2019","to":"31 Dec 2021"}');
     expect(v.filters.dateFrom()).toBe('');
     const escape = v.key(bars[2], 'Escape'); await v.settle();
     expect(escape.defaultPrevented).toBe(true);
@@ -541,11 +541,11 @@ describe('Timeline date density', () => {
       expect(bars[0].getAttribute('aria-pressed')).toBe('false');
       vi.advanceTimersByTime(1); v.fixture.detectChanges();
       expect(bars[0].getAttribute('aria-pressed')).toBe('true');
-      expect(v.readout().textContent).toContain('01/01/2019 – 31/12/2019');
+      expect(v.readout().textContent).toContain('1 Jan 2019 – 31 Dec 2019');
       expect(v.readout().textContent).toContain('timeline.scrub_range_hint');
       touch(v, 'pointermove', bars[0], 250); v.fixture.detectChanges();
       expect(bars.map(bar => bar.getAttribute('aria-pressed'))).toEqual(['true', 'true', 'true']);
-      expect(v.readout().textContent).toContain('01/01/2019 – 31/12/2021');
+      expect(v.readout().textContent).toContain('1 Jan 2019 – 31 Dec 2021');
       expect(v.filters.dateFrom()).toBe('');
       touch(v, 'pointerup', bars[0], 250); bars[0].click(); v.fixture.detectChanges();
       expect(v.filters.dateFrom()).toBe('2019-01-01'); expect(v.filters.dateTo()).toBe('2021-12-31');
@@ -570,7 +570,7 @@ describe('Timeline date density', () => {
       bars[0].focus(); v.key(bars[0], 'ArrowRight'); await v.settle();
       expect(document.activeElement).toBe(bars[1]);
       v.key(bars[1], 'ArrowRight', { shiftKey: true }); await v.settle();
-      expect(v.readout().textContent).toContain('timeline.range_draft{"from":"01/01/2020","to":"31/12/2021"}');
+      expect(v.readout().textContent).toContain('timeline.range_draft{"from":"1 Jan 2020","to":"31 Dec 2021"}');
       v.key(bars[2], 'Enter'); await v.settle();
       expect(v.filters.dateFrom()).toBe('2020-01-01'); expect(v.filters.dateTo()).toBe('2021-12-31');
       expect(v.navigate).not.toHaveBeenCalled();

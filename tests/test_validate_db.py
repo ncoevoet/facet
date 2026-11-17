@@ -3,6 +3,7 @@
 import os
 import shlex
 import sqlite3
+import subprocess
 import sys
 from types import SimpleNamespace
 
@@ -250,13 +251,14 @@ class _FakeFixConn:
 
 
 def _run_validate(monkeypatch, tmp_path, argv, results, fix_fails=False, answer='n',
-                  interactive_ok=True):
+                  interactive_ok=True, recheck_results=None):
     """Drive validate_db.main() with a scripted validator; returns SystemExit."""
     db = tmp_path / "v.db"
     db.write_text("")
     monkeypatch.setattr(sys, "argv", ["validate_db.py", "--db", str(db), *argv])
+    check_rounds = iter([results, results if recheck_results is None else recheck_results])
     validator = SimpleNamespace(
-        run_all_checks=lambda: results,
+        run_all_checks=lambda: next(check_rounds),
         generate_report=lambda: "report",
         interactive_fix=lambda result, conn: interactive_ok,
     )
@@ -269,9 +271,9 @@ def _run_validate(monkeypatch, tmp_path, argv, results, fix_fails=False, answer=
     return validate_db.main()
 
 
-def test_validate_db_report_only_with_issues_exits_one(monkeypatch, tmp_path):
+def test_validate_db_report_only_with_issues_exits_three(monkeypatch, tmp_path):
     assert _run_validate(monkeypatch, tmp_path, ["--report-only"],
-                         [_result(fixable=False)]) == 1
+                         [_result(fixable=False)]) == 3
 
 
 def test_validate_db_report_only_clean_exits_zero(monkeypatch, tmp_path):
@@ -288,32 +290,49 @@ def test_validate_db_successful_auto_fix_exits_zero(monkeypatch, tmp_path):
                          [_result(fixable=True)]) == 0
 
 
-def test_validate_db_declined_interactive_fix_exits_one(monkeypatch, tmp_path):
-    assert _run_validate(monkeypatch, tmp_path, [], [_result(fixable=True)]) == 1
+def test_validate_db_declined_interactive_fix_exits_three(monkeypatch, tmp_path):
+    assert _run_validate(monkeypatch, tmp_path, [], [_result(fixable=True)]) == 3
 
 
-def test_validate_db_unfixable_issues_exits_one(monkeypatch, tmp_path):
+def test_validate_db_unfixable_issues_exits_three(monkeypatch, tmp_path):
     # No fixable issues at all: the UNFIXABLE listing must not read as green.
     assert _run_validate(monkeypatch, tmp_path, ["--report-only"],
-                         [_result(has_issues=True, fixable=False)]) == 1
+                         [_result(has_issues=True, fixable=False)]) == 3
 
 
 def test_validate_db_interactive_fix_applied_exits_zero(monkeypatch, tmp_path):
     assert _run_validate(monkeypatch, tmp_path, [], [_result(fixable=True)], answer='y') == 0
 
 
-def test_validate_db_interactive_fix_skipped_or_failed_exits_one(monkeypatch, tmp_path):
+def test_validate_db_interactive_fix_skipped_or_failed_exits_three(monkeypatch, tmp_path):
     # interactive_fix returns False for [s] Skip and for a fix that raised: the
     # issue still stands, so the run must not read as clean.
     assert _run_validate(monkeypatch, tmp_path, [], [_result(fixable=True)], answer='y',
-                         interactive_ok=False) == 1
+                         interactive_ok=False) == 3
 
 
-def test_validate_db_auto_fix_with_unfixable_left_exits_one(monkeypatch, tmp_path):
+def test_validate_db_auto_fix_with_unfixable_left_exits_three(monkeypatch, tmp_path):
     assert _run_validate(monkeypatch, tmp_path, ["--auto-fix"],
-                         [_result(fixable=True), _result(fixable=False)]) == 1
+                         [_result(fixable=True), _result(fixable=False)]) == 3
 
 
 def test_validate_db_informational_findings_alone_exit_zero(monkeypatch, tmp_path):
     assert _run_validate(monkeypatch, tmp_path, ["--report-only"],
                          [_result(fixable=False, informational=True)]) == 0
+
+
+def test_validate_db_runtime_database_error_exits_one(tmp_path):
+    db = tmp_path / "corrupt.db"
+    db.write_bytes(b"this is not a SQLite database")
+    result = subprocess.run(
+        [sys.executable, validate_db.__file__, "--db", str(db), "--report-only"],
+        capture_output=True, text=True, timeout=30,
+    )
+    assert result.returncode == 1
+    assert "sqlite3.DatabaseError" in result.stderr
+
+
+@pytest.mark.parametrize("remaining, expected", [([], 0), ([_result(fixable=False)], 3)])
+def test_validate_db_recheck_without_fixable_issues(monkeypatch, tmp_path, remaining, expected):
+    assert _run_validate(monkeypatch, tmp_path, ["--auto-fix"], [_result()],
+                         recheck_results=remaining) == expected

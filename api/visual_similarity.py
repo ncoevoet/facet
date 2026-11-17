@@ -4,7 +4,7 @@ Two features can describe a photo: its perceptual hash (``phash``) and its
 CLIP/SigLIP embedding (``clip_embedding``). A pair is scored on the features
 BOTH photos carry in a usable form, with the weights renormalised over them:
 
-* both shared: ``0.7 * phash_similarity + 0.3 * cosine``;
+* both shared: ``0.3 * phash_similarity + 0.7 * cosine``;
 * only one shared: that feature at full weight;
 * none shared: the pair is unknown and never listed, even at threshold zero.
 
@@ -29,8 +29,8 @@ from utils.embedding import bytes_to_embedding
 
 NO_VISUAL_FEATURES = 'no_visual_features'
 
-PHASH_WEIGHT = 0.7
-EMBEDDING_WEIGHT = 0.3
+PHASH_WEIGHT = 0.3
+EMBEDDING_WEIGHT = 0.7
 
 _FETCH_BATCH = 1024
 _HEX_HASH = re.compile(r'[0-9a-fA-F]{1,16}')

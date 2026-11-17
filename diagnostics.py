@@ -328,6 +328,8 @@ def _probe_cuda_session(ort):
         model_bytes = _probe_model_bytes()
     except ImportError:
         return None
+    from utils.device import preload_cuda_runtime_libraries
+    preload_cuda_runtime_libraries()
     options = ort.SessionOptions()
     options.log_severity_level = 3
     with warnings.catch_warnings(record=True) as caught, contextlib.redirect_stdout(io.StringIO()) as stdout, \

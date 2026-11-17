@@ -488,7 +488,7 @@ Campi della risposta e codici di stato: [API.md](../API.md).
 
 Clicca **Simili** su una foto e scegli una modalità:
 
-- **Visivo** (predefinito) — somiglianza pHash (70%) + somiglianza CLIP/SigLIP (30%). Quando due foto condividono solo uno dei due segnali, conta a peso pieno; le foto che non ne condividono nessuno non vengono mai elencate. Vengono restituite, pagina per pagina, tutte le corrispondenze sopra la soglia. Se la foto non ha nessuno dei due segnali, riscansionala con `--force` (un semplice `python facet.py <dir>` salta i file già elaborati).
+- **Visivo** (predefinito) — somiglianza pHash (30%) + somiglianza CLIP/SigLIP (70%). Quando due foto condividono solo uno dei due segnali, conta a peso pieno; le foto che non ne condividono nessuno non vengono mai elencate. Vengono restituite, pagina per pagina, tutte le corrispondenze sopra la soglia. Se la foto non ha nessuno dei due segnali, riscansionala con `--force` (un semplice `python facet.py <dir>` salta i file già elaborati).
 - **Colore** — intersezione degli istogrammi (70%) + distanza di saturazione (10%) + distanza di luminanza (10%) + bonus monocromatico (10%). Pre-filtra per flag monocromatico e intervallo di saturazione.
 - **Persona** — foto con le stesse persone, per `person_id` quando disponibile, altrimenti per somiglianza dell'embedding del volto.
 
@@ -999,7 +999,7 @@ Granularità, ordinamento e categoria persistono in `localStorage`. I controlli 
 
 **Selezione delimitata.** Restringi la camera oscura con parametri URL: `?group_by=scene` per le scene, `?album=<id>` per un album, `?from=&to=` per una finestra di ora di scatto (testo EXIF o date ISO come `2026-06-01`). Un banner mostra l'ambito con **Esci dalla scena**. Le raffiche che superano il bordo della finestra mostrano comunque tutti i loro fotogrammi.
 
-**Intervallo di date.** Il pulsante **intervallo di date** (icona `date_range`) offre **Ultimi 7 giorni**, **Ultimi 30 giorni**, **Quest'anno**, **Anno scorso**, **Intervallo personalizzato...** e **Tutte le date**. Le date sono mostrate come dd/MM/yyyy.
+**Intervallo di date.** Il pulsante **intervallo di date** (icona `date_range`) offre **Ultimi 7 giorni**, **Ultimi 30 giorni**, **Quest'anno**, **Anno scorso**, **Intervallo personalizzato...** e **Tutte le date**. Le date sono scritte come le scrive la lingua del visualizzatore (italiano `1 lug 2026`).
 
 - Si combina con l'ambito dell'album. Le foto senza data di scatto escono da un intervallo con date.
 - I preset si risolvono quando scelti, quindi un "Ultimi 7 giorni" nei segnalibri è una finestra fissa.

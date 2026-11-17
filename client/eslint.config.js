@@ -54,7 +54,10 @@ module.exports = defineConfig([
     ],
     rules: {
       "@angular-eslint/template/click-events-have-key-events": "warn",
-      "@angular-eslint/template/interactive-supports-focus": "warn",
+      // A <details> is focused through its own <summary>; its keydown handlers
+      // (Escape to close) only catch what bubbles up from that control and the
+      // panel inside, so the container needs no tab stop of its own.
+      "@angular-eslint/template/interactive-supports-focus": ["warn", { allowList: ["form", "details"] }],
       "@angular-eslint/template/no-autofocus": "warn",
       "@angular-eslint/template/label-has-associated-control": "warn",
     },

@@ -95,6 +95,7 @@ describe('GalleryComponent', () => {
     t: Mock;
     translations: WritableSignal<Record<string, unknown>>;
     lang: WritableSignal<string>;
+    locale: WritableSignal<string>;
   };
   let routeMock: { snapshot: { paramMap: { get: Mock }; queryParams: Record<string, string> } };
   let outletMock: { attachEvents: Subject<unknown>; detachEvents: Subject<unknown> };
@@ -273,6 +274,7 @@ describe('GalleryComponent', () => {
       t: vi.fn((key: string) => key),
       translations: signal<Record<string, unknown>>({}),
       lang: signal('en'),
+      locale: signal('en'),
     };
 
     routeMock = { snapshot: { paramMap: { get: vi.fn(() => null) }, queryParams: {} } };

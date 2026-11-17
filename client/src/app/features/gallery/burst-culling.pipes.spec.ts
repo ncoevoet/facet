@@ -963,25 +963,29 @@ describe('PlanGroupNotePipe', () => {
 describe('CullDateRangePipe', () => {
   const pipe = new CullDateRangePipe();
 
-  it('formats ISO dates day-month-year', () => {
-    expect(pipe.transform('2026-07-01', '2026-07-31')).toBe('01/07/2026 - 31/07/2026');
+  it('formats ISO dates as the viewer language writes them, day first in English', () => {
+    expect(pipe.transform('2026-07-01', '2026-07-31', 'en')).toBe('1 Jul 2026 - 31 Jul 2026');
   });
 
   it('reads the EXIF form with a time', () => {
-    expect(pipe.transform('2026:07:01 00:00:00', '2026:07:31 23:59:59')).toBe('01/07/2026 - 31/07/2026');
+    expect(pipe.transform('2026:07:01 00:00:00', '2026:07:31 23:59:59', 'en')).toBe('1 Jul 2026 - 31 Jul 2026');
   });
 
   it('keeps the dash when one side is missing', () => {
-    expect(pipe.transform('2026-07-01', null)).toBe('01/07/2026 -');
-    expect(pipe.transform(null, '2026-07-31')).toBe('- 31/07/2026');
+    expect(pipe.transform('2026-07-01', null, 'en')).toBe('1 Jul 2026 -');
+    expect(pipe.transform(null, '2026-07-31', 'en')).toBe('- 31 Jul 2026');
+  });
+
+  it('follows the language it is given', () => {
+    expect(pipe.transform('2026-07-01', '2026-07-31', 'zh')).toBe('2026年7月1日 - 2026年7月31日');
   });
 
   it('is empty when both sides are missing', () => {
-    expect(pipe.transform(null, null)).toBe('');
+    expect(pipe.transform(null, null, 'en')).toBe('');
   });
 
   it('returns an unreadable value unchanged', () => {
-    expect(pipe.transform('soon', '2026-07-31')).toBe('soon - 31/07/2026');
+    expect(pipe.transform('soon', '2026-07-31', 'en')).toBe('soon - 31 Jul 2026');
   });
 });
 

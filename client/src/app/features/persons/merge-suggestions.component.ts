@@ -1,4 +1,4 @@
-import { Component, inject, signal, computed, effect, viewChild, TemplateRef, OnInit, OnDestroy, ChangeDetectionStrategy } from '@angular/core';
+import { Component, inject, signal, computed, effect, viewChild, TemplateRef, OnInit, OnDestroy, ChangeDetectionStrategy, DestroyRef } from '@angular/core';
 import { NgTemplateOutlet } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { RouterLink } from '@angular/router';
@@ -12,6 +12,7 @@ import { MatDialog, MatDialogModule } from '@angular/material/dialog';
 import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
 import { firstValueFrom } from 'rxjs';
 import { AuthService } from '../../core/services/auth.service';
+import { LatestRequest } from '../../shared/utils/latest-request';
 import { ApiService } from '../../core/services/api.service';
 import { I18nService } from '../../core/services/i18n.service';
 import { TranslatePipe } from '../../shared/pipes/translate.pipe';
@@ -200,6 +201,11 @@ export class MergeSuggestionsComponent implements OnInit, OnDestroy {
   private readonly mergeToolbar = viewChild<TemplateRef<unknown>>('mergeToolbar');
 
   readonly suggestions = signal<MergeSuggestion[]>([]);
+  /** Bumped whenever the list is replaced wholesale: an in-flight rollback may
+   *  only touch the list it was taken from, never a newer threshold's. */
+  private suggestionsVersion = 0;
+  private readonly destroyRef = inject(DestroyRef);
+  private readonly latestSuggestions = new LatestRequest(this.destroyRef);
   readonly loading = signal(false);
   readonly merging = signal(false);
   /** Null until the server reports the active model's default (or the user picks one). */
@@ -242,20 +248,28 @@ export class MergeSuggestionsComponent implements OnInit, OnDestroy {
   }
 
   private async loadSuggestions(): Promise<void> {
+    // The slider debounces at 300ms, but a slow /merge_suggestions response can
+    // still be in flight when the next one starts: only the newest request may
+    // write, or the list would show an older threshold's suggestions while the
+    // slider reads something else.
+    const handle = this.latestSuggestions.begin();
     this.loading.set(true);
     try {
-      const res = await firstValueFrom(
+      const res = await firstValueFrom(handle.bind(
         this.api.get<MergeSuggestionsResponse>(
           '/merge_suggestions',
           this.userThreshold === null ? {} : { threshold: this.userThreshold },
         ),
-      );
+      ));
+      if (!handle.isCurrent()) return;
       this.suggestions.set(res.suggestions);
+      this.suggestionsVersion++;
       if (this.userThreshold === null) this.threshold.set(res.threshold);
     } catch {
+      if (!handle.isCurrent()) return;
       this.snackBar.open(this.i18n.t(I18N.persons.error_loading), '', { duration: 3000 });
     } finally {
-      this.loading.set(false);
+      if (handle.isCurrent()) this.loading.set(false);
     }
   }
 
@@ -284,7 +298,11 @@ export class MergeSuggestionsComponent implements OnInit, OnDestroy {
 
   async rejectSuggestion(suggestion: MergeSuggestion): Promise<void> {
     // Optimistically remove from the list, then persist the rejection so the
-    // analyzer stops re-proposing this pair on reload.
+    // analyzer stops re-proposing this pair on reload. A failed request puts
+    // the entry back where it was: the user must not believe a pair was
+    // rejected when the server never heard about it.
+    const index = this.suggestions().indexOf(suggestion);
+    const version = this.suggestionsVersion;
     this.removeSuggestion(suggestion);
     try {
       await firstValueFrom(
@@ -294,24 +312,38 @@ export class MergeSuggestionsComponent implements OnInit, OnDestroy {
         }),
       );
     } catch {
-      this.snackBar.open(this.i18n.t(I18N.persons.merge_error), '', { duration: 3000 });
+      // But only into that same list: a threshold change (or an accept-all)
+      // may have replaced it while the request was in flight, and re-inserting
+      // a pair the newer list filtered out would let Accept all submit it.
+      if (this.suggestionsVersion === version) {
+        this.suggestions.update((list) => {
+          const restored = [...list];
+          restored.splice(Math.min(index, restored.length), 0, suggestion);
+          return restored;
+        });
+      }
+      this.snackBar.open(this.i18n.t(I18N.errors.action_failed), '', { duration: 3000 });
     }
   }
 
   async confirmAcceptAll(): Promise<void> {
-    const count = this.suggestions().length;
-    if (count === 0) return;
+    const pending = this.suggestions();
+    if (pending.length === 0) return;
 
     const ref = this.dialog.open(ConfirmDialogComponent, {
       data: {
         title: this.i18n.t(I18N.persons.confirm_merge_title),
-        message: this.i18n.t(I18N.persons.confirm_merge_all_message, { count }),
+        message: this.i18n.t(I18N.persons.confirm_merge_all_message, { count: pending.length }),
       },
     });
 
     const confirmed = await firstValueFrom(ref.afterClosed());
     if (!confirmed) return;
-
+    // The confirmation covered the pairs on screen when the dialog opened. If
+    // any of them moved while it was up — a failed rejection rolling its pair
+    // back, a single merge or rejection — ask again rather than submit more
+    // than was shown.
+    if (this.suggestions() !== pending) return this.confirmAcceptAll();
     await this.acceptAll();
   }
 
@@ -335,6 +367,7 @@ export class MergeSuggestionsComponent implements OnInit, OnDestroy {
 
       const count = this.suggestions().length;
       this.suggestions.set([]);
+      this.suggestionsVersion++;
       this.snackBar.open(this.i18n.t(I18N.persons.batch_merged, { count }), '', { duration: 2000 });
     } catch {
       this.snackBar.open(this.i18n.t(I18N.persons.merge_error), '', { duration: 3000 });

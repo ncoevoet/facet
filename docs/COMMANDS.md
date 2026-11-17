@@ -175,7 +175,7 @@ These update metrics or derive new data without re-running the full scoring pipe
 | `python facet.py --discover-moments` | Propose a moment vocabulary from your captions into `scoring_config.discovered.json` |
 | `python facet.py --detect-junk` | Flag screenshots, documents, receipts, memes and slides (runs after every scan) |
 | `python facet.py --recompute-junk` | Re-evaluate `junk_kind` for the whole library |
-| `python facet.py --recompute-saliency` | `[GPU]` Recompute subject saliency from stored thumbnails; `--force` redoes all |
+| `python facet.py --recompute-saliency [paths]` | `[GPU]` Recompute subject saliency from stored thumbnails; `--force` redoes all. Paths (files or folders) limit the recompute to the photos stored under them |
 | `python facet.py --recompute-composition-cpu` | Recompute composition, rule-based (CPU, any profile) |
 | `python facet.py --recompute-composition-gpu` | `[GPU]` Recompute composition with SAMP-Net |
 | `python facet.py --recompute-iqa` | `[GPU]` Fill missing TOPIQ IAA, NR-Face and LIQE scores from stored thumbnails. Runs on every profile; on CPU (`legacy`) it is much slower. Streams in batches, so memory stays flat on large libraries; safe to interrupt and re-run. |
@@ -491,7 +491,7 @@ The tagging step at the end of a scan is skipped when `tagging.enabled` is `fals
 
 Checks: score ranges, face metrics, BLOB corruption, embedding sizes, orphaned faces, rows whose foreign key points at a missing row, statistical outliers. The viewer DB export refuses a database with such rows. This check lists each such row and deletes none; only orphaned faces, which the orphaned-faces check covers too, are removed by `--auto-fix`. Most of those tables hold ratings, comparisons or albums, which a path correction can reconnect and a deletion would lose.
 
-Both interactive repairs and `--auto-fix` take the library lock and check the issues again before writing. Interactive mode waits for your initial confirmation before taking the lock. A busy library exits 75; an unusable lock exits 1. `--report-only` and declining repairs do not need the repair lock. Otherwise `validate_db.py` exits 0 only when nothing actionable was found or every issue was fixed, 1 when issues remain for a human (report only, declined or skipped repairs, unfixable issues), and 2 when an `--auto-fix` repair failed.
+Both interactive repairs and `--auto-fix` take the library lock and check the issues again before writing. Interactive mode waits for your initial confirmation before taking the lock. A busy library exits 75; an unusable lock exits 1. `--report-only` and declining repairs do not need the repair lock. Otherwise `validate_db.py` exits 0 only when nothing actionable was found or every issue was fixed, 3 when issues remain for a human (report only, declined or skipped repairs, unfixable issues), and 2 when an `--auto-fix` repair failed. Exit 1 remains reserved for runtime errors.
 
 ## Database Maintenance
 

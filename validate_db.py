@@ -14,6 +14,7 @@ import sys
 
 from db import DEFAULT_DB_PATH, get_connection
 from validation import DatabaseValidator
+from utils.exit_codes import VALIDATION_ISSUES_EXIT_CODE
 
 logger = logging.getLogger("facet.validate_db")
 
@@ -49,9 +50,9 @@ def main():
     logger.info(validator.generate_report())
 
     # The exit status is the contract cron and wrapper scripts read: 0 means the
-    # database needs nothing, 1 means issues remain that a human must look at,
-    # 2 means --auto-fix ran and at least one repair failed. Everything exiting
-    # 0 made a nightly validation green while the report said otherwise.
+    # database needs nothing, 3 means issues remain that a human must look at,
+    # 1 remains reserved for uncaught runtime errors; 2 means an auto-fix failed.
+    # Previously every outcome exited 0, masking issues in nightly validation.
     def _issues_remain(checks):
         return any(r.has_issues and not r.informational for r in checks)
 
@@ -71,7 +72,7 @@ def main():
         if not args.auto_fix:
             proceed = input("\nWould you like to review and fix issues? [y/N]: ").strip().lower()
             if proceed != 'y':
-                return 1
+                return VALIDATION_ISSUES_EXIT_CODE
 
         from facet import LIBRARY_JOB_REPAIR, hold_library_lock_or_exit
         lock = hold_library_lock_or_exit(args.db, LIBRARY_JOB_REPAIR)
@@ -83,7 +84,7 @@ def main():
             fixable_results = [r for r in results if r.has_issues and r.fixable]
             if not fixable_results:
                 logger.info("No fixable issues remain.")
-                return 1 if _issues_remain(results) else 0
+                return VALIDATION_ISSUES_EXIT_CODE if _issues_remain(results) else 0
             if args.auto_fix:
                 logger.info("Auto-fixing all issues...")
                 fix_failures = 0
@@ -107,7 +108,7 @@ def main():
                                  fix_failures, len(fixable_results))
                     return 2
                 logger.info("All auto-fixes applied. Re-run validation to verify.")
-                return 1 if _unfixed_remain(results) else 0
+                return VALIDATION_ISSUES_EXIT_CODE if _unfixed_remain(results) else 0
             else:
                 with get_connection(args.db, row_factory=False) as conn:
                     # interactive_fix returns False for a skipped or failed fix:
@@ -116,9 +117,9 @@ def main():
                 if not all(fixed):
                     logger.error("%d of %d issue(s) were skipped or failed to fix. Re-run validation to see what remains.",
                                  fixed.count(False), len(fixed))
-                    return 1
+                    return VALIDATION_ISSUES_EXIT_CODE
                 logger.info("Fixes applied. Re-run validation to verify.")
-                return 1 if _unfixed_remain(results) else 0
+                return VALIDATION_ISSUES_EXIT_CODE if _unfixed_remain(results) else 0
         finally:
             lock.release()
     else:
@@ -136,7 +137,7 @@ def main():
     # under-lock re-check counts, so an issue that vanished mid-run reads clean).
     if _issues_remain(results):
         logger.error("Issues remain after this run; see the report above.")
-        return 1
+        return VALIDATION_ISSUES_EXIT_CODE
     return 0
 
 

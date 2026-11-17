@@ -1,7 +1,7 @@
 import { inject, Pipe, PipeTransform } from '@angular/core';
 import { i18nKeys } from '../../core/i18n/keys';
 import { I18nService } from '../../core/services/i18n.service';
-import { CaptureDatePipe } from '../../shared/pipes/capture-date.pipe';
+import { formatCaptureDate } from '../../shared/utils/date-format';
 import { DEFAULT_FILTERS } from './gallery-filters.util';
 import { GalleryStore } from './gallery.store';
 
@@ -9,7 +9,6 @@ import { GalleryStore } from './gallery.store';
 export class AlbumRuleValuePipe implements PipeTransform {
   private readonly i18n = inject(I18nService);
   private readonly store = inject(GalleryStore);
-  private readonly date = new CaptureDatePipe();
   transform(value: string, key: string): string {
     const I18N = i18nKeys();
     if (!value) return this.i18n.t(I18N.albums.rules.any);
@@ -22,7 +21,7 @@ export class AlbumRuleValuePipe implements PipeTransform {
       return value.split(',').map(raw => raw.trim()).filter(Boolean).map(id =>
         persons.find(person => String(person.id) === id)?.name || this.i18n.t(I18N.albums.rules.person_fallback, { id })).join(', ');
     }
-    if (key === 'date_from' || key === 'date_to') return this.date.transform(value);
+    if (key === 'date_from' || key === 'date_to') return formatCaptureDate(value, this.i18n.locale());
     const enumKeys: Record<string, string> = {
       sort: `sort_options.${value}`, sort_direction: value === 'ASC' ? I18N.gallery.sort_asc : value === 'DESC' ? I18N.gallery.sort_desc : '',
       review_status: `gallery.sidebar.review.values.${value}`,

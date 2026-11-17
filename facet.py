@@ -199,6 +199,8 @@ def _gather_scan_files(photo_paths, scanning_settings):
     never ran as a clean "nothing new".
     """
     valid_suffixes = SCANNABLE_IMAGE_EXTENSIONS
+    if scanning_settings.get('skip_raw', False):
+        valid_suffixes = valid_suffixes - RAW_EXTENSIONS
     skip_hidden = scanning_settings.get('skip_hidden_directories', True)
     skip_globs = _scan_skip_globs(scanning_settings)
     all_files = []
@@ -260,6 +262,34 @@ def _viewer_spawn_env(db_path):
     library the command targets, not viewer.py's CWD default -- without DB_PATH,
     a multi-library user's ``--db`` silently shows another library's persons."""
     return {**os.environ, 'DB_PATH': str(Path(db_path).resolve())}
+
+
+def _paths_under(paths, roots):
+    """The stored ``paths`` that are one of ``roots`` or live below one of them.
+
+    Stored paths are resolved at scan time, so the roots are resolved the same way.
+    A root matches whole path components only: ``/photos/trip`` does not claim
+    ``/photos/trip2``.
+    """
+    resolved = tuple(os.path.realpath(str(r)) for r in roots)
+    return [p for p in paths
+            if any(p == root or p.startswith(root.rstrip(os.sep) + os.sep) for root in resolved)]
+
+
+def _maybe_detect_duplicates(scorer):
+    """Run the library-wide duplicate pass at the end of a scan when ``duplicate_detection.enabled``.
+
+    Off by default: the pass reads every pHash and embedding in the library, and
+    ``hide_duplicates`` defaults to on, so enabling it silently hides photos on the
+    next scan. A failure is logged and never fails the scan.
+    """
+    if not scorer.config.get_duplicate_detection_settings().get('enabled', False):
+        return
+    from utils.duplicate import detect_duplicates
+    try:
+        detect_duplicates(scorer.db_path, config_path=scorer.config.config_path)
+    except Exception:
+        logger.warning("Duplicate detection failed (non-fatal)", exc_info=True)
 
 
 def _photos_saved(processor):
@@ -2342,6 +2372,9 @@ def _run_scan_pipeline(args, resumed_run, lifecycle):
     ledger.begin('sequences')
     report_progress('sequences', force=True)
     detect_all_sequences(scorer.db_path, scorer.config.config_path, incremental=True)
+
+    # 5b. Opt-in global near-duplicate detection
+    _maybe_detect_duplicates(scorer)
     ledger.end('sequences')
 
     # 6. Auto-tag photos using stored CLIP/SigLIP embeddings
@@ -3369,6 +3402,9 @@ def main():
             paths = [row['path'] for row in conn.execute(
                 f"SELECT path FROM photos WHERE {where}"
             ).fetchall()]
+
+        if args.photo_paths:
+            paths = _paths_under(paths, args.photo_paths)
 
         if not paths:
             logger.info("No photos need saliency recompute (use --force to redo all).")

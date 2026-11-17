@@ -31,7 +31,7 @@ describe('Timeline photo feed', () => {
       provideRouter([{ path: 'timeline', component: OtherPage }, { path: 'timeline/:year/:month', component: OtherPage }, { path: 'photo', component: OtherPage }]),
       { provide: ApiService, useValue: api }, { provide: AuthService, useValue: auth },
       { provide: GalleryStore, useValue: { viewFilterParams: visibility, photos, timelineMembershipRevision, loading } },
-      { provide: I18nService, useValue: { t: (key: string, params?: object) => key + (params ? JSON.stringify(params) : ''), translations: () => ({}) } },
+      { provide: I18nService, useValue: { locale: signal('en'), t: (key: string, params?: object) => key + (params ? JSON.stringify(params) : ''), translations: () => ({}) } },
     ] });
     const router = TestBed.inject(Router); await router.navigateByUrl('/timeline');
     function create() {
@@ -50,7 +50,7 @@ describe('Timeline photo feed', () => {
 
   it('renders actual dated photos, preview totals and exact visible-day links without writes', async () => {
     const v = await setup();
-    expect(v.root.querySelector('h2')?.textContent).toBe('01/11/2026');
+    expect(v.root.querySelector('h2')?.textContent).toBe('1 Nov 2026');
     expect(v.root.textContent).toContain('"shown":1,"total":12');
     expect(v.root.querySelector('img')?.getAttribute('src')).toContain('preview=v1');
     const day = v.root.querySelector<HTMLAnchorElement>('section header a')!;
@@ -87,7 +87,7 @@ describe('Timeline photo feed', () => {
   it('retains loaded dates on a failed next page and retries the same cursor', async () => {
     const v = await setup(); v.api.get.mockReturnValueOnce(throwError(() => new Error('offline')));
     await v.reach();
-    expect(v.root.querySelector('h2')?.textContent).toBe('01/11/2026'); expect(v.root.querySelector('[role=alert]')).not.toBeNull();
+    expect(v.root.querySelector('h2')?.textContent).toBe('1 Nov 2026'); expect(v.root.querySelector('[role=alert]')).not.toBeNull();
     expect(v.sentinel()).toBeNull();
     v.api.get.mockReturnValueOnce(of({ groups: [{ date: '2026-10-31', count: 0, photos: [] }], next_cursor: null, has_more: false }));
     const retry = [...v.root.querySelectorAll('button')].find(button => button.textContent?.includes('timeline.retry'))!;
@@ -170,7 +170,7 @@ describe('Timeline photo feed', () => {
     v.visibility.set({ hide_bursts: '1', hide_duplicates: '0' }); await v.settle();
     expect(v.api.get).toHaveBeenCalledTimes(calls); expect(pending.observed).toBe(true);
     pending.next(first); await v.settle();
-    expect(v.root.querySelector('h2')?.textContent).toBe('01/11/2026');
+    expect(v.root.querySelector('h2')?.textContent).toBe('1 Nov 2026');
     v.visibility.set({ hide_bursts: '0', hide_duplicates: '0' }); await v.settle();
     expect(v.api.get).toHaveBeenCalledTimes(calls + 1); v.dispose();
   });
@@ -179,7 +179,7 @@ describe('Timeline photo feed', () => {
     const v = await setup(); v.wrapper.scrollTop = 240; v.wrapper.dispatchEvent(new Event('scroll'));
     await v.router.navigateByUrl('/photo?path=%2Ffirst.jpg'); v.dispose();
     await v.router.navigateByUrl('/timeline'); const returned = v.create(); await returned.settle();
-    expect(returned.root.querySelector('h2')?.textContent).toBe('01/11/2026'); expect(returned.wrapper.scrollTop).toBe(240);
+    expect(returned.root.querySelector('h2')?.textContent).toBe('1 Nov 2026'); expect(returned.wrapper.scrollTop).toBe(240);
     expect(v.api.get).toHaveBeenCalledTimes(1); returned.dispose();
   });
 
@@ -189,12 +189,12 @@ describe('Timeline photo feed', () => {
     v.loading.set(true);
     v.photos.set([]); await v.settle();
     expect(v.api.get).not.toHaveBeenCalled();
-    expect(v.root.querySelector('h2')?.textContent).toBe('01/11/2026');
+    expect(v.root.querySelector('h2')?.textContent).toBe('1 Nov 2026');
     v.photos.set([first.groups[0].photos[0]]); await v.settle();
     expect(v.api.get).not.toHaveBeenCalled();
     v.timelineMembershipRevision.update(value => value + 1); v.loading.set(false); await v.settle();
     expect(v.api.get).toHaveBeenCalledTimes(1);
-    expect(v.root.querySelector('h2')?.textContent).toBe('01/11/2026');
+    expect(v.root.querySelector('h2')?.textContent).toBe('1 Nov 2026');
     v.dispose();
   });
 
@@ -208,7 +208,7 @@ describe('Timeline photo feed', () => {
     v.timelineMembershipRevision.update(value => value + 1); await v.settle();
     expect(response.observed).toBe(false); expect(v.api.get).toHaveBeenCalledTimes(1);
     response.next({ groups: [{ date: '1999-01-01', count: 0, photos: [] }], next_cursor: null, has_more: false });
-    expect(v.root.textContent).not.toContain('01/01/1999');
+    expect(v.root.textContent).not.toContain('1 Jan 1999');
     v.dispose();
   });
 

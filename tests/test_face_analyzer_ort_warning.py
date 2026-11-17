@@ -80,6 +80,15 @@ def _fresh_process_state(monkeypatch):
     monkeypatch.setattr(platform, 'machine', lambda: 'x86_64')
 
 
+@pytest.fixture(autouse=True)
+def preloads(monkeypatch):
+    """Record CUDA runtime preloads instead of dlopening the box's real nvidia wheels."""
+    from utils import device
+    calls = []
+    monkeypatch.setattr(device, 'preload_cuda_runtime_libraries', lambda: calls.append('preload') or [])
+    return calls
+
+
 @pytest.fixture
 def warnings_logged(caplog):
     caplog.set_level(logging.WARNING, logger='facet.face_analyzer')
@@ -155,6 +164,20 @@ class TestCpuSessionWarning:
         assert 'aarch64' in message
         assert '<1.27' not in message
         assert 'pip install' not in message
+
+
+class TestCudaRuntimePreload:
+    """The nvidia wheels are dlopened only when the CUDA provider is requested (about 220 MiB of RSS)."""
+
+    def test_cuda_device_preloads_before_building_the_sessions(self, monkeypatch, preloads):
+        _install_fakes(monkeypatch, _fake_face_analysis(CUDA_FIRST, []))
+        FaceAnalyzer(device='cuda')
+        assert preloads == ['preload']
+
+    def test_cpu_device_never_preloads(self, monkeypatch, preloads):
+        _install_fakes(monkeypatch, _fake_face_analysis(CPU_ONLY, []))
+        FaceAnalyzer(device='cpu')
+        assert preloads == []
 
 
 class TestCudaMajorMismatchClause:

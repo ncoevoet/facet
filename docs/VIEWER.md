@@ -490,7 +490,7 @@ Response fields and status codes: [API.md](API.md).
 
 Click **Similar** on a photo and choose a mode:
 
-- **Visual** (default) — pHash similarity (70%) + CLIP/SigLIP similarity (30%). When two photos share only one of the two signals, it counts at full weight; photos sharing neither are never listed. All matches above the threshold are returned, page by page. If the photo has neither signal, rescan it with `--force` (a plain `python facet.py <dir>` skips processed files).
+- **Visual** (default) — pHash similarity (30%) + CLIP/SigLIP similarity (70%). When two photos share only one of the two signals, it counts at full weight; photos sharing neither are never listed. All matches above the threshold are returned, page by page. If the photo has neither signal, rescan it with `--force` (a plain `python facet.py <dir>` skips processed files).
 - **Color** — histogram intersection (70%) + saturation distance (10%) + luminance distance (10%) + monochrome bonus (10%). Pre-filters by monochrome flag and saturation range.
 - **Person** — photos with the same person(s), by `person_id` when available, otherwise face embedding similarity.
 
@@ -1001,7 +1001,7 @@ Granularity, sort and category persist in `localStorage`. Controls that don't ap
 
 **Scoped culling.** Narrow the darkroom with URL parameters: `?group_by=scene` for scenes, `?album=<id>` for an album, `?from=&to=` for a capture-time window (EXIF text or ISO dates such as `2026-06-01`). A banner shows the scope with **Exit scene**. Bursts that cross the window's edge still show all their frames.
 
-**Date range.** The **date range** button (icon `date_range`) offers **Last 7 days**, **Last 30 days**, **This year**, **Last year**, **Custom range...** and **All dates**. Dates show as dd/MM/yyyy.
+**Date range.** The **date range** button (icon `date_range`) offers **Last 7 days**, **Last 30 days**, **This year**, **Last year**, **Custom range...** and **All dates**. Dates are written the way the viewer's language writes them (English `1 Jul 2026`).
 
 - It combines with the album scope. Photos without a capture date drop out of a dated range.
 - Presets resolve when picked, so a bookmarked "Last 7 days" is a fixed window.

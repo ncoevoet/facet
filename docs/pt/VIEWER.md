@@ -488,7 +488,7 @@ Campos de resposta e códigos de status: [API.md](../API.md).
 
 Clique em **Semelhante** em uma foto e escolha um modo:
 
-- **Visual** (padrão) — similaridade pHash (70%) + similaridade CLIP/SigLIP (30%). Quando duas fotos compartilham só um dos dois sinais, ele conta com peso total; fotos que não compartilham nenhum nunca são listadas. Todas as correspondências acima do limiar são devolvidas, página a página. Se a foto não tiver nenhum dos sinais, analise-a de novo com `--force` (um simples `python facet.py <dir>` ignora arquivos já processados).
+- **Visual** (padrão) — similaridade pHash (30%) + similaridade CLIP/SigLIP (70%). Quando duas fotos compartilham só um dos dois sinais, ele conta com peso total; fotos que não compartilham nenhum nunca são listadas. Todas as correspondências acima do limiar são devolvidas, página a página. Se a foto não tiver nenhum dos sinais, analise-a de novo com `--force` (um simples `python facet.py <dir>` ignora arquivos já processados).
 - **Cor** — interseção de histograma (70%) + distância de saturação (10%) + distância de luminância (10%) + bônus monocromático (10%). Pré-filtra pela marcação monocromática e faixa de saturação.
 - **Pessoa** — fotos com a(s) mesma(s) pessoa(s), por `person_id` quando disponível, senão por similaridade do embedding facial.
 
@@ -997,7 +997,7 @@ Granularidade, ordenação e categoria persistem no `localStorage`. Os controles
 
 **Triagem com escopo.** Restrinja a câmara escura com parâmetros de URL: `?group_by=scene` para cenas, `?album=<id>` para um álbum, `?from=&to=` para uma janela de horário de captura (texto EXIF ou datas ISO como `2026-06-01`). Um banner mostra o escopo com **Sair da cena**. As rajadas que cruzam a borda da janela ainda mostram todos os seus quadros.
 
-**Intervalo de datas.** O botão de **intervalo de datas** (ícone `date_range`) oferece **Últimos 7 dias**, **Últimos 30 dias**, **Este ano**, **Ano passado**, **Intervalo personalizado...** e **Todas as datas**. As datas aparecem como dd/MM/yyyy.
+**Intervalo de datas.** O botão de **intervalo de datas** (ícone `date_range`) oferece **Últimos 7 dias**, **Últimos 30 dias**, **Este ano**, **Ano passado**, **Intervalo personalizado...** e **Todas as datas**. As datas são escritas como o idioma do visualizador as escreve (português `1 de jul. de 2026`).
 
 - Combina com o escopo de álbum. Fotos sem data de captura saem de um intervalo com datas.
 - Os padrões são resolvidas quando escolhidas, então um "Últimos 7 dias" nos favoritos é uma janela fixa.

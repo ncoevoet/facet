@@ -30,7 +30,7 @@ describe('ShareDialogComponent', () => {
         { provide: MAT_DIALOG_DATA, useValue: data },
         { provide: AuthService, useValue: { status, identity: () => 'root', isEdition: () => true, token: 'fixture-token' } },
         { provide: Router, useValue: { url: '/albums', events: new Subject() } },
-        { provide: I18nService, useValue: { t: (key: string) => key, translations: signal({}), currentLang: signal('en') } },
+        { provide: I18nService, useValue: { locale: signal('en'), t: (key: string) => key, translations: signal({}), currentLang: signal('en') } },
       ],
     });
     component = TestBed.inject(ShareDialogComponent);

@@ -1,7 +1,7 @@
 import { Pipe, PipeTransform } from '@angular/core';
 import type { components } from '../../core/api/schema';
 import { i18nKeys } from '../../core/i18n/keys';
-import { CaptureDatePipe } from '../../shared/pipes/capture-date.pipe';
+import { formatCaptureDate } from '../../shared/utils/date-format';
 import { basename } from '../../shared/utils/clipboard';
 
 type Entry = components['schemas']['OrganizationEntry'];
@@ -16,11 +16,11 @@ export interface HistoryDiff { summary: HistoryFieldChange[]; photos: HistoryPho
 
 /** `exact` shows a change that the rounded `read` would hide. */
 interface FieldSpec { label: string; primary: boolean; read: Reader; exact?: Reader }
-type Reader = (snapshot: Snapshot) => HistoryValue;
+/** `language` formats the values that read differently per language (capture dates). */
+type Reader = (snapshot: Snapshot, language: string) => HistoryValue;
 
 const I18N = i18nKeys();
 const H = I18N.organization_history;
-const captureDate = new CaptureDatePipe();
 const text = (value: string): HistoryValue => ({ key: '', text: value });
 const key = (value: string): HistoryValue => ({ key: value, text: '' });
 const NOT_SET = key(H.unknown);
@@ -34,10 +34,10 @@ const coordinate = (value: Snapshot[number]): string => String(Number(Number(val
 const location = (round: boolean): Reader => s => missing(s[0]) || missing(s[1]) ? NOT_SET
   : text(round ? `${coordinate(s[0])}, ${coordinate(s[1])}` : `${Number(s[0])}, ${Number(s[1])}`);
 /** The capture-date pipe stops at minutes; a shift of seconds needs them shown. */
-const captured = (seconds: boolean): Reader => s => {
+const captured = (seconds: boolean): Reader => (s, language) => {
   if (missing(s[0])) return NOT_SET;
   const value = String(s[0]);
-  const shown = captureDate.transform(value);
+  const shown = formatCaptureDate(value, language);
   const second = /[ T]\d{2}:\d{2}:(\d{2})/.exec(value)?.[1];
   return text(seconds && second && shown !== value ? `${shown}:${second}` : shown);
 };
@@ -82,16 +82,16 @@ function uniform(values: (HistoryValue | null)[]): HistoryValue | null {
 /** What an organization history entry changed: per photo, only the fields whose value
  * differs, photos with a change first; as a summary, the changed main fields (or, when
  * none changed, the rest). */
-@Pipe({ name: 'historyDiff', standalone: true, pure: true })
+@Pipe({ name: 'historyDiff', standalone: true })
 export class HistoryDiffPipe implements PipeTransform {
-  transform(entry: Entry): HistoryDiff {
+  transform(entry: Entry, language: string): HistoryDiff {
     const specs = FIELDS[entry.kind];
     const photos = entry.changes.map(change => ({
       path: change.path,
       changes: specs.flatMap(spec => {
         const differs = (read: Reader): HistoryFieldChange | null => {
-          const before = read(change.before);
-          const after = read(change.after);
+          const before = read(change.before, language);
+          const after = read(change.after, language);
           return same(before, after) ? null : { label: spec.label, before, after };
         };
         const found = differs(spec.read) ?? (spec.exact ? differs(spec.exact) : null);

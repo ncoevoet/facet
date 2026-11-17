@@ -1,6 +1,5 @@
 import { Component, ElementRef, computed, inject, signal, viewChild, ChangeDetectionStrategy, DestroyRef, effect, untracked } from '@angular/core';
 import { HttpErrorResponse } from '@angular/common/http';
-import { DatePipe } from '@angular/common';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { Router, NavigationStart } from '@angular/router';
 import { FormsModule } from '@angular/forms';
@@ -31,6 +30,7 @@ import type { LightroomImportResponse, LightroomManifest } from '../../core/api/
 import { SidecarJobLabelPipe } from './sidecar-job-label.pipe';
 import { ContextHelpComponent } from '../../shared/components/context-help/context-help.component';
 import { CaptureDatePipe } from '../../shared/pipes/capture-date.pipe';
+import { TimestampPipe } from '../../shared/pipes/timestamp.pipe';
 
 export interface ExportEditorDialogData {
   receiptsOnly?: boolean;
@@ -54,7 +54,7 @@ export interface ExportEditorDialogData {
   imports: [
     FormsModule, MatDialogModule, MatFormFieldModule, MatInputModule,
     MatButtonModule, MatCheckboxModule, MatRadioModule, MatIconModule,
-    MatProgressSpinnerModule, MatProgressBarModule, DatePipe, TranslatePipe, SidecarJobLabelPipe,
+    MatProgressSpinnerModule, MatProgressBarModule, TimestampPipe, TranslatePipe, SidecarJobLabelPipe,
     ContextHelpComponent, CaptureDatePipe,
   ],
   changeDetection: ChangeDetectionStrategy.Eager,
@@ -119,7 +119,7 @@ export interface ExportEditorDialogData {
                       <dt>{{ I18N.export.preview.hierarchical_keywords | translate }}</dt><dd data-export-hierarchy class="m-0 whitespace-pre-line break-words">{{ item.hierarchyText }}</dd>
                     }
                     <dt>{{ I18N.photo_detail.caption | translate }}</dt><dd class="m-0 whitespace-pre-wrap break-words">{{ metadata.caption || '—' }}</dd>
-                    @if (metadata.manual_date) { <dt>{{ I18N.organization_history.capture_date | translate }}</dt><dd class="m-0">{{ metadata.manual_date | captureDate }}</dd> }
+                    @if (metadata.manual_date) { <dt>{{ I18N.organization_history.capture_date | translate }}</dt><dd class="m-0">{{ metadata.manual_date | captureDate: locale() }}</dd> }
                     @if (metadata.gps_state) { <dt>{{ I18N.organization_history.manual_gps | translate }}</dt><dd class="m-0">{{ (metadata.gps_state === 'set' ? I18N.photo_detail.gps.batch_title : I18N.photo_detail.gps_clear) | translate }}@if (metadata.gps_state === 'set') { · {{ metadata.gps_latitude }}, {{ metadata.gps_longitude }} }</dd> }
                     @if (metadata.regions.length) { <dt>{{ I18N.export.preview.faces | translate }}</dt><dd class="m-0">{{ metadata.face_regions_supported ? metadata.regions.length : (I18N.export.preview.faces_omitted | translate) }}</dd> }
                   </dl>
@@ -179,7 +179,7 @@ export interface ExportEditorDialogData {
         @for (receipt of recentJobs(); track receipt.id) {
           <button mat-stroked-button class="!justify-start" [disabled]="submitting()"
                   [attr.aria-current]="job()?.id === receipt.id ? 'true' : null" (click)="viewJob(receipt)">
-            {{ receipt.started_at * 1000 | date:'dd/MM/yyyy HH:mm' }} · {{ receipt | sidecarJobLabel | translate }} · {{ receipt.processed }}/{{ receipt.total }}
+            {{ receipt.started_at * 1000 | timestamp: locale() }} · {{ receipt | sidecarJobLabel | translate }} · {{ receipt.processed }}/{{ receipt.total }}
           </button>
         }
         @if (!recentJobs().length && !recentLoading() && !errorDetail()) { <p class="text-xs text-[var(--mat-sys-on-surface-variant)]">{{ I18N.export.jobs.none | translate }}</p> }
@@ -231,6 +231,8 @@ export class ExportEditorDialogComponent {
   private readonly dialogRef = inject(MatDialogRef<ExportEditorDialogComponent>);
   private readonly snackBar = inject(MatSnackBar);
   private readonly i18n = inject(I18nService);
+  /** The viewer's language, the argument of the date pipes. */
+  protected readonly locale = this.i18n.locale;
   private readonly api = inject(ApiService);
   private readonly auth = inject(AuthService);
   private readonly router = inject(Router);

@@ -1,4 +1,3 @@
-import { DatePipe } from '@angular/common';
 import { ChangeDetectionStrategy, Component, DestroyRef, computed, effect, inject, signal } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { MatButtonModule } from '@angular/material/button';
@@ -11,13 +10,15 @@ import { AuthService } from '../../core/services/auth.service';
 import { I18N, i18nKeys } from '../../core/i18n/keys';
 import { TranslatePipe } from '../../shared/pipes/translate.pipe';
 import { components } from '../../core/api/schema';
+import { I18nService } from '../../core/services/i18n.service';
+import { TimestampPipe } from '../../shared/pipes/timestamp.pipe';
 
 type Diagnostics = components['schemas']['ImmichDiagnosticsResponse'];
 
 @Component({
   selector: 'app-immich-diagnostics-dialog',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [DatePipe, MatButtonModule, MatDialogModule, MatProgressSpinnerModule, TranslatePipe],
+  imports: [TimestampPipe, MatButtonModule, MatDialogModule, MatProgressSpinnerModule, TranslatePipe],
   template: `
     <h2 mat-dialog-title>{{ I18N.immich_diagnostics.title | translate }}</h2>
     <mat-dialog-content>
@@ -31,7 +32,7 @@ type Diagnostics = components['schemas']['ImmichDiagnosticsResponse'];
           <dt>{{ I18N.immich_diagnostics.mapping_rules | translate }}</dt><dd>{{ value.mapping_rules }}</dd>
           <dt>{{ I18N.immich_diagnostics.mapping_sample | translate }}</dt><dd>{{ value.mapped_photos }} / {{ value.sampled_photos }}</dd>
           <dt>{{ I18N.immich_diagnostics.last_push | translate }}</dt>
-          <dd>{{ value.last_push_at ? (value.last_push_at | date:'dd/MM/yyyy HH:mm') : (I18N.immich_diagnostics.unknown | translate) }}</dd>
+          <dd>{{ value.last_push_at ? (value.last_push_at | timestamp: locale()) : (I18N.immich_diagnostics.unknown | translate) }}</dd>
         </dl>
         <p class="mt-2 text-xs text-[var(--mat-sys-on-surface-variant)]">{{ I18N.immich_diagnostics.sample_hint | translate:{ limit: value.sample_limit } }}</p>
         <p class="mt-3 text-sm" role="status">{{ connectionLabel() | translate }}</p>
@@ -49,6 +50,8 @@ type Diagnostics = components['schemas']['ImmichDiagnosticsResponse'];
   `,
 })
 export class ImmichDiagnosticsDialogComponent {
+  /** The viewer's language, the argument of the date pipes. */
+  protected readonly locale = inject(I18nService).locale;
   protected readonly I18N = i18nKeys();
   private readonly api = inject(ApiService);
   private readonly auth = inject(AuthService);

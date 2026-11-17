@@ -1,6 +1,6 @@
 import type { Mock } from 'vitest';
 import { TestBed } from '@angular/core/testing';
-import { from, of, throwError } from 'rxjs';
+import { Subject, from, of, throwError } from 'rxjs';
 import { MatDialog } from '@angular/material/dialog';
 import { MatSnackBar } from '@angular/material/snack-bar';
 import { signal } from '@angular/core';
@@ -99,6 +99,41 @@ describe('MergeSuggestionsComponent', () => {
       expect(component.suggestions()).toEqual([s2]);
     });
 
+    it('puts a rejected suggestion back where it was when the request fails', async () => {
+      const s1 = makeSuggestion(1, 'Alice', 10, 2, 'Bob', 5);
+      const s2 = makeSuggestion(3, 'Carol', 8, 4, 'Dave', 3);
+      component.suggestions.set([s1, s2]);
+      mockApi.post.mockReturnValue(throwError(() => new Error('offline')));
+
+      await component.rejectSuggestion(s1);
+
+      expect(component.suggestions()).toEqual([s1, s2]);
+      expect(mockSnackBar.open).toHaveBeenCalledWith('errors.action_failed', '', { duration: 3000 });
+    });
+
+    it('does not restore a rejected pair into a list a newer threshold has replaced', async () => {
+      // The rollback binds to the list version at action start: while the
+      // rejection is in flight a threshold change may replace the list, and
+      // re-inserting the pair there would let Accept all submit it.
+      const s65 = makeSuggestion(1, 'Alice', 10, 2, 'Bob', 5);
+      const s80 = makeSuggestion(5, 'Eve', 12, 6, 'Frank', 7);
+      component.suggestions.set([s65, s80]);
+      const inFlight = new Subject<void>();
+      mockApi.post.mockReturnValueOnce(inFlight.asObservable());
+
+      const rejecting = component.rejectSuggestion(s65);
+
+      mockApi.get.mockReturnValueOnce(of({ suggestions: [s80], threshold: 0.8 }));
+      await (component as unknown as { loadSuggestions(): Promise<void> }).loadSuggestions();
+      expect(component.suggestions()).toEqual([s80]);
+
+      inFlight.error(new Error('offline'));
+      await rejecting;
+
+      expect(component.suggestions()).toEqual([s80]);
+      expect(mockSnackBar.open).toHaveBeenCalledWith('errors.action_failed', '', { duration: 3000 });
+    });
+
     it('should leave other suggestions intact', () => {
       const s1 = makeSuggestion(1, 'Alice', 10, 2, 'Bob', 5);
       const s2 = makeSuggestion(3, 'Carol', 8, 4, 'Dave', 3);
@@ -108,6 +143,45 @@ describe('MergeSuggestionsComponent', () => {
       component.rejectSuggestion(s2);
 
       expect(component.suggestions()).toEqual([s1, s3]);
+    });
+  });
+
+  describe('loadSuggestions staleness', () => {
+    it('the newest request wins: a slow older response never overwrites it', async () => {
+      const old05 = makeSuggestion(1, 'Old', 10, 2, 'Old2', 5);
+      const new08 = makeSuggestion(5, 'New', 12, 6, 'New2', 7);
+      const first = new Subject<{ suggestions: unknown[]; threshold: number }>();
+      const second = new Subject<{ suggestions: unknown[]; threshold: number }>();
+      mockApi.get.mockReturnValueOnce(first.asObservable())
+                 .mockReturnValueOnce(second.asObservable());
+
+      const p1 = (component as unknown as { loadSuggestions(): Promise<void> }).loadSuggestions();
+      const p2 = (component as unknown as { loadSuggestions(): Promise<void> }).loadSuggestions();
+      second.next({ suggestions: [new08], threshold: 0.8 }); second.complete();
+      first.next({ suggestions: [old05], threshold: 0.5 }); first.complete();
+      await Promise.all([p1, p2]);
+
+      // The slider reads 0.8; the list must agree with it, not with the late
+      // 0.5 response.
+      expect(component.suggestions()).toEqual([new08]);
+      expect(component.threshold()).toBe(0.8);
+    });
+
+    it('a superseded failure stays silent: the newest request still owns the view', async () => {
+      const ok = makeSuggestion(5, 'New', 12, 6, 'New2', 7);
+      const first = new Subject<{ suggestions: unknown[]; threshold: number }>();
+      const second = new Subject<{ suggestions: unknown[]; threshold: number }>();
+      mockApi.get.mockReturnValueOnce(first.asObservable())
+                 .mockReturnValueOnce(second.asObservable());
+
+      const p1 = (component as unknown as { loadSuggestions(): Promise<void> }).loadSuggestions();
+      const p2 = (component as unknown as { loadSuggestions(): Promise<void> }).loadSuggestions();
+      second.next({ suggestions: [ok], threshold: 0.8 }); second.complete();
+      first.error(new Error('late failure'));
+      await Promise.all([p1, p2]);
+
+      expect(component.suggestions()).toEqual([ok]);
+      expect(mockSnackBar.open).not.toHaveBeenCalled();
     });
   });
 
@@ -234,6 +308,55 @@ describe('MergeSuggestionsComponent', () => {
       await component.confirmAcceptAll();
 
       expect(mockApi.post).not.toHaveBeenCalled();
+    });
+
+    it('re-asks instead of submitting pairs the confirmation never showed', async () => {
+      const s65 = makeSuggestion(1, 'Alice', 10, 2, 'Bob', 5);
+      const s80 = makeSuggestion(5, 'Eve', 12, 6, 'Frank', 7);
+      component.suggestions.set([s65, s80]);
+
+      // One rejection is in flight, so the screen (and the confirm dialog)
+      // shows a single pair.
+      const rejection = new Subject<void>();
+      mockApi.post.mockReturnValueOnce(rejection.asObservable());
+      const rejecting = component.rejectSuggestion(s80);
+      expect(component.suggestions()).toEqual([s65]);
+
+      const answers: Subject<boolean>[] = [];
+      mockDialog.open.mockImplementation(() => ({
+        afterClosed: () => {
+          const answer = new Subject<boolean>();
+          answers.push(answer);
+          return answer.asObservable();
+        },
+      }));
+
+      const confirming = component.confirmAcceptAll();
+      expect(mockDialog.open).toHaveBeenCalledTimes(1);
+
+      // The rejection fails: its pair rolls back onto the screen while the
+      // dialog is open, and the user confirms the one pair they saw.
+      rejection.error(new Error('offline'));
+      await rejecting;
+      expect(component.suggestions()).toEqual([s65, s80]);
+      answers[0].next(true); answers[0].complete();
+      await new Promise((r) => setTimeout(r));
+
+      // Nothing was submitted; the dialog re-opens over the true count.
+      expect(mockApi.post).not.toHaveBeenCalledWith('/persons/merge_batch', expect.anything());
+      expect(mockDialog.open).toHaveBeenCalledTimes(2);
+
+      answers[1].next(true); answers[1].complete();
+      await confirming;
+
+      // The second confirmation covers exactly the two pairs it showed.
+      expect(mockApi.post).toHaveBeenCalledWith('/persons/merge_batch', {
+        merges: [
+          { source_id: 2, target_id: 1 },
+          { source_id: 6, target_id: 5 },
+        ],
+      });
+      expect(component.suggestions()).toEqual([]);
     });
   });
 

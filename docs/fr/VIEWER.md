@@ -488,7 +488,7 @@ Champs de réponse et codes de statut : [API.md](../API.md).
 
 Cliquez sur **Similaires** sur une photo et choisissez un mode :
 
-- **Visuel** (par défaut) — similarité pHash (70 %) + similarité CLIP/SigLIP (30 %). Quand deux photos ne partagent qu'un des deux signaux, il compte à plein poids ; les photos qui n'en partagent aucun ne sont jamais listées. Toutes les correspondances au-dessus du seuil sont renvoyées, page par page. Si la photo n'a aucun des deux signaux, réanalysez-la avec `--force` (un simple `python facet.py <dir>` ignore les fichiers déjà traités).
+- **Visuel** (par défaut) — similarité pHash (30 %) + similarité CLIP/SigLIP (70 %). Quand deux photos ne partagent qu'un des deux signaux, il compte à plein poids ; les photos qui n'en partagent aucun ne sont jamais listées. Toutes les correspondances au-dessus du seuil sont renvoyées, page par page. Si la photo n'a aucun des deux signaux, réanalysez-la avec `--force` (un simple `python facet.py <dir>` ignore les fichiers déjà traités).
 - **Couleur** — intersection d'histogrammes (70 %) + distance de saturation (10 %) + distance de luminance (10 %) + bonus monochrome (10 %). Préfiltre par indicateur monochrome et plage de saturation.
 - **Personne** — photos avec la ou les mêmes personnes, par `person_id` quand disponible, sinon par similarité des embeddings de visage.
 
@@ -999,7 +999,7 @@ La granularité, le tri et la catégorie persistent dans `localStorage`. Les con
 
 **Tri limité à un périmètre.** Restreignez la chambre noire avec des paramètres d'URL : `?group_by=scene` pour les scènes, `?album=<id>` pour un album, `?from=&to=` pour une fenêtre d'heures de prise de vue (texte EXIF ou dates ISO comme `2026-06-01`). Une bannière montre le périmètre avec **Quitter la scène**. Les rafales qui franchissent le bord de la fenêtre montrent quand même toutes leurs vues.
 
-**Plage de dates.** Le bouton **plage de dates** (icône `date_range`) propose **7 derniers jours**, **30 derniers jours**, **Cette année**, **Année dernière**, **Plage personnalisée...** et **Toutes les dates**. Les dates s'affichent en jj/MM/aaaa.
+**Plage de dates.** Le bouton **plage de dates** (icône `date_range`) propose **7 derniers jours**, **30 derniers jours**, **Cette année**, **Année dernière**, **Plage personnalisée...** et **Toutes les dates**. Les dates s'écrivent comme les écrit la langue du visualiseur (français `1 juil. 2026`).
 
 - Elle se combine avec la portée d'album. Les photos sans date de prise de vue sortent d'une plage datée.
 - Les préréglages se résolvent au moment du choix, donc un « 7 derniers jours » mis en signet est une fenêtre fixe.

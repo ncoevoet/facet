@@ -162,7 +162,8 @@ Controla qué directorios visita el escaneo.
 {
   "scanning": {
     "skip_hidden_directories": true,
-    "skip_directories": ["@eaDir", "#recycle", "#snapshot", "@Recycle"]
+    "skip_directories": ["@eaDir", "#recycle", "#snapshot", "@Recycle"],
+    "skip_raw": false
   }
 }
 ```
@@ -171,6 +172,7 @@ Controla qué directorios visita el escaneo.
 |---------|---------|-------------|
 | `skip_hidden_directories` | `true` | Omite los directorios cuyo nombre empieza por `.` |
 | `skip_directories` | `["@eaDir", "#recycle", "#snapshot", "@Recycle"]` | Globs de nombres de carpeta omitidos a cualquier profundidad |
+| `skip_raw` | `false` | Omitir archivos RAW de cámara al escanear carpetas |
 
 Notas sobre `skip_directories`:
 - Los globs usan `fnmatch`, distinguen mayúsculas y solo se aplican al nombre de la carpeta.
@@ -970,6 +972,7 @@ Agrupa fotos similares tomadas en rápida sucesión.
 | `similarity_threshold_percent` | `70` | Umbral de similitud del hash de imagen |
 | `time_window_minutes` | `0.8` | Tiempo máximo entre fotos |
 | `rapid_burst_seconds` | `0.4` | Fotos dentro de este intervalo se agrupan automáticamente |
+| `embedding_cosine_threshold` | `0.0` | Opcional (ausente en el archivo incluido). Un candidato solo se une a una ráfaga si el coseno CLIP/SigLIP del par es >= esto (`0.0` = desactivado). Un par en el que alguna foto no tiene embedding, o con dimensiones distintas, se agrupa solo por pHash. Carga todos los embeddings en memoria al agrupar (unos `4 x dim` bytes por foto, cerca de 460 MB con 100 000 fotos y SigLIP) |
 
 ---
 
@@ -1155,6 +1158,7 @@ Encuentra fotos duplicadas en toda la biblioteca: candidatos de pHash flexible, 
 
 | Ajuste | Por defecto | Descripción |
 |---------|---------|-------------|
+| `enabled` | `false` | Opcional (ausente en el archivo incluido). Ejecutar la detección global de casi duplicados al final de cada escaneo. Desactivado por defecto: la pasada lee todos los pHash y embeddings de la biblioteca, y `hide_duplicates` está activo por defecto, así que activarla oculta fotos en el siguiente escaneo. `--detect-duplicates` la ejecuta a demanda |
 | `similarity_threshold_percent` | `90` | Filtro pHash estricto (90 % = distancia de Hamming <= 6 de 64 bits); el único criterio cuando a alguna de las fotos le falta un embedding |
 | `prefilter_hamming` | `12` | Opcional (ausente en el archivo incluido). Filtro de Hamming flexible para los candidatos cuando ambas fotos tienen embeddings (como mínimo el filtro estricto) |
 | `embedding_cosine_threshold` | `0.90` | Opcional (ausente en el archivo incluido). Un candidato solo se fusiona cuando el coseno SigLIP/CLIP >= esto |
