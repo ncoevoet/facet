@@ -228,11 +228,13 @@ Die Sortierschaltfläche in der Kopfzeile (und der mobilen Werkzeugleiste) zeigt
 
 Verschlusszeiten werden nach Dauer sortiert, daher sind `1/250` und `0.004` gleich. Fehlende oder ungültige Werte erscheinen in beiden Richtungen zuletzt.
 
+**Hinzugefügt am** sortiert danach, wann Facet ein Foto zum ersten Mal gescannt hat, sodass ein neuer Import in absteigender Reihenfolge unabhängig von seinem Aufnahmedatum zuerst kommt. Ein erneuter Scan, auch mit `--force`, behält es bei. Ein Foto, das Sie selbst verschoben haben, kommt als neues Foto zurück, sofern Sie nicht [`--relink-photos`](RELINK.md) ausführen. Fotos, die beim Update bereits in der Bibliothek sind, haben kein Datum, bis ein Scan sie neu schreibt (sie übernehmen dann die Zeit ihres vorherigen Scans), und erscheinen in beiden Richtungen zuletzt. Links zu geteilten Alben zeigen dieses Datum weder an noch sortieren sie danach.
+
 Sortierbare Spalten nach Gruppe (aus `viewer.sort_options`):
 
 | Gruppe | Spalten |
 |-------|---------|
-| **Allgemein** | Gesamtwertung, Ästhetik, Qualitätswert, Aufnahmedatum, Sternebewertung, Ästhetik (IAA), LIQE-Wert, Q-ReAlign (Ästhetik), DeQA, Ästhetik v2.5 (die letzten drei erscheinen, sobald ein Foto diesen Wert hat) |
+| **Allgemein** | Gesamtwertung, Ästhetik, Qualitätswert, Aufnahmedatum, Hinzugefügt am, Sternebewertung, Ästhetik (IAA), LIQE-Wert, Q-ReAlign (Ästhetik), DeQA, Ästhetik v2.5 (die letzten drei erscheinen, sobald ein Foto diesen Wert hat) |
 | **Gesichtsmetriken** | Gesichtsqualität, Gesichtsqualität (IQA), Augenschärfe, Gesichtsschärfe, Gesichtsanteil, Gesichteranzahl |
 | **Technik** | Techn. Schärfe, Kontrast, Rauschniveau |
 | **Farbe** | Farbwert, Sättigung |

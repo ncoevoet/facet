@@ -229,11 +229,13 @@ The sort button in the header (and mobile toolbar) shows the current sort's icon
 
 Shutter speeds sort by duration, so `1/250` and `0.004` are equal. Missing or invalid values sort last in either direction.
 
+**Date Added** sorts by when Facet first scanned a photo, so a new import comes first in descending order whatever its capture date. A rescan, even with `--force`, keeps it. A photo you moved yourself comes back as a new one unless you run [`--relink-photos`](RELINK.md). Photos already in the library when you upgrade have no date until a scan rewrites them (they then take the time of their previous scan), and sort last in either direction. Shared-album links neither show this date nor sort by it.
+
 Sortable columns by group (from `viewer.sort_options`):
 
 | Group | Columns |
 |-------|---------|
-| **General** | Aggregate Score, Aesthetic, Quality Score, Date Taken, Star Rating, Aesthetic (IAA), LIQE Score, Q-ReAlign (Aesthetic), DeQA, Aesthetic v2.5 (the last three appear once a photo has that score) |
+| **General** | Aggregate Score, Aesthetic, Quality Score, Date Taken, Date Added, Star Rating, Aesthetic (IAA), LIQE Score, Q-ReAlign (Aesthetic), DeQA, Aesthetic v2.5 (the last three appear once a photo has that score) |
 | **Face Metrics** | Face Quality, Face Quality (IQA), Eye Sharpness, Face Sharpness, Face Ratio, Face Count |
 | **Technical** | Tech Sharpness, Contrast, Noise Level |
 | **Color** | Color Score, Saturation |

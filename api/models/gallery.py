@@ -57,6 +57,7 @@ class PhotoMetadata(BaseModel):
     ai_edit_of: Optional[str] = None
     filename: Optional[str] = None
     date_taken: Optional[str] = None
+    date_added: Optional[str] = None
     camera_model: Optional[str] = None
     lens_model: Optional[str] = None
     iso: CoercedInt = None

@@ -135,6 +135,21 @@ describe('PhotoCardComponent', () => {
     expect(cell.textContent).toContain('—');
   });
 
+  it('shows a date-added sort value as a local date and time, and a dash when the photo has none', () => {
+    const added = '2026-10-29T12:05:00Z';
+    const local = new Date(added);
+    const time = `${String(local.getHours()).padStart(2, '0')}:${String(local.getMinutes()).padStart(2, '0')}`;
+    fixture.componentInstance.listMode.set(true);
+    fixture.componentInstance.photo.set(makePhoto({ date_added: added }));
+    fixture.componentInstance.currentSort.set('date_added'); fixture.detectChanges();
+    const cell = fixture.nativeElement.querySelector('[data-list-sort]') as HTMLElement;
+    expect(cell.textContent).toContain('sort_options.date_added');
+    expect(cell.textContent).toContain(time); expect(cell.textContent).toContain('Oct 2026');
+    expect(cell.textContent).not.toContain(added);
+    fixture.componentInstance.photo.set(makePhoto({ date_added: null })); fixture.detectChanges();
+    expect(cell.textContent).toContain('—');
+  });
+
   it('keeps metadata list menu key presses separate from row selection and gates edit actions', async () => {
     fixture.componentInstance.listMode.set(true); fixture.componentInstance.photo.set(makePhoto({ path: '/row.jpg', is_rejected: true, star_rating: 0 }));
     fixture.detectChanges();

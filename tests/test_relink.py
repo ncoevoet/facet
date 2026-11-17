@@ -145,6 +145,16 @@ def test_all_current_associations_survive_and_manual_marks_require_review(librar
     assert Path(new).is_file() and not Path(old).exists()
 
 
+def test_date_added_survives_relink(library):
+    db, old, new, _ = library
+    with closing(sqlite3.connect(db)) as conn:
+        conn.execute("UPDATE photos SET date_added='2020-05-06T07:08:09Z' WHERE path=?", (old,))
+        conn.commit()
+    apply(library, preview(library))
+    with closing(sqlite3.connect(db)) as conn:
+        assert conn.execute('SELECT path, date_added FROM photos').fetchall() == [(new, '2020-05-06T07:08:09Z')]
+
+
 @pytest.mark.skipif(not HAS_SQLITE_VEC, reason='sqlite-vec unavailable')
 def test_vector_path_is_rewritten_without_losing_embedding(library):
     import struct

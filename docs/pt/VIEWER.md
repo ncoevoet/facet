@@ -228,11 +228,13 @@ O botão de ordenação no cabeçalho (e na barra de ferramentas móvel) mostra 
 
 As velocidades do obturador são ordenadas pela duração, então `1/250` e `0.004` são iguais. Valores ausentes ou inválidos aparecem por último em ambas as direções.
 
+**Data de adição** ordena pelo momento em que o Facet fez a varredura de uma foto pela primeira vez, então uma importação nova aparece primeiro na ordem decrescente, qualquer que seja sua data de captura. Uma nova varredura, mesmo com `--force`, a mantém. Uma foto que você mesmo moveu volta como uma foto nova, a menos que você execute [`--relink-photos`](RELINK.md). As fotos que já estavam na biblioteca na atualização não têm data até que uma varredura as reescreva (elas então recebem o horário da varredura anterior) e aparecem por último em ambas as direções. Links de álbuns compartilhados não mostram essa data nem permitem ordenar por ela.
+
 Colunas ordenáveis por grupo (de `viewer.sort_options`):
 
 | Grupo | Colunas |
 |-------|---------|
-| **Geral** | Pontuação Agregada, Estética, Pontuação de Qualidade, Data de Captura, Avaliação por Estrelas, Estética (IAA), Pontuação LIQE, Q-ReAlign (estética), DeQA, Estética v2.5 (as três últimas aparecem quando uma foto tem essa pontuação) |
+| **Geral** | Pontuação Agregada, Estética, Pontuação de Qualidade, Data de Captura, Data de adição, Avaliação por Estrelas, Estética (IAA), Pontuação LIQE, Q-ReAlign (estética), DeQA, Estética v2.5 (as três últimas aparecem quando uma foto tem essa pontuação) |
 | **Métricas de Rosto** | Qualidade do Rosto, Qualidade do Rosto (IQA), Nitidez dos Olhos, Nitidez do Rosto, Proporção do Rosto, Contagem de Rostos |
 | **Técnica** | Nitidez Técnica, Contraste, Nível de Ruído |
 | **Cor** | Pontuação de Cor, Saturação |

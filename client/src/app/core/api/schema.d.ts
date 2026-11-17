@@ -9421,6 +9421,8 @@ export interface components {
             contrast_score?: number | null;
             /** Copyright */
             copyright?: string | null;
+            /** Date Added */
+            date_added?: string | null;
             /** Date Formatted */
             date_formatted?: string | null;
             /** Date Manually Set */
@@ -10917,6 +10919,8 @@ export interface components {
             contrast_score?: number | null;
             /** Copyright */
             copyright?: string | null;
+            /** Date Added */
+            date_added?: string | null;
             /** Date Formatted */
             date_formatted?: string | null;
             /** Date Manually Set */

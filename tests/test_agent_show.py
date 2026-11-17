@@ -106,6 +106,17 @@ class TestSearchRelay:
         assert shown["applied"] is True and shown["tab_id"] == "tab-1" and shown["total"] == 7
         assert "min_aesthetic" in shown["keys"] and "filters" not in shown
 
+    def test_date_added_sort_orders_the_rows_and_reaches_the_tab(self, agent_app, fake_tab, seed_photos_prefix):
+        # Newest import first is the reverse of the aggregate order, so a dropped sort cannot pass.
+        seed_photos_prefix(PREFIX, [{**row, "date_added": f"2026-01-0{3 - i}T00:00:00Z"} for i, row in enumerate(ROWS)])
+        env = agent_app("open")
+        tab = fake_tab(env, None, reply=reply_total(3))
+        result = env.call(env.token(env.login()), "search_photos", {
+            "filters": {"path_prefix": PREFIX}, "sort": "date_added", "sort_direction": "desc"})
+        assert result["ok"] is True, result
+        assert [photo["path"] for photo in result["data"]["rows"]] == [row["path"] for row in ROWS]
+        assert tab.calls[0]["args"]["patch"]["sort"] == "date_added"
+
     def test_rejected_search_reaches_the_tab_with_the_same_positive_filter(self, agent_app, fake_tab, seed_photos_prefix):
         seed_photos_prefix(PREFIX, [{**row, "is_rejected": int(i == 1)} for i, row in enumerate(ROWS)])
         env = agent_app("open")

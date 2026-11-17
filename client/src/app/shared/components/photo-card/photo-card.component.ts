@@ -17,6 +17,7 @@ import { PhotoSetKindIconPipe, PhotoSetKindBestLabelPipe } from '../../pipes/pho
 import { CARD_ACTION_META, CardActionId, CardActionsConfig, CardSetKind, DEFAULT_CARD_ACTIONS } from './card-actions';
 import { FixedPipe } from '../../pipes/fixed.pipe';
 import { CaptureDatePipe } from '../../pipes/capture-date.pipe';
+import { TimestampPipe } from '../../pipes/timestamp.pipe';
 import { ShutterSpeedPipe } from '../../pipes/shutter-speed.pipe';
 import { SortScorePipe, sortScoreColumn } from '../../pipes/score.pipes';
 import { SortPersonsPipe } from '../../pipes/sort-persons.pipe';
@@ -124,6 +125,7 @@ const DEFAULT_CLIPPING_BADGE_PERCENT = 5;
     PersonThumbnailUrlPipe,
     FixedPipe,
     CaptureDatePipe,
+    TimestampPipe,
     ShutterSpeedPipe,
     SortScorePipe,
     SortPersonsPipe,
@@ -177,6 +179,8 @@ const DEFAULT_CLIPPING_BADGE_PERCENT = 5;
             <div class="font-semibold">
               @if (currentSort() === 'date_taken') {
                 <span class="block text-xs">{{ photo().date_taken ? (photo().date_taken | captureDate: locale()) : (I18N.gallery.no_capture_date | translate) }}</span>
+              } @else if (currentSort() === 'date_added') {
+                <span class="block text-xs">{{ (photo().date_added | timestamp: locale()) || '—' }}</span>
               } @else if (currentSort() === 'shutter_speed') {
                 <span class="block truncate">{{ (photo().shutter_speed | shutterSpeed) || '—' }}</span>
               } @else if (listSortText(); as text) { <span class="block truncate" [title]="text">{{ text }}</span> }

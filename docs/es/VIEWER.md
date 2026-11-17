@@ -228,11 +228,13 @@ El botón de ordenación de la cabecera (y de la barra de herramientas móvil) m
 
 Las velocidades de obturación se ordenan por duración, así que `1/250` y `0.004` son iguales. Los valores ausentes o no válidos van al final en cualquier dirección.
 
+**Fecha de incorporación** ordena según cuándo Facet escaneó una foto por primera vez, así que una importación nueva aparece primero en orden descendente sea cual sea su fecha de captura. Un reescaneo, incluso con `--force`, la conserva. Una foto que moviste por tu cuenta vuelve como una foto nueva, salvo que ejecutes [`--relink-photos`](RELINK.md). Las fotos que ya estaban en la biblioteca al actualizar no tienen fecha hasta que un escaneo las reescribe (entonces toman la hora de su escaneo anterior), y van al final en cualquier dirección. Los enlaces de álbumes compartidos no muestran esta fecha ni permiten ordenar por ella.
+
 Columnas ordenables por grupo (de `viewer.sort_options`):
 
 | Grupo | Columnas |
 |-------|---------|
-| **General** | Puntuación agregada, Estética, Puntuación de calidad, Fecha de captura, Valoración por estrellas, Estética (IAA), Puntuación LIQE, Q-ReAlign (Estética), DeQA, Aesthetic v2.5 (las tres últimas aparecen cuando una foto tiene esa puntuación) |
+| **General** | Puntuación agregada, Estética, Puntuación de calidad, Fecha de captura, Fecha de incorporación, Valoración por estrellas, Estética (IAA), Puntuación LIQE, Q-ReAlign (Estética), DeQA, Aesthetic v2.5 (las tres últimas aparecen cuando una foto tiene esa puntuación) |
 | **Métricas faciales** | Calidad facial, Calidad facial (IQA), Nitidez de ojos, Nitidez facial, Proporción de cara, Número de caras |
 | **Técnica** | Nitidez técnica, Contraste, Nivel de ruido |
 | **Color** | Puntuación de color, Saturación |

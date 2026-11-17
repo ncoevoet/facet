@@ -112,6 +112,9 @@ export interface Photo {
   channel_clip_highlight_pct?: number | null;
   // Metadata
   date_taken: string | null;
+  /** When the row was first scanned into the library (ISO UTC). Null for a photo
+   *  that predates the column and has not been rescanned since. */
+  date_added?: string | null;
   /** Pixel dimensions of the frame the scan analysed. Null when the recorded
    *  pair was proven to have been fabricated from the thumbnail and cleared —
    *  see `image_aspect`, and `repair_thumbnail_dimensions` server-side. */
