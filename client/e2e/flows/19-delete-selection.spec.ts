@@ -16,7 +16,7 @@ test('Delete from the selection bar removes only the confirmed photo', async ({ 
   });
 
   await test.step('2. Cancel deletes nothing', async () => {
-    await page.getByRole('button', { name: 'Cancel' }).click();
+    await page.getByRole('dialog', { name: 'Delete photos?' }).getByRole('button', { name: 'Cancel' }).click();
     await expect(page.getByRole('dialog', { name: 'Delete photos?' })).toHaveCount(0);
     await expect.poll(async () => (await cardNames(page)).sort()).toEqual(['IMG_0700.jpg', 'IMG_0701.jpg']);
   });

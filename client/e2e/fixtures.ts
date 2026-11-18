@@ -1,3 +1,4 @@
+import * as fs from 'node:fs';
 import { execFileSync } from 'node:child_process';
 import * as path from 'node:path';
 import { test as base, expect, type Page } from '@playwright/test';
@@ -17,16 +18,21 @@ export function seedTool(...args: string[]): void {
 }
 
 let cachedToken: string | null = null;
+// A failed test restarts the worker and with it this module, so the token also lives in a file the
+// seeding rewrites on every run; otherwise each restart would spend another of the 5 logins a minute.
+const TOKEN_FILE = path.join(WORK, 'edition-token.txt');
 
 /**
  * Log in to edition mode the way the client does, and return the bearer token. The login route
- * allows 5 attempts a minute per address, so the token is fetched once per run (one worker) and reused.
+ * allows 5 attempts a minute per address, so the token is fetched once per run and reused.
  */
 export async function editionToken(page: Page): Promise<string> {
+  if (!cachedToken && fs.existsSync(TOKEN_FILE)) cachedToken = fs.readFileSync(TOKEN_FILE, 'utf8');
   if (cachedToken) return cachedToken;
   const res = await page.request.post('/api/auth/edition/login', { data: { password: EDITION_PASSWORD } });
   expect(res.ok(), `edition login: ${res.status()}`).toBeTruthy();
   cachedToken = (await res.json()).access_token as string;
+  fs.writeFileSync(TOKEN_FILE, cachedToken);
   return cachedToken;
 }
 
