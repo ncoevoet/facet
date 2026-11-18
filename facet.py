@@ -2316,13 +2316,7 @@ def _run_scan_pipeline(args, resumed_run, lifecycle):
             logger.error('Scan bookkeeping could not be saved. Existing failure records '
                          'were retained; inspect the library before creating a new preview.')
             raise SystemExit(1)
-        if gpu_died:
-            logger.error(
-                "Scan failed: the GPU thread exited before %d of %d photos were scored; "
-                "the run is recorded as failed -- re-run with `--resume` or `--retry-failed`.",
-                len(unprocessed), len(todo_list))
-            exit(1)
-        if saved_nothing:
+        if saved_nothing and not gpu_died:
             logger.error("Scan failed: saved 0 of %d photos (see the model load and pass "
                          "errors above, or `--retry-failed` after fixing them).", len(todo_list))
             exit(SAVED_NOTHING_EXIT_CODE)
@@ -2345,6 +2339,14 @@ def _run_scan_pipeline(args, resumed_run, lifecycle):
                     [(p, scan_run.run_id) for p in retried_paths],
                 )
                 conn.commit()
+        if gpu_died:
+            # After the retry cleanup, not before: the photos this retry did save
+            # before the thread died must still drop their old failure records.
+            logger.error(
+                "Scan failed: the GPU thread exited before %d of %d photos were scored; "
+                "the run is recorded as failed -- re-run with `--resume` or `--retry-failed`.",
+                len(unprocessed), len(todo_list))
+            exit(1)
     finally:
         fast_load.prefer_local_hub = False
         ledger.end('scoring')

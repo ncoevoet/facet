@@ -166,3 +166,41 @@ def test_process_batch_result_covers_supplementary_db_columns():
     for key in SUPPLEMENTARY_RESULT_KEYS:
         assert key in res, f"missing DB column {key} required by save_photos_batch INSERT"
         assert res[key] is None
+
+
+class TestProcessFilesGpuThreadDeath:
+    """A GPU thread dying mid-run must leave the verdict the scan pipeline reads."""
+
+    def _run(self, tmp_path, threads_put):
+        processor = _make_processor(num_workers=1)
+        processor.scorer.save_photos_batch = mock.MagicMock()
+        paths = [str(tmp_path / n) for n in ("a.jpg", "b.jpg", "c.jpg")]
+
+        def dying_gpu_thread(total, pbar, workers):
+            for path in threads_put:
+                processor.result_queue.put({'path': path, 'error': 'boom'})
+            raise RuntimeError("simulated GPU thread crash")
+
+        with mock.patch.object(processor, '_worker_thread', lambda chunk: None), \
+                mock.patch.object(processor, '_gpu_thread', dying_gpu_thread), \
+                mock.patch.object(processor, '_start_exif_prefetch'), \
+                mock.patch.object(processor, 'resource_monitor'):
+            processor.process_files(paths, show_metrics=False)
+        return processor, paths
+
+    def test_records_the_photos_the_thread_never_reached(self, tmp_path):
+        processor, paths = self._run(tmp_path, threads_put=[str(tmp_path / "a.jpg")])
+        assert processor.metrics['gpu_thread_died'] is True
+        assert processor.metrics['unprocessed_paths'] == paths[1:]
+
+    def test_a_later_call_starts_with_a_clean_verdict(self, tmp_path):
+        processor, _ = self._run(tmp_path, threads_put=[])
+        assert processor.metrics['gpu_thread_died'] is True
+        with mock.patch.object(processor, '_worker_thread', lambda chunk: None), \
+                mock.patch.object(processor, '_start_exif_prefetch'), \
+                mock.patch.object(processor, 'resource_monitor'), \
+                mock.patch.object(processor, '_gpu_thread', lambda total, pbar, workers: None):
+            processor.result_queue.put({'path': 'x.jpg', 'error': 'boom'})
+            processor.process_files(['x.jpg'], show_metrics=False)
+        assert processor.metrics['gpu_thread_died'] is False
+        assert 'unprocessed_paths' not in processor.metrics

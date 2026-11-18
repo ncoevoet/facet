@@ -335,3 +335,44 @@ def test_gpu_thread_death_during_calibration_survives_the_processor_swap(tmp_pat
     conn.close()
     assert failed == {calibration_tail}
     assert status == "failed"
+
+
+@pytest.mark.timeout(60)
+def test_gpu_thread_death_during_a_retry_still_clears_the_records_it_resolved(tmp_path, monkeypatch):
+    import sqlite3
+
+    from db.schema import init_database
+    from processing.scan_state import ScanRun
+
+    db_path = str(tmp_path / "scan.db")
+    init_database(db_path)
+    resolved = str(tmp_path / "photos" / "a.jpg")
+    unreached = str(tmp_path / "more" / "b.jpg")
+    (tmp_path / "more").mkdir()
+    Image.new("RGB", (8, 8), (90, 90, 90)).save(unreached, "JPEG")
+    old = ScanRun.start(db_path, "multi-pass", {"directories": []}, 2)
+    old.record_failure(resolved, "score", "old failure")
+    old.record_failure(unreached, "score", "old failure")
+    old.finish("failed")
+
+    class _Batch:
+        def __init__(self, *args, **kwargs):
+            # a.jpg was scored and saved; the GPU thread died before b.jpg.
+            self.metrics = {'photos_saved': 1, 'gpu_thread_died': True,
+                            'unprocessed_paths': [unreached]}
+
+        def process_stream(self, paths, total, **kwargs):
+            return None
+
+    monkeypatch.setattr("processing.batch_processor.BatchProcessor", _Batch)
+    monkeypatch.setattr(facet, "_resolve_single_pass", lambda requested, *a, **k: requested)
+    with pytest.raises(SystemExit) as raised:
+        _run(tmp_path, monkeypatch, _processor(saved=0),
+             extra_args=("--single-pass", "--retry-failed"))
+    assert raised.value.code == 1
+    conn = sqlite3.connect(db_path)
+    rows = {(r[0] != old.run_id, r[1]) for r in conn.execute("SELECT scan_run_id, path FROM scan_failures")}
+    conn.close()
+    # The saved photo's old record is gone; the unreached one has a record in the new run.
+    assert (False, resolved) not in rows
+    assert (True, unreached) in rows
