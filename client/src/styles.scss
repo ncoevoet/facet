@@ -340,3 +340,9 @@ app-gallery-view-controls .mat-mdc-button:not(:disabled) {
 html:not(.light-mode) .leaflet-tile-pane {
   filter: invert(1) hue-rotate(180deg) brightness(0.95) contrast(0.9);
 }
+
+// Leaflet paints its container #ddd; the filter above leaves it light, so it showed
+// as a white seam at rounded corners and sub-pixel tile edges.
+html:not(.light-mode) .leaflet-container {
+  background: var(--mat-sys-surface-container-lowest);
+}
