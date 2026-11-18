@@ -89,9 +89,9 @@ async def check_memories(
         raise
     # Not folded into has_memories=false: a busy/damaged database answers a
     # server error like get_memories does on the same error. The client still
-    # keeps the Memories surface hidden on a failed check.
+    # keeps the Memories surface hidden on a failed check. The global handler
+    # logs the fault -- logging it here as well wrote every database error twice.
     except sqlite3.Error:
-        logger.exception("Failed to check memories")
         raise
 
 

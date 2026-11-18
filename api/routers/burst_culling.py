@@ -26,6 +26,7 @@ from pydantic import BaseModel, Field
 from api import organization_capture
 from api.agent import live_updates
 from api.auth import CurrentUser, get_optional_user, require_edition
+from api.config import _FULL_CONFIG, config_number
 from api.database import get_db
 from api.subject_bbox import parse_subject_bbox
 from api.db_helpers import (
@@ -1995,11 +1996,10 @@ _AUTO_CULL_TYPE_ORDER = {'bracket': -1, 'burst': 0, 'similar': 1, 'scene': 2}
 
 def _get_auto_cull_config():
     """auto_cull settings from scoring_config.json (with safe defaults)."""
-    try:
-        from api.config import _FULL_CONFIG, config_number
-        ac = _FULL_CONFIG.get('auto_cull', {}) or {}
-    except (ImportError, AttributeError):
-        ac = {}
+    # The import lives at module level: a local import whose ImportError
+    # fallback calls that very helper would raise UnboundLocalError instead of
+    # falling back (the trap c29a70534 fixed in scenes.py).
+    ac = _FULL_CONFIG.get('auto_cull', {}) or {}
     return {
         'default_strictness': int(config_number(ac, 'default_strictness', default=50, name='auto_cull.default_strictness')),
         'highlights_min': config_number(ac, 'highlights_min', default=8.0, name='auto_cull.highlights_min'),
