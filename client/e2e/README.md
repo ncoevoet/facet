@@ -85,3 +85,7 @@ starting a scan (it would run the scoring models), the library export, and setti
 The edition login route allows 5 attempts a minute per address, so flows reuse one token (`editionToken` caches it,
 `unlockEdition` hands it to the page) and only `13-login-ui` and `08-edition-gate` type or send a password. A flow that
 provokes a 4xx on purpose declares it with `expectFailedLoad`.
+
+CI runs the suite as the `Browser flows (Playwright)` job: the CI Python dependencies (no torch), the production build
+and Playwright's own Chromium (`FACET_E2E_CHANNEL=chromium`). It is not a required check; a failed run uploads
+`client/test-results` and `client/playwright-report` as the `e2e-failures` artifact.

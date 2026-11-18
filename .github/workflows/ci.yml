@@ -318,6 +318,51 @@ jobs:
       - run: npm ci --no-audit --no-fund
       - run: npm test
 
+  e2e-tests:
+    name: Browser flows (Playwright)
+    # Not a required check: it is new, and its stability on a runner is unproven. It drives the real
+    # viewer on a seeded, model-free library, so it needs the CI Python dependencies (no torch) and
+    # the production Angular build. See client/e2e/README.md.
+    needs: changes
+    if: needs.changes.outputs.client == 'true' || needs.changes.outputs.scope == 'full'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+          cache: "pip"
+          cache-dependency-path: requirements.ci.txt
+      - run: pip install -r requirements.ci.txt
+      - uses: actions/setup-node@v7
+        with:
+          node-version: "24"
+          cache: "npm"
+          cache-dependency-path: client/package-lock.json
+      - run: npm ci --no-audit --no-fund
+        working-directory: client
+      - run: npx playwright install --with-deps chromium
+        working-directory: client
+      - run: npx ng build
+        working-directory: client
+      - name: Run the flows
+        working-directory: client
+        env:
+          FACET_E2E_PYTHON: python
+          FACET_E2E_CHANNEL: chromium
+        run: npm run e2e
+      - name: Keep the traces and screenshots of a failed run
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: e2e-failures
+          path: |
+            client/test-results
+            client/playwright-report
+          retention-days: 7
+          if-no-files-found: ignore
+
   lint:
     name: Lint
     runs-on: ubuntu-latest
