@@ -66,6 +66,9 @@ FACET_E2E_PYTHON=../venv/bin/python npm run e2e
 | `14-photo-page-review` | Rating, Favorite and Keep set on the photo page are read back after a reload |
 | `15-photo-compare` | Two selected photos open the compare workspace (Reference / Candidate), the candidate can be promoted, and the page redirects without a selection |
 | `16-timeline-and-folders` | The timeline month counts the day's photos and links to them; the Folders page filters the gallery to the clicked folder |
+| `17-photo-page-metadata` | A caption, a manual tag and a one-hour capture-date shift made on the photo page are still shown after a reload |
+| `18-add-to-new-album` | Add to Album > New Album from the selection bar creates the album with the selected photo only; deleting the album keeps the photo |
+| `19-delete-selection` | Delete… in the selection bar: Cancel keeps both photos, confirming removes only the selected one |
 
 Not covered yet, for want of seed data: persons, faces and merge suggestions (no faces), the map (no GPS), a shared album
 (unauthenticated setup), settings, scans and export.

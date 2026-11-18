@@ -58,14 +58,17 @@ PHOTOS = {
     'cull': [('IMG_0500.jpg', '#1098ad', 7.0, 1, None),
              ('IMG_0501.jpg', '#74b816', 5.0, 0, None),
              ('IMG_0502.jpg', '#d6336c', 3.0, 0, None)],
-    # 14 photo page edits (rating, favourite): a single photo.
+    # 19 delete from the selection bar: two plain photos, one of which the flow deletes.
+    'trash': [('IMG_0700.jpg', '#862e9c', 4.5, 1, None),
+              ('IMG_0701.jpg', '#2b8a3e', 3.5, 1, None)],
+    # 14, 17 photo page edits (rating, favourite): a single photo.
     'edit': [('IMG_0600.jpg', '#495057', 5.5, 1, None)],
 }
 DATE = {'burst': '2026:01:10 10:00:', 'reuse': '2026:01:11 10:00:', 'lead': '2026:01:12 10:00:',
         'review': '2026:01:13 10:00:', 'filter': '2026:02:14 10:00:', 'cull': '2026:03:15 10:00:',
-        'edit': '2026:04:16 10:00:'}
+        'edit': '2026:04:16 10:00:', 'trash': '2026:05:17 10:00:'}
 # Folders whose every photo is its own one-photo group (no burst), so Hide bursts folds nothing.
-SOLO = ('review', 'filter', 'edit')
+SOLO = ('review', 'filter', 'edit', 'trash')
 # (folder, file name) -> extra photos columns. Only what a flow filters, sorts or searches on.
 EXTRA = {
     ('filter', 'IMG_0400.jpg'): {'camera_model': 'E2E Alpha', 'iso': 100, 'caption': 'a red kayak on a calm lake'},
