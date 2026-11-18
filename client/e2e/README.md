@@ -58,3 +58,18 @@ FACET_E2E_PYTHON=../venv/bin/python npm run e2e
 | `06-photo-page` | A double click on a gallery card opens that photo's page; the Quality panel carries the seeded score, the Histogram tab swaps the panel, and Back returns to the gallery |
 | `07-album-lifecycle` | An album made through the API lists on `/albums`, opens to its photo, and leaves `/albums` once deleted while its photo stays in the library |
 | `08-edition-gate` | Without the edition password a delete and an album create are refused, a wrong password is refused, and no photo is deleted |
+| `09-gallery-sort-filter` | The gallery orders by score, flips on Ascending, and narrows by camera and by a minimum score; removing the chip restores the folder |
+| `10-gallery-search` | A caption word narrows the grid to its photo, survives a reload, and clearing it restores the folder |
+| `11-gallery-select-and-rate` | Review > Favorite and Review > Rate 4 in the selection bar apply to both selected photos; the favourites filter and the photo page read them back |
+| `12-culling-confirm` | `/culling` proposes a keeper per burst; flipping a frame to kept and confirming rejects only the frame left out, and the gallery hides it |
+| `13-login-ui` | The Edition dialog refuses a wrong password in place and unlocks with the right one; unlocked state survives a reload |
+| `14-photo-page-review` | Rating, Favorite and Keep set on the photo page are read back after a reload |
+| `15-photo-compare` | Two selected photos open the compare workspace (Reference / Candidate), the candidate can be promoted, and the page redirects without a selection |
+| `16-timeline-and-folders` | The timeline month counts the day's photos and links to them; the Folders page filters the gallery to the clicked folder |
+
+Not covered yet, for want of seed data: persons, faces and merge suggestions (no faces), the map (no GPS), a shared album
+(unauthenticated setup), settings, scans and export.
+
+The edition login route allows 5 attempts a minute per address, so flows reuse one token (`editionToken` caches it,
+`unlockEdition` hands it to the page) and only `13-login-ui` and `08-edition-gate` type or send a password. A flow that
+provokes a 4xx on purpose declares it with `expectFailedLoad`.

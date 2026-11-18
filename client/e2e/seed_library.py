@@ -43,13 +43,37 @@ PHOTOS = {
     'lead': [('IMG_0200.jpg', '#1971c2', 5.0, 0, None),
              ('IMG_0201.jpg', '#5f3dc4', 3.0, 0, None),
              ('IMG_0200_agy_1.jpg', '#f08c00', 7.0, 1, 'IMG_0200.jpg')],
-    # 06-09 photo page, albums, edition gate, rating: two plain photos, no burst, no AI edit.
+    # 06-08 photo page, albums, edition gate: two plain photos, no burst, no AI edit.
     # Each is a one-photo group so none is folded away by Hide bursts.
     'review': [('IMG_0300.jpg', '#0c8599', 6.0, 1, None),
                ('IMG_0301.jpg', '#c2255c', 4.0, 1, None)],
+    # 09-11 gallery sort, filters, search and batch rating: five plain photos with distinct scores,
+    # cameras and captions (EXTRA), so one filter narrows the folder to a known subset.
+    'filter': [('IMG_0400.jpg', '#364fc7', 8.0, 1, None),
+               ('IMG_0401.jpg', '#37b24d', 6.5, 1, None),
+               ('IMG_0402.jpg', '#f59f00', 5.0, 1, None),
+               ('IMG_0403.jpg', '#ae3ec9', 3.5, 1, None),
+               ('IMG_0404.jpg', '#e8590c', 2.0, 1, None)],
+    # 12 culling: one plain three-frame burst (no AI edit); IMG_0500 leads.
+    'cull': [('IMG_0500.jpg', '#1098ad', 7.0, 1, None),
+             ('IMG_0501.jpg', '#74b816', 5.0, 0, None),
+             ('IMG_0502.jpg', '#d6336c', 3.0, 0, None)],
+    # 14 photo page edits (rating, favourite): a single photo.
+    'edit': [('IMG_0600.jpg', '#495057', 5.5, 1, None)],
 }
 DATE = {'burst': '2026:01:10 10:00:', 'reuse': '2026:01:11 10:00:', 'lead': '2026:01:12 10:00:',
-        'review': '2026:01:13 10:00:'}
+        'review': '2026:01:13 10:00:', 'filter': '2026:02:14 10:00:', 'cull': '2026:03:15 10:00:',
+        'edit': '2026:04:16 10:00:'}
+# Folders whose every photo is its own one-photo group (no burst), so Hide bursts folds nothing.
+SOLO = ('review', 'filter', 'edit')
+# (folder, file name) -> extra photos columns. Only what a flow filters, sorts or searches on.
+EXTRA = {
+    ('filter', 'IMG_0400.jpg'): {'camera_model': 'E2E Alpha', 'iso': 100, 'caption': 'a red kayak on a calm lake'},
+    ('filter', 'IMG_0401.jpg'): {'camera_model': 'E2E Alpha', 'iso': 200, 'caption': 'a mountain hut at dawn'},
+    ('filter', 'IMG_0402.jpg'): {'camera_model': 'E2E Beta', 'iso': 400, 'caption': 'a crowded market street'},
+    ('filter', 'IMG_0403.jpg'): {'camera_model': 'E2E Beta', 'iso': 800, 'caption': 'a sleeping cat on a sofa'},
+    ('filter', 'IMG_0404.jpg'): {'camera_model': 'E2E Beta', 'iso': 1600, 'caption': 'a dark empty corridor'},
+}
 
 
 def _jpeg(colour, size):
@@ -69,6 +93,7 @@ def _histogram(thumbnail):
 
 
 def _insert_photo(conn, folder, name, colour, aggregate, lead, group, second):
+    extra = EXTRA.get((folder, name), {})
     path = os.path.join(LIBRARY, folder, name)
     with open(path, 'wb') as fh:
         fh.write(_jpeg(colour, (1200, 800)))
@@ -79,6 +104,8 @@ def _insert_photo(conn, folder, name, colour, aggregate, lead, group, second):
         "VALUES (?, ?, ?, ?, 1200, 800, ?, ?, 'default', ?, ?, ?, ?, datetime('now'))",
         (path, name, thumbnail, _histogram(thumbnail), aggregate, aggregate, DATE[folder] + f'{second:02d}',
          group, lead, f'{group:016x}'))
+    if extra:
+        conn.execute(f"UPDATE photos SET {', '.join(f'{c} = ?' for c in extra)} WHERE path = ?", (*extra.values(), path))
     return path
 
 
@@ -87,7 +114,7 @@ def _seed_folder(conn, folder):
     photos = PHOTOS[folder]
     os.makedirs(os.path.join(LIBRARY, folder))
     for second, (name, colour, aggregate, lead, _) in enumerate(photos):
-        _insert_photo(conn, folder, name, colour, aggregate, lead, group * 100 + second if folder == 'review' else group,
+        _insert_photo(conn, folder, name, colour, aggregate, lead, group * 100 + second if folder in SOLO else group,
                       second)
     for revision, (name, _, _, _, source) in enumerate((p for p in photos if p[4]), start=1):
         conn.execute('INSERT INTO photo_ai_edits (edit_path, source_path, tool, note, revision, captioned) '
