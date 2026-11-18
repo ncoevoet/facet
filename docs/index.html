@@ -614,6 +614,17 @@
       </div>
     </section>
 
+    <section id="tour" class="wrap">
+      <span class="eyebrow rv" data-i18n="tour.eyebrow">Watch the tour</span>
+      <h2 class="rv" data-i18n="tour.h2">Every feature, in two minutes</h2>
+      <div class="rv" style="margin-top:40px;max-width:1100px;margin-left:auto;margin-right:auto;">
+        <div class="frame">
+          <div class="chrome" aria-hidden="true"><i></i><i></i><i></i><span class="url">localhost:5000</span></div>
+          <video id="tourVideo" controls playsinline preload="metadata" width="1280" height="720" data-i18n-aria="tour.aria"></video>
+        </div>
+      </div>
+    </section>
+
     <section id="gallery" class="wrap">
       <span class="eyebrow rv" data-i18n="tools.eyebrow">Gallery + culling</span>
       <h2 class="rv" data-i18n="tools.h2">Two tools in one</h2>
@@ -813,9 +824,7 @@ python viewer.py</pre>
       auto:   'cp .env.example .env\n# edit .env: set PHOTOS_DIR to your photo folder\ndocker compose up -d\n# open http://localhost:5000',
       legacy: 'echo "PHOTOS_DIR=/path/to/photos" > .env\ndocker compose -f docker-compose.yml -f docker-compose.legacy.yml up -d\n# open http://localhost:5000',
       '8gb':  'echo "PHOTOS_DIR=/path/to/photos" > .env\ndocker compose -f docker-compose.yml -f docker-compose.8gb.yml up -d\n# open http://localhost:5000',
-      '12gb': 'echo "PHOTOS_DIR=/path/to/photos" > .env
-docker compose -f docker-compose.yml -f docker-compose.12gb.yml up -d
-# open http://localhost:5000',
+      '12gb': 'echo "PHOTOS_DIR=/path/to/photos" > .env\ndocker compose -f docker-compose.yml -f docker-compose.12gb.yml up -d\n# open http://localhost:5000',
       '16gb': 'echo "PHOTOS_DIR=/path/to/photos" > .env\ndocker compose -f docker-compose.yml -f docker-compose.16gb.yml up -d\n# open http://localhost:5000',
       '24gb': 'echo "PHOTOS_DIR=/path/to/photos" > .env\ndocker compose -f docker-compose.yml -f docker-compose.24gb.yml up -d\n# open http://localhost:5000'
     };
@@ -832,6 +841,9 @@ docker compose -f docker-compose.yml -f docker-compose.12gb.yml up -d
     // Keep keys in sync with data-i18n / data-i18n-comment / data-i18n-aria attributes above.
     var I18N = {
       en: {
+        "tour.eyebrow": "Watch the tour",
+        "tour.h2": "Every feature, in two minutes",
+        "tour.aria": "Facet feature tour",
         "install.note.auto": "Auto-detects your hardware: a 16 GB graphics card uses the 16 GB profile; no graphics card falls back to CPU.",
         "install.note.legacy": "CPU only — no graphics card required. Everything runs on the processor (slower, but works anywhere).",
         "install.note.8gb": "For a 6–11.5 GB NVIDIA graphics card. Requires the NVIDIA Container Toolkit.",
@@ -1156,6 +1168,9 @@ docker compose -f docker-compose.yml -f docker-compose.12gb.yml up -d
         "stats.s4": "compte ou abonnement",
         "how.eyebrow": "Comment ça marche",
         "how.h2": "De la carte mémoire aux meilleures photos en trois étapes",
+        "tour.eyebrow": "Voir la visite",
+        "tour.h2": "Toutes les fonctions en deux minutes",
+        "tour.aria": "Visite guidée de Facet",
         "how.s1.h": "Indiquez un dossier",
         "how.s1.p": "Votre dossier photo — JPEG, HEIF et RAW. Rien n'est copié ni envoyé en ligne.",
         "how.s2.h": "Laissez-le noter",
@@ -1499,6 +1514,9 @@ docker compose -f docker-compose.yml -f docker-compose.12gb.yml up -d
         "stats.s4": "Konten oder Abos",
         "how.eyebrow": "So funktioniert's",
         "how.h2": "Von der Speicherkarte zu den Besten in drei Schritten",
+        "tour.eyebrow": "Rundgang ansehen",
+        "tour.h2": "Alle Funktionen in zwei Minuten",
+        "tour.aria": "Facet-Rundgang",
         "how.s1.h": "Ordner angeben",
         "how.s1.p": "Ihr Fotoordner — JPEG, HEIF und RAW. Nichts wird kopiert oder hochgeladen.",
         "how.s2.h": "Bewerten lassen",
@@ -1842,6 +1860,9 @@ docker compose -f docker-compose.yml -f docker-compose.12gb.yml up -d
         "stats.s4": "account o abbonamenti",
         "how.eyebrow": "Come funziona",
         "how.h2": "Dalla scheda di memoria agli scatti migliori in tre passi",
+        "tour.eyebrow": "Guarda il tour",
+        "tour.h2": "Tutte le funzioni in due minuti",
+        "tour.aria": "Tour di Facet",
         "how.s1.h": "Indica una cartella",
         "how.s1.p": "La tua cartella di foto — JPEG, HEIF e RAW. Nulla viene copiato o caricato online.",
         "how.s2.h": "Lascialo valutare",
@@ -2185,6 +2206,9 @@ docker compose -f docker-compose.yml -f docker-compose.12gb.yml up -d
         "stats.s4": "cuentas o suscripciones",
         "how.eyebrow": "Cómo funciona",
         "how.h2": "De la tarjeta de memoria a las mejores fotos en tres pasos",
+        "tour.eyebrow": "Mira el recorrido",
+        "tour.h2": "Todas las funciones en dos minutos",
+        "tour.aria": "Recorrido por Facet",
         "how.s1.h": "Indica una carpeta",
         "how.s1.p": "Tu carpeta de fotos — JPEG, HEIF y RAW. Nada se copia ni se sube.",
         "how.s2.h": "Deja que puntúe",
@@ -2528,6 +2552,9 @@ docker compose -f docker-compose.yml -f docker-compose.12gb.yml up -d
         "stats.s4": "contas ou assinaturas",
         "how.eyebrow": "Como funciona",
         "how.h2": "Do cartão de memória às melhores fotos em três passos",
+        "tour.eyebrow": "Veja o tour",
+        "tour.h2": "Todos os recursos em dois minutos",
+        "tour.aria": "Tour do Facet",
         "how.s1.h": "Indique uma pasta",
         "how.s1.p": "Sua pasta de fotos — JPEG, HEIF e RAW. Nada é copiado nem enviado.",
         "how.s2.h": "Deixe-o avaliar",
@@ -2871,6 +2898,9 @@ docker compose -f docker-compose.yml -f docker-compose.12gb.yml up -d
         "stats.s4": "账户或订阅",
         "how.eyebrow": "工作原理",
         "how.h2": "三步从存储卡到精选照片",
+        "tour.eyebrow": "观看导览",
+        "tour.h2": "两分钟了解全部功能",
+        "tour.aria": "Facet 功能导览",
         "how.s1.h": "指定一个文件夹",
         "how.s1.p": "你的照片文件夹 —— JPEG、HEIF 和 RAW。不复制、不上传任何内容。",
         "how.s2.h": "让它评分",
@@ -3139,6 +3169,7 @@ docker compose -f docker-compose.yml -f docker-compose.12gb.yml up -d
     }
     function dict(){ var l = (window.__lang||'en'); var d = I18N[l]||{}; var en = I18N.en;
       return function(k){ return (d[k]!=null?d[k]:en[k]); }; }
+    var TOUR_BASE = 'https://github.com/ncoevoet/facet/releases/download/tour-videos/';
     var curProfile = 'auto';
     var curShot = null;
     function applyI18n(){
@@ -3155,6 +3186,11 @@ docker compose -f docker-compose.yml -f docker-compose.12gb.yml up -d
       var note = t('install.note.'+curProfile);
       if (note!=null) document.getElementById('profileNote').textContent = note;
       if (curShot) document.getElementById('showCap').textContent = t(curShot.getAttribute('data-cap'));
+      var tv = document.getElementById('tourVideo');
+      if (tv) {
+        var tu = TOUR_BASE + 'facet-tour-' + (window.__lang||'en') + '.mp4';
+        if (tv.getAttribute('src') !== tu) { tv.pause(); tv.setAttribute('src', tu); }
+      }
       document.documentElement.lang = window.__lang||'en';
     }
     function setLang(l){ window.__lang = (I18N[l]?l:'en'); try{ localStorage.setItem('facetLang', window.__lang); }catch(e){} applyI18n(); }
