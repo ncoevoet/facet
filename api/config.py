@@ -1296,37 +1296,26 @@ def viewer_cache_ttl() -> float:
     return ttl
 
 
-_CONFIG_NUMBER_WARNED: set = set()
-
-
 def config_number(source, key, *, default=None, name=''):
-    """Read ``source[key]`` as a number, defensively.
+    """Read ``source[key]`` as a float, defensively.
 
-    Returns ``None`` when the key is absent or the value is not a usable
-    number (a string like "512MB", null, NaN, infinity); otherwise the float
-    value. A present-but-unusable value warns once per (key, value) -- a hand
-    edit that breaks one config key must not take the feature it configures
-    down, and must not spam the log on every request. The ``default`` is the
-    caller's own fallback: returned on None so callers can chain (pass
+    Returns ``default`` when the key is absent, null, or not a usable number
+    (a string like "512MB", NaN, infinity, an integer too large for a float);
+    otherwise the float value. A present-but-unusable value warns once per
+    value -- a hand edit that breaks one config key must not take the feature
+    it configures down, and must not spam the log on every request. Pass
     ``default=None`` and treat ``None`` as "no override configured", like the
-    performance pragmas falling back to the live connection's values).
+    performance pragmas falling back to the live connection's values.
     """
-    if not isinstance(source, dict) or key not in source:
+    if not isinstance(source, dict) or source.get(key) is None:
         return default
     raw = source[key]
-    if raw is None:
-        return default
     try:
         value = float(raw)
-    except (TypeError, ValueError):
-        value = float('nan')
-    if value != value or value == float('inf') or value == float('-inf'):
-        marker = (name or key, repr(raw))
-        if marker not in _CONFIG_NUMBER_WARNED:
-            _CONFIG_NUMBER_WARNED.add(marker)
-            logger.warning(
-                "config value %s=%r is not a usable number; falling back to %r. "
-                "Fix the config value to stop seeing this.", name or key, raw, default)
+    except (TypeError, ValueError, OverflowError):
+        value = math.nan
+    if not math.isfinite(value):
+        warn_bad_config_once(name or key, raw, repr(default))
         return default
     return value
 
@@ -1649,7 +1638,7 @@ def _lookup_or_claim_stats(cache_key):
         if over > 0:
             oldest = sorted(_stats_cache, key=lambda k: _stats_cache[k]['expires'])[:over]
             for k in oldest:
-                if k not in _stats_inflight:
+                if k not in _stats_inflight and k != cache_key:
                     _stats_cache.pop(k, None)
         flight = _stats_inflight.get(cache_key)
         if flight is None:
