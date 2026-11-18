@@ -69,9 +69,11 @@ FACET_E2E_PYTHON=../venv/bin/python npm run e2e
 | `17-photo-page-metadata` | A caption, a manual tag and a one-hour capture-date shift made on the photo page are still shown after a reload |
 | `18-add-to-new-album` | Add to Album > New Album from the selection bar creates the album with the selected photo only; deleting the album keeps the photo |
 | `19-delete-selection` | Delete… in the selection bar: Cancel keeps both photos, confirming removes only the selected one |
+| `20-persons` | The seeded person is listed, an in-place rename survives a reload, and View photos opens the gallery on that person's two photos |
+| `21-map` | The two GPS photos give two single-photo markers (the third has no GPS); a marker opens a popup that closes |
 
-Not covered yet, for want of seed data: persons, faces and merge suggestions (no faces), the map (no GPS), a shared album
-(unauthenticated setup), settings, scans and export.
+Not covered yet: merge suggestions and the other persons tabs (the seed has one named person, and the unnamed cluster
+does not reach "Needs naming"), a shared album (unauthenticated setup), settings, scans and export.
 
 The edition login route allows 5 attempts a minute per address, so flows reuse one token (`editionToken` caches it,
 `unlockEdition` hands it to the page) and only `13-login-ui` and `08-edition-gate` type or send a password. A flow that

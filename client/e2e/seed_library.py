@@ -61,14 +61,24 @@ PHOTOS = {
     # 19 delete from the selection bar: two plain photos, one of which the flow deletes.
     'trash': [('IMG_0700.jpg', '#862e9c', 4.5, 1, None),
               ('IMG_0701.jpg', '#2b8a3e', 3.5, 1, None)],
+    # 20 persons: four photos with faces seeded by _seed_people (see PEOPLE).
+    'people': [('IMG_0800.jpg', '#5c940d', 6.0, 1, None),
+               ('IMG_0801.jpg', '#1864ab', 5.5, 1, None),
+               ('IMG_0802.jpg', '#a61e4d', 5.0, 1, None),
+               ('IMG_0803.jpg', '#e67700', 4.5, 1, None)],
+    # 21 map: two photos with GPS (EXTRA) and one without.
+    'places': [('IMG_0900.jpg', '#087f5b', 6.0, 1, None),
+               ('IMG_0901.jpg', '#c92a2a', 5.0, 1, None),
+               ('IMG_0902.jpg', '#343a40', 4.0, 1, None)],
     # 14, 17 photo page edits (rating, favourite): a single photo.
     'edit': [('IMG_0600.jpg', '#495057', 5.5, 1, None)],
 }
 DATE = {'burst': '2026:01:10 10:00:', 'reuse': '2026:01:11 10:00:', 'lead': '2026:01:12 10:00:',
         'review': '2026:01:13 10:00:', 'filter': '2026:02:14 10:00:', 'cull': '2026:03:15 10:00:',
-        'edit': '2026:04:16 10:00:', 'trash': '2026:05:17 10:00:'}
+        'edit': '2026:04:16 10:00:', 'trash': '2026:05:17 10:00:',
+        'people': '2026:06:18 10:00:', 'places': '2026:07:19 10:00:'}
 # Folders whose every photo is its own one-photo group (no burst), so Hide bursts folds nothing.
-SOLO = ('review', 'filter', 'edit', 'trash')
+SOLO = ('review', 'filter', 'edit', 'trash', 'people', 'places')
 # (folder, file name) -> extra photos columns. Only what a flow filters, sorts or searches on.
 EXTRA = {
     ('filter', 'IMG_0400.jpg'): {'camera_model': 'E2E Alpha', 'iso': 100, 'caption': 'a red kayak on a calm lake'},
@@ -76,7 +86,12 @@ EXTRA = {
     ('filter', 'IMG_0402.jpg'): {'camera_model': 'E2E Beta', 'iso': 400, 'caption': 'a crowded market street'},
     ('filter', 'IMG_0403.jpg'): {'camera_model': 'E2E Beta', 'iso': 800, 'caption': 'a sleeping cat on a sofa'},
     ('filter', 'IMG_0404.jpg'): {'camera_model': 'E2E Beta', 'iso': 1600, 'caption': 'a dark empty corridor'},
+    ('places', 'IMG_0900.jpg'): {'gps_latitude': 48.8584, 'gps_longitude': 2.2945},
+    ('places', 'IMG_0901.jpg'): {'gps_latitude': 40.6892, 'gps_longitude': -74.0445},
 }
+# 'people' faces: person key -> (name or None, [file names]). Two of them are the same person
+# (IMG_0800 + IMG_0801, named 'Ada E2E'); the other is an unnamed cluster (IMG_0802 + IMG_0803).
+PEOPLE = {'ada': ('Ada E2E', ['IMG_0800.jpg', 'IMG_0801.jpg']), 'unnamed': (None, ['IMG_0802.jpg', 'IMG_0803.jpg'])}
 
 
 def _jpeg(colour, size):
@@ -112,6 +127,27 @@ def _insert_photo(conn, folder, name, colour, aggregate, lead, group, second):
     return path
 
 
+def _seed_people(conn):
+    import numpy as np
+    conn.execute('DELETE FROM faces')
+    conn.execute('DELETE FROM persons')
+    for number, (name, files) in enumerate(PEOPLE.values()):
+        vector = np.zeros(512, dtype=np.float32)
+        vector[number] = 1.0
+        thumb = _jpeg('#888888', (160, 160))
+        cursor = conn.execute('INSERT INTO persons (name, face_count, face_thumbnail, centroid, auto_clustered) '
+                              'VALUES (?, ?, ?, ?, ?)', (name, len(files), thumb, vector.tobytes(), 0 if name else 1))
+        person = cursor.lastrowid
+        for index, file in enumerate(files):
+            path = os.path.join(LIBRARY, 'people', file)
+            face = conn.execute('INSERT INTO faces (photo_path, face_index, embedding, bbox_x1, bbox_y1, bbox_x2, '
+                                'bbox_y2, confidence, person_id, face_thumbnail) VALUES (?, 0, ?, 400, 200, 800, 600, '
+                                '0.99, ?, ?)', (path, vector.tobytes(), person, thumb)).lastrowid
+            conn.execute('UPDATE photos SET face_count = 1, face_ratio = 0.25 WHERE path = ?', (path,))
+            if index == 0:
+                conn.execute('UPDATE persons SET representative_face_id = ? WHERE id = ?', (face, person))
+
+
 def _seed_folder(conn, folder):
     group = list(PHOTOS).index(folder) + 1
     photos = PHOTOS[folder]
@@ -123,6 +159,8 @@ def _seed_folder(conn, folder):
         conn.execute('INSERT INTO photo_ai_edits (edit_path, source_path, tool, note, revision, captioned) '
                      "VALUES (?, ?, 'antigravity-gemini', 'e2e edit', ?, 1)",
                      (os.path.join(LIBRARY, folder, name), os.path.join(LIBRARY, folder, source), revision))
+    if folder == 'people':
+        _seed_people(conn)
 
 
 def seed(edition_password):
