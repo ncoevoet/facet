@@ -82,25 +82,28 @@ def has_fts_table(conn=None):
     # caller probes the import-time default (the viewer's own database --
     # correct in production; the debug line notes the guess).
     probe_conn = conn if isinstance(conn, sqlite3.Connection) else None
-    close_conn = False
+    probe_path = DEFAULT_DB_PATH
     if probe_conn is not None:
         try:
             row = probe_conn.execute('PRAGMA database_list').fetchall()
             probe_path = next((r[2] for r in row if r[1] == 'main'), DEFAULT_DB_PATH)
         except sqlite3.Error:
-            probe_path = DEFAULT_DB_PATH
-    else:
-        probe_path = DEFAULT_DB_PATH
-        probe_conn = sqlite3.connect(probe_path)
-        close_conn = True
-        logger.debug("FTS availability probed against the import-time DB_PATH: "
-                     "the caller passed a non-sqlite3 connection whose file is unknown")
+            pass
 
     now = time.monotonic()
     with _fts_lock:
         if (_fts_available is not None and _fts_checked_path == probe_path
                 and (now - _fts_checked_at) < _FTS_CACHE_TTL):
             return _fts_available
+
+    # Cold path only: the warm one above must stay connection-free, since the
+    # gallery calls this from the event loop with an aiosqlite connection.
+    close_conn = False
+    if probe_conn is None:
+        probe_conn = sqlite3.connect(probe_path)
+        close_conn = True
+        logger.debug("FTS availability probed against the import-time DB_PATH: "
+                     "the caller passed a non-sqlite3 connection whose file is unknown")
 
     try:
         row = probe_conn.execute(
