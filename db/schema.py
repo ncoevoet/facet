@@ -802,7 +802,7 @@ SCAN_RETRY_RECEIPTS_COLUMNS = [
 SCAN_FAILURES_COLUMNS = [
     ('scan_run_id', 'INTEGER NOT NULL REFERENCES scan_runs(id) ON DELETE CASCADE'),
     ('path', 'TEXT NOT NULL'),
-    ('stage', 'TEXT'),         # load|decode_timeout|score|save
+    ('stage', 'TEXT'),         # load|decode_timeout|score|save|gpu-thread
     ('error', 'TEXT'),
     ('timestamp', "TEXT DEFAULT (datetime('now'))"),
 ]
