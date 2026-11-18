@@ -1,5 +1,6 @@
 """has_fts_table's TTL cache: keyed on the probed file, conn-free when warm."""
 
+import os
 import sqlite3
 
 import pytest
@@ -40,7 +41,7 @@ def test_warm_path_opens_no_connection_for_a_non_sqlite3_caller(monkeypatch):
     """The gallery passes an aiosqlite connection from the event loop: a warm
     answer must come from the cache, never from a fresh blocking connect."""
     monkeypatch.setattr(fts, "_fts_available", True)
-    monkeypatch.setattr(fts, "_fts_checked_path", fts.DEFAULT_DB_PATH)
+    monkeypatch.setattr(fts, "_fts_checked_path", os.path.realpath(fts.DEFAULT_DB_PATH))
     monkeypatch.setattr(fts, "_fts_checked_at", fts.time.monotonic())
 
     def refuse(*args, **kwargs):
@@ -49,3 +50,23 @@ def test_warm_path_opens_no_connection_for_a_non_sqlite3_caller(monkeypatch):
     monkeypatch.setattr(fts.sqlite3, "connect", refuse)
     assert fts.has_fts_table(object()) is True
     assert fts.has_fts_table() is True
+
+
+def test_a_relative_default_path_shares_the_sync_callers_cache_entry(tmp_path, monkeypatch):
+    """DB_PATH unset leaves DEFAULT_DB_PATH relative while PRAGMA database_list
+    is absolute: alternating sync and async callers must not evict each other,
+    or the async gallery reopens the database on the event loop every time."""
+    library = _library(tmp_path, "photo_scores_pro.db", True)
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr(fts, "DEFAULT_DB_PATH", "photo_scores_pro.db")
+    connects = []
+    real_connect = fts.sqlite3.connect
+    monkeypatch.setattr(fts.sqlite3, "connect",
+                        lambda *args, **kwargs: connects.append(args) or real_connect(*args, **kwargs))
+    try:
+        for _ in range(5):
+            assert fts.has_fts_table(library) is True
+            assert fts.has_fts_table(object()) is True
+    finally:
+        library.close()
+    assert connects == []

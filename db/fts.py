@@ -6,6 +6,7 @@ caption_translated, tags, camera_model, lens_model, category).
 """
 
 import logging
+import os
 import sqlite3
 import threading
 import time
@@ -82,11 +83,18 @@ def has_fts_table(conn=None):
     # caller probes the import-time default (the viewer's own database --
     # correct in production; the debug line notes the guess).
     probe_conn = conn if isinstance(conn, sqlite3.Connection) else None
-    probe_path = DEFAULT_DB_PATH
+    # DEFAULT_DB_PATH is relative unless DB_PATH is absolute, while
+    # PRAGMA database_list reports an absolute path: compare both resolved, or
+    # a sync caller and an aiosqlite one evict each other's cache entry and the
+    # async one reopens the database on the event loop every time.
+    default_path = os.path.realpath(DEFAULT_DB_PATH)
+    probe_path = default_path
     if probe_conn is not None:
         try:
             row = probe_conn.execute('PRAGMA database_list').fetchall()
-            probe_path = next((r[2] for r in row if r[1] == 'main'), DEFAULT_DB_PATH)
+            main_path = next((r[2] for r in row if r[1] == 'main'), default_path)
+            # An in-memory or temp database reports '' -- keep that as its key.
+            probe_path = os.path.realpath(main_path) if main_path else main_path
         except sqlite3.Error:
             pass
 

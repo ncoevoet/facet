@@ -325,8 +325,8 @@ def test_config_number_warns_once_per_value(monkeypatch, caplog):
     assert sum('section.k' in r.getMessage() for r in caplog.records) == 2
 
 
-def test_a_miss_sweeps_expired_entries_but_keeps_in_flight_ones():
-    past = time.time() - 1
+def test_a_miss_sweeps_long_expired_entries_but_keeps_in_flight_ones():
+    past = time.time() - api_config.viewer_cache_ttl() - 1
     api_config._stats_cache['expired'] = {'data': 1, 'expires': past}
     api_config._stats_cache['in-flight'] = {'data': 2, 'expires': past}
     api_config._stats_cache['fresh'] = {'data': 3, 'expires': time.time() + 60}
@@ -366,6 +366,28 @@ def test_the_recomputed_keys_stale_copy_survives_the_cap(monkeypatch):
     try:
         assert computing.wait(timeout=10)
         assert api_config._get_stats_cached('stale-key', _fail_if_computed) == {'value': 'old'}
+    finally:
+        gate.set()
+        leader.join(timeout=10)
+
+
+def test_another_keys_miss_keeps_a_freshly_expired_stale_copy():
+    """A key that expired a moment ago is the stale copy its next recompute
+    serves; a miss on a different key must not sweep it."""
+    api_config._stats_cache['just-expired'] = {'data': {'value': 'old'}, 'expires': time.time() - 1}
+
+    assert api_config._get_stats_cached('other', lambda: {'v': 1}) == {'v': 1}
+
+    assert api_config._stats_cache['just-expired']['data'] == {'value': 'old'}
+
+    gate = threading.Event()
+    computing = threading.Event()
+    leader = threading.Thread(target=lambda: api_config._get_stats_cached(
+        'just-expired', _gated_compute(gate, computing, {'value': 'new'})))
+    leader.start()
+    try:
+        assert computing.wait(timeout=10)
+        assert api_config._get_stats_cached('just-expired', _fail_if_computed) == {'value': 'old'}
     finally:
         gate.set()
         leader.join(timeout=10)

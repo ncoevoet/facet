@@ -1628,9 +1628,13 @@ def _lookup_or_claim_stats(cache_key):
         # Sweep expired entries and cap the map: expired entries used to stay
         # in this dict forever (only invalidate_stats_cache cleared it), and
         # the keys embed client-query strings, so it grew without bound.
+        # An entry is swept only once it is a full TTL past expiry: a freshly
+        # expired one is the stale copy 'stale' serves while its key
+        # recomputes, and another key's miss must not take that away.
         now = time.time()
+        grace = viewer_cache_ttl()
         expired = [k for k, v in _stats_cache.items()
-                   if now >= v['expires'] and k not in _stats_inflight
+                   if now >= v['expires'] + grace and k not in _stats_inflight
                    and k != cache_key]
         for k in expired:
             _stats_cache.pop(k, None)
