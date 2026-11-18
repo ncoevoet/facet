@@ -17,6 +17,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
 
 from api.auth import CurrentUser, get_optional_user, require_edition
+from api.config import _FULL_CONFIG, config_number
 from api.database import get_db
 from api.db_helpers import (
     get_visibility_clause, record_culling_decision, set_photos_rejected,
@@ -47,11 +48,7 @@ class SceneConfirmBody(BaseModel):
 
 def _scene_config():
     """Read scenes settings from scoring_config.json (with safe defaults)."""
-    try:
-        from api.config import _FULL_CONFIG, config_number
-        sc = _FULL_CONFIG.get('scenes', {}) or {}
-    except (ImportError, AttributeError):
-        sc = {}
+    sc = _FULL_CONFIG.get('scenes', {}) or {}
     return {
         'gap_minutes': config_number(sc, 'gap_minutes', default=_DEFAULT_GAP_MINUTES, name='scenes.gap_minutes'),
         'min_size': int(config_number(sc, 'min_size', default=_DEFAULT_MIN_SIZE, name='scenes.min_size')),
