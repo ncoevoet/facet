@@ -219,10 +219,11 @@ def test_restricted_save_writes_the_face_columns_when_the_pass_succeeds(tmp_path
 
 
 @pytest.mark.timeout(30)
-def test_vlm_tagger_chunk_failure_propagates_instead_of_scoring(tmp_path):
-    """The VLM tagger is a required pass: a failed chunk must re-raise into the
-    required-model branch (scan_failures, no save) instead of scoring every
-    photo in the chunk on an empty tag feature space and stamping it complete."""
+def test_vlm_tagger_chunk_failure_records_and_excludes(tmp_path, monkeypatch):
+    """The VLM tagger is a required pass, driven through _process_chunk: a
+    failed tagging chunk lands in scan_failures (retryable via --retry-failed)
+    and nothing is saved -- no photo is scored on an empty tag feature space
+    and stamped complete."""
     db_path = str(tmp_path / "scan.db")
     init_database(db_path)
     scan_run = ScanRun.start(db_path, "multi-pass", {"directories": []}, 2)
@@ -230,12 +231,30 @@ def test_vlm_tagger_chunk_failure_propagates_instead_of_scoring(tmp_path):
     scorer = _StubScorer(db_path)
     proc = ChunkedMultiPassProcessor(scorer, _StubModelManager(), {},
                                      on_error=scan_run.record_failure)
+    proc.pass_groups = [["vlm_tagger"]]
+
     paths = [str(tmp_path / "a.jpg"), str(tmp_path / "b.jpg")]
+
+    monkeypatch.setattr(proc, "_load_images", lambda p: {x: _img_data() for x in p})
 
     class _Tagger:
         def tag_batch(self, pil_imgs, max_tags=None):
             raise RuntimeError("simulated VLM OOM")
 
-    with pytest.raises(RuntimeError, match="simulated VLM OOM"):
-        proc._pass_vlm_tagger(_Tagger(), {p: _img_data() for p in paths},
-                              {p: {} for p in paths})
+    def fake_pass(model_name, model, images, results):
+        if model_name == "vlm_tagger":
+            proc._pass_vlm_tagger(_Tagger(), images, results)
+        for path in images:
+            results[path]["face_count"] = 0  # a prior pass populated real data
+
+    monkeypatch.setattr(proc, "_run_model_pass", fake_pass)
+
+    proc._process_chunk(paths, 0, 1)
+    scan_run.finish("interrupted")  # flush buffered failures to the DB
+
+    # No fabricated rows persisted (no aggregate from an empty tag space).
+    assert scorer.saved == []
+
+    # The chunk's photos are recorded and retryable via --retry-failed.
+    failed = set(get_failed_paths(db_path, "last"))
+    assert failed == set(paths)
