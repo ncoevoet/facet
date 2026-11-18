@@ -519,6 +519,10 @@ class BatchProcessor:
         total = len(photo_paths)
         if total == 0:
             return
+        # Each call owns its own death state: the calibration run inside
+        # process_stream must not leak a flag into the main pass's verdict.
+        self.metrics['gpu_thread_died'] = False
+        self.metrics.pop('unprocessed_paths', None)
         self.metrics['inputs_expected'] = total
 
         # Build every lazily-created model once, before any worker or GPU work, so
@@ -667,6 +671,8 @@ class BatchProcessor:
         if total_count == 0:
             return None
 
+        self.metrics['gpu_thread_died'] = False
+        self.metrics.pop('unprocessed_paths', None)
         self.metrics['inputs_expected'] = total_count
         self.scorer.preflight_models()
 
