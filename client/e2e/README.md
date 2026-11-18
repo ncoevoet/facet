@@ -58,3 +58,34 @@ FACET_E2E_PYTHON=../venv/bin/python npm run e2e
 | `06-photo-page` | A double click on a gallery card opens that photo's page; the Quality panel carries the seeded score, the Histogram tab swaps the panel, and Back returns to the gallery |
 | `07-album-lifecycle` | An album made through the API lists on `/albums`, opens to its photo, and leaves `/albums` once deleted while its photo stays in the library |
 | `08-edition-gate` | Without the edition password a delete and an album create are refused, a wrong password is refused, and no photo is deleted |
+| `09-gallery-sort-filter` | The gallery orders by score, flips on Ascending, and narrows by camera and by a minimum score; removing the chip restores the folder |
+| `10-gallery-search` | A caption word narrows the grid to its photo, survives a reload, and clearing it restores the folder |
+| `11-gallery-select-and-rate` | Review > Favorite and Review > Rate 4 in the selection bar apply to both selected photos; the favourites filter and the photo page read them back |
+| `12-culling-confirm` | `/culling` proposes a keeper per burst; flipping a frame to kept and confirming rejects only the frame left out, and the gallery hides it |
+| `13-login-ui` | The Edition dialog refuses a wrong password in place and unlocks with the right one; unlocked state survives a reload |
+| `14-photo-page-review` | Rating, Favorite and Keep set on the photo page are read back after a reload |
+| `15-photo-compare` | Two selected photos open the compare workspace (Reference / Candidate), the candidate can be promoted, and the page redirects without a selection |
+| `16-timeline-and-folders` | The timeline month counts the day's photos and links to them; the Folders page filters the gallery to the clicked folder |
+| `17-photo-page-metadata` | A caption, a manual tag and a one-hour capture-date shift made on the photo page are still shown after a reload |
+| `18-add-to-new-album` | Add to Album > New Album from the selection bar creates the album with the selected photo only; deleting the album keeps the photo |
+| `19-delete-selection` | Delete… in the selection bar: Cancel keeps both photos, confirming removes only the selected one |
+| `20-persons` | The seeded person is listed, an in-place rename survives a reload, and View photos opens the gallery on that person's two photos |
+| `21-map` | The two GPS photos give two single-photo markers (the third has no GPS); a marker opens a popup that closes |
+| `22-shared-album` | A shared album opens by its link with no login, a wrong token is refused, and unsharing kills the old link |
+| `23-scan-launcher` | The scan launcher (behind `features.show_scan_button`) offers the library folder, already chosen; no scan is started |
+| `24-customize-shortcuts` | Rebinding Toggle favorite to G survives a reload; Reset all restores F |
+| `25-connect-assistant` | A named assistant token is created (its prompt shown once), listed under Manage tokens and revoked |
+| `26-download-selection` | Download saves each selected original; Copy filenames puts their names on the clipboard |
+| `27-display-settings` | The Fast scrolling switch in Display persists across a reload |
+| `28-portfolio-export` | Export portfolio waits for a target folder (allow-listed in the seed config) and writes the album's static site there |
+
+Not covered yet: merge suggestions and the other persons tabs (the unnamed seed cluster does not reach "Needs naming"),
+starting a scan (it would run the scoring models), the library export, and settings beyond the Display switches.
+
+The edition login route allows 5 attempts a minute per address, so flows reuse one token (`editionToken` caches it,
+`unlockEdition` hands it to the page) and only `13-login-ui` and `08-edition-gate` type or send a password. A flow that
+provokes a 4xx on purpose declares it with `expectFailedLoad`.
+
+CI runs the suite as the `Browser flows (Playwright)` job: the CI Python dependencies (no torch), the production build
+and Playwright's own Chromium (`FACET_E2E_CHANNEL=chromium`). It is not a required check; a failed run uploads
+`client/test-results` and `client/playwright-report` as the `e2e-failures` artifact.
