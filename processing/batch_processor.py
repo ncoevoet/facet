@@ -501,7 +501,9 @@ class BatchProcessor:
                 }
                 res.update(exif_data)
 
-                self.result_queue.put({'result': res})
+                # The input path, as error items carry it: the collector keys what
+                # it handled by it (res['path'] is the resolved form).
+                self.result_queue.put({'path': item['path'], 'result': res})
 
             except Exception as e:
                 licensing.reraise_if_refused()
@@ -519,11 +521,11 @@ class BatchProcessor:
         total = len(photo_paths)
         if total == 0:
             return
-        # Each call owns its own death state: the calibration run inside
-        # process_stream must not leak a flag into the main pass's verdict.
+        # Each call starts with a clean death state. The calibration batch that
+        # process_stream runs through here is reset before it starts, so its
+        # unreached tail still carries into the main phase's verdict.
         self.metrics['gpu_thread_died'] = False
         self.metrics.pop('unprocessed_paths', None)
-        self.metrics['inputs_expected'] = total
 
         # Build every lazily-created model once, before any worker or GPU work, so
         # a startup refusal stops the scan instead of failing every photo.
@@ -608,10 +610,12 @@ class BatchProcessor:
                             # everything not handled here was neither scored nor
                             # recorded as a failure.
                             self.metrics['gpu_thread_died'] = True
-                            self.metrics['unprocessed_paths'] = [
+                            # Extend, never replace: a calibration batch that died
+                            # before the main phase keeps its own unreached tail.
+                            self.metrics.setdefault('unprocessed_paths', []).extend(
                                 str(p) for p in photo_paths
                                 if str(p) not in handled_paths
-                            ]
+                            )
                             self.stop_event.set()
                             break
                         continue
@@ -673,7 +677,6 @@ class BatchProcessor:
 
         self.metrics['gpu_thread_died'] = False
         self.metrics.pop('unprocessed_paths', None)
-        self.metrics['inputs_expected'] = total_count
         self.scorer.preflight_models()
 
         # Convert to list for calibration split
@@ -781,10 +784,10 @@ class BatchProcessor:
                                 processed, total_count,
                             )
                             self.metrics['gpu_thread_died'] = True
-                            self.metrics['unprocessed_paths'] = [
+                            self.metrics.setdefault('unprocessed_paths', []).extend(
                                 str(p) for p in all_paths
                                 if str(p) not in handled_paths
-                            ]
+                            )
                             self.stop_event.set()
                             break
                         continue

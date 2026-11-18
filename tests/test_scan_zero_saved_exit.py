@@ -249,7 +249,6 @@ def test_the_scan_seeds_the_resolve_cache_with_what_the_walk_resolved(tmp_path, 
 @pytest.mark.timeout(30)
 def test_gpu_thread_death_fails_the_run_and_records_the_tail(tmp_path, monkeypatch, caplog):
     from processing import batch_processor
-    from utils.exit_codes import SCAN_DID_NOT_RUN_EXIT_CODE  # noqa: F401 (contract in same module family)
 
     def dying_gpu_thread(self, *args, **kwargs):
         raise RuntimeError("simulated GPU thread crash")
@@ -273,3 +272,66 @@ def test_gpu_thread_death_fails_the_run_and_records_the_tail(tmp_path, monkeypat
     assert stages == {"gpu-thread"}
     assert status == "failed"
     assert len(failed) == 1  # the whole one-photo tail
+
+
+@pytest.mark.timeout(30)
+def test_gpu_thread_death_records_only_the_photos_it_never_reached(tmp_path, monkeypatch):
+    from processing import batch_processor
+
+    def one_result_then_crash(self, *args, **kwargs):
+        item = self.image_queue.get(timeout=10)
+        self.result_queue.put({'path': item['path'], 'result': {'path': item['path']}})
+        raise RuntimeError("simulated GPU thread crash")
+
+    monkeypatch.setattr(batch_processor.BatchProcessor, "_gpu_thread_with_tuning", one_result_then_crash)
+    monkeypatch.setattr(facet, "_resolve_single_pass", lambda requested, *a, **k: requested)
+    saved = []
+    monkeypatch.setattr(_FakeFacet, "save_photos_batch", lambda self, batch: saved.extend(batch), raising=False)
+    other = tmp_path / "more"
+    other.mkdir()
+    Image.new("RGB", (8, 8), (90, 90, 90)).save(other / "b.jpg", "JPEG")
+    with pytest.raises(SystemExit) as raised:
+        _run(tmp_path, monkeypatch, _processor(saved=0), extra_args=("--single-pass",),
+             more_paths=[other])
+    assert raised.value.code == 1
+
+    import sqlite3
+    conn = sqlite3.connect(str(tmp_path / "scan.db"))
+    failed = {r[0] for r in conn.execute("SELECT path FROM scan_failures")}
+    status = conn.execute("SELECT status FROM scan_runs ORDER BY id DESC LIMIT 1").fetchone()[0]
+    conn.close()
+    assert len(saved) == 1
+    assert failed and saved[0]['path'] not in failed
+    assert len(failed) == 1
+    assert status == "failed"
+
+
+@pytest.mark.timeout(30)
+def test_gpu_thread_death_during_calibration_survives_the_processor_swap(tmp_path, monkeypatch):
+    calibration_tail = str(tmp_path / "photos" / "calibration-tail.jpg")
+    made = []
+
+    class _Batch:
+        def __init__(self, *args, **kwargs):
+            made.append(self)
+            self.first = len(made) == 1
+            self.metrics = {'photos_saved': 1}
+            if self.first:
+                self.metrics.update(gpu_thread_died=True, unprocessed_paths=[calibration_tail])
+
+        def process_stream(self, paths, total, **kwargs):
+            return ['/remaining.jpg'] if self.first else None
+
+    monkeypatch.setattr("processing.batch_processor.BatchProcessor", _Batch)
+    monkeypatch.setattr(facet, "_resolve_single_pass", lambda requested, *a, **k: requested)
+    with pytest.raises(SystemExit) as raised:
+        _run(tmp_path, monkeypatch, _processor(saved=0), extra_args=("--single-pass",))
+    assert raised.value.code == 1
+
+    import sqlite3
+    conn = sqlite3.connect(str(tmp_path / "scan.db"))
+    failed = {r[0] for r in conn.execute("SELECT path FROM scan_failures")}
+    status = conn.execute("SELECT status FROM scan_runs ORDER BY id DESC LIMIT 1").fetchone()[0]
+    conn.close()
+    assert failed == {calibration_tail}
+    assert status == "failed"

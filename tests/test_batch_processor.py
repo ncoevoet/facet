@@ -159,6 +159,9 @@ def test_process_batch_result_covers_supplementary_db_columns():
 
     queued = bp.result_queue.get_nowait()
     assert "result" in queued, queued
+    # The collector keys what it handled by the INPUT path: a success item
+    # without it reads as never reached when the GPU thread dies later.
+    assert queued["path"] == path
     res = queued["result"]
     for key in SUPPLEMENTARY_RESULT_KEYS:
         assert key in res, f"missing DB column {key} required by save_photos_batch INSERT"
