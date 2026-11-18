@@ -2188,6 +2188,7 @@ export const I18N = {
         save: "scan.history.stages.save",
         composition: "scan.history.stages.composition",
         embedding: "scan.history.stages.embedding",
+        "gpu-thread": "scan.history.stages.gpu-thread",
         other: "scan.history.stages.other",
       },
       pipeline: "scan.history.pipeline",

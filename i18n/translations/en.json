@@ -2174,6 +2174,7 @@
         "save": "Saving",
         "composition": "Composition analysis",
         "embedding": "Embedding analysis",
+        "gpu-thread": "GPU thread crash",
         "other": "Other stage"
       },
       "pipeline": "Pipeline: {state} · last recorded phase: {phase}",
