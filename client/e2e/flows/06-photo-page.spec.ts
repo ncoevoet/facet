@@ -10,7 +10,8 @@ test('a gallery card opens its photo page and Back returns to the gallery', asyn
 
   await test.step('2. A double click opens that photo, not another', async () => {
     await page.getByRole('button', { name: 'IMG_0300.jpg', exact: true }).dblclick();
-    await expect(page).toHaveURL(new RegExp('/photo\\?path=' + encodeURIComponent(libraryPath('review', 'IMG_0300.jpg')).replace(/[.]/g, '\\.')));
+    await expect(page).toHaveURL(url => url.pathname === '/photo' &&
+      url.searchParams.get('path') === libraryPath('review', 'IMG_0300.jpg'));
     await expect(page.getByRole('heading', { name: 'IMG_0300.jpg', level: 1 })).toBeVisible();
     await expect(page.getByRole('img', { name: 'IMG_0300.jpg' })).toBeVisible();
   });
