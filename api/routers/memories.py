@@ -87,9 +87,9 @@ async def check_memories(
 
     except HTTPException:
         raise
-    # Not swallowed into has_memories=false: a busy/damaged database must not
-    # silently hide the Memories surface -- get_memories 500s on the same
-    # error, and the client has a failure face for it.
+    # Not folded into has_memories=false: a busy/damaged database answers a
+    # server error like get_memories does on the same error. The client still
+    # keeps the Memories surface hidden on a failed check.
     except sqlite3.Error:
         logger.exception("Failed to check memories")
         raise
