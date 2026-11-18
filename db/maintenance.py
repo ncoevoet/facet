@@ -551,8 +551,12 @@ def delete_photo_rows(conn, paths: list[str], *, preserve_auto_retrain_counters:
         # Tombstone rather than absence, so a viewer computing the ranges right
         # now cannot write its pre-deletion result back (invalidate_metric_ranges).
         invalidate_metric_ranges(cursor)
-    except sqlite3.OperationalError:
-        pass
+    except sqlite3.OperationalError as ex:
+        # Tolerated (an old schema can lack the cache tables), but never
+        # silently: a swallowed failure here leaves stale counts and lets a
+        # concurrent viewer write its pre-deletion result back.
+        logger.warning("Stats cache invalidation after delete failed (stale "
+                       "counts may remain until the next refresh): %s", ex)
 
     return {"deleted": len(paths), "emptied_persons": emptied_persons}
 

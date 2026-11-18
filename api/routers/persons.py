@@ -11,7 +11,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel, Field, model_validator
 
 from api.auth import CurrentUser, require_edition, require_authenticated
-from api.config import VIEWER_CONFIG, invalidate_stats_cache
+from api.config import VIEWER_CONFIG, config_number, invalidate_stats_cache
 from api.database import get_async_db, get_db
 from api.db_helpers import (
     assert_faces_visible, get_visibility_clause, reassign_faces_to_person, person_visibility_exists,
@@ -576,10 +576,8 @@ async def api_persons_needs_naming(
     from a split, so every person still waiting for a name is listed here once.
     """
     if min_faces is None:
-        try:
-            min_faces = int(VIEWER_CONFIG.get('persons', {}).get('needs_naming_min_faces', 5))
-        except (TypeError, ValueError):
-            min_faces = 5
+        min_faces = int(config_number(VIEWER_CONFIG.get('persons', {}) or {},
+                                      'needs_naming_min_faces', default=5, name='persons.needs_naming_min_faces'))
 
     vis_fragment, vis_params = person_visibility_exists(user.user_id if user else None, 'p.id')
     extra = f" AND {vis_fragment}" if vis_fragment else ""

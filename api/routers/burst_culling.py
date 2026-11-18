@@ -336,14 +336,14 @@ def _get_face_thresholds(profile=None):
     badges/blink flags reflect the chosen genre (wedding is stricter on eyes,
     sports/wildlife relax them).
     """
-    from api.config import _FULL_CONFIG
+    from api.config import _FULL_CONFIG, config_number
     fd = _FULL_CONFIG.get('face_detection', {})
-    eyes_closed_max = float(fd.get('eyes_closed_max', 4.0))
-    poor_expression_min = float(fd.get('poor_expression_min', 4.0))
+    eyes_closed_max = config_number(fd, 'eyes_closed_max', default=4.0, name='face_detection.eyes_closed_max')
+    poor_expression_min = config_number(fd, 'poor_expression_min', default=4.0, name='face_detection.poor_expression_min')
     prof = _resolve_cull_profile(profile)
     if prof:
-        eyes_closed_max = float(prof.get('eyes_closed_max', eyes_closed_max))
-        poor_expression_min = float(prof.get('poor_expression_min', poor_expression_min))
+        eyes_closed_max = config_number(prof, 'eyes_closed_max', default=eyes_closed_max, name='cull_profile.eyes_closed_max')
+        poor_expression_min = config_number(prof, 'poor_expression_min', default=poor_expression_min, name='cull_profile.poor_expression_min')
     return (eyes_closed_max, poor_expression_min)
 
 
@@ -1996,13 +1996,13 @@ _AUTO_CULL_TYPE_ORDER = {'bracket': -1, 'burst': 0, 'similar': 1, 'scene': 2}
 def _get_auto_cull_config():
     """auto_cull settings from scoring_config.json (with safe defaults)."""
     try:
-        from api.config import _FULL_CONFIG
+        from api.config import _FULL_CONFIG, config_number
         ac = _FULL_CONFIG.get('auto_cull', {}) or {}
     except (ImportError, AttributeError):
         ac = {}
     return {
-        'default_strictness': int(ac.get('default_strictness', 50)),
-        'highlights_min': float(ac.get('highlights_min', 8.0)),
+        'default_strictness': int(config_number(ac, 'default_strictness', default=50, name='auto_cull.default_strictness')),
+        'highlights_min': config_number(ac, 'highlights_min', default=8.0, name='auto_cull.highlights_min'),
     }
 
 

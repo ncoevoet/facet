@@ -87,9 +87,12 @@ async def check_memories(
 
     except HTTPException:
         raise
+    # Not swallowed into has_memories=false: a busy/damaged database must not
+    # silently hide the Memories surface -- get_memories 500s on the same
+    # error, and the client has a failure face for it.
     except sqlite3.Error:
         logger.exception("Failed to check memories")
-        return {'has_memories': False}
+        raise
 
 
 @router.get(

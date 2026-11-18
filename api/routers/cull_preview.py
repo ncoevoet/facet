@@ -17,7 +17,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import FileResponse, Response
 
 from api.auth import CurrentUser, require_edition
-from api.config import VIEWER_CONFIG
+from api.config import VIEWER_CONFIG, config_number
 from api.database import get_db
 from api.db_helpers import get_visibility_clause
 from api.path_validation import resolve_photo_disk_path
@@ -156,9 +156,9 @@ def api_cull_preview(
     real_disk = resolve_photo_disk_path(row["path"])
 
     dt_cfg = _get_darktable_config()
-    max_edge = int(dt_cfg.get("preview_max_edge", DEFAULT_CULL_PREVIEW_MAX_EDGE))
-    timeout = int(dt_cfg.get("preview_timeout_seconds", DEFAULT_CULL_PREVIEW_TIMEOUT_SECONDS))
-    quality = int(VIEWER_CONFIG.get("display", {}).get("image_jpeg_quality", 96))
+    max_edge = int(config_number(dt_cfg, "preview_max_edge", default=DEFAULT_CULL_PREVIEW_MAX_EDGE, name="darktable.preview_max_edge"))
+    timeout = int(config_number(dt_cfg, "preview_timeout_seconds", default=DEFAULT_CULL_PREVIEW_TIMEOUT_SECONDS, name="darktable.preview_timeout_seconds"))
+    quality = int(config_number(VIEWER_CONFIG.get("display", {}) or {}, "image_jpeg_quality", default=96, name="display.image_jpeg_quality"))
 
     try:
         mtime = os.path.getmtime(real_disk)

@@ -24,6 +24,8 @@ logger = logging.getLogger("facet.db_fts")
 # api.db_helpers.is_photo_tags_available: warm path is conn-free and safe to
 # call from an async context with an aiosqlite Connection.
 _FTS_CACHE_TTL = 300.0
+# The file the cached answer was probed against (invalidated when it changes).
+_fts_checked_path = None
 _fts_available: bool | None = None
 _fts_checked_at: float = 0.0
 _fts_lock = threading.Lock()
@@ -72,17 +74,33 @@ def has_fts_table(conn=None):
     plain sqlite3.Connection (e.g. when called with an aiosqlite Connection
     from a gallery handler).
     """
-    global _fts_available, _fts_checked_at
-    now = time.monotonic()
-    with _fts_lock:
-        if _fts_available is not None and (now - _fts_checked_at) < _FTS_CACHE_TTL:
-            return _fts_available
-
+    global _fts_available, _fts_checked_path, _fts_checked_at
+    # Determine the connection's OWN database file FIRST -- the cached answer
+    # is keyed on it, so a caller with an explicit --db (or a test on a temp
+    # library) gets its own schema's answer instead of the import-time
+    # default's. An aiosqlite connection cannot run this sync probe, so that
+    # caller probes the import-time default (the viewer's own database --
+    # correct in production; the debug line notes the guess).
     probe_conn = conn if isinstance(conn, sqlite3.Connection) else None
     close_conn = False
-    if probe_conn is None:
-        probe_conn = sqlite3.connect(DEFAULT_DB_PATH)
+    if probe_conn is not None:
+        try:
+            row = probe_conn.execute('PRAGMA database_list').fetchall()
+            probe_path = next((r[2] for r in row if r[1] == 'main'), DEFAULT_DB_PATH)
+        except sqlite3.Error:
+            probe_path = DEFAULT_DB_PATH
+    else:
+        probe_path = DEFAULT_DB_PATH
+        probe_conn = sqlite3.connect(probe_path)
         close_conn = True
+        logger.debug("FTS availability probed against the import-time DB_PATH: "
+                     "the caller passed a non-sqlite3 connection whose file is unknown")
+
+    now = time.monotonic()
+    with _fts_lock:
+        if (_fts_available is not None and _fts_checked_path == probe_path
+                and (now - _fts_checked_at) < _FTS_CACHE_TTL):
+            return _fts_available
 
     try:
         row = probe_conn.execute(
@@ -98,11 +116,13 @@ def has_fts_table(conn=None):
     with _fts_lock:
         _fts_available = result
         _fts_checked_at = now
+        _fts_checked_path = probe_path
     return result
 
 
 def invalidate_fts_cache():
     """Clear the cached has_fts_table result. Call after rebuild_fts."""
-    global _fts_available
+    global _fts_available, _fts_checked_path
     with _fts_lock:
         _fts_available = None
+        _fts_checked_path = None
