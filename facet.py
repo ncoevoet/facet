@@ -2297,12 +2297,28 @@ def _run_scan_pipeline(args, resumed_run, lifecycle):
         raise
     else:
         saved_nothing = route != 'pass' and _photos_saved(processor) + calibration_saved == 0
-        recorded = scan_run.finish('failed' if saved_nothing else 'completed')
+        # The GPU thread dying mid-chunk is not a completed scan: everything it
+        # never reached was neither scored nor recorded as a failure, and a
+        # 'completed' mark would hide the gap from --resume and --retry-failed.
+        gpu_died = bool(processor.metrics.get('gpu_thread_died')) if hasattr(processor, 'metrics') else False
+        unprocessed = processor.metrics.get('unprocessed_paths', []) if gpu_died else []
+        if gpu_died:
+            for path in unprocessed:
+                scan_run.record_failure(path, 'gpu-thread', 'GPU thread exited before this photo was scored')
+        recorded = scan_run.finish('failed' if (saved_nothing or gpu_died) else 'completed')
         if not recorded:
             scorer.commit()
             logger.error('Scan bookkeeping could not be saved. Existing failure records '
                          'were retained; inspect the library before creating a new preview.')
             raise SystemExit(1)
+        if gpu_died:
+            logger.error(
+                "Scan failed: the GPU thread exited after %d of %d photos (%d unprocessed); "
+                "the run is recorded as failed -- re-run with `--resume` or `--retry-failed`.",
+                processor.metrics.get('images_processed', 0),
+                processor.metrics.get('inputs_expected', 0),
+                len(unprocessed))
+            exit(1)
         if saved_nothing:
             logger.error("Scan failed: saved 0 of %d photos (see the model load and pass "
                          "errors above, or `--retry-failed` after fixing them).", len(todo_list))

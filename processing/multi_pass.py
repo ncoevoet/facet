@@ -2029,8 +2029,14 @@ class ChunkedMultiPassProcessor:
             for i, path in enumerate(paths):
                 results[path]['tags'] = tags_to_string(tags_list[i])
         except Exception as e:
+            # Re-raise, unlike the older swallow here: the VLM tagger is a
+            # required pass, so a failed chunk must reach the required-model
+            # branch of _process_chunk (scan_failures + no save) instead of
+            # scoring every photo in the chunk on an empty tag feature space
+            # and stamping it scanned-complete.
             licensing.reraise_if_refused()
-            logger.error("VLM tagging failed: %s", e)
+            logger.error("VLM tagging failed for chunk: %s", e)
+            raise
 
     def _pass_saliency(self, scorer: Any, images: Dict, results: Dict):
         """BiRefNet saliency pass: subject saliency detection and derived metrics."""

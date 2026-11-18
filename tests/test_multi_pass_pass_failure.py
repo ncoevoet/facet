@@ -216,3 +216,26 @@ def test_restricted_save_writes_the_face_columns_when_the_pass_succeeds(tmp_path
     scorer = _run_face_chunk(tmp_path, monkeypatch, fail=False, restricted=True)
     _res, _pil, columns = scorer.partial[0]
     assert "face_count" in columns and "face_ratio" in columns
+
+
+@pytest.mark.timeout(30)
+def test_vlm_tagger_chunk_failure_propagates_instead_of_scoring(tmp_path):
+    """The VLM tagger is a required pass: a failed chunk must re-raise into the
+    required-model branch (scan_failures, no save) instead of scoring every
+    photo in the chunk on an empty tag feature space and stamping it complete."""
+    db_path = str(tmp_path / "scan.db")
+    init_database(db_path)
+    scan_run = ScanRun.start(db_path, "multi-pass", {"directories": []}, 2)
+
+    scorer = _StubScorer(db_path)
+    proc = ChunkedMultiPassProcessor(scorer, _StubModelManager(), {},
+                                     on_error=scan_run.record_failure)
+    paths = [str(tmp_path / "a.jpg"), str(tmp_path / "b.jpg")]
+
+    class _Tagger:
+        def tag_batch(self, pil_imgs, max_tags=None):
+            raise RuntimeError("simulated VLM OOM")
+
+    with pytest.raises(RuntimeError, match="simulated VLM OOM"):
+        proc._pass_vlm_tagger(_Tagger(), {p: _img_data() for p in paths},
+                              {p: {} for p in paths})

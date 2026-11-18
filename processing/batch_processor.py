@@ -519,6 +519,7 @@ class BatchProcessor:
         total = len(photo_paths)
         if total == 0:
             return
+        self.metrics['inputs_expected'] = total
 
         # Build every lazily-created model once, before any worker or GPU work, so
         # a startup refusal stops the scan instead of failing every photo.
@@ -560,9 +561,11 @@ class BatchProcessor:
                 # Collect results and batch save
                 processed = 0
                 pending_saves = []
+                handled_paths = set()
                 while processed < total:
                     try:
                         item = self.result_queue.get(timeout=1.0)
+                        handled_paths.add(item.get('path'))
                         if 'error' in item:
                             logger.error("Error on %s: %s", item.get('path', 'unknown'), item['error'])
                             if self.on_error:
@@ -597,6 +600,14 @@ class BatchProcessor:
                                 "GPU thread exited before all results (%d/%d processed); aborting wait",
                                 processed, total,
                             )
+                            # The caller must not read this as a completed scan:
+                            # everything not handled here was neither scored nor
+                            # recorded as a failure.
+                            self.metrics['gpu_thread_died'] = True
+                            self.metrics['unprocessed_paths'] = [
+                                str(p) for p in photo_paths
+                                if str(p) not in handled_paths
+                            ]
                             self.stop_event.set()
                             break
                         continue
@@ -656,6 +667,7 @@ class BatchProcessor:
         if total_count == 0:
             return None
 
+        self.metrics['inputs_expected'] = total_count
         self.scorer.preflight_models()
 
         # Convert to list for calibration split
@@ -723,9 +735,11 @@ class BatchProcessor:
                 # Collect results and batch save
                 processed = 0
                 pending_saves = []
+                handled_paths = set()
                 while processed < total_count:
                     try:
                         item = self.result_queue.get(timeout=1.0)
+                        handled_paths.add(item.get('path'))
                         if 'error' in item:
                             logger.error("Error on %s: %s", item.get('path', 'unknown'), item['error'])
                             if self.on_error:
@@ -760,6 +774,11 @@ class BatchProcessor:
                                 "GPU thread exited before all results (%d/%d processed); aborting wait",
                                 processed, total_count,
                             )
+                            self.metrics['gpu_thread_died'] = True
+                            self.metrics['unprocessed_paths'] = [
+                                str(p) for p in all_paths
+                                if str(p) not in handled_paths
+                            ]
                             self.stop_event.set()
                             break
                         continue

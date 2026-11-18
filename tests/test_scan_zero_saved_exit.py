@@ -27,6 +27,12 @@ class _FakeFacet:
     def filter_unscanned_paths(self, paths):
         return set() if self.already_scanned else set(paths)
 
+    def preflight_models(self):
+        pass
+
+    def flush_person_centroids(self):
+        pass
+
     def commit(self):
         pass
 
@@ -233,3 +239,37 @@ def test_the_scan_seeds_the_resolve_cache_with_what_the_walk_resolved(tmp_path, 
 
     _run(tmp_path, monkeypatch, _Recording)
     assert seen and all(resolved == str(Path(p).resolve()) for p, resolved in seen.items())
+
+
+# ---------------------------------------------------------------------------
+# A GPU thread dying mid-chunk (B194): everything it never reached was neither
+# scored nor recorded as a failure -- the run must not read as completed.
+# ---------------------------------------------------------------------------
+
+@pytest.mark.timeout(30)
+def test_gpu_thread_death_fails_the_run_and_records_the_tail(tmp_path, monkeypatch, caplog):
+    from processing import batch_processor
+    from utils.exit_codes import SCAN_DID_NOT_RUN_EXIT_CODE  # noqa: F401 (contract in same module family)
+
+    def dying_gpu_thread(self, *args, **kwargs):
+        raise RuntimeError("simulated GPU thread crash")
+
+    # process_files spawns _gpu_thread; process_stream (the single-pass route)
+    # spawns _gpu_thread_with_tuning. Kill both.
+    monkeypatch.setattr(batch_processor.BatchProcessor, "_gpu_thread", dying_gpu_thread)
+    monkeypatch.setattr(batch_processor.BatchProcessor, "_gpu_thread_with_tuning", dying_gpu_thread)
+    with caplog.at_level("ERROR", logger="facet"), pytest.raises(SystemExit) as raised:
+        _run(tmp_path, monkeypatch, _processor(saved=0), extra_args=("--single-pass",))
+    assert raised.value.code == 1
+    assert "GPU thread exited" in caplog.text
+
+    # The unprocessed tail is retryable and the run is NOT stamped completed.
+    import sqlite3
+    conn = sqlite3.connect(str(tmp_path / "scan.db"))
+    failed = {r[0] for r in conn.execute("SELECT path FROM scan_failures")}
+    stages = {r[0] for r in conn.execute("SELECT DISTINCT stage FROM scan_failures")}
+    status = conn.execute("SELECT status FROM scan_runs ORDER BY id DESC LIMIT 1").fetchone()[0]
+    conn.close()
+    assert stages == {"gpu-thread"}
+    assert status == "failed"
+    assert len(failed) == 1  # the whole one-photo tail
