@@ -71,9 +71,16 @@ FACET_E2E_PYTHON=../venv/bin/python npm run e2e
 | `19-delete-selection` | Delete… in the selection bar: Cancel keeps both photos, confirming removes only the selected one |
 | `20-persons` | The seeded person is listed, an in-place rename survives a reload, and View photos opens the gallery on that person's two photos |
 | `21-map` | The two GPS photos give two single-photo markers (the third has no GPS); a marker opens a popup that closes |
+| `22-shared-album` | A shared album opens by its link with no login, a wrong token is refused, and unsharing kills the old link |
+| `23-scan-launcher` | The scan launcher (behind `features.show_scan_button`) offers the library folder, already chosen; no scan is started |
+| `24-customize-shortcuts` | Rebinding Toggle favorite to G survives a reload; Reset all restores F |
+| `25-connect-assistant` | A named assistant token is created (its prompt shown once), listed under Manage tokens and revoked |
+| `26-download-selection` | Download saves each selected original; Copy filenames puts their names on the clipboard |
+| `27-display-settings` | The Fast scrolling switch in Display persists across a reload |
+| `28-portfolio-export` | Export portfolio waits for a target folder (allow-listed in the seed config) and writes the album's static site there |
 
-Not covered yet: merge suggestions and the other persons tabs (the seed has one named person, and the unnamed cluster
-does not reach "Needs naming"), a shared album (unauthenticated setup), settings, scans and export.
+Not covered yet: merge suggestions and the other persons tabs (the unnamed seed cluster does not reach "Needs naming"),
+starting a scan (it would run the scoring models), the library export, and settings beyond the Display switches.
 
 The edition login route allows 5 attempts a minute per address, so flows reuse one token (`editionToken` caches it,
 `unlockEdition` hands it to the page) and only `13-login-ui` and `08-edition-gate` type or send a password. A flow that

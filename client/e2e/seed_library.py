@@ -26,6 +26,8 @@ DB_PATH = os.path.join(WORK, 'facet_e2e.db')
 CONFIG_PATH = os.path.join(WORK, 'scoring_config.json')
 # send2trash honours XDG_DATA_HOME: a deleted test photo lands here, not in the user's own Trash.
 XDG_DATA_HOME = os.path.join(WORK, 'xdg-data')
+# The one place the exports (portfolio site) may write; viewer.export.allowed_target_dirs names it.
+EXPORTS = os.path.join(WORK, 'exports')
 
 sys.path.insert(0, REPO)
 
@@ -169,7 +171,9 @@ def seed(edition_password):
     os.makedirs(LIBRARY)
     with open(CONFIG_PATH, 'w', encoding='utf-8') as fh:
         json.dump({'viewer': {'edition_password': edition_password, 'scan_directories': [LIBRARY],
-                              'cull': {'allow_trash': True}}}, fh, indent=2)
+                              'cull': {'allow_trash': True},
+                              'features': {'show_scan_button': True},
+                              'export': {'allowed_target_dirs': [EXPORTS]}}}, fh, indent=2)
     init_database(DB_PATH)
     conn = sqlite3.connect(DB_PATH)
     for folder in PHOTOS:
