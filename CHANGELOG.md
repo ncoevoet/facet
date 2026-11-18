@@ -4,6 +4,8 @@ All notable changes to Facet are documented in this file.
 
 ## [Unreleased]
 
+## [1.30.0] "Obturateur" — 2026-11-18
+
 ### Added
 
 - **Downloading a selection shows its progress.** Downloading several photos from the gallery selection (original or a darktable profile) or from a shared album now keeps a notification on screen with the running count, a progress bar and **Cancel**, and says when the last file is saved. A photo that fails (a darktable render error, a file gone from disk) is skipped and counted instead of silently stopping the rest; a lost connection or session, or three failures in a row (a revoked shared link, a server that is down), stops the batch. The final message waits for an Undo offer still on screen instead of replacing it.
@@ -70,6 +72,8 @@ All notable changes to Facet are documented in this file.
 - **Manage persons survives a failed page.** Infinite scroll advanced its page counter before the request and never rolled it back, so one failed page permanently skipped that stretch of people (re-scrolling asked for the page after the missing one). The page is retried now. A failed first load of the Needs-naming queue or the Ignored section also stopped pretending the section is empty: it says the load failed, with a Retry.
 - **Saving a smart album that is refused says so.** A failed save stopped the spinner and left the dialog without a word (a duplicate name's 422, a network error); the dialog now shows the error, focuses it, and — like its create/edit siblings — abandons the save when the session has moved on instead of writing to a page the user has left.
 - **A long album recompute is not failed by one hiccup.** The scoring-context dialog's poll declared failure on the first transient error while a library-wide recompute takes minutes (and a retry then met the busy 409). It tolerates a few consecutive failures before saying so, and polls every 2 s instead of 1 s.
+- **The Docker install guide shows how to scan from the browser.** Its everyday commands gave only the command-line scan, so a Docker user looking for a Scan button found an empty gallery. It now lists the two `viewer` keys to add (`scan_directories`, `features.show_scan_button`) and the restart, in all seven languages (#510).
+- **Dependency bump closing two open Dependabot alerts.** `dnspython` 2.9.0 to 2.9.2 in both lock files.
 
 ## [1.29.0] "Pamir" — 2026-11-10
 
@@ -332,10 +336,6 @@ All notable changes to Facet are documented in this file.
 - **Rate-limited login and proofing answers carry `Retry-After`**, so a locked-out client knows when its window resets.
 - **Immich webhook deliveries stop walking the payload at the delivery cap** instead of visiting every entry of an oversized body.
 - **Dependency bump closing the open Dependabot alert, not reachable in a running install.** `minimatch` 11.0.5 under `typescript-eslint`'s parser (GHSA-g3hv-75wg-m249, a DoS through amplified glob patterns), forced through `overrides` because every `@typescript-eslint/typescript-estree` release up to 8.72.2 asks for `^10.2.2`. It is lint tooling only and ships in no install or image.
-
-### Fixed
-
-- **The Docker install guide shows how to scan from the browser.** Its everyday commands gave only the command-line scan, so a Docker user looking for a Scan button found an empty gallery. It now lists the two `viewer` keys to add (`scan_directories`, `features.show_scan_button`) and the restart, in all seven languages (#510).
 
 ## [1.28.0] "f/64" — 2026-11-05
 

@@ -47,7 +47,7 @@ datasets==5.0.1 ; sys_platform == "win32"
 datasets==5.1.0 ; sys_platform != "win32"
 dill==0.4.1
 distlib==0.4.4
-dnspython==2.9.0
+dnspython==2.9.2
 einops==0.8.2
 ExifRead==3.5.1
 execnet==2.1.2
