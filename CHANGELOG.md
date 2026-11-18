@@ -4,6 +4,8 @@ All notable changes to Facet are documented in this file.
 
 ## [Unreleased]
 
+## [1.30.0] "Obturateur" — 2026-11-18
+
 ### Added
 
 - **Downloading a selection shows its progress.** Downloading several photos from the gallery selection (original or a darktable profile) or from a shared album now keeps a notification on screen with the running count, a progress bar and **Cancel**, and says when the last file is saved. A photo that fails (a darktable render error, a file gone from disk) is skipped and counted instead of silently stopping the rest; a lost connection or session, or three failures in a row (a revoked shared link, a server that is down), stops the batch. The final message waits for an Undo offer still on screen instead of replacing it.
