@@ -337,7 +337,6 @@ def _get_face_thresholds(profile=None):
     badges/blink flags reflect the chosen genre (wedding is stricter on eyes,
     sports/wildlife relax them).
     """
-    from api.config import _FULL_CONFIG, config_number
     fd = _FULL_CONFIG.get('face_detection', {})
     eyes_closed_max = config_number(fd, 'eyes_closed_max', default=4.0, name='face_detection.eyes_closed_max')
     poor_expression_min = config_number(fd, 'poor_expression_min', default=4.0, name='face_detection.poor_expression_min')

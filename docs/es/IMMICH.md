@@ -343,7 +343,7 @@ El bloque `immich` completo, con los valores por defecto de fábrica:
 | `push.top_picks_min_rating` | `4` | Valoración por estrellas mínima para ese álbum. |
 | `webhook.token_env` | `""` | Variable de entorno que contiene el secreto del webhook. Vacío desactiva el endpoint. |
 | `webhook.header` | `"x-facet-token"` | Cabecera en la que Immich envía el token. |
-| `webhook.max_pending` | `500` | Longitud máxima de la lista de rutas pendientes (sin puntuar). |
+| `webhook.max_pending` | `500` | Longitud máxima de la lista de rutas pendientes (sin puntuar). Un valor de 0 o menor equivale al valor por defecto, 500. |
 | `timeout_seconds` | `30` | Tiempo de espera HTTP por solicitud. |
 
 ## Solución de problemas

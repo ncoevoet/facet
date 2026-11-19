@@ -343,7 +343,7 @@ O bloco `immich` completo, com os padrões de fábrica:
 | `push.top_picks_min_rating` | `4` | Avaliação mínima por estrelas para esse álbum. |
 | `webhook.token_env` | `""` | Variável de ambiente que salva o segredo do webhook. Vazio desativa o endpoint. |
 | `webhook.header` | `"x-facet-token"` | Cabeçalho em que o Immich envia o token. |
-| `webhook.max_pending` | `500` | Tamanho máximo da lista de caminhos pendentes (não pontuados). |
+| `webhook.max_pending` | `500` | Tamanho máximo da lista de caminhos pendentes (não pontuados). Um valor de 0 ou menor equivale ao padrão, 500. |
 | `timeout_seconds` | `30` | Timeout HTTP por requisição. |
 
 ## Solução de Problemas
