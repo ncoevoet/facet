@@ -21,7 +21,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import StreamingResponse
 
 from api.auth import CurrentUser, require_edition
-from api.config import VIEWER_CONFIG
+from api.config import VIEWER_CONFIG, config_number
 from api.database import get_db
 from api.db_helpers import get_visibility_clause
 from api.models.media import MediaSocialCropPreviewResponse
@@ -182,7 +182,7 @@ def api_social_crop(
     )
     cropped = pil_img.crop((x0, y0, x1, y1))
 
-    quality = int(_social_export_config().get("jpeg_quality", 92))
+    quality = int(config_number(_social_export_config(), "jpeg_quality", default=92, name="social_crop.jpeg_quality"))
     buf = io.BytesIO()
     cropped.save(buf, format="JPEG", quality=quality)
     buf.seek(0)

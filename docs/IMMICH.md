@@ -343,7 +343,7 @@ The full `immich` block, with the shipped defaults:
 | `push.top_picks_min_rating` | `4` | Minimum star rating for that album. |
 | `webhook.token_env` | `""` | Environment variable holding the webhook secret. Empty disables the endpoint. |
 | `webhook.header` | `"x-facet-token"` | Header Immich sends the token in. |
-| `webhook.max_pending` | `500` | Maximum length of the pending (unscored) path list. |
+| `webhook.max_pending` | `500` | Maximum length of the pending (unscored) path list. A value of 0 or below means the default, 500. |
 | `timeout_seconds` | `30` | Per-request HTTP timeout. |
 
 ## Troubleshooting

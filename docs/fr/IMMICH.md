@@ -343,7 +343,7 @@ Le bloc `immich` complet, avec les valeurs par défaut fournies :
 | `push.top_picks_min_rating` | `4` | Note en étoiles minimale pour cet album. |
 | `webhook.token_env` | `""` | Variable d'environnement contenant le secret du webhook. Vide désactive le point d'accès. |
 | `webhook.header` | `"x-facet-token"` | En-tête dans lequel Immich envoie le jeton. |
-| `webhook.max_pending` | `500` | Longueur maximale de la liste des chemins en attente (non notés). |
+| `webhook.max_pending` | `500` | Longueur maximale de la liste des chemins en attente (non notés). Une valeur de 0 ou moins signifie la valeur par défaut, 500. |
 | `timeout_seconds` | `30` | Délai d'expiration HTTP par requête. |
 
 ## Dépannage

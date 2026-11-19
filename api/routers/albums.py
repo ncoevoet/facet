@@ -759,6 +759,38 @@ def _other_context_albums(conn, exclude_album_id):
     ).fetchall()
 
 
+def _album_membership_probe(conn, album_row):
+    """Compile one album's membership check: ``(album, probe(path) -> bool)``.
+
+    The smart branch re-parsed the stored filter and rebuilt the WHERE clause
+    for every (path, album) pair; a large removal against a few context albums
+    re-derived the same clauses thousands of times inside the write
+    transaction. Compiled once, the loop only binds the path.
+    """
+    if album_row['is_smart'] and album_row['smart_filter_json']:
+        from api.routers.gallery import _build_gallery_where
+        owner_id = album_row['user_id']
+        saved_filters = _normalize_smart_filters(json.loads(album_row['smart_filter_json']))
+        where_clauses, sql_params = _build_gallery_where(saved_filters, conn, user_id=owner_id, single_photo=True)
+        from_clause, from_params = get_photos_from_clause(owner_id)
+        where_str = f" WHERE {' AND '.join(list(where_clauses) + ['path = ?'])}"
+        sql = f"SELECT 1 FROM {from_clause}{where_str} LIMIT 1"
+        params = [*from_params, *sql_params]
+
+        def probe(path, _sql=sql, _params=params, _conn=conn):
+            return _conn.execute(_sql, [*_params, path]).fetchone() is not None
+
+        return album_row, probe
+
+    album_id = album_row['id']
+
+    def probe(path, _sql="SELECT 1 FROM album_photos WHERE album_id = ? AND photo_path = ?",
+              _params=(album_id,), _conn=conn):
+        return _conn.execute(_sql, (*_params, path)).fetchone() is not None
+
+    return album_row, probe
+
+
 def _photo_in_album(conn, album_row, path):
     """Whether ``path`` is currently a member of ``album_row`` (smart or manual)."""
     if album_row['is_smart'] and album_row['smart_filter_json']:
@@ -825,9 +857,20 @@ def _clear_album_context_overrides(conn, album_id, paths=None):
     cleared_paths = [r['photo_path'] for r in rows]
     other_albums = _other_context_albums(conn, album_id) if paths is not None else []
 
+    # Each album's probe is compiled the first time a path needs it, not up
+    # front: most removals clear nothing, and building every smart album's
+    # filter would also let one malformed filter fail removals it never affects.
+    probes = {}
+
+    def _member_of(album, path):
+        probe = probes.get(album['id'])
+        if probe is None:
+            probe = probes[album['id']] = _album_membership_probe(conn, album)[1]
+        return probe(path)
+
     cleared = 0
     for path in cleared_paths:
-        other = next((a for a in other_albums if _photo_in_album(conn, a, path)), None)
+        other = next((album for album in other_albums if _member_of(album, path)), None)
         if other is not None:
             set_photo_scoring_override(
                 conn, path, scoring_context=other['scoring_context'], source=f"album:{other['id']}"

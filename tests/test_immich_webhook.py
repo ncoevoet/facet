@@ -577,3 +577,17 @@ def test_hint_search_accepts_legacy_integer_and_string_pages(client, immich_cfg,
     assert response.json()['failed'] == 0
     assert [item['page'] for item in fake.searches()] == [1, 2]
     assert fake.asset_updates() == [{'ids': ['asset-scored'], 'rating': 4, 'isFavorite': True}]
+
+
+def test_a_zero_max_pending_keeps_the_default_cap(client, immich_cfg, transport, monkeypatch):
+    """``record_pending_paths`` reads ``max_pending <= 0`` as "unbounded"; a
+    configured 0 must fall back to the documented cap, as it always has."""
+    import sync.immich
+    from sync.immich import DEFAULT_MAX_PENDING
+
+    seen = []
+    monkeypatch.setitem(immich_cfg["webhook"], "max_pending", 0)
+    monkeypatch.setattr(sync.immich, "record_pending_paths",
+                        lambda db_path, paths, max_pending: seen.append(max_pending) or len(paths))
+    _post(client, _asset(MISSING))
+    assert seen == [DEFAULT_MAX_PENDING]

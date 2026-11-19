@@ -663,6 +663,29 @@ class TestAlbumScoringContextSmartAlbum:
         assert "warning" in result
 
 
+class TestClearAlbumContextOverridesIsLazy:
+    """Removing photos from an album compiles another album's membership
+    check only when a removed path needs it: a removal that cleared nothing
+    must not build (or fail on) an unrelated smart album's filter."""
+
+    def test_removal_that_clears_nothing_ignores_a_malformed_smart_album(self, tmp_path):
+        from db.connection import get_connection
+        from db.schema import init_database
+        from api.routers.albums import _clear_album_context_overrides
+
+        db_path = str(tmp_path / "lazy_probe.db")
+        init_database(db_path)
+        with get_connection(db_path) as conn:
+            conn.execute("INSERT INTO albums (id, name) VALUES (1, 'Plain')")
+            conn.execute(
+                "INSERT INTO albums (id, name, is_smart, smart_filter_json, scoring_context) "
+                "VALUES (2, 'Broken', 1, '{not json', 'motorsport')"
+            )
+            conn.execute("INSERT INTO photos (path) VALUES ('/a.jpg')")
+            conn.commit()
+            assert _clear_album_context_overrides(conn, 1, paths=['/a.jpg']) == 0
+
+
 class TestAlbumScoringContextClear:
     """DEFECT 2 regression: an album scoring context previously could never
     be undone -- DELETE .../scoring_context must clear the album's own field

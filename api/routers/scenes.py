@@ -17,6 +17,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
 
 from api.auth import CurrentUser, get_optional_user, require_edition
+from api.config import _FULL_CONFIG, config_number
 from api.database import get_db
 from api.db_helpers import (
     get_visibility_clause, record_culling_decision, set_photos_rejected,
@@ -47,20 +48,16 @@ class SceneConfirmBody(BaseModel):
 
 def _scene_config():
     """Read scenes settings from scoring_config.json (with safe defaults)."""
-    try:
-        from api.config import _FULL_CONFIG
-        sc = _FULL_CONFIG.get('scenes', {}) or {}
-    except (ImportError, AttributeError):
-        sc = {}
+    sc = _FULL_CONFIG.get('scenes', {}) or {}
     return {
-        'gap_minutes': float(sc.get('gap_minutes', _DEFAULT_GAP_MINUTES)),
-        'min_size': int(sc.get('min_size', _DEFAULT_MIN_SIZE)),
-        'max_photos': int(sc.get('max_photos', _DEFAULT_MAX_PHOTOS)),
-        'max_scene_size': max(1, int(sc.get('max_scene_size', _DEFAULT_MAX_SCENE_SIZE))),
+        'gap_minutes': config_number(sc, 'gap_minutes', default=_DEFAULT_GAP_MINUTES, name='scenes.gap_minutes'),
+        'min_size': int(config_number(sc, 'min_size', default=_DEFAULT_MIN_SIZE, name='scenes.min_size')),
+        'max_photos': int(config_number(sc, 'max_photos', default=_DEFAULT_MAX_PHOTOS, name='scenes.max_photos')),
+        'max_scene_size': max(1, int(config_number(sc, 'max_scene_size', default=_DEFAULT_MAX_SCENE_SIZE, name='scenes.max_scene_size'))),
         'adaptive': bool(sc.get('adaptive', _DEFAULT_ADAPTIVE)),
-        'adaptive_k': float(sc.get('adaptive_k', _DEFAULT_ADAPTIVE_K)),
+        'adaptive_k': config_number(sc, 'adaptive_k', default=_DEFAULT_ADAPTIVE_K, name='scenes.adaptive_k'),
         'split_on_moment_change': bool(sc.get('split_on_moment_change', False)),
-        'moment_split_min_run': int(sc.get('moment_split_min_run', 4)),
+        'moment_split_min_run': int(config_number(sc, 'moment_split_min_run', default=4, name='scenes.moment_split_min_run')),
     }
 
 

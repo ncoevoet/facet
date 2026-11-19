@@ -343,7 +343,7 @@ WARNING  Immich webhook saw an asset Facet has not scored: /mnt/photos/2026/08/I
 | `push.top_picks_min_rating` | `4` | 进入该相册的最低星级。 |
 | `webhook.token_env` | `""` | 存放 webhook 密钥的环境变量。为空表示禁用该端点。 |
 | `webhook.header` | `"x-facet-token"` | Immich 用来发送令牌的请求头。 |
-| `webhook.max_pending` | `500` | 待处理（未评分）路径列表的最大长度。 |
+| `webhook.max_pending` | `500` | 待处理（未评分）路径列表的最大长度。值为 0 或更小时按默认值 500 处理。 |
 | `timeout_seconds` | `30` | 单次请求的 HTTP 超时。 |
 
 ## 故障排查

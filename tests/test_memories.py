@@ -231,3 +231,19 @@ class TestMemoriesEndpoint:
         assert len(body["years"]) == 1
         assert len(body["years"][0]["photos"]) == 5
         assert body["years"][0]["total_count"] == 8
+
+
+def test_check_surfaces_a_database_error():
+    """A busy or damaged database is a 500, not a silent has_memories=false."""
+    import sqlite3
+
+    @asynccontextmanager
+    async def _failing_db():
+        raise sqlite3.OperationalError("database is locked")
+        yield  # pragma: no cover
+
+    client = TestClient(create_app(), raise_server_exceptions=False)
+    with mock.patch("api.routers.memories.get_async_db", _failing_db):
+        resp = client.get("/api/memories/check", params={"date": "2025-03-14"})
+    # The app maps a locked database to 503; any server error is the point.
+    assert resp.status_code >= 500

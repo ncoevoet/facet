@@ -17,7 +17,7 @@ from contextlib import asynccontextmanager, contextmanager
 from functools import partial
 
 from db import DEFAULT_DB_PATH, apply_pragmas
-from api.config import VIEWER_CONFIG
+from api.config import VIEWER_CONFIG, config_number
 
 
 _viewer_perf = VIEWER_CONFIG.get('performance', {})
@@ -73,16 +73,14 @@ async def get_async_db():
         # thread and cross-thread sqlite3 use raises ProgrammingError.
         from db.connection import get_pragma_values
         pv = get_pragma_values()
-        mmap_bytes = (
-            int(_viewer_perf['mmap_size_mb']) * 1024 * 1024
-            if _viewer_perf.get('mmap_size_mb') is not None
-            else pv['mmap_size']
-        )
-        cache_kb = (
-            int(_viewer_perf['cache_size_mb']) * 1000
-            if _viewer_perf.get('cache_size_mb') is not None
-            else pv['cache_size_kb']
-        )
+        # A mistyped override ("512MB") used to raise out of the async connection
+        # factory -- every endpoint on get_async_db 500'd, with the error buried
+        # at the connection layer. Absent or unparseable falls back to the
+        # connection's live pragma values.
+        mmap_mb = config_number(_viewer_perf, 'mmap_size_mb', name='performance.mmap_size_mb')
+        mmap_bytes = int(mmap_mb) * 1024 * 1024 if mmap_mb is not None else pv['mmap_size']
+        cache_mb = config_number(_viewer_perf, 'cache_size_mb', name='performance.cache_size_mb')
+        cache_kb = int(cache_mb) * 1000 if cache_mb is not None else pv['cache_size_kb']
         await conn.execute("PRAGMA journal_mode = WAL")
         await conn.execute("PRAGMA busy_timeout = 5000")
         await conn.execute("PRAGMA foreign_keys = ON")

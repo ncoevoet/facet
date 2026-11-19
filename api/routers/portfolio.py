@@ -16,7 +16,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
 
 from api.auth import CurrentUser, require_edition
-from api.config import VIEWER_CONFIG
+from api.config import VIEWER_CONFIG, config_number
 from api.database import get_db
 from api.db_helpers import get_visibility_clause
 from api.path_validation import resolve_photo_disk_path
@@ -111,9 +111,9 @@ def api_export_portfolio(
     safe_target = _validate_target_dir_required(body.target_dir)
 
     cfg = _portfolio_config()
-    max_photos = int(cfg.get("max_photos", _DEFAULT_MAX_PHOTOS))
-    config_edge = int(cfg.get("max_edge", _DEFAULT_MAX_EDGE))
-    jpeg_quality = int(cfg.get("jpeg_quality", _DEFAULT_JPEG_QUALITY))
+    max_photos = int(config_number(cfg, "max_photos", default=_DEFAULT_MAX_PHOTOS, name="portfolio.max_photos"))
+    config_edge = int(config_number(cfg, "max_edge", default=_DEFAULT_MAX_EDGE, name="portfolio.max_edge"))
+    jpeg_quality = int(config_number(cfg, "jpeg_quality", default=_DEFAULT_JPEG_QUALITY, name="portfolio.jpeg_quality"))
     max_edge = max(_MIN_EDGE, min(int(body.max_edge or config_edge), _MAX_EDGE))
 
     user_id = user.user_id

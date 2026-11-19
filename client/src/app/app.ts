@@ -2,6 +2,7 @@ import { pathOf } from './shared/utils/url-path';
 import { Component, inject, computed, signal, effect, untracked, OnInit, ChangeDetectionStrategy, DestroyRef, ElementRef, viewChild, afterRenderEffect } from '@angular/core';
 import { NgTemplateOutlet } from '@angular/common';
 import { FormsModule } from '@angular/forms';
+import { HttpContext } from '@angular/common/http';
 import { Router, RouterOutlet, RouterLink, NavigationEnd } from '@angular/router';
 import { toSignal } from '@angular/core/rxjs-interop';
 import { filter, map, firstValueFrom } from 'rxjs';
@@ -48,6 +49,7 @@ import { Photo, normalisePhotoFlagsAll } from './shared/models/photo.model';
 import { DateRangeFilterComponent } from './shared/components/date-range-filter/date-range-filter.component';
 import { I18N, i18nKeys } from './core/i18n/keys';
 import { I18nTitleStrategy } from './core/i18n-title.strategy';
+import { HANDLE_SERVER_ERROR_LOCALLY } from './core/utils/http-error-context';
 import { MOBILE_BAR_BUTTON, MOBILE_BAR_ROW } from './shared/utils/mobile-bar';
 
 /** When the "a newer Facet is out" notice was last shown, so it stays weekly. */
@@ -485,7 +487,7 @@ export class App implements OnInit {
       );
       promises.push(
         firstValueFrom(
-          this.api.get<{ has_memories: boolean }>('/memories/check'),
+          this.api.get<{ has_memories: boolean }>('/memories/check', undefined, new HttpContext().set(HANDLE_SERVER_ERROR_LOCALLY, true)),
         ).then(data => {
           this.hasMemories.set(data.has_memories);
         }).catch(() => { /* Non-critical */ }),

@@ -446,7 +446,7 @@ async def lifespan(app: FastAPI):
     # Pre-compute capsules in a background thread so first visitor gets instant results.
     # Only an open install can use it: the pass runs with no user, and on a protected one
     # that sees nothing (get_visibility_clause), so it would be a full scan for an empty list.
-    from api.config import _FULL_CONFIG
+    from api.config import _FULL_CONFIG, config_number
     from api.db_helpers import is_access_controlled_install
     if (_FULL_CONFIG.get("viewer", {}).get("features", {}).get("show_capsules", True)
             and not is_access_controlled_install()):
@@ -474,7 +474,7 @@ async def lifespan(app: FastAPI):
 
     # WAL checkpoint thread — periodically truncates the WAL to keep it from
     # ballooning on long-running deployments. Skip if interval <= 0.
-    wal_minutes = int(_FULL_CONFIG.get("performance", {}).get("wal_checkpoint_minutes", 30))
+    wal_minutes = int(config_number(_FULL_CONFIG.get("performance", {}) or {}, "wal_checkpoint_minutes", default=30, name="performance.wal_checkpoint_minutes"))
     wal_stop = None
     wal_thread = None
     if wal_minutes > 0:
@@ -585,7 +585,7 @@ def create_app() -> FastAPI:
         dependencies=[Depends(warm_schema_caches)],
     )
 
-    from api.config import _FULL_CONFIG
+    from api.config import _FULL_CONFIG, config_number
 
     # Install the licensing policy for this server. set_policy is in-process only;
     # spawned facet.py children inherit commercial mode through
@@ -610,7 +610,7 @@ def create_app() -> FastAPI:
 
     # Request logging middleware — requests slower than the configured
     # threshold (performance.slow_request_ms) are logged at WARNING.
-    slow_request_ms = int(_FULL_CONFIG.get("performance", {}).get("slow_request_ms", 1000))
+    slow_request_ms = int(config_number(_FULL_CONFIG.get("performance", {}) or {}, "slow_request_ms", default=1000, name="performance.slow_request_ms"))
     app.add_middleware(RequestLoggingMiddleware, slow_request_ms=slow_request_ms)
 
     # CORS middleware — origins from scoring_config.json viewer.allowed_origins
