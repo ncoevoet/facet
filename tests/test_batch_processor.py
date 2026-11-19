@@ -8,6 +8,8 @@ integration-level and not covered here.
 
 import importlib.util
 import sys
+import threading
+import time
 from unittest import mock
 
 # Stub heavy GPU-only imports when absent (e.g. the CI test job has no GPU
@@ -204,19 +206,24 @@ class TestProcessFilesGpuThreadDeath:
         paths = [str(tmp_path / n) for n in ("a.jpg", "b.jpg", "c.jpg")]
 
         class _LateQueue(queue_mod.Queue):
-            # The first get times out although an item is already there: the
-            # race, made deterministic.
+            # The first get waits for the GPU thread to exit, then times out
+            # although its items are there: the race, made deterministic.
             raced = False
+            gpu = None
 
             def get(self, block=True, timeout=None):
                 if not self.raced:
                     self.raced = True
+                    while self.gpu is None:
+                        time.sleep(0.01)
+                    self.gpu.join(5)
                     raise queue_mod.Empty
                 return super().get(block, timeout)
 
         processor.result_queue = _LateQueue()
 
         def dying_gpu_thread(total, pbar, workers):
+            processor.result_queue.gpu = threading.current_thread()
             processor.result_queue.put({'path': paths[0], 'result': {'path': paths[0]}})
             processor.result_queue.put({'path': paths[1], 'error': 'boom'})
             raise RuntimeError("simulated GPU thread crash")
