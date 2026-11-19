@@ -193,6 +193,43 @@ class TestProcessFilesGpuThreadDeath:
         assert processor.metrics['gpu_thread_died'] is True
         assert processor.metrics['unprocessed_paths'] == paths[1:]
 
+    def test_results_posted_just_before_the_death_are_drained(self, tmp_path):
+        """The thread can post its last results between the collector's
+        timeout and its liveness check: those must still be handled, not
+        recorded as never reached."""
+        import queue as queue_mod
+
+        processor = _make_processor(num_workers=1)
+        processor.scorer.save_photos_batch = mock.MagicMock()
+        paths = [str(tmp_path / n) for n in ("a.jpg", "b.jpg", "c.jpg")]
+
+        class _LateQueue(queue_mod.Queue):
+            # The first get times out although an item is already there: the
+            # race, made deterministic.
+            raced = False
+
+            def get(self, block=True, timeout=None):
+                if not self.raced:
+                    self.raced = True
+                    raise queue_mod.Empty
+                return super().get(block, timeout)
+
+        processor.result_queue = _LateQueue()
+
+        def dying_gpu_thread(total, pbar, workers):
+            processor.result_queue.put({'path': paths[0], 'result': {'path': paths[0]}})
+            processor.result_queue.put({'path': paths[1], 'error': 'boom'})
+            raise RuntimeError("simulated GPU thread crash")
+
+        with mock.patch.object(processor, '_worker_thread', lambda chunk: None), \
+                mock.patch.object(processor, '_gpu_thread', dying_gpu_thread), \
+                mock.patch.object(processor, '_start_exif_prefetch'), \
+                mock.patch.object(processor, 'resource_monitor'):
+            processor.process_files(paths, show_metrics=False)
+        assert processor.metrics['gpu_thread_died'] is True
+        assert processor.metrics['unprocessed_paths'] == [paths[2]]
+        processor.scorer.save_photos_batch.assert_called_once_with([{'path': paths[0]}])
+
     def test_a_later_call_starts_with_a_clean_verdict(self, tmp_path):
         processor, _ = self._run(tmp_path, threads_put=[])
         assert processor.metrics['gpu_thread_died'] is True

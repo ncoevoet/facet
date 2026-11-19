@@ -568,6 +568,7 @@ class BatchProcessor:
                 processed = 0
                 pending_saves = []
                 handled_paths = set()
+                gpu_dead_seen = False
                 while processed < total:
                     try:
                         item = self.result_queue.get(timeout=1.0)
@@ -602,6 +603,13 @@ class BatchProcessor:
                         # If the GPU thread died, no more results will arrive — abort
                         # the wait instead of spinning forever.
                         if not gpu_thread.is_alive():
+                            if not gpu_dead_seen:
+                                # The thread may have posted its last results
+                                # between the timeout and this check: one more
+                                # round drains them (a dead thread adds none),
+                                # so a scored photo is not recorded as unreached.
+                                gpu_dead_seen = True
+                                continue
                             logger.error(
                                 "GPU thread exited before all results (%d/%d processed); aborting wait",
                                 processed, total,
@@ -745,6 +753,7 @@ class BatchProcessor:
                 processed = 0
                 pending_saves = []
                 handled_paths = set()
+                gpu_dead_seen = False
                 while processed < total_count:
                     try:
                         item = self.result_queue.get(timeout=1.0)
@@ -779,6 +788,13 @@ class BatchProcessor:
                         # If the GPU thread died, no more results will arrive — abort
                         # the wait instead of spinning forever.
                         if not gpu_thread.is_alive():
+                            if not gpu_dead_seen:
+                                # The thread may have posted its last results
+                                # between the timeout and this check: one more
+                                # round drains them (a dead thread adds none),
+                                # so a scored photo is not recorded as unreached.
+                                gpu_dead_seen = True
+                                continue
                             logger.error(
                                 "GPU thread exited before all results (%d/%d processed); aborting wait",
                                 processed, total_count,
