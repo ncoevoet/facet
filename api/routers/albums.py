@@ -857,10 +857,20 @@ def _clear_album_context_overrides(conn, album_id, paths=None):
     cleared_paths = [r['photo_path'] for r in rows]
     other_albums = _other_context_albums(conn, album_id) if paths is not None else []
 
-    probes = [_album_membership_probe(conn, album) for album in other_albums]
+    # Each album's probe is compiled the first time a path needs it, not up
+    # front: most removals clear nothing, and building every smart album's
+    # filter would also let one malformed filter fail removals it never affects.
+    probes = {}
+
+    def _member_of(album, path):
+        probe = probes.get(album['id'])
+        if probe is None:
+            probe = probes[album['id']] = _album_membership_probe(conn, album)[1]
+        return probe(path)
+
     cleared = 0
     for path in cleared_paths:
-        other = next((album for album, probe in probes if probe(path)), None)
+        other = next((album for album in other_albums if _member_of(album, path)), None)
         if other is not None:
             set_photo_scoring_override(
                 conn, path, scoring_context=other['scoring_context'], source=f"album:{other['id']}"
