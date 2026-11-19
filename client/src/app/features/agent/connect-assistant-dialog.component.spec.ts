@@ -570,6 +570,50 @@ describe('ConnectAssistantDialogComponent', () => {
       fixture.destroy();
     });
 
+    it('a good read after the cap clears the error and restarts the poll', async () => {
+      vi.useFakeTimers();
+      await create();
+      listMcpTokens.mockReturnValue(throwError(() => new HttpErrorResponse({ status: 503 })));
+      await vi.advanceTimersByTimeAsync(TOKENS_POLL_MS * 5);
+      fixture.detectChanges();
+      expect(query('[role="alert"]')).not.toBeNull();
+      // The server is back; a mint's own refresh is the next read.
+      listMcpTokens.mockReturnValue(of({ tokens: [TOKEN_ROW] }));
+      const input = query<HTMLInputElement>('input[name="token-name"]');
+      input!.value = 'back';
+      input!.dispatchEvent(new Event('input'));
+      fixture.detectChanges();
+      buttonByText('dialog.connect_assistant.mint')!.click();
+      await vi.advanceTimersByTimeAsync(0);
+      fixture.detectChanges();
+      expect(query('[role="alert"]')).toBeNull();
+      const calls = listMcpTokens.mock.calls.length;
+      await vi.advanceTimersByTimeAsync(TOKENS_POLL_MS);
+      expect(listMcpTokens.mock.calls.length).toBe(calls + 1);
+      fixture.destroy();
+    });
+
+    it('a failed user-visible read shows the error but is not a poll strike', async () => {
+      vi.useFakeTimers();
+      await create();
+      listMcpTokens.mockReturnValue(throwError(() => new HttpErrorResponse({ status: 503 })));
+      // Four quiet strikes, then a failing mint refresh: still four strikes,
+      // so the fifth poll is the one that stops the polling.
+      await vi.advanceTimersByTimeAsync(TOKENS_POLL_MS * 4);
+      const input = query<HTMLInputElement>('input[name="token-name"]');
+      input!.value = 'x';
+      input!.dispatchEvent(new Event('input'));
+      fixture.detectChanges();
+      buttonByText('dialog.connect_assistant.mint')!.click();
+      await vi.advanceTimersByTimeAsync(0);
+      const afterMint = listMcpTokens.mock.calls.length;
+      await vi.advanceTimersByTimeAsync(TOKENS_POLL_MS);
+      expect(listMcpTokens.mock.calls.length).toBe(afterMint + 1);
+      await vi.advanceTimersByTimeAsync(TOKENS_POLL_MS * 2);
+      expect(listMcpTokens.mock.calls.length).toBe(afterMint + 1);
+      fixture.destroy();
+    });
+
     it('a good poll re-arms the failure counter', async () => {
       vi.useFakeTimers();
       await create();

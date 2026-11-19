@@ -219,6 +219,10 @@ export class ConnectAssistantDialogComponent implements OnDestroy {
       if (connected && !wasConnected) untracked(() => void this.refresh(true));
       wasConnected = connected;
     });
+    this.startPoll();
+  }
+
+  private startPoll(): void {
     // Outside the zone: a repeating timer inside it would keep the app from ever reporting stable.
     this.zone.runOutsideAngular(() => {
       this.pollTimer = setInterval(() => void this.refresh(true), TOKENS_POLL_MS);
@@ -227,6 +231,8 @@ export class ConnectAssistantDialogComponent implements OnDestroy {
 
   ngOnDestroy(): void {
     clearInterval(this.pollTimer);
+    // A refresh landing after close must not read as "the capped poll recovered" and restart it.
+    this.pollFailures = 0;
     clearTimeout(this.announceTimer);
     this.createdToken.set(null);
   }
@@ -245,19 +251,28 @@ export class ConnectAssistantDialogComponent implements OnDestroy {
     if (this.managementRefused()) return;
     try {
       this.tokens.set((await firstValueFrom(this.api.listMcpTokens())).tokens.filter(t => !t.revoked));
-      // A good poll re-arms the strike counter (same policy as scan.service).
+      // A good read re-arms the strike counter (same policy as scan.service),
+      // and one after the cap stopped the poll (a mint's refresh, the bridge
+      // connecting) means the server is back: drop the cap's error and poll again.
+      if (this.pollFailures >= TOKENS_POLL_FAILURES_LIMIT) {
+        if (this.error() === this.I18N.dialog.connect_assistant.load_failed) this.error.set(null);
+        this.startPoll();
+      }
       this.pollFailures = 0;
     } catch (err) {
       if (this.refuseIfNotLocal(err)) return;
-      // The dialog's own lifetime bounds the blast radius, but an unreachable
-      // server must not leave a permanently blind 15s poll either: the first
-      // visible failure shows the error, five consecutive ones stop the poll.
+      // A user-visible read reports its own failure; only the quiet background
+      // poll counts strikes. The dialog's lifetime bounds the blast radius, but
+      // an unreachable server must not leave a permanently blind 15s poll
+      // either: five consecutive quiet failures show the error and stop it.
+      if (!quiet) {
+        this.error.set(this.I18N.dialog.connect_assistant.load_failed);
+        return;
+      }
       this.pollFailures++;
       if (this.pollFailures >= TOKENS_POLL_FAILURES_LIMIT) {
         this.error.set(this.I18N.dialog.connect_assistant.load_failed);
         clearInterval(this.pollTimer);
-      } else if (!quiet) {
-        this.error.set(this.I18N.dialog.connect_assistant.load_failed);
       }
     }
   }
