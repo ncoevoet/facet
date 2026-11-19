@@ -258,3 +258,45 @@ def test_vlm_tagger_chunk_failure_records_and_excludes(tmp_path, monkeypatch):
     # The chunk's photos are recorded and retryable via --retry-failed.
     failed = set(get_failed_paths(db_path, "last"))
     assert failed == set(paths)
+
+
+@pytest.mark.timeout(30)
+def test_vlm_tagger_one_bad_photo_fails_only_that_photo(tmp_path, monkeypatch):
+    """tag_batch falls back per photo only on OOM, so one photo the model
+    rejects fails the whole call. The pass retries photo by photo: only the
+    bad photo is recorded and left unsaved, the rest of the chunk is tagged
+    and saved -- otherwise the same chunk would fail on every --retry-failed."""
+    db_path = str(tmp_path / "scan.db")
+    init_database(db_path)
+    scan_run = ScanRun.start(db_path, "multi-pass", {"directories": []}, 3)
+
+    scorer = _StubScorer(db_path)
+    proc = ChunkedMultiPassProcessor(scorer, _StubModelManager(), {},
+                                     on_error=scan_run.record_failure)
+    proc.pass_groups = [["vlm_tagger"]]
+
+    paths = [str(tmp_path / n) for n in ("a.jpg", "bad.jpg", "c.jpg")]
+    images = {x: _img_data() for x in paths}
+    bad_pil = images[paths[1]]["pil"]
+    monkeypatch.setattr(proc, "_load_images", lambda p: images)
+
+    class _Tagger:
+        def tag_batch(self, pil_imgs, max_tags=None):
+            if any(img is bad_pil for img in pil_imgs):
+                raise ValueError("image rejected by the processor")
+            return [["dog"] for _ in pil_imgs]
+
+    def fake_pass(model_name, model, imgs, results):
+        if model_name == "vlm_tagger":
+            proc._pass_vlm_tagger(_Tagger(), imgs, results)
+        for path in imgs:
+            results[path]["face_count"] = 0
+
+    monkeypatch.setattr(proc, "_run_model_pass", fake_pass)
+
+    proc._process_chunk(paths, 0, 1)
+    scan_run.finish("interrupted")
+
+    saved_paths = {row["path"] for row in scorer.saved}
+    assert saved_paths == {paths[0], paths[2]}
+    assert set(get_failed_paths(db_path, "last")) == {paths[1]}

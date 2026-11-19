@@ -2028,15 +2028,32 @@ class ChunkedMultiPassProcessor:
             tags_list = tagger.tag_batch(pil_imgs, max_tags=max_tags)
             for i, path in enumerate(paths):
                 results[path]['tags'] = tags_to_string(tags_list[i])
+            return
         except Exception as e:
-            # Re-raise, unlike the older swallow here: the VLM tagger is a
-            # required pass, so a failed chunk must reach the required-model
-            # branch of _process_chunk (scan_failures + no save) instead of
-            # scoring every photo in the chunk on an empty tag feature space
-            # and stamping it scanned-complete.
             licensing.reraise_if_refused()
-            logger.error("VLM tagging failed for chunk: %s", e)
-            raise
+            logger.error("VLM tagging failed for chunk, retrying photo by photo: %s", e)
+        # tag_batch only falls back per photo on out-of-memory, so one photo the
+        # model rejects fails the whole call. Retry each photo alone: a photo
+        # that still fails is recorded as failed (retryable) and left out of the
+        # save, instead of being scored on an empty tag feature space -- and the
+        # rest of the chunk is not lost with it, on every --retry-failed again.
+        failures = {}
+        for pil, path in zip(pil_imgs, paths):
+            try:
+                results[path]['tags'] = tags_to_string(tagger.tag_batch([pil], max_tags=max_tags)[0])
+            except Exception as e:
+                licensing.reraise_if_refused()
+                failures[path] = e
+        if failures and len(failures) == len(paths):
+            # Every photo failed alone too: the model itself is broken. Re-raise
+            # so the required-model branch of _process_chunk records the chunk.
+            raise next(iter(failures.values()))
+        on_error = getattr(self, 'on_error', None)
+        for path, e in failures.items():
+            logger.error("VLM tagging failed for %s: %s", path, e)
+            results[path][SCAN_FAILED_KEY] = 'vlm_tagger'
+            if on_error:
+                on_error(path, 'vlm_tagger', f"required model pass failed: vlm_tagger: {e}")
 
     def _pass_saliency(self, scorer: Any, images: Dict, results: Dict):
         """BiRefNet saliency pass: subject saliency detection and derived metrics."""
