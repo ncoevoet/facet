@@ -2149,6 +2149,7 @@
         "save": "Guardado",
         "composition": "Análisis de composición",
         "embedding": "Análisis de representaciones vectoriales",
+        "gpu_thread": "Fallo del hilo de GPU",
         "other": "Otra fase"
       },
       "pipeline": "Proceso: {state} · última fase registrada: {phase}",

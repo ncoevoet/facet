@@ -2153,6 +2153,7 @@ def _run_scan_pipeline(args, resumed_run, lifecycle):
     report_progress('scoring', 0, len(todo_list), force=True)
     processor = None
     calibration_saved = 0
+    calibration_unprocessed = []
     try:
         # Check for single-pass mode or specific pass
         if route == 'pass':
@@ -2233,6 +2234,9 @@ def _run_scan_pipeline(args, resumed_run, lifecycle):
 
             if remaining_paths:
                 calibration_saved = _photos_saved(processor)
+                # The calibration processor is replaced below: keep what its GPU
+                # thread never reached, or that tail is neither scored nor recorded.
+                calibration_unprocessed = list(processor.metrics.get('unprocessed_paths', []))
                 processor = BatchProcessor(
                     scorer,
                     batch_size=current_settings['batch_size'],
@@ -2297,13 +2301,22 @@ def _run_scan_pipeline(args, resumed_run, lifecycle):
         raise
     else:
         saved_nothing = route != 'pass' and _photos_saved(processor) + calibration_saved == 0
-        recorded = scan_run.finish('failed' if saved_nothing else 'completed')
+        # The GPU thread dying mid-chunk is not a completed scan: everything it
+        # never reached was neither scored nor recorded as a failure, and a
+        # 'completed' mark would hide the gap from --resume and --retry-failed.
+        metrics = getattr(processor, 'metrics', None) or {}
+        unprocessed = calibration_unprocessed + list(metrics.get('unprocessed_paths', []))
+        gpu_died = bool(calibration_unprocessed) or bool(metrics.get('gpu_thread_died'))
+        if gpu_died:
+            for path in unprocessed:
+                scan_run.record_failure(path, 'gpu_thread', 'GPU thread exited before this photo was scored')
+        recorded = scan_run.finish('failed' if (saved_nothing or gpu_died) else 'completed')
         if not recorded:
             scorer.commit()
             logger.error('Scan bookkeeping could not be saved. Existing failure records '
                          'were retained; inspect the library before creating a new preview.')
             raise SystemExit(1)
-        if saved_nothing:
+        if saved_nothing and not gpu_died:
             logger.error("Scan failed: saved 0 of %d photos (see the model load and pass "
                          "errors above, or `--retry-failed` after fixing them).", len(todo_list))
             exit(SAVED_NOTHING_EXIT_CODE)
@@ -2326,6 +2339,14 @@ def _run_scan_pipeline(args, resumed_run, lifecycle):
                     [(p, scan_run.run_id) for p in retried_paths],
                 )
                 conn.commit()
+        if gpu_died:
+            # After the retry cleanup, not before: the photos this retry did save
+            # before the thread died must still drop their old failure records.
+            logger.error(
+                "Scan failed: the GPU thread exited before %d of %d photos were scored; "
+                "the run is recorded as failed -- re-run with `--retry-failed` to finish them.",
+                len(unprocessed), len(todo_list))
+            exit(1)
     finally:
         fast_load.prefer_local_hub = False
         ledger.end('scoring')

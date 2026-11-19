@@ -2149,6 +2149,7 @@
         "save": "Salvataggio",
         "composition": "Analisi della composizione",
         "embedding": "Analisi delle rappresentazioni vettoriali",
+        "gpu_thread": "Crash del thread GPU",
         "other": "Altra fase"
       },
       "pipeline": "Pipeline: {state} · ultima fase registrata: {phase}",

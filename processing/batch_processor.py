@@ -501,7 +501,9 @@ class BatchProcessor:
                 }
                 res.update(exif_data)
 
-                self.result_queue.put({'result': res})
+                # The input path, as error items carry it: the collector keys what
+                # it handled by it (res['path'] is the resolved form).
+                self.result_queue.put({'path': item['path'], 'result': res})
 
             except Exception as e:
                 licensing.reraise_if_refused()
@@ -519,6 +521,11 @@ class BatchProcessor:
         total = len(photo_paths)
         if total == 0:
             return
+        # Each call starts with a clean death state. The calibration batch that
+        # process_stream runs through here is reset before it starts, so its
+        # unreached tail still carries into the main phase's verdict.
+        self.metrics['gpu_thread_died'] = False
+        self.metrics.pop('unprocessed_paths', None)
 
         # Build every lazily-created model once, before any worker or GPU work, so
         # a startup refusal stops the scan instead of failing every photo.
@@ -560,9 +567,12 @@ class BatchProcessor:
                 # Collect results and batch save
                 processed = 0
                 pending_saves = []
+                handled_paths = set()
+                gpu_dead_seen = False
                 while processed < total:
                     try:
                         item = self.result_queue.get(timeout=1.0)
+                        handled_paths.add(item.get('path'))
                         if 'error' in item:
                             logger.error("Error on %s: %s", item.get('path', 'unknown'), item['error'])
                             if self.on_error:
@@ -593,9 +603,26 @@ class BatchProcessor:
                         # If the GPU thread died, no more results will arrive — abort
                         # the wait instead of spinning forever.
                         if not gpu_thread.is_alive():
+                            if not gpu_dead_seen:
+                                # The thread may have posted its last results
+                                # between the timeout and this check: one more
+                                # round drains them (a dead thread adds none),
+                                # so a scored photo is not recorded as unreached.
+                                gpu_dead_seen = True
+                                continue
                             logger.error(
                                 "GPU thread exited before all results (%d/%d processed); aborting wait",
                                 processed, total,
+                            )
+                            # The caller must not read this as a completed scan:
+                            # everything not handled here was neither scored nor
+                            # recorded as a failure.
+                            self.metrics['gpu_thread_died'] = True
+                            # Extend, never replace: a calibration batch that died
+                            # before the main phase keeps its own unreached tail.
+                            self.metrics.setdefault('unprocessed_paths', []).extend(
+                                str(p) for p in photo_paths
+                                if str(p) not in handled_paths
                             )
                             self.stop_event.set()
                             break
@@ -656,6 +683,8 @@ class BatchProcessor:
         if total_count == 0:
             return None
 
+        self.metrics['gpu_thread_died'] = False
+        self.metrics.pop('unprocessed_paths', None)
         self.scorer.preflight_models()
 
         # Convert to list for calibration split
@@ -723,9 +752,12 @@ class BatchProcessor:
                 # Collect results and batch save
                 processed = 0
                 pending_saves = []
+                handled_paths = set()
+                gpu_dead_seen = False
                 while processed < total_count:
                     try:
                         item = self.result_queue.get(timeout=1.0)
+                        handled_paths.add(item.get('path'))
                         if 'error' in item:
                             logger.error("Error on %s: %s", item.get('path', 'unknown'), item['error'])
                             if self.on_error:
@@ -756,9 +788,21 @@ class BatchProcessor:
                         # If the GPU thread died, no more results will arrive — abort
                         # the wait instead of spinning forever.
                         if not gpu_thread.is_alive():
+                            if not gpu_dead_seen:
+                                # The thread may have posted its last results
+                                # between the timeout and this check: one more
+                                # round drains them (a dead thread adds none),
+                                # so a scored photo is not recorded as unreached.
+                                gpu_dead_seen = True
+                                continue
                             logger.error(
                                 "GPU thread exited before all results (%d/%d processed); aborting wait",
                                 processed, total_count,
+                            )
+                            self.metrics['gpu_thread_died'] = True
+                            self.metrics.setdefault('unprocessed_paths', []).extend(
+                                str(p) for p in all_paths
+                                if str(p) not in handled_paths
                             )
                             self.stop_event.set()
                             break

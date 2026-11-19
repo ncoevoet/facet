@@ -90,3 +90,14 @@ def test_history_uses_scan_permission_and_feature_gate(history, monkeypatch):
         assert TestClient(app).get('/api/scan/runs').status_code == 403
     finally:
         app.dependency_overrides.clear()
+
+
+def test_gpu_thread_failures_keep_their_own_stage_bucket(history):
+    """A run whose GPU thread died records its unreached tail under
+    'gpu_thread': the overview must name that stage, not fold it into 'other'."""
+    client, path = history
+    with sqlite3.connect(path) as conn:
+        conn.execute("INSERT INTO scan_failures(scan_run_id,path,stage,error) VALUES (1,'/p/a.jpg','gpu_thread','x')")
+    runs = client.get('/api/scan/runs').json()['runs']
+    run = next(row for row in runs if row['id'] == 1)
+    assert run['failure_stages'] == [{'stage': 'gpu_thread', 'count': 1}]

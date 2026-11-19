@@ -2149,6 +2149,7 @@
         "save": "保存",
         "composition": "构图分析",
         "embedding": "嵌入分析",
+        "gpu_thread": "GPU 线程崩溃",
         "other": "其他阶段"
       },
       "pipeline": "处理流程：{state} · 最后记录阶段：{phase}",
