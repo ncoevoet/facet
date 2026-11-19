@@ -710,12 +710,7 @@ def _authorize_cull_companions(conn, items, user_id):
     """
     from api.related_files import related_files
 
-    vis_sql, vis_params = get_visibility_clause(user_id)
-    visible = {row["path"] for row in _chunked_path_rows(
-        conn, [path for path, _ in items],
-        sql_fn=lambda ph: f"SELECT path FROM photos WHERE path IN ({ph}) AND {vis_sql}",
-        params_fn=lambda chunk: chunk + vis_params,
-    )}
+    visible = _visible_photo_paths(conn, [path for path, _ in items], user_id)
     for path, files in items:
         if path not in visible:
             raise HTTPException(404, 'Photo not available')
