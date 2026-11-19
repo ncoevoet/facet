@@ -1201,3 +1201,24 @@ class TestMcpTokenWireTypes:
         listed = env.client.get("/api/mcp/tokens", headers=headers).json()["tokens"][0]
         assert type(listed["revoked"]) is int and listed["revoked"] == 1
         assert isinstance(listed["revoked_at"], str)
+
+
+class TestMemoriesCheckContract:
+    """GET /api/memories/check — a database fault must answer 500, not a 200
+    `has_memories: false` that silently hides the Memories surface (the heavy
+    sibling endpoint 500s on the same error)."""
+
+    def test_memories_check_database_error_is_500_not_a_false_empty(self, edition_client, monkeypatch):
+        from contextlib import asynccontextmanager
+        from api.routers import memories as memories_router
+
+        @asynccontextmanager
+        async def broken_db():
+            raise sqlite3.OperationalError("database is locked")
+            yield  # pragma: no cover
+
+        monkeypatch.setattr(memories_router, "get_async_db", broken_db)
+        resp = edition_client.get('/api/memories/check')
+        # A busy/malformed database is a 5xx (503 library-busy for a locked
+        # one), never a 200 that reads as "no memories today".
+        assert resp.status_code >= 500, resp.json()

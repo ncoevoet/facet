@@ -19,7 +19,7 @@ from typing import Optional
 
 from fastapi import APIRouter, Header, HTTPException, Query, Request, Response
 
-from api.config import warn_bad_config_once
+from api.config import config_number, warn_bad_config_once
 from api.database import get_db
 from api.path_validation import resolve_photo_disk_path
 from api.token_auth import TokenFailureLimiter, require_static_token_throttled
@@ -141,8 +141,8 @@ def _resolve_id(photo_id: str) -> Optional[tuple]:
 
 
 def _clamp_count(count: Optional[int], cfg: dict) -> int:
-    default = int(cfg.get("count", _DEFAULT_COUNT))
-    max_count = int(cfg.get("max_count", _DEFAULT_MAX_COUNT))
+    default = int(config_number(cfg, "count", default=_DEFAULT_COUNT, name="frame.count"))
+    max_count = int(config_number(cfg, "max_count", default=_DEFAULT_MAX_COUNT, name="frame.max_count"))
     requested = default if count is None else count
     return max(1, min(requested, max_count))
 
@@ -171,7 +171,7 @@ def _curation_clause(cfg: dict):
         "aggregate IS NOT NULL",
         "aggregate >= ?",
     ]
-    params = [JUNK_NOT_JUNK, float(cfg.get("min_aggregate", _DEFAULT_MIN_AGGREGATE))]
+    params = [JUNK_NOT_JUNK, config_number(cfg, "min_aggregate", default=_DEFAULT_MIN_AGGREGATE, name="frame.min_aggregate")]
     if cfg.get("favorites_only", _DEFAULT_FAVORITES_ONLY):
         clauses.append("is_favorite = 1")
     categories = [c for c in (cfg.get("categories") or []) if isinstance(c, str) and c]

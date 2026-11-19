@@ -17,7 +17,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
 
 from api.auth import CurrentUser, get_optional_user, is_edition_authenticated, require_edition
-from api.config import VIEWER_CONFIG, _FULL_CONFIG
+from api.config import VIEWER_CONFIG, _FULL_CONFIG, config_number
 from api.database import get_async_db, get_db, run_sync
 from api.inflight import GenerationInterrupted, InflightGate
 from api.db_helpers import _side_table_available, get_existing_columns, get_visibility_clause
@@ -733,7 +733,8 @@ def _get_vlm_critique(photo, rule_critique, thumbnail_bytes):
         prompt = _build_vlm_prompt(rule_critique, photo)
         img = _load_critique_image(photo['path'], thumbnail_bytes)
 
-        max_new_tokens = int(_FULL_CONFIG.get('critique', {}).get('vlm', {}).get('max_new_tokens', 320))
+        max_new_tokens = int(config_number(_FULL_CONFIG.get('critique', {}).get('vlm', {}) or {},
+                                          'max_new_tokens', default=320, name='critique.vlm.max_new_tokens'))
         with vlm_generate_lock, vlm_accelerator_lock(tagger):
             response = tagger.generate(img, prompt, max_new_tokens=max_new_tokens)
         response = (response or '').strip()

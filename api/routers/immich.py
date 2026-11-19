@@ -176,7 +176,13 @@ def _process_assets(assets: list) -> dict:
     immich_cfg = config.get("immich", {}) or {}
     webhook_cfg = immich_cfg.get("webhook", {}) or {}
     path_map = immich_cfg.get("path_map", []) or []
-    max_pending = int(webhook_cfg.get("max_pending", DEFAULT_MAX_PENDING) or DEFAULT_MAX_PENDING)
+    from api.config import config_number
+
+    max_pending = int(config_number(webhook_cfg, "max_pending", default=DEFAULT_MAX_PENDING, name="immich.webhook.max_pending"))
+    # record_pending_paths reads <= 0 as "unbounded"; a configured 0 has always
+    # meant the documented cap, never an uncapped list.
+    if max_pending <= 0:
+        max_pending = DEFAULT_MAX_PENDING
     counts = {"received": len(assets), "pushed": 0, "skipped": 0,
               "pending": 0, "unmatched": 0, "failed": 0}
     entries = _map_entries(assets, path_map, counts)

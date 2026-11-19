@@ -343,7 +343,7 @@ Der vollständige `immich`-Block, mit den mitgelieferten Standardwerten:
 | `push.top_picks_min_rating` | `4` | Minimale Sternebewertung für dieses Album. |
 | `webhook.token_env` | `""` | Umgebungsvariable, die das Webhook-Geheimnis hält. Leer deaktiviert den Endpunkt. |
 | `webhook.header` | `"x-facet-token"` | Header, in dem Immich das Token sendet. |
-| `webhook.max_pending` | `500` | Maximale Länge der Liste ausstehender (unbewerteter) Pfade. |
+| `webhook.max_pending` | `500` | Maximale Länge der Liste ausstehender (unbewerteter) Pfade. Ein Wert von 0 oder kleiner bedeutet den Standardwert 500. |
 | `timeout_seconds` | `30` | HTTP-Timeout pro Anfrage. |
 
 ## Fehlerbehebung

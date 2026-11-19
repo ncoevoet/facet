@@ -19,7 +19,7 @@ from api.auth import CurrentUser, get_optional_user, require_authenticated
 from api import database as _database
 from api import stack_gallery
 from api.change_token import db_change_token
-from api.config import VIEWER_CONFIG, _FULL_CONFIG, cull_allow_trash
+from api.config import VIEWER_CONFIG, _FULL_CONFIG, cull_allow_trash, config_number
 from api.database import get_async_db, get_db
 from api.model_cache import AcceleratorBusy
 from api.models.gallery import (
@@ -499,9 +499,12 @@ def _quality_tier_bounds(tier):
     if tier not in _QUALITY_TIER_KEYS:
         return None
     thresholds = VIEWER_CONFIG.get('quality_thresholds', {}) or {}
-    good = float(thresholds.get('good', 6))
-    great = float(thresholds.get('great', 7))
-    excellent = float(thresholds.get('excellent', 8))
+    # A bad threshold value must not shift the good/great/excellent tier
+    # boundaries (a raw float() here 500'd the gallery, and a hand-rolled
+    # except would silently re-tier the whole library).
+    good = config_number(thresholds, 'good', default=6, name='quality_thresholds.good')
+    great = config_number(thresholds, 'great', default=7, name='quality_thresholds.great')
+    excellent = config_number(thresholds, 'excellent', default=8, name='quality_thresholds.excellent')
     if tier == 'excellent':
         return (excellent, None)
     if tier == 'good':

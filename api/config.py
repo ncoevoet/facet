@@ -1296,6 +1296,30 @@ def viewer_cache_ttl() -> float:
     return ttl
 
 
+def config_number(source, key, *, default=None, name=''):
+    """Read ``source[key]`` as a float, defensively.
+
+    Returns ``default`` when the key is absent, null, or not a usable number
+    (a string like "512MB", NaN, infinity, an integer too large for a float);
+    otherwise the float value. A present-but-unusable value warns once per
+    value -- a hand edit that breaks one config key must not take the feature
+    it configures down, and must not spam the log on every request. Pass
+    ``default=None`` and treat ``None`` as "no override configured", like the
+    performance pragmas falling back to the live connection's values.
+    """
+    if not isinstance(source, dict) or source.get(key) is None:
+        return default
+    raw = source[key]
+    try:
+        value = float(raw)
+    except (TypeError, ValueError, OverflowError):
+        value = math.nan
+    if not math.isfinite(value):
+        warn_bad_config_once(name or key, raw, repr(default))
+        return default
+    return value
+
+
 def cull_allow_trash(viewer_config: dict) -> bool:
     """Whether OS-trash culling (``POST /api/cull/apply``'s ``trash_rejects``
     action) is enabled, per ``viewer.cull.allow_trash``.
@@ -1546,6 +1570,11 @@ PHOTO_TAGS_CACHE_TTL = 300  # seconds — recheck every 5 min
 # Cache for stats API responses
 _stats_cache: dict[Any, dict[str, Any]] = {}  # key -> {'data': ..., 'expires': float}
 _stats_cache_lock = threading.Lock()
+# Every key embeds client-query strings (a date-picker makes one per
+# combination), and an entry holds a full computed payload: without a cap the
+# mapping grew for the life of the process. In-flight keys are never swept --
+# their expired entries are the 'stale' served while the recompute runs.
+_STATS_CACHE_MAX_ENTRIES = 200
 _stats_inflight: dict[Any, Any] = {}  # key -> _StatsFlight, shared by the sync and async surfaces
 _stats_cache_generation = 0
 _STATS_FLIGHT_POLL_SECONDS = 0.02
@@ -1596,6 +1625,25 @@ def _lookup_or_claim_stats(cache_key):
         cached = _stats_cache.get(cache_key)
         if cached and time.time() < cached['expires']:
             return 'hit', cached['data']
+        # Sweep expired entries and cap the map: expired entries used to stay
+        # in this dict forever (only invalidate_stats_cache cleared it), and
+        # the keys embed client-query strings, so it grew without bound.
+        # An entry is swept only once it is a full TTL past expiry: a freshly
+        # expired one is the stale copy 'stale' serves while its key
+        # recomputes, and another key's miss must not take that away.
+        now = time.time()
+        grace = viewer_cache_ttl()
+        expired = [k for k, v in _stats_cache.items()
+                   if now >= v['expires'] + grace and k not in _stats_inflight
+                   and k != cache_key]
+        for k in expired:
+            _stats_cache.pop(k, None)
+        over = len(_stats_cache) - _STATS_CACHE_MAX_ENTRIES
+        if over > 0:
+            oldest = sorted(_stats_cache, key=lambda k: _stats_cache[k]['expires'])[:over]
+            for k in oldest:
+                if k not in _stats_inflight and k != cache_key:
+                    _stats_cache.pop(k, None)
         flight = _stats_inflight.get(cache_key)
         if flight is None:
             flight = _StatsFlight(_stats_cache_generation)

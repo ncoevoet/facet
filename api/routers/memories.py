@@ -85,11 +85,13 @@ async def check_memories(
             await cur.close()
             return {'has_memories': row is not None}
 
+    # A database error is not folded into has_memories=false: a busy/damaged
+    # database answers a server error like get_memories does on the same error.
+    # The client keeps the Memories surface hidden on a failed check without a
+    # toast. The global handler logs the fault -- logging it here as well wrote
+    # every database error twice.
     except HTTPException:
         raise
-    except sqlite3.Error:
-        logger.exception("Failed to check memories")
-        return {'has_memories': False}
 
 
 @router.get(

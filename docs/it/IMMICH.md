@@ -343,7 +343,7 @@ Il blocco `immich` completo, con i valori predefiniti forniti di serie:
 | `push.top_picks_min_rating` | `4` | Valutazione a stelle minima per quell'album. |
 | `webhook.token_env` | `""` | Variabile d'ambiente che contiene il segreto del webhook. Vuoto disabilita l'endpoint. |
 | `webhook.header` | `"x-facet-token"` | Intestazione in cui Immich invia il token. |
-| `webhook.max_pending` | `500` | Lunghezza massima dell'elenco dei percorsi in attesa (non ancora valutati). |
+| `webhook.max_pending` | `500` | Lunghezza massima dell'elenco dei percorsi in attesa (non ancora valutati). Un valore pari o inferiore a 0 equivale al predefinito, 500. |
 | `timeout_seconds` | `30` | Timeout HTTP per singola richiesta. |
 
 ## Risoluzione dei problemi
