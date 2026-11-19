@@ -702,12 +702,22 @@ def _authorize_cull_companions(conn, items, user_id):
     CLI copy-keepers retains its operator-owned file scope. HTTP callers must
     authorize companion expansion against the same indexed visibility policy
     as RAW downloads, including aliases introduced by path mappings.
+
+    The visibility check runs as one chunked ``IN`` read over the whole set:
+    a whole-view cull apply walks up to 10k paths, and one ``SELECT`` per
+    path here is pure round trips (the companion inventory below stays
+    per path -- its checks are inherently per file).
     """
     from api.related_files import related_files
 
-    visibility, params = get_visibility_clause(user_id)
+    vis_sql, vis_params = get_visibility_clause(user_id)
+    visible = {row["path"] for row in _chunked_path_rows(
+        conn, [path for path, _ in items],
+        sql_fn=lambda ph: f"SELECT path FROM photos WHERE path IN ({ph}) AND {vis_sql}",
+        params_fn=lambda chunk: chunk + vis_params,
+    )}
     for path, files in items:
-        if not conn.execute(f'SELECT 1 FROM photos WHERE path=? AND {visibility}', [path, *params]).fetchone():
+        if path not in visible:
             raise HTTPException(404, 'Photo not available')
         inventory = related_files(conn, path, user_id)
         if (inventory['inventory_state'] != 'checked' or inventory['multiple_raw_candidates']
