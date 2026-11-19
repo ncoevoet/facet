@@ -67,6 +67,31 @@ def rebuild_fts(db_path='photo_scores_pro.db'):
     return count
 
 
+def _probe_fts(conn):
+    """Whether ``conn``'s schema has the ``photos_fts`` table."""
+    try:
+        row = conn.execute(
+            "SELECT name FROM sqlite_master WHERE type='table' AND name='photos_fts'"
+        ).fetchone()
+    except sqlite3.OperationalError:
+        return False
+    return row is not None
+
+
+_resolved_default = (None, None)
+
+
+def _resolved_default_path():
+    """``realpath(DEFAULT_DB_PATH)``, memoised: the warm path runs on the event
+    loop and must not make a filesystem call each time."""
+    global _resolved_default
+    raw, resolved = _resolved_default
+    if raw != DEFAULT_DB_PATH:
+        resolved = os.path.realpath(DEFAULT_DB_PATH)
+        _resolved_default = (DEFAULT_DB_PATH, resolved)
+    return resolved
+
+
 def has_fts_table(conn=None):
     """Check if the photos_fts virtual table exists.
 
@@ -87,7 +112,7 @@ def has_fts_table(conn=None):
     # PRAGMA database_list reports an absolute path: compare both resolved, or
     # a sync caller and an aiosqlite one evict each other's cache entry and the
     # async one reopens the database on the event loop every time.
-    default_path = os.path.realpath(DEFAULT_DB_PATH)
+    default_path = _resolved_default_path()
     probe_path = default_path
     if probe_conn is not None:
         try:
@@ -97,6 +122,12 @@ def has_fts_table(conn=None):
             probe_path = os.path.realpath(main_path) if main_path else main_path
         except sqlite3.Error:
             pass
+
+    if probe_path == '' and probe_conn is not None:
+        # Every in-memory or temp database reports '': a shared key would hand
+        # one such database another's answer. The probe on a live sqlite3
+        # connection is cheap, so these are never cached.
+        return _probe_fts(probe_conn)
 
     now = time.monotonic()
     with _fts_lock:
@@ -114,12 +145,7 @@ def has_fts_table(conn=None):
                      "the caller passed a non-sqlite3 connection whose file is unknown")
 
     try:
-        row = probe_conn.execute(
-            "SELECT name FROM sqlite_master WHERE type='table' AND name='photos_fts'"
-        ).fetchone()
-        result = row is not None
-    except sqlite3.OperationalError:
-        result = False
+        result = _probe_fts(probe_conn)
     finally:
         if close_conn:
             probe_conn.close()

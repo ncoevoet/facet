@@ -18,7 +18,6 @@ def clean_fts_cache():
 def _library(tmp_path, name, with_fts):
     path = str(tmp_path / name)
     conn = sqlite3.connect(path)
-    conn.execute("CREATE TABLE photos (path TEXT)")
     if with_fts:
         conn.execute("CREATE TABLE photos_fts (rowid INTEGER)")
     conn.commit()
@@ -70,3 +69,18 @@ def test_a_relative_default_path_shares_the_sync_callers_cache_entry(tmp_path, m
     finally:
         library.close()
     assert connects == []
+
+
+def test_in_memory_databases_never_share_an_answer():
+    """Every in-memory database reports '' as its file: those answers are
+    probed live, never cached under a shared key."""
+    with_fts = sqlite3.connect(":memory:")
+    without_fts = sqlite3.connect(":memory:")
+    with_fts.execute("CREATE TABLE photos_fts (rowid INTEGER)")
+    try:
+        assert fts.has_fts_table(with_fts) is True
+        assert fts.has_fts_table(without_fts) is False
+        assert fts.has_fts_table(with_fts) is True
+    finally:
+        with_fts.close()
+        without_fts.close()
