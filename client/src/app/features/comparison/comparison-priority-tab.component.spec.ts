@@ -789,9 +789,6 @@ describe('ComparisonPriorityTabComponent', () => {
       expect(mockSnackBar.open).not.toHaveBeenCalled();
     });
 
-    // D7: the poll's own catch used to silently clear `recomputing` with no
-    // message, dropping the banner back to "Recompute now" while the job is
-    // very likely still running server-side -- the next click then 409s.
     // Defect 5: a second click before the first POST resolves must not overwrite the
     // stored interval handle (which would leak the first one forever).
     it('ignores a second call while a recompute is already starting/running (re-entrancy guard)', async () => {
