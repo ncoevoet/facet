@@ -2049,11 +2049,11 @@ class ChunkedMultiPassProcessor:
             # so the required-model branch of _process_chunk records the chunk.
             raise next(iter(failures.values()))
         on_error = getattr(self, 'on_error', None)
-        for path, e in failures.items():
-            logger.error("VLM tagging failed for %s: %s", path, e)
+        for path, error in failures.items():
+            logger.error("VLM tagging failed for %s: %s", path, error)
             results[path][SCAN_FAILED_KEY] = 'vlm_tagger'
             if on_error:
-                on_error(path, 'vlm_tagger', f"required model pass failed: vlm_tagger: {e}")
+                on_error(path, 'vlm_tagger', f"required model pass failed: vlm_tagger: {error}")
 
     def _pass_saliency(self, scorer: Any, images: Dict, results: Dict):
         """BiRefNet saliency pass: subject saliency detection and derived metrics."""
