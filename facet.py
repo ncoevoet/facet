@@ -2309,7 +2309,7 @@ def _run_scan_pipeline(args, resumed_run, lifecycle):
         gpu_died = bool(calibration_unprocessed) or bool(metrics.get('gpu_thread_died'))
         if gpu_died:
             for path in unprocessed:
-                scan_run.record_failure(path, 'gpu-thread', 'GPU thread exited before this photo was scored')
+                scan_run.record_failure(path, 'gpu_thread', 'GPU thread exited before this photo was scored')
         recorded = scan_run.finish('failed' if (saved_nothing or gpu_died) else 'completed')
         if not recorded:
             scorer.commit()
@@ -2344,7 +2344,7 @@ def _run_scan_pipeline(args, resumed_run, lifecycle):
             # before the thread died must still drop their old failure records.
             logger.error(
                 "Scan failed: the GPU thread exited before %d of %d photos were scored; "
-                "the run is recorded as failed -- re-run with `--resume` or `--retry-failed`.",
+                "the run is recorded as failed -- re-run with `--retry-failed` to finish them.",
                 len(unprocessed), len(todo_list))
             exit(1)
     finally:

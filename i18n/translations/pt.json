@@ -2149,7 +2149,7 @@
         "save": "Gravação",
         "composition": "Análise da composição",
         "embedding": "Análise de embeddings",
-        "gpu-thread": "Falha da thread de GPU",
+        "gpu_thread": "Falha da thread de GPU",
         "other": "Outra fase"
       },
       "pipeline": "Processo: {state} · última fase registada: {phase}",

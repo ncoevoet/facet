@@ -2149,7 +2149,7 @@
         "save": "Speichern",
         "composition": "Kompositionsanalyse",
         "embedding": "Vektoranalyse",
-        "gpu-thread": "GPU-Thread-Absturz",
+        "gpu_thread": "GPU-Thread-Absturz",
         "other": "Andere Phase"
       },
       "pipeline": "Pipeline: {state} · zuletzt erfasste Phase: {phase}",

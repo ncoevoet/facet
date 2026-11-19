@@ -637,7 +637,7 @@ def _project_scan_runs(conn, rows):
         # of this overview and bounds the number of stage groups.
         stages = conn.execute(
             "SELECT scan_run_id, CASE WHEN stage IN "
-            "('load','decode_timeout','score','save','composition','embedding','gpu-thread') "
+            "('load','decode_timeout','score','save','composition','embedding','gpu_thread') "
             "THEN stage ELSE 'other' END AS stage, COUNT(*) AS count "
             f'FROM scan_failures WHERE scan_run_id IN ({placeholders}) '
             'GROUP BY scan_run_id, 2 ORDER BY scan_run_id DESC, stage', ids,

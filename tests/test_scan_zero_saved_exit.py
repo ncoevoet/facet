@@ -269,7 +269,7 @@ def test_gpu_thread_death_fails_the_run_and_records_the_tail(tmp_path, monkeypat
     stages = {r[0] for r in conn.execute("SELECT DISTINCT stage FROM scan_failures")}
     status = conn.execute("SELECT status FROM scan_runs ORDER BY id DESC LIMIT 1").fetchone()[0]
     conn.close()
-    assert stages == {"gpu-thread"}
+    assert stages == {"gpu_thread"}
     assert status == "failed"
     assert len(failed) == 1  # the whole one-photo tail
 
