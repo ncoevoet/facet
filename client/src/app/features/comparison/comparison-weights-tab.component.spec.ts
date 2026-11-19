@@ -842,7 +842,7 @@ describe('ComparisonWeightsTabComponent', () => {
   describe('loadPreview', () => {
     it('a late response for an old category never paints under the new label', async () => {
       compareFilters.selectedCategory.set('portrait');
-      const calls: Array<Subject<{ photos: { path: string }[] }>> = [];
+      const calls: Subject<{ photos: { path: string }[] }>[] = [];
       mockApi.get.mockReset();
       mockApi.get.mockImplementation(() => {
         const s = new Subject<{ photos: { path: string }[] }>();
@@ -867,7 +867,7 @@ describe('ComparisonWeightsTabComponent', () => {
 
     it('a superseded request does not clear the newer one\'s spinner', async () => {
       compareFilters.selectedCategory.set('portrait');
-      const calls: Array<Subject<{ photos: { path: string }[] }>> = [];
+      const calls: Subject<{ photos: { path: string }[] }>[] = [];
       mockApi.get.mockReset();
       mockApi.get.mockImplementation(() => {
         const s = new Subject<{ photos: { path: string }[] }>();
@@ -892,7 +892,7 @@ describe('ComparisonWeightsTabComponent', () => {
 
     it('a superseded request\'s failure is silent for the new category', async () => {
       compareFilters.selectedCategory.set('portrait');
-      const calls: Array<Subject<{ photos: { path: string }[] }>> = [];
+      const calls: Subject<{ photos: { path: string }[] }>[] = [];
       mockApi.get.mockReset();
       mockApi.get.mockImplementation(() => {
         const s = new Subject<{ photos: { path: string }[] }>();
