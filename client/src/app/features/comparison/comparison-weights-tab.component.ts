@@ -416,6 +416,9 @@ export class ComparisonWeightsTabComponent {
 
   previewPhotos = signal<PreviewPhoto[]>([]);
   previewLoading = signal(false);
+  // Generation counter for loadPreview: a newer call (category switch, a
+  // recalculation racing the weights debounce) supersedes every older one.
+  private previewRequest = 0;
 
   weightImpactData = signal<WeightImpactResponse | null>(null);
   weightImpactLoading = signal(false);
@@ -593,6 +596,7 @@ export class ComparisonWeightsTabComponent {
   async loadPreview(): Promise<void> {
     const cat = this.compareFilters.selectedCategory();
     if (!cat) return;
+    const request = ++this.previewRequest;
     this.previewLoading.set(true);
     try {
       const data = await firstValueFrom(
@@ -603,18 +607,19 @@ export class ComparisonWeightsTabComponent {
         }),
       );
       // The 600ms debounce makes category switches race an in-flight large
-      // request: the older response must not paint its photos under the new
-      // category's label.
-      if (this.compareFilters.selectedCategory() !== cat) return;
+      // request: an older response, or one whose category is no longer the
+      // selected one, must not paint its photos under the current label.
+      if (request !== this.previewRequest || this.compareFilters.selectedCategory() !== cat) return;
       this.previewPhotos.set(data.photos ?? []);
     } catch {
-      if (this.compareFilters.selectedCategory() === cat) {
+      if (request === this.previewRequest && this.compareFilters.selectedCategory() === cat) {
         this.snackBar.open(this.i18n.t(I18N.comparison.error_loading_preview), '', { duration: 4000 });
       }
     } finally {
-      // A superseded request's finally must not clear the spinner while the
-      // newer one is still flying.
-      if (this.compareFilters.selectedCategory() === cat) this.previewLoading.set(false);
+      // Only a superseded request leaves the spinner to the newer one. The
+      // current request always clears it, even after a category switch whose
+      // own preview never starts (its weights failed to load).
+      if (request === this.previewRequest) this.previewLoading.set(false);
     }
   }
 

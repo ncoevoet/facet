@@ -890,6 +890,50 @@ describe('ComparisonWeightsTabComponent', () => {
       expect(component.previewPhotos().map(photo => photo.path)).toEqual(['/p/landscape.jpg']);
     });
 
+    it('an older same-category request landing last paints nothing', async () => {
+      compareFilters.selectedCategory.set('portrait');
+      const calls: Subject<{ photos: { path: string }[] }>[] = [];
+      mockApi.get.mockReset();
+      mockApi.get.mockImplementation(() => {
+        const s = new Subject<{ photos: { path: string }[] }>();
+        calls.push(s);
+        return s;
+      });
+      // A recalculation's preview racing the weights debounce: same category,
+      // two requests, the older one answers last.
+      const first = component.loadPreview();
+      const second = component.loadPreview();
+      calls[1].next({ photos: [{ path: '/p/after-recompute.jpg' }] });
+      await second;
+      calls[0].next({ photos: [{ path: '/p/before-recompute.jpg' }] });
+      await first;
+      await Promise.resolve();
+
+      expect(component.previewPhotos().map(photo => photo.path)).toEqual(['/p/after-recompute.jpg']);
+      expect(component.previewLoading()).toBe(false);
+    });
+
+    it('a switch whose own preview never starts does not leave the spinner on', async () => {
+      compareFilters.selectedCategory.set('portrait');
+      const calls: Subject<{ photos: { path: string }[] }>[] = [];
+      mockApi.get.mockReset();
+      mockApi.get.mockImplementation(() => {
+        const s = new Subject<{ photos: { path: string }[] }>();
+        calls.push(s);
+        return s;
+      });
+      const flying = component.loadPreview();
+      // The user switches category, and the new category's weights fail to
+      // load, so no newer preview request is ever made.
+      compareFilters.selectedCategory.set('landscape');
+      calls[0].next({ photos: [{ path: '/p/portrait.jpg' }] });
+      await flying;
+      await Promise.resolve();
+
+      expect(component.previewLoading()).toBe(false);
+      expect(component.previewPhotos()).toEqual([]);
+    });
+
     it('a superseded request\'s failure is silent for the new category', async () => {
       compareFilters.selectedCategory.set('portrait');
       const calls: Subject<{ photos: { path: string }[] }>[] = [];
