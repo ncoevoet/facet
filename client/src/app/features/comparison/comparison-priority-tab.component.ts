@@ -480,6 +480,7 @@ export class ComparisonPriorityTabComponent {
   readonly recomputeStatus = signal<RecomputeStatus | null>(null);
   readonly recomputeMessageKey = signal<string | null>(null);
   private recomputePollTimer: ReturnType<typeof setInterval> | null = null;
+  private pollFailures = 0;
 
   readonly isDefaultContext = computed(() => this.selectedContext() === DEFAULT_CATEGORY_NAME);
   readonly selectedContextEntry = computed(() =>
@@ -722,6 +723,7 @@ export class ComparisonPriorityTabComponent {
     this.recomputing.set(true);
     this.recomputeMessageKey.set(null);
     this.recomputeStatus.set(null);
+    this.pollFailures = 0;
     try {
       await firstValueFrom(this.api.post('/scan/recompute', { confirm: true }));
       void this.pollRecomputeStatus();
@@ -739,6 +741,9 @@ export class ComparisonPriorityTabComponent {
   private async pollRecomputeStatus(): Promise<void> {
     try {
       const status = await firstValueFrom(this.api.get<RecomputeStatus>('/scan/recompute_status'));
+      // A good poll re-arms the strike counter: the tolerance is for
+      // consecutive failures only (same policy as the scoring-context dialog).
+      this.pollFailures = 0;
       this.recomputeStatus.set(status);
       if (!status.running) {
         this.stopRecomputePolling();
@@ -758,6 +763,12 @@ export class ComparisonPriorityTabComponent {
         }
       }
     } catch {
+      // One transient failure must not freeze the progress bar as unknown
+      // while the recompute is still running server-side — a user pressing
+      // start again would then hit the 409. Three consecutive failures mean
+      // the polling is really broken: stop and report as indeterminate.
+      this.pollFailures++;
+      if (this.pollFailures < 3) return;
       this.stopRecomputePolling();
       this.recomputing.set(false);
       this.recomputeMessageKey.set('comparison.context.recompute_unknown');

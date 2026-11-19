@@ -1,7 +1,7 @@
 import type { Mock } from 'vitest';
 import { TestBed } from '@angular/core/testing';
 import { signal } from '@angular/core';
-import { of, throwError } from 'rxjs';
+import { of, Subject, throwError } from 'rxjs';
 import { MatSnackBar } from '@angular/material/snack-bar';
 import { ApiService } from '../../core/services/api.service';
 import { I18nService } from '../../core/services/i18n.service';
@@ -839,5 +839,79 @@ describe('ComparisonWeightsTabComponent', () => {
       has(bar, 'lg:hidden', 'min-h-14', 'items-center', 'gap-1', 'px-2', 'py-1');
       expect(bar.classList).not.toContain('px-3');
     });
+  describe('loadPreview', () => {
+    it('a late response for an old category never paints under the new label', async () => {
+      compareFilters.selectedCategory.set('portrait');
+      const calls: Array<Subject<{ photos: { path: string }[] }>> = [];
+      mockApi.get.mockReset();
+      mockApi.get.mockImplementation(() => {
+        const s = new Subject<{ photos: { path: string }[] }>();
+        calls.push(s);
+        return s;
+      });
+      const flying = component.loadPreview();
+      // The user switches category while the large request is in flight.
+      compareFilters.selectedCategory.set('landscape');
+      const second = component.loadPreview();
+      // The old request settles LAST, after the new one has already answered.
+      calls[1].next({ photos: [{ path: '/p/landscape.jpg' }] });
+      await second;
+      calls[0].next({ photos: [{ path: '/p/portrait.jpg' }] });
+      await flying;
+      await Promise.resolve();
+
+      expect(component.previewPhotos().map(photo => photo.path)).toEqual(['/p/landscape.jpg']);
+      expect(component.previewLoading()).toBe(false);
+      expect(mockSnackBar.open).not.toHaveBeenCalled();
+    });
+
+    it('a superseded request does not clear the newer one\'s spinner', async () => {
+      compareFilters.selectedCategory.set('portrait');
+      const calls: Array<Subject<{ photos: { path: string }[] }>> = [];
+      mockApi.get.mockReset();
+      mockApi.get.mockImplementation(() => {
+        const s = new Subject<{ photos: { path: string }[] }>();
+        calls.push(s);
+        return s;
+      });
+      const first = component.loadPreview();
+      compareFilters.selectedCategory.set('landscape');
+      const second = component.loadPreview();
+      // The first request's response lands while the second is still flying:
+      // its finally must not drop the spinner the newer request holds up.
+      calls[0].next({ photos: [{ path: '/p/portrait.jpg' }] });
+      await first;
+      expect(component.previewLoading()).toBe(true);
+      calls[1].next({ photos: [{ path: '/p/landscape.jpg' }] });
+      await second;
+      await Promise.resolve();
+      expect(component.previewLoading()).toBe(false);
+      // And the landed-late old response painted nothing.
+      expect(component.previewPhotos().map(photo => photo.path)).toEqual(['/p/landscape.jpg']);
+    });
+
+    it('a superseded request\'s failure is silent for the new category', async () => {
+      compareFilters.selectedCategory.set('portrait');
+      const calls: Array<Subject<{ photos: { path: string }[] }>> = [];
+      mockApi.get.mockReset();
+      mockApi.get.mockImplementation(() => {
+        const s = new Subject<{ photos: { path: string }[] }>();
+        calls.push(s);
+        return s;
+      });
+      const first = component.loadPreview();
+      compareFilters.selectedCategory.set('landscape');
+      const second = component.loadPreview();
+      calls[1].next({ photos: [] });
+      await second;
+      calls[0].error(new Error('boom'));
+      try { await first; } catch { /* the component handles it */ }
+      await Promise.resolve();
+
+      expect(mockSnackBar.open).not.toHaveBeenCalled();
+      expect(component.previewLoading()).toBe(false);
+    });
+  });
+
   });
 });

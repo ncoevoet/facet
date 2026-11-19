@@ -555,5 +555,41 @@ describe('ConnectAssistantDialogComponent', () => {
       fixture.detectChanges();
       expect(query('[role="alert"]')).toBeNull();
     });
+
+    it('five consecutive quiet failures stop the blind poll and surface the error', async () => {
+      vi.useFakeTimers();
+      await create();
+      listMcpTokens.mockReturnValue(throwError(() => new HttpErrorResponse({ status: 503 })));
+      await vi.advanceTimersByTimeAsync(TOKENS_POLL_MS * 5);
+      fixture.detectChanges();
+      const calls = listMcpTokens.mock.calls.length;
+      expect(query('[role="alert"]')).not.toBeNull();
+      // The blind poll is stopped: no further calls ever fire.
+      await vi.advanceTimersByTimeAsync(TOKENS_POLL_MS * 5);
+      expect(listMcpTokens.mock.calls.length).toBe(calls);
+      fixture.destroy();
+    });
+
+    it('a good poll re-arms the failure counter', async () => {
+      vi.useFakeTimers();
+      await create();
+      // Four quiet failures (below the cap), a good poll re-arming the
+      // counter, four more: never five CONSECUTIVE failures, so the poll
+      // stays alive and no error surfaces.
+      for (let i = 0; i < 4; i++) {
+        listMcpTokens.mockReturnValueOnce(throwError(() => new HttpErrorResponse({ status: 503 })));
+      }
+      listMcpTokens.mockReturnValueOnce(of({ tokens: [TOKEN_ROW] }));
+      for (let i = 0; i < 4; i++) {
+        listMcpTokens.mockReturnValueOnce(throwError(() => new HttpErrorResponse({ status: 503 })));
+      }
+      await vi.advanceTimersByTimeAsync(TOKENS_POLL_MS * 9);
+      fixture.detectChanges();
+      expect(query('[role="alert"]')).toBeNull();
+      const calls = listMcpTokens.mock.calls.length;
+      await vi.advanceTimersByTimeAsync(TOKENS_POLL_MS);
+      expect(listMcpTokens.mock.calls.length).toBe(calls + 1);
+      fixture.destroy();
+    });
   });
 });

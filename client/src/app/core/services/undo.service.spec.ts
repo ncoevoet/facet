@@ -211,4 +211,32 @@ describe('UndoService', () => {
     await Promise.resolve();
     expect(snackOpen).toHaveBeenCalledWith('undo.restored', '', expect.anything());
   });
+
+  it('preempting a pending command surfaces its failed commit', async () => {
+    const failing = vi.fn(() => Promise.reject(new Error('boom')));
+    const undo = vi.fn(() => Promise.resolve());
+    // First command defers its commit: the bar is still on screen (its 7s
+    // window has not closed), so the commit is pending, not yet fired.
+    service.register({ labelKey: 'x', undo, commit: failing });
+    await Promise.resolve();
+    expect(failing).not.toHaveBeenCalled();
+    // A second registration preempts the still-showing bar: the pending
+    // commit runs now and fails visibly.
+    service.register({ labelKey: 'y', undo });
+    await Promise.resolve();
+    await Promise.resolve();
+    expect(failing).toHaveBeenCalled();
+    expect(snackOpen).toHaveBeenCalledWith('errors.action_failed', '', { duration: 3000 });
+  });
+
+  it('the pagehide flush stays silent on failure', async () => {
+    const failing = vi.fn(() => Promise.reject(new Error('boom')));
+    service.register({ labelKey: 'x', undo: vi.fn(() => Promise.resolve()), commit: failing });
+    refs[0].afterDismissed.next();
+    await Promise.resolve();
+    const openCalls = snackOpen.mock.calls.length;
+    await service.flushPending();
+    expect(failing).toHaveBeenCalled();
+    expect(snackOpen.mock.calls.length).toBe(openCalls);
+  });
 });

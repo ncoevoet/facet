@@ -22,6 +22,8 @@ import { TimestampPipe } from '../../shared/pipes/timestamp.pipe';
 const ANNOUNCE_GAP_MS = 100;
 /** How often the token list is re-read while the dialog is open. */
 export const TOKENS_POLL_MS = 15000;
+// Consecutive quiet poll failures before the blind 15s poll stops and shows the error.
+export const TOKENS_POLL_FAILURES_LIMIT = 5;
 
 type TokenLevel = McpTokenItem['level'];
 
@@ -162,6 +164,7 @@ export class ConnectAssistantDialogComponent implements OnDestroy {
   protected readonly error = signal<string | null>(null);
   protected readonly confirmRevokeId = signal<number | null>(null);
   private pollTimer: ReturnType<typeof setInterval> | undefined;
+  private pollFailures = 0;
   private announceTimer: ReturnType<typeof setTimeout> | undefined;
   protected readonly copied = signal(false);
   protected readonly tokensOpen = signal(false);
@@ -242,8 +245,20 @@ export class ConnectAssistantDialogComponent implements OnDestroy {
     if (this.managementRefused()) return;
     try {
       this.tokens.set((await firstValueFrom(this.api.listMcpTokens())).tokens.filter(t => !t.revoked));
+      // A good poll re-arms the strike counter (same policy as scan.service).
+      this.pollFailures = 0;
     } catch (err) {
-      if (!this.refuseIfNotLocal(err) && !quiet) this.error.set(this.I18N.dialog.connect_assistant.load_failed);
+      if (this.refuseIfNotLocal(err)) return;
+      // The dialog's own lifetime bounds the blast radius, but an unreachable
+      // server must not leave a permanently blind 15s poll either: the first
+      // visible failure shows the error, five consecutive ones stop the poll.
+      this.pollFailures++;
+      if (this.pollFailures >= TOKENS_POLL_FAILURES_LIMIT) {
+        this.error.set(this.I18N.dialog.connect_assistant.load_failed);
+        clearInterval(this.pollTimer);
+      } else if (!quiet) {
+        this.error.set(this.I18N.dialog.connect_assistant.load_failed);
+      }
     }
   }
 

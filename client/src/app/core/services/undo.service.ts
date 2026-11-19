@@ -67,7 +67,10 @@ export class UndoService {
   }
 
   register(cmd: UndoableCommand): void {
-    void this.flushPending();
+    // Preempting a pending command with a new one is not a pagehide: if the
+    // preempted change fails to commit, the server never saw it and the UI
+    // shows state the server does not have — that must be visible.
+    void this.flushPending({ silent: false });
 
     if (cmd.commit) {
       this.pendingCommit = cmd.commit;
@@ -102,14 +105,22 @@ export class UndoService {
     });
   }
 
-  /** Commit any pending deferred command immediately. */
-  async flushPending(): Promise<void> {
+  /** Commit any pending deferred command immediately.
+   *
+   * Silent by default: the pagehide path cannot show a snackbar and the
+   * browser is leaving anyway. Preemption (a new Undo replacing a pending
+   * commit) passes ``{ silent: false }`` — its failure is reported with the
+   * same feedback the timeout path uses, or the UI would permanently show
+   * state the server does not have.
+   */
+  async flushPending({ silent = true }: { silent?: boolean } = {}): Promise<void> {
     const commit = this.pendingCommit;
     this.pendingCommit = null;
-    if (commit) {
-      try {
-        await commit();
-      } catch { /* best effort - pagehide/preemption path */ }
+    if (!commit) return;
+    try {
+      await commit();
+    } catch {
+      if (!silent) this.snackBar.open(this.i18n.t(I18N.errors.action_failed), '', { duration: 3000 });
     }
   }
 }

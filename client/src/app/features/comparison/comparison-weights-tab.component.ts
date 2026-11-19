@@ -602,11 +602,19 @@ export class ComparisonWeightsTabComponent {
           hide_duplicates: true, hide_bursts: true, collapse_stacks: 0,
         }),
       );
+      // The 600ms debounce makes category switches race an in-flight large
+      // request: the older response must not paint its photos under the new
+      // category's label.
+      if (this.compareFilters.selectedCategory() !== cat) return;
       this.previewPhotos.set(data.photos ?? []);
     } catch {
-      this.snackBar.open(this.i18n.t(I18N.comparison.error_loading_preview), '', { duration: 4000 });
+      if (this.compareFilters.selectedCategory() === cat) {
+        this.snackBar.open(this.i18n.t(I18N.comparison.error_loading_preview), '', { duration: 4000 });
+      }
     } finally {
-      this.previewLoading.set(false);
+      // A superseded request's finally must not clear the spinner while the
+      // newer one is still flying.
+      if (this.compareFilters.selectedCategory() === cat) this.previewLoading.set(false);
     }
   }
 
