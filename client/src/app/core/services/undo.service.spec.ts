@@ -265,11 +265,15 @@ describe('UndoService', () => {
   it('the pagehide flush stays silent on failure', async () => {
     const failing = vi.fn(() => Promise.reject(new Error('boom')));
     service.register({ labelKey: 'x', undo: vi.fn(() => Promise.resolve()), commit: failing });
-    refs[0].afterDismissed.next();
-    await Promise.resolve();
     const openCalls = snackOpen.mock.calls.length;
     await service.flushPending();
-    expect(failing).toHaveBeenCalled();
+    expect(failing).toHaveBeenCalledTimes(1);
     expect(snackOpen.mock.calls.length).toBe(openCalls);
+    expect(snackOpen).not.toHaveBeenCalledWith('errors.action_failed', '', expect.anything());
+    refs[0].afterDismissed.next();
+    await Promise.resolve();
+    expect(failing).toHaveBeenCalledTimes(1);
+    expect(snackOpen.mock.calls.length).toBe(openCalls);
+    expect(snackOpen).not.toHaveBeenCalledWith('errors.action_failed', '', expect.anything());
   });
 });

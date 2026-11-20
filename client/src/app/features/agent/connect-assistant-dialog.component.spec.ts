@@ -4,7 +4,7 @@ import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { HttpErrorResponse } from '@angular/common/http';
 import { MatDialogRef } from '@angular/material/dialog';
 import { MatSnackBar } from '@angular/material/snack-bar';
-import { of, throwError } from 'rxjs';
+import { of, Subject, throwError } from 'rxjs';
 import { ApiService } from '../../core/services/api.service';
 import { AuthService } from '../../core/services/auth.service';
 import { I18nService } from '../../core/services/i18n.service';
@@ -529,6 +529,31 @@ describe('ConnectAssistantDialogComponent', () => {
   describe('token list polling', () => {
     afterEach(() => {
       vi.useRealTimers();
+    });
+
+    it('cancels overlapping reads on close and never restarts polling from late results', async () => {
+      vi.useFakeTimers();
+      await create();
+      const pending: Subject<{ tokens: McpTokenItem[] }>[] = [];
+      listMcpTokens.mockImplementation(() => {
+        const response = new Subject<{ tokens: McpTokenItem[] }>();
+        pending.push(response);
+        return response;
+      });
+      await vi.advanceTimersByTimeAsync(TOKENS_POLL_MS * 6);
+      expect(pending).toHaveLength(6);
+      fixture.destroy();
+      expect(pending.every(response => !response.observed)).toBe(true);
+      for (let i = 0; i < 5; i++) pending[i].error(new HttpErrorResponse({ status: 503 }));
+      await vi.advanceTimersByTimeAsync(0);
+      pending[5].next({ tokens: [TOKEN_ROW] });
+      await vi.advanceTimersByTimeAsync(0);
+      const callsAfterClose = listMcpTokens.mock.calls.length;
+      listMcpTokens.mockReturnValue(of({ tokens: [TOKEN_ROW] }));
+      await vi.advanceTimersByTimeAsync(TOKENS_POLL_MS);
+      expect(listMcpTokens.mock.calls.length).toBe(callsAfterClose);
+      expect(pending.every(response => !response.observed)).toBe(true);
+      expect(vi.getTimerCount()).toBe(0);
     });
 
     it('starts when the dialog opens, keeps its cadence, and stops for good once it is destroyed', async () => {

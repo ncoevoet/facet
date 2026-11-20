@@ -510,6 +510,28 @@ describe('ComparisonAbTabComponent pair-selection strategy on the wire', () => {
     expect(req.request.params.get('strategy')).toBe('boundary');
   });
 
+  it('replaces an in-flight first pair when the strategy changes', async () => {
+    const firstLoad = component.loadNextPair();
+    const first = http.expectOne(r => r.url === '/api/comparison/next_pair');
+    expect(component.pairA()).toBeNull();
+    expect(component.pairLoading()).toBe(true);
+
+    component.onStrategyChange('boundary');
+    const replacements = http.match(r => r.url === '/api/comparison/next_pair');
+    first.flush({ a: '/old-a.jpg', b: '/old-b.jpg' });
+    await firstLoad;
+
+    expect(replacements).toHaveLength(1);
+    expect(replacements[0].request.params.get('strategy')).toBe('boundary');
+    expect(component.pairLoading()).toBe(true);
+    expect(component.pairA()).toBeNull();
+    replacements[0].flush({ a: '/new-a.jpg', b: '/new-b.jpg' });
+    await Promise.resolve();
+    expect(component.pairA()).toBe('/new-a.jpg');
+    expect(component.pairB()).toBe('/new-b.jpg');
+    expect(component.pairLoading()).toBe(false);
+  });
+
   it('shows the server-configured strategy from the stats while none is picked', () => {
     expect(component.shownStrategy()).toBe('');
     component.comparisonStats.set({ pair_selection_strategy: 'learning' });

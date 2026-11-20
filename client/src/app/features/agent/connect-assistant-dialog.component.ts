@@ -1,4 +1,5 @@
-import { ChangeDetectionStrategy, Component, ElementRef, Injector, NgZone, OnDestroy, afterNextRender, computed, effect, inject, signal, untracked, viewChild } from '@angular/core';
+import { ChangeDetectionStrategy, Component, DestroyRef, ElementRef, Injector, NgZone, OnDestroy, afterNextRender, computed, effect, inject, signal, untracked, viewChild } from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { FormsModule } from '@angular/forms';
 import { HttpErrorResponse } from '@angular/common/http';
 import { MatDialogModule } from '@angular/material/dialog';
@@ -148,6 +149,7 @@ export class ConnectAssistantDialogComponent implements OnDestroy {
 
   private readonly injector = inject(Injector);
   private readonly zone = inject(NgZone);
+  private readonly destroyRef = inject(DestroyRef);
   private readonly promptHeading = viewChild<ElementRef<HTMLElement>>('promptHeading');
   private readonly nameField = viewChild<ElementRef<HTMLElement>>('nameField');
   private readonly tokensSummary = viewChild<ElementRef<HTMLElement>>('tokensSummary');
@@ -223,6 +225,7 @@ export class ConnectAssistantDialogComponent implements OnDestroy {
   }
 
   private startPoll(): void {
+    if (this.destroyRef.destroyed || this.managementRefused()) return;
     // Outside the zone: a repeating timer inside it would keep the app from ever reporting stable.
     this.zone.runOutsideAngular(() => {
       this.pollTimer = setInterval(() => void this.refresh(true), TOKENS_POLL_MS);
@@ -231,8 +234,6 @@ export class ConnectAssistantDialogComponent implements OnDestroy {
 
   ngOnDestroy(): void {
     clearInterval(this.pollTimer);
-    // A refresh landing after close must not read as "the capped poll recovered" and restart it.
-    this.pollFailures = 0;
     clearTimeout(this.announceTimer);
     this.createdToken.set(null);
   }
@@ -248,9 +249,13 @@ export class ConnectAssistantDialogComponent implements OnDestroy {
   }
 
   private async refresh(quiet = false): Promise<void> {
-    if (this.managementRefused()) return;
+    if (this.destroyRef.destroyed || this.managementRefused()) return;
     try {
-      this.tokens.set((await firstValueFrom(this.api.listMcpTokens())).tokens.filter(t => !t.revoked));
+      const data = await firstValueFrom(this.api.listMcpTokens().pipe(takeUntilDestroyed(this.destroyRef)));
+      // Cancellation can race an already-resolved read or a concurrent 403.
+      // Neither may update a closed/refused dialog or re-arm its polling.
+      if (this.destroyRef.destroyed || this.managementRefused()) return;
+      this.tokens.set(data.tokens.filter(t => !t.revoked));
       // A good read re-arms the strike counter (same policy as scan.service),
       // and one after the cap stopped the poll (a mint's refresh, the bridge
       // connecting) means the server is back: drop the cap's error and poll again.
@@ -260,6 +265,7 @@ export class ConnectAssistantDialogComponent implements OnDestroy {
       }
       this.pollFailures = 0;
     } catch (err) {
+      if (this.destroyRef.destroyed || this.managementRefused()) return;
       if (this.refuseIfNotLocal(err)) return;
       // A user-visible read reports its own failure; only the quiet background
       // poll counts strikes. The dialog's lifetime bounds the blast radius, but

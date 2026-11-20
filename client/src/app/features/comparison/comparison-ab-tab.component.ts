@@ -332,7 +332,7 @@ export class ComparisonAbTabComponent {
 
   protected onStrategyChange(value: string): void {
     this.strategy.set(value);
-    if (this.pairA()) void this.loadNextPair();
+    if (this.pairA() || this.pairLoading()) void this.loadNextPair();
   }
 
   async loadNextPair(): Promise<void> {
