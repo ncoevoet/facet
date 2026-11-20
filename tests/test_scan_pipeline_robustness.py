@@ -9,7 +9,7 @@ from types import SimpleNamespace
 from unittest import mock
 
 from processing import multi_pass
-from processing.batch_processor import BatchProcessor
+from processing.batch_processor import BatchProcessor, _round_robin, _worker_chunks
 from processing.resource_monitor import ResourceMonitor
 
 
@@ -49,6 +49,93 @@ class TestExifPrefetchWindow:
         thread = processor._exif_prefetch_thread
         processor._stop_exif_prefetch()
         assert not thread.is_alive()
+
+    def test_process_files_prefetches_in_the_workers_order(self, monkeypatch, tmp_path):
+        # Each worker decodes a contiguous slice and the GPU thread takes them
+        # side by side; a front-to-back prefetch under a bounded window would
+        # only ever serve worker 0, leaving the rest to synchronous reads.
+        self._assert_prefetch_order(monkeypatch, tmp_path,
+                                    lambda processor, paths: processor.process_files(paths))
+
+    def test_process_stream_prefetches_in_the_workers_order(self, monkeypatch, tmp_path):
+        self._assert_prefetch_order(monkeypatch, tmp_path,
+                                    lambda processor, paths: processor.process_stream(iter(paths), len(paths)))
+
+    @staticmethod
+    def _assert_prefetch_order(monkeypatch, tmp_path, run):
+        class _Started(Exception):
+            pass
+
+        scorer = SimpleNamespace(get_metrics=lambda: {}, preflight_models=lambda: None)
+        processor = BatchProcessor(scorer, num_workers=4, batch_save_size=50, config={})
+        monkeypatch.setattr(processor.resource_monitor, 'start', lambda: None)
+        requested: list[list[str]] = []
+
+        def _record(paths):
+            requested.append(list(paths))
+            raise _Started
+
+        monkeypatch.setattr(processor, '_start_exif_prefetch', _record)
+        paths = [str(tmp_path / f'{i}.jpg') for i in range(8)]
+        try:
+            run(processor, paths)
+        except _Started:
+            pass
+        assert requested == [[paths[i] for i in (0, 2, 4, 6, 1, 3, 5, 7)]]
+
+    def test_interleaved_consumption_never_reads_synchronously(self, monkeypatch, tmp_path):
+        scorer = SimpleNamespace(get_metrics=lambda: {})
+        processor = BatchProcessor(scorer, num_workers=4, batch_save_size=50, config={})
+        sync_reads: list[str] = []
+
+        def _fetch(paths, chunk_size=100, stop_event=None):
+            if threading.current_thread() is not processor._exif_prefetch_thread:
+                sync_reads.extend(paths)
+            return {p: {'iso': 100} for p in paths}
+
+        monkeypatch.setattr('exiftool.get_exif_batch', _fetch)
+        paths = [str(tmp_path / f'{i:04d}.jpg') for i in range(2000)]
+        order = _round_robin(_worker_chunks(paths, 4))
+        processor._start_exif_prefetch(order)
+        thread = processor._exif_prefetch_thread
+        for start in range(0, len(order), 16):
+            deadline = time.time() + 5
+            while (thread.is_alive() and len(processor._exif_cache) < processor._exif_prefetch_cap
+                   and time.time() < deadline):
+                time.sleep(0.005)
+            processor._get_batch_exif(order[start:start + 16])
+        thread.join(timeout=5)
+        assert sync_reads == []
+        assert processor._exif_cache == {}
+        processor._stop_exif_prefetch()
+
+    def test_a_synchronously_read_path_is_not_deposited_later(self, monkeypatch, tmp_path):
+        processor = _processor()
+        release = threading.Event()
+        entered = threading.Event()
+
+        def _fetch(paths, chunk_size=100, stop_event=None):
+            if threading.current_thread() is processor._exif_prefetch_thread:
+                entered.set()
+                release.wait(5)
+            return {p: {'iso': 100} for p in paths}
+
+        monkeypatch.setattr('exiftool.get_exif_batch', _fetch)
+        paths = [str(tmp_path / f'{i}.jpg') for i in range(10)]
+        processor._start_exif_prefetch(paths)
+        assert entered.wait(5)
+        # The consumer overtakes the in-flight chunk and reads its first batch itself.
+        assert set(processor._get_batch_exif(paths[:4])) == set(paths[:4])
+        thread = processor._exif_prefetch_thread
+        release.set()
+        thread.join(timeout=5)
+        # Only the paths still unconsumed are parked in the window.
+        assert set(processor._exif_cache) == set(paths[4:])
+        processor._stop_exif_prefetch()
+
+    def test_round_robin_interleaves_uneven_slices(self):
+        assert _round_robin([[1, 2, 3], [4, 5, 6], [7]]) == [1, 4, 7, 2, 5, 3, 6]
+        assert _round_robin([]) == []
 
     def test_stop_uses_a_per_request_event(self, monkeypatch, tmp_path):
         processor = _processor()

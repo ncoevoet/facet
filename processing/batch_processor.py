@@ -31,6 +31,26 @@ from processing.resource_monitor import ResourceMonitor, HAS_PSUTIL
 from processing.metrics_reporter import MetricsReporter
 
 QUEUE_PUT_TIMEOUT_SECONDS = 0.2
+# Paths per background exiftool request; the prefetch window is at least this
+# large so one deposit always fits inside it.
+EXIF_PREFETCH_CHUNK = 500
+
+
+def _worker_chunks(paths, num_workers):
+    """Split the worklist into one contiguous slice per decode worker."""
+    chunk_size = (len(paths) + num_workers - 1) // num_workers
+    return [paths[i:i + chunk_size] for i in range(0, len(paths), chunk_size)]
+
+
+def _round_robin(chunks):
+    """Interleave the workers' slices in the order the GPU thread consumes them.
+
+    The workers decode their contiguous slices side by side, so a prefetcher
+    walking the worklist front to back would only ever serve worker 0 once its
+    window is bounded; the others would read every EXIF synchronously.
+    """
+    longest = max((len(chunk) for chunk in chunks), default=0)
+    return [chunk[i] for i in range(longest) for chunk in chunks if i < len(chunk)]
 
 class BatchProcessor:
     """
@@ -68,7 +88,10 @@ class BatchProcessor:
         # The prefetcher stays a bounded window ahead of the GPU consumer
         # (which pops one batch at a time): past the window it waits instead
         # of pulling the whole worklist's EXIF into memory.
-        self._exif_prefetch_cap = max(self.batch_save_size * 4, 200)
+        self._exif_prefetch_cap = max(self.batch_save_size * 4, EXIF_PREFETCH_CHUNK)
+        # Paths the GPU thread already read synchronously because the prefetcher
+        # had not reached them: their later deposit would never be popped.
+        self._exif_fetched_sync = set()
 
         # Metrics for dynamic tuning (thread-safe with locks)
         self._metrics_lock = threading.Lock()
@@ -114,7 +137,7 @@ class BatchProcessor:
                 from exiftool import get_exif_batch
             except ImportError:
                 return
-            for i in range(0, len(paths), 500):
+            for i in range(0, len(paths), EXIF_PREFETCH_CHUNK):
                 while not stop.is_set() and len(self._exif_cache) >= self._exif_prefetch_cap:
                     if stop.wait(0.25):
                         return
@@ -123,14 +146,18 @@ class BatchProcessor:
                 # The stop event rides into the exiftool batch: after a stop,
                 # an in-flight chunk aborts within one sub-chunk instead of
                 # running its full 500 paths.
-                chunk_exif = get_exif_batch(paths[i:i + 500], chunk_size=100, stop_event=stop)
+                chunk_exif = get_exif_batch(paths[i:i + EXIF_PREFETCH_CHUNK], chunk_size=100, stop_event=stop)
                 if stop.is_set():
                     # The join can time out while this chunk is in flight;
                     # depositing it into the cleared cache would count toward
                     # the NEXT request's window and starve its prefetch.
                     return
                 with self._exif_lock:
-                    self._exif_cache.update(chunk_exif)
+                    for key, value in chunk_exif.items():
+                        if key in self._exif_fetched_sync:
+                            self._exif_fetched_sync.discard(key)
+                        else:
+                            self._exif_cache[key] = value
 
         if self._exif_prefetch_thread is not None and self._exif_prefetch_thread.is_alive():
             logger.warning("The previous EXIF prefetch thread is still running; "
@@ -153,19 +180,26 @@ class BatchProcessor:
             self._exif_prefetch_thread = None
         with self._exif_lock:
             self._exif_cache.clear()
+            self._exif_fetched_sync.clear()
 
     def _get_batch_exif(self, paths):
         """EXIF for a batch: prefetch cache first, synchronous fetch for misses.
 
-        pop() keeps the cache from holding entries past their consumption.
+        pop() keeps the cache from holding entries past their consumption, and a
+        miss read while the prefetcher is still running is remembered so its
+        later deposit is skipped rather than parked in the window for good.
         """
         resolved = {p: cached_resolve(p) for p in paths}
         batch_exif = {}
+        thread = self._exif_prefetch_thread
+        prefetching = thread is not None and thread.is_alive()
         with self._exif_lock:
             for rp in resolved.values():
                 if rp in self._exif_cache:
                     batch_exif[rp] = self._exif_cache.pop(rp)
-        missing = [p for p, rp in resolved.items() if rp not in batch_exif]
+            missing = [p for p, rp in resolved.items() if rp not in batch_exif]
+            if prefetching:
+                self._exif_fetched_sync.update(resolved[p] for p in missing)
         if missing:
             try:
                 from exiftool import get_exif_batch
@@ -589,14 +623,13 @@ class BatchProcessor:
         self.resource_monitor.start()
 
         self.stop_event.clear()
-        self._start_exif_prefetch(photo_paths)
+        # Split work among workers; EXIF is prefetched in their consumption order
+        chunks = _worker_chunks(photo_paths, self.num_workers)
+        self._start_exif_prefetch(_round_robin(chunks))
 
         workers = []
         gpu_thread = None
         try:
-            # Split work among workers
-            chunk_size = (total + self.num_workers - 1) // self.num_workers
-            chunks = [photo_paths[i:i + chunk_size] for i in range(0, total, chunk_size)]
 
             # Start worker threads
             for chunk in chunks:
@@ -767,14 +800,14 @@ class BatchProcessor:
         self.resource_monitor.start()
 
         self.stop_event.clear()
-        self._start_exif_prefetch(all_paths)
+        # Pre-partition among workers to avoid lock contention; EXIF is
+        # prefetched in their consumption order
+        worker_chunks = _worker_chunks(all_paths, self.num_workers)
+        self._start_exif_prefetch(_round_robin(worker_chunks))
 
         workers = []
         gpu_thread = None
         try:
-            # Pre-partition among workers to avoid lock contention
-            chunk_size = (len(all_paths) + self.num_workers - 1) // self.num_workers
-            worker_chunks = [all_paths[i:i + chunk_size] for i in range(0, len(all_paths), chunk_size)]
 
             # Track start time
             start_time = time.time()
