@@ -1,7 +1,7 @@
 import type { Mock } from 'vitest';
 import { TestBed } from '@angular/core/testing';
 import { signal } from '@angular/core';
-import { of, throwError } from 'rxjs';
+import { of, Subject, throwError } from 'rxjs';
 import { provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { MatSnackBar } from '@angular/material/snack-bar';
@@ -48,6 +48,80 @@ describe('ComparisonAbTabComponent', () => {
   });
 
   describe('loadNextPair', () => {
+    it('a late response for the old strategy never paints under the new one', async () => {
+      const calls: Subject<{ a?: string; b?: string; error?: string; score_a?: number; score_b?: number }>[] = [];
+      mockApi.get.mockReset();
+      mockApi.get.mockImplementation((url: string) => {
+        if (url !== '/comparison/next_pair') return of({});
+        const s = new Subject<{ a?: string; b?: string; error?: string; score_a?: number; score_b?: number }>();
+        calls.push(s);
+        return s;
+      });
+      compareFilters.selectedCategory.set('portrait');
+      component.strategy.set('uncertainty');
+      const first = component.loadNextPair();
+      component.strategy.set('learning');
+      const second = component.loadNextPair();
+
+      calls[1].next({ a: '/p/new-a.jpg', b: '/p/new-b.jpg' });
+      await second;
+      calls[0].next({ a: '/p/old-a.jpg', b: '/p/old-b.jpg' });
+      await first;
+      await Promise.resolve();
+
+      expect(component.pairA()).toBe('/p/new-a.jpg');
+      expect(component.pairB()).toBe('/p/new-b.jpg');
+      expect(component.pairLoading()).toBe(false);
+    });
+
+    it('a superseded request does not clear the newer one\'s spinner', async () => {
+      const calls: Subject<{ a?: string; b?: string; error?: string; score_a?: number; score_b?: number }>[] = [];
+      mockApi.get.mockReset();
+      mockApi.get.mockImplementation((url: string) => {
+        if (url !== '/comparison/next_pair') return of({});
+        const s = new Subject<{ a?: string; b?: string; error?: string; score_a?: number; score_b?: number }>();
+        calls.push(s);
+        return s;
+      });
+      compareFilters.selectedCategory.set('portrait');
+      const first = component.loadNextPair();
+      component.strategy.set('learning');
+      const second = component.loadNextPair();
+      // The old response lands while the new request is still flying: its
+      // finally must not drop the spinner the newer request holds up.
+      calls[0].next({ a: '/p/old-a.jpg', b: '/p/old-b.jpg' });
+      await first;
+      expect(component.pairLoading()).toBe(true);
+      calls[1].next({ a: '/p/new-a.jpg', b: '/p/new-b.jpg' });
+      await second;
+      await Promise.resolve();
+      expect(component.pairLoading()).toBe(false);
+    });
+
+    it('a superseded request\'s failure is silent for the new strategy', async () => {
+      const calls: Subject<{ a?: string; b?: string; error?: string; score_a?: number; score_b?: number }>[] = [];
+      mockApi.get.mockReset();
+      mockApi.get.mockImplementation((url: string) => {
+        if (url !== '/comparison/next_pair') return of({});
+        const s = new Subject<{ a?: string; b?: string; error?: string; score_a?: number; score_b?: number }>();
+        calls.push(s);
+        return s;
+      });
+      compareFilters.selectedCategory.set('portrait');
+      component.strategy.set('uncertainty');
+      const first = component.loadNextPair();
+      component.strategy.set('learning');
+      const second = component.loadNextPair();
+      calls[1].next({ a: '/p/new-a.jpg', b: '/p/new-b.jpg' });
+      await second;
+      calls[0].error(new Error('boom'));
+      try { await first; } catch { /* the component handles it */ }
+      await Promise.resolve();
+
+      expect(component.pairError()).toBeNull();
+      expect(mockSnackBar.open).not.toHaveBeenCalled();
+    });
+
     it('should set pair data on success', async () => {
       mockApi.get.mockReturnValue(of({ a: '/photo1.jpg', b: '/photo2.jpg', score_a: 7.5, score_b: 8.2 }));
 
@@ -434,6 +508,28 @@ describe('ComparisonAbTabComponent pair-selection strategy on the wire', () => {
     void component.loadNextPair();
     const req = http.expectOne((r) => r.url === '/api/comparison/next_pair');
     expect(req.request.params.get('strategy')).toBe('boundary');
+  });
+
+  it('replaces an in-flight first pair when the strategy changes', async () => {
+    const firstLoad = component.loadNextPair();
+    const first = http.expectOne(r => r.url === '/api/comparison/next_pair');
+    expect(component.pairA()).toBeNull();
+    expect(component.pairLoading()).toBe(true);
+
+    component.onStrategyChange('boundary');
+    const replacements = http.match(r => r.url === '/api/comparison/next_pair');
+    first.flush({ a: '/old-a.jpg', b: '/old-b.jpg' });
+    await firstLoad;
+
+    expect(replacements).toHaveLength(1);
+    expect(replacements[0].request.params.get('strategy')).toBe('boundary');
+    expect(component.pairLoading()).toBe(true);
+    expect(component.pairA()).toBeNull();
+    replacements[0].flush({ a: '/new-a.jpg', b: '/new-b.jpg' });
+    await Promise.resolve();
+    expect(component.pairA()).toBe('/new-a.jpg');
+    expect(component.pairB()).toBe('/new-b.jpg');
+    expect(component.pairLoading()).toBe(false);
   });
 
   it('shows the server-configured strategy from the stats while none is picked', () => {

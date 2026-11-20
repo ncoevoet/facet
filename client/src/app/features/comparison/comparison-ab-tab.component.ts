@@ -290,6 +290,10 @@ export class ComparisonAbTabComponent {
 
   readonly pairA = signal<string | null>(null);
   readonly pairLoading = signal(false);
+  // Generation counter for loadNextPair: a newer call (strategy switch, a
+  // double-fire) supersedes every older one, whose late response must paint
+  // nothing and whose finally must not clear the newer call's spinner.
+  private pairRequest = 0;
   readonly pairB = signal<string | null>(null);
   protected readonly pairScoreA = signal(0);
   protected readonly pairScoreB = signal(0);
@@ -328,21 +332,24 @@ export class ComparisonAbTabComponent {
 
   protected onStrategyChange(value: string): void {
     this.strategy.set(value);
-    if (this.pairA()) void this.loadNextPair();
+    if (this.pairA() || this.pairLoading()) void this.loadNextPair();
   }
 
   async loadNextPair(): Promise<void> {
     const cat = this.compareFilters.selectedCategory();
     if (!cat) return;
+    const strategy = this.strategy();
+    const request = ++this.pairRequest;
 
     this.pairLoading.set(true);
     this.pairError.set(null);
     void this.loadComparisonStats();
     try {
       const data = await firstValueFrom(
-        this.api.get<PairResponse>('/comparison/next_pair', { category: cat, strategy: this.strategy() }),
+        this.api.get<PairResponse>('/comparison/next_pair', { category: cat, strategy }),
       );
-      if (this.compareFilters.selectedCategory() !== cat) return;
+      if (this.compareFilters.selectedCategory() !== cat || this.strategy() !== strategy
+          || request !== this.pairRequest) return;
       if (data.error) {
         this.pairA.set(null);
         this.pairB.set(null);
@@ -358,9 +365,12 @@ export class ComparisonAbTabComponent {
         this.pairError.set(this.i18n.t(I18N.comparison.no_more_pairs));
       }
     } catch {
-      this.pairError.set(this.i18n.t(I18N.comparison.error_loading_pair));
+      if (this.compareFilters.selectedCategory() === cat && this.strategy() === strategy
+          && request === this.pairRequest) {
+        this.pairError.set(this.i18n.t(I18N.comparison.error_loading_pair));
+      }
     } finally {
-      this.pairLoading.set(false);
+      if (request === this.pairRequest) this.pairLoading.set(false);
     }
   }
 

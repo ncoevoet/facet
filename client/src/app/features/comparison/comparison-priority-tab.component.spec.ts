@@ -1,3 +1,4 @@
+import { Subject } from 'rxjs';
 import type { Mock } from 'vitest';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { signal } from '@angular/core';
@@ -683,6 +684,78 @@ describe('ComparisonPriorityTabComponent', () => {
       expect(mockSnackBar.open).not.toHaveBeenCalled();
     });
 
+    // B-row: one transient poll failure must not freeze the progress bar as
+    // unknown while the recompute is still running server-side (a user
+    // pressing start again would then hit the 409). Three consecutive
+    // failures stop the polling as indeterminate, mirroring
+    // AlbumScoringContextDialogComponent's strike counter.
+    it('tolerates two consecutive poll failures and stops at the third', async () => {
+      vi.useFakeTimers();
+      try {
+        mockApi.post.mockReturnValue(of({ success: true }));
+        const polls: Subject<{ running?: boolean; kind?: string; progress?: unknown; exit_code?: number | null }>[] = [];
+        mockApi.get.mockImplementation((url: string) => {
+          if (url !== '/scan/recompute_status') return of({});
+          const s = new Subject<{ running?: boolean; kind?: string; progress?: unknown; exit_code?: number | null }>();
+          polls.push(s);
+          return s;
+        });
+        await component.startRecompute();
+        expect(component.recomputing()).toBe(true);
+        expect(component.recomputeMessageKey()).toBeNull();
+
+        for (let strike = 1; strike <= 3; strike++) {
+          await vi.advanceTimersByTimeAsync(1500);
+          polls[strike - 1].error(new HttpErrorResponse({ status: 503 }));
+          await vi.advanceTimersByTimeAsync(0);
+          if (strike < 3) {
+            // Still tolerant: the poll keeps firing, nothing is frozen.
+            expect(component.recomputeMessageKey()).toBeNull();
+            expect(component.recomputing()).toBe(true);
+          }
+        }
+        expect(component.recomputing()).toBe(false);
+        expect(component.recomputeMessageKey()).toBe(I18N.comparison.context.recompute_unknown);
+      } finally {
+        vi.useRealTimers();
+      }
+    });
+
+    it('a successful poll re-arms the strike counter', async () => {
+      vi.useFakeTimers();
+      try {
+        mockApi.post.mockReturnValue(of({ success: true }));
+        const polls: Subject<{ running?: boolean; kind?: string; progress?: unknown; exit_code?: number | null }>[] = [];
+        mockApi.get.mockImplementation((url: string) => {
+          if (url !== '/scan/recompute_status') return of({});
+          const s = new Subject<{ running?: boolean; kind?: string; progress?: unknown; exit_code?: number | null }>();
+          polls.push(s);
+          return s;
+        });
+        await component.startRecompute();
+        // Strike 1 (tolerated), then a tick gives strike 2 (still tolerated):
+        // without the re-arm this second strike would already stop the poll.
+        polls[0].error(new HttpErrorResponse({ status: 503 }));
+        await vi.advanceTimersByTimeAsync(0);
+        await vi.advanceTimersByTimeAsync(1500);
+        polls[1].error(new HttpErrorResponse({ status: 503 }));
+        await vi.advanceTimersByTimeAsync(0);
+        expect(component.recomputing()).toBe(true);
+        expect(component.recomputeMessageKey()).toBeNull();
+        // A good poll resets the counter, so a later single failure is
+        // strike 1 again — the polling keeps running, nothing is frozen.
+        await vi.advanceTimersByTimeAsync(1500);
+        polls[2].next({ running: true, kind: 'recompute', progress: null, exit_code: null });
+        await vi.advanceTimersByTimeAsync(0);
+        await vi.advanceTimersByTimeAsync(1500);
+        polls[3].error(new HttpErrorResponse({ status: 503 }));
+        await vi.advanceTimersByTimeAsync(0);
+        expect(component.recomputing()).toBe(true);
+        expect(component.recomputeMessageKey()).toBeNull();
+      } finally {
+        vi.useRealTimers();
+      }
+    });
     // D8: `_scan_state` (api/routers/scan.py) is a per-PROCESS module global on a
     // multi-worker deployment. A poll served by a worker that never saw the POST
     // answers {running:false, kind:null, exit_code:null} -- indistinguishable from
@@ -714,21 +787,6 @@ describe('ComparisonPriorityTabComponent', () => {
       expect(component.stale()).toBe(true);
       expect(component.recomputeMessageKey()).toBe(I18N.comparison.context.recompute_unknown);
       expect(mockSnackBar.open).not.toHaveBeenCalled();
-    });
-
-    // D7: the poll's own catch used to silently clear `recomputing` with no
-    // message, dropping the banner back to "Recompute now" while the job is
-    // very likely still running server-side -- the next click then 409s.
-    it('D7: surfaces a message when the status poll itself fails', async () => {
-      component.stale.set(true);
-      mockApi.post.mockReturnValue(of({ success: true }));
-      mockApi.get.mockReturnValue(throwError(() => new Error('network')));
-
-      await component.startRecompute();
-      await flush();
-
-      expect(component.recomputing()).toBe(false);
-      expect(component.recomputeMessageKey()).toBe(I18N.comparison.context.recompute_unknown);
     });
 
     // Defect 5: a second click before the first POST resolves must not overwrite the

@@ -211,4 +211,69 @@ describe('UndoService', () => {
     await Promise.resolve();
     expect(snackOpen).toHaveBeenCalledWith('undo.restored', '', expect.anything());
   });
+
+  it('preempting a pending command surfaces its failed commit', async () => {
+    const failing = vi.fn(() => Promise.reject(new Error('boom')));
+    const undo = vi.fn(() => Promise.resolve());
+    // First command defers its commit: the bar is still on screen (its 7s
+    // window has not closed), so the commit is pending, not yet fired.
+    service.register({ labelKey: 'x', undo, commit: failing });
+    await Promise.resolve();
+    expect(failing).not.toHaveBeenCalled();
+    // A second registration preempts the still-showing bar: the pending
+    // commit runs now and fails visibly, once the new bar has closed.
+    service.register({ labelKey: 'y', undo });
+    await Promise.resolve();
+    await Promise.resolve();
+    expect(failing).toHaveBeenCalled();
+    refs[1].afterDismissed.next();
+    expect(snackOpen).toHaveBeenCalledWith('errors.action_failed', '', { duration: 3000 });
+  });
+
+  it('a preempted commit\'s failure waits for the new Undo bar instead of replacing it', async () => {
+    // MatSnackBar keeps one bar at a time: opening a bar dismisses the one on
+    // screen, whose afterDismissed fires once its exit animation ends.
+    snackOpen.mockImplementation(() => {
+      const previous = refs.at(-1);
+      const ref: FakeSnackRef = { onAction: new Subject(), afterDismissed: new Subject() };
+      refs.push(ref);
+      if (previous) queueMicrotask(() => previous.afterDismissed.next());
+      return {
+        onAction: () => ref.onAction.asObservable(),
+        afterDismissed: () => ref.afterDismissed.asObservable(),
+        dismissWithAction: () => ref.onAction.next(),
+      };
+    });
+    const failing = vi.fn(() => Promise.reject(new Error('boom')));
+    const second = vi.fn(() => Promise.resolve());
+    service.register({ labelKey: 'x', undo: vi.fn(() => Promise.resolve()), commit: failing });
+    service.register({ labelKey: 'y', undo: vi.fn(() => Promise.resolve()), commit: second });
+    for (let i = 0; i < 5; i++) await Promise.resolve();
+    expect(failing).toHaveBeenCalled();
+    // The second command's bar is still the live one: its deferred commit has
+    // not been forced, and the error has not been opened over it.
+    expect(refs).toHaveLength(2);
+    expect(second).not.toHaveBeenCalled();
+    expect(snackOpen).not.toHaveBeenCalledWith('errors.action_failed', '', expect.anything());
+    // Once that bar closes on its own, its commit runs and the error shows.
+    refs[1].afterDismissed.next();
+    await Promise.resolve();
+    expect(second).toHaveBeenCalled();
+    expect(snackOpen).toHaveBeenCalledWith('errors.action_failed', '', { duration: 3000 });
+  });
+
+  it('the pagehide flush stays silent on failure', async () => {
+    const failing = vi.fn(() => Promise.reject(new Error('boom')));
+    service.register({ labelKey: 'x', undo: vi.fn(() => Promise.resolve()), commit: failing });
+    const openCalls = snackOpen.mock.calls.length;
+    await service.flushPending();
+    expect(failing).toHaveBeenCalledTimes(1);
+    expect(snackOpen.mock.calls.length).toBe(openCalls);
+    expect(snackOpen).not.toHaveBeenCalledWith('errors.action_failed', '', expect.anything());
+    refs[0].afterDismissed.next();
+    await Promise.resolve();
+    expect(failing).toHaveBeenCalledTimes(1);
+    expect(snackOpen.mock.calls.length).toBe(openCalls);
+    expect(snackOpen).not.toHaveBeenCalledWith('errors.action_failed', '', expect.anything());
+  });
 });

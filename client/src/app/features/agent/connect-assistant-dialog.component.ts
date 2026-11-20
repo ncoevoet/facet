@@ -1,4 +1,5 @@
-import { ChangeDetectionStrategy, Component, ElementRef, Injector, NgZone, OnDestroy, afterNextRender, computed, effect, inject, signal, untracked, viewChild } from '@angular/core';
+import { ChangeDetectionStrategy, Component, DestroyRef, ElementRef, Injector, NgZone, OnDestroy, afterNextRender, computed, effect, inject, signal, untracked, viewChild } from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { FormsModule } from '@angular/forms';
 import { HttpErrorResponse } from '@angular/common/http';
 import { MatDialogModule } from '@angular/material/dialog';
@@ -22,6 +23,8 @@ import { TimestampPipe } from '../../shared/pipes/timestamp.pipe';
 const ANNOUNCE_GAP_MS = 100;
 /** How often the token list is re-read while the dialog is open. */
 export const TOKENS_POLL_MS = 15000;
+// Consecutive quiet poll failures before the blind 15s poll stops and shows the error.
+export const TOKENS_POLL_FAILURES_LIMIT = 5;
 
 type TokenLevel = McpTokenItem['level'];
 
@@ -146,6 +149,7 @@ export class ConnectAssistantDialogComponent implements OnDestroy {
 
   private readonly injector = inject(Injector);
   private readonly zone = inject(NgZone);
+  private readonly destroyRef = inject(DestroyRef);
   private readonly promptHeading = viewChild<ElementRef<HTMLElement>>('promptHeading');
   private readonly nameField = viewChild<ElementRef<HTMLElement>>('nameField');
   private readonly tokensSummary = viewChild<ElementRef<HTMLElement>>('tokensSummary');
@@ -162,6 +166,7 @@ export class ConnectAssistantDialogComponent implements OnDestroy {
   protected readonly error = signal<string | null>(null);
   protected readonly confirmRevokeId = signal<number | null>(null);
   private pollTimer: ReturnType<typeof setInterval> | undefined;
+  private pollFailures = 0;
   private announceTimer: ReturnType<typeof setTimeout> | undefined;
   protected readonly copied = signal(false);
   protected readonly tokensOpen = signal(false);
@@ -216,6 +221,11 @@ export class ConnectAssistantDialogComponent implements OnDestroy {
       if (connected && !wasConnected) untracked(() => void this.refresh(true));
       wasConnected = connected;
     });
+    this.startPoll();
+  }
+
+  private startPoll(): void {
+    if (this.destroyRef.destroyed || this.managementRefused()) return;
     // Outside the zone: a repeating timer inside it would keep the app from ever reporting stable.
     this.zone.runOutsideAngular(() => {
       this.pollTimer = setInterval(() => void this.refresh(true), TOKENS_POLL_MS);
@@ -239,11 +249,37 @@ export class ConnectAssistantDialogComponent implements OnDestroy {
   }
 
   private async refresh(quiet = false): Promise<void> {
-    if (this.managementRefused()) return;
+    if (this.destroyRef.destroyed || this.managementRefused()) return;
     try {
-      this.tokens.set((await firstValueFrom(this.api.listMcpTokens())).tokens.filter(t => !t.revoked));
+      const data = await firstValueFrom(this.api.listMcpTokens().pipe(takeUntilDestroyed(this.destroyRef)));
+      // Cancellation can race an already-resolved read or a concurrent 403.
+      // Neither may update a closed/refused dialog or re-arm its polling.
+      if (this.destroyRef.destroyed || this.managementRefused()) return;
+      this.tokens.set(data.tokens.filter(t => !t.revoked));
+      // A good read re-arms the strike counter (same policy as scan.service),
+      // and one after the cap stopped the poll (a mint's refresh, the bridge
+      // connecting) means the server is back: drop the cap's error and poll again.
+      if (this.pollFailures >= TOKENS_POLL_FAILURES_LIMIT) {
+        if (this.error() === this.I18N.dialog.connect_assistant.load_failed) this.error.set(null);
+        this.startPoll();
+      }
+      this.pollFailures = 0;
     } catch (err) {
-      if (!this.refuseIfNotLocal(err) && !quiet) this.error.set(this.I18N.dialog.connect_assistant.load_failed);
+      if (this.destroyRef.destroyed || this.managementRefused()) return;
+      if (this.refuseIfNotLocal(err)) return;
+      // A user-visible read reports its own failure; only the quiet background
+      // poll counts strikes. The dialog's lifetime bounds the blast radius, but
+      // an unreachable server must not leave a permanently blind 15s poll
+      // either: five consecutive quiet failures show the error and stop it.
+      if (!quiet) {
+        this.error.set(this.I18N.dialog.connect_assistant.load_failed);
+        return;
+      }
+      this.pollFailures++;
+      if (this.pollFailures >= TOKENS_POLL_FAILURES_LIMIT) {
+        this.error.set(this.I18N.dialog.connect_assistant.load_failed);
+        clearInterval(this.pollTimer);
+      }
     }
   }
 
