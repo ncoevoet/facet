@@ -758,25 +758,34 @@ def test_a_hung_scan_is_killed_and_counts_toward_the_give_up(monkeypatch, tmp_pa
                         lambda seconds: next(ticks, None) is None and (_ for _ in ()).throw(KeyboardInterrupt))
 
     db_path = str(tmp_path / "photos.db")
-    assert watcher.run_watch_loop(["/library"], db_path, initial_scan=True) is False
-    # Every spawn carried the timeout, and the give-up happened at the cap.
+    assert watcher.run_watch_loop(["/library"], db_path, initial_scan=False) is False
+    # Every change-triggered spawn carried the timeout, and the give-up happened at the cap.
     assert hung == [watcher.WATCH_SCAN_TIMEOUT_SECONDS] * MAX_CONSECUTIVE_FAILURES
 
 
-def test_a_hung_initial_scan_counts_as_the_first_failure(monkeypatch, tmp_path):
+def test_the_initial_scan_and_its_retry_are_never_timed_out(monkeypatch, tmp_path):
+    """A first watch over a large library (or an initial --force) legitimately
+    runs past the hung-scan timeout, and a killed initial scan is never retried:
+    only change-triggered scans carry the timeout."""
     native = _FakeObserver()
     monkeypatch.setattr(watchdog.observers, "Observer", lambda: native)
     monkeypatch.setattr(watchdog.observers.polling, "PollingObserver", lambda: _FakeObserver())
+    timeouts = []
+    codes = iter([LIBRARY_LOCK_HELD_EXIT_CODE, 0, 0])
 
-    def hang(cmd, *args, **kwargs):
-        raise subprocess.TimeoutExpired(cmd, watcher.WATCH_SCAN_TIMEOUT_SECONDS)
+    def run(cmd, *args, **kwargs):
+        timeouts.append(kwargs.get("timeout"))
+        return SimpleNamespace(returncode=next(codes))
 
-    monkeypatch.setattr(watcher.subprocess, "run", hang)
-    monkeypatch.setattr(watcher._PendingChanges, "take_if_settled", lambda self, debounce: None)
-    ticks = iter([0])
+    monkeypatch.setattr(watcher.subprocess, "run", run)
+    batches = iter([None, ["/library/new.jpg"]])
+    monkeypatch.setattr(watcher._PendingChanges, "take_if_settled",
+                        lambda self, debounce: next(batches, None))
+    ticks = iter([0] * 3)
     monkeypatch.setattr(watcher.time, "sleep",
                         lambda seconds: next(ticks, None) is None and (_ for _ in ()).throw(KeyboardInterrupt))
 
     db_path = str(tmp_path / "photos.db")
-    # The hung initial scan is one failure; the watcher keeps watching.
-    assert watcher.run_watch_loop(["/library"], db_path, initial_scan=True) is True
+    assert watcher.run_watch_loop(["/library"], db_path, debounce_seconds=0, initial_scan=True) is True
+    # Initial (busy), initial retry, then one change-triggered scan.
+    assert timeouts == [None, None, watcher.WATCH_SCAN_TIMEOUT_SECONDS]
