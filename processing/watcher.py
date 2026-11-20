@@ -25,6 +25,12 @@ logger = logging.getLogger("facet.watcher")
 WATCH_SUFFIXES = WATCHABLE_IMAGE_EXTENSIONS
 
 MAX_CONSECUTIVE_FAILURES = 3
+# A watch scan that outlives this timeout is considered hung (a dead NFS
+# handle, an uncovered decode deadlock): it is killed and counted as one
+# failure, so the consecutive-failure give-up can fire instead of the watcher
+# silently never returning from a scan. Killing the scan subprocess leaves its
+# exiftool children to their own 30 s session timeout.
+WATCH_SCAN_TIMEOUT_SECONDS = 6 * 60 * 60
 # _run_scan outcome for a scan skipped because another job holds the library lock.
 _LIBRARY_BUSY = object()
 
@@ -146,7 +152,12 @@ def run_watch_loop(directories, db_path, config_path=None, debounce_seconds=30,
 
     def _run_scan(reason, scan_cmd=cmd):
         logger.info("Starting scan (%s)...", reason)
-        result = subprocess.run(scan_cmd)
+        try:
+            result = subprocess.run(scan_cmd, timeout=WATCH_SCAN_TIMEOUT_SECONDS)
+        except subprocess.TimeoutExpired:
+            logger.warning("Scan hung past the %d s watch timeout and was killed; "
+                           "counting it as a failure.", WATCH_SCAN_TIMEOUT_SECONDS)
+            return False
         if result.returncode == 0:
             logger.info("Scan finished.")
             return True

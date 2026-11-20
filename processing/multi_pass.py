@@ -1108,8 +1108,19 @@ class ChunkedMultiPassProcessor:
         """The prefetcher's EXIF for exactly ``paths``, booking the time spent blocked."""
         prefetcher = self._exif_prefetcher
         if prefetcher is None:
-            # Not inside a scan (direct call): a one-shot prefetcher with nothing pending
-            prefetcher = ExifPrefetcher(self._fetch_exif, self._book_exif_batch)
+            # Not inside a scan, or the shutdown unwind has already closed the
+            # prefetcher: fetch synchronously without building an object that
+            # could plan or start background exiftool work after the close.
+            # The decode stop event rides along so an unwind's batch aborts
+            # quickly instead of outliving the Ctrl-C.
+            wanted = _resolved(paths)
+            start = time.perf_counter()
+            found = self._fetch_exif(paths, self._decode_stop)
+            spent = time.perf_counter() - start
+            self._book_exif_batch(spent)
+            with _EXIF_METRICS_LOCK:
+                self.metrics['exif_wait_time'] += spent
+            return {key: value for key, value in found.items() if key in set(wanted)}
         chunk_exif, exif_blocked = prefetcher.take(paths)
         with _EXIF_METRICS_LOCK:
             self.metrics['exif_wait_time'] += exif_blocked

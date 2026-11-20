@@ -65,6 +65,10 @@ class BatchProcessor:
         self._exif_lock = threading.Lock()
         self._exif_prefetch_thread = None
         self._exif_stop = threading.Event()
+        # The prefetcher stays a bounded window ahead of the GPU consumer
+        # (which pops one batch at a time): past the window it waits instead
+        # of pulling the whole worklist's EXIF into memory.
+        self._exif_prefetch_cap = max(self.batch_save_size * 4, 200)
 
         # Metrics for dynamic tuning (thread-safe with locks)
         self._metrics_lock = threading.Lock()
@@ -92,10 +96,18 @@ class BatchProcessor:
             return self.metrics.copy()
 
     def _start_exif_prefetch(self, photo_paths):
-        """Start the background EXIF prefetch thread for the given worklist."""
+        """Start the background EXIF prefetch thread for the given worklist.
+
+        Every request gets its own stop event: a thread that outlives its
+        join (one exiftool chunk can run longer than the join timeout on a
+        NAS) still ends at its next chunk boundary and can never be revived
+        by a new run's start clearing a shared event.
+        """
         if not self.exif_prefetch_enabled or not photo_paths:
             return
         paths = list(photo_paths)
+        stop = threading.Event()
+        self._exif_stop = stop
 
         def _prefetch():
             try:
@@ -103,20 +115,30 @@ class BatchProcessor:
             except ImportError:
                 return
             for i in range(0, len(paths), 500):
-                if self._exif_stop.is_set():
+                # Stay a bounded window ahead of the consumer: when the GPU
+                # thread stops popping, the prefetcher waits instead of
+                # pulling the whole worklist's EXIF into memory.
+                while not stop.is_set() and len(self._exif_cache) >= self._exif_prefetch_cap:
+                    if stop.wait(0.25):
+                        return
+                if stop.is_set():
                     return
                 chunk_exif = get_exif_batch(paths[i:i + 500], chunk_size=100)
                 with self._exif_lock:
                     self._exif_cache.update(chunk_exif)
 
-        self._exif_stop.clear()
         self._exif_prefetch_thread = threading.Thread(
             target=_prefetch, name='exif-prefetch', daemon=True
         )
         self._exif_prefetch_thread.start()
 
     def _stop_exif_prefetch(self):
-        """Signal the prefetch thread to stop, join it, and drop stale cache."""
+        """Signal the current prefetch request to stop, join it, drop stale cache.
+
+        The join can time out (one exiftool chunk runs up to 30s, longer on a
+        NAS); the per-request event still ends the thread at its next chunk
+        boundary, so a timed-out thread is never revived by a later start.
+        """
         self._exif_stop.set()
         if self._exif_prefetch_thread is not None:
             self._exif_prefetch_thread.join(timeout=5.0)
