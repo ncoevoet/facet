@@ -57,10 +57,9 @@ def _stamp(path):
     return stat.st_dev, stat.st_ino, stat.st_size, stat.st_mtime_ns
 
 
-def _stop_requested(db_path, job_id):
-    with get_connection(db_path, row_factory=False) as conn:
-        row = conn.execute('SELECT stop_requested FROM face_update_jobs WHERE job_id=?', (job_id,)).fetchone()
-        return row is None or bool(row[0])
+def _stop_requested(conn, job_id):
+    row = conn.execute('SELECT stop_requested FROM face_update_jobs WHERE job_id=?', (job_id,)).fetchone()
+    return row is None or bool(row[0])
 
 
 def _finish(db_path, job_id, state, error=None):
@@ -122,7 +121,9 @@ def run_face_update(db_path, config, job_id, *, analyzer_factory=None, loader=No
         conn.execute("UPDATE face_update_jobs SET state='running',started_at=CURRENT_TIMESTAMP WHERE job_id=?", (job_id,))
         conn.commit()
     try:
-        if _stop_requested(db_path, job_id):
+        with get_connection(db_path, row_factory=False) as conn:
+            stop_now = _stop_requested(conn, job_id)
+        if stop_now:
             _finish(db_path, job_id, 'cancelled')
             return 0
         if active_embedding_model(config) != model:
@@ -146,40 +147,41 @@ def run_face_update(db_path, config, job_id, *, analyzer_factory=None, loader=No
         if loader is None:
             from utils import load_image_from_path
             loader = load_image_from_path
-        while not _stop_requested(db_path, job_id):
-            with get_connection(db_path, row_factory=False) as conn:
+        # One connection for the whole job loop: the old code opened four per
+        # photo (stop poll, pending select, write transaction, progress read),
+        # each paying the connect + PRAGMA storm again.
+        with get_connection(db_path, row_factory=False) as conn:
+            while not _stop_requested(conn, job_id):
                 pending = conn.execute("SELECT path,face_snapshot FROM face_update_items WHERE job_id=? AND state='pending' ORDER BY path LIMIT 1", (job_id,)).fetchone()
-            if pending is None:
-                with get_connection(db_path, row_factory=False) as conn:
+                if pending is None:
                     conn.execute('BEGIN IMMEDIATE')
                     # Photo deletion cascades its private captured path away.
                     # Count vanished, unprocessed items as skipped, not success.
                     conn.execute('UPDATE face_update_jobs SET skipped=skipped+total-processed,processed=total WHERE job_id=?', (job_id,))
                     failed = sum(conn.execute('SELECT failed,refused FROM face_update_jobs WHERE job_id=?', (job_id,)).fetchone())
                     conn.commit()
-                repair_person_matches(db_path, model, job_id)
-                _finish(db_path, job_id, 'partial' if failed else 'completed')
-                return 1 if failed else 0
-            path = pending[0]
-            try:
-                stamp = _stamp(path)
-                image, pixels = loader(path)
-                if image is None or pixels is None:
-                    raise ValueError('Image could not be decoded')
-                details = analyzer.analyze_faces(pixels).get('face_details')
-                if details is None:
-                    raise ValueError('Face detection unavailable')
-                records = []
-                for face in details:
-                    blob = face.get('embedding')
-                    if (not isinstance(blob, bytes) or len(blob) != expected_dim(model) * 4
-                            or not tag_matches(face.get('embedding_model'), model)):
-                        raise ValueError('Face embedding unavailable or incompatible')
-                    vector = np.frombuffer(blob, dtype=np.float32)
-                    if not np.isfinite(vector).all() or not np.any(vector):
-                        raise ValueError('Face embedding invalid')
-                    records.append(face_upsert_row(path, face, model))
-                with get_connection(db_path, row_factory=False) as conn:
+                    repair_person_matches(db_path, model, job_id)
+                    _finish(db_path, job_id, 'partial' if failed else 'completed')
+                    return 1 if failed else 0
+                path = pending[0]
+                try:
+                    stamp = _stamp(path)
+                    image, pixels = loader(path)
+                    if image is None or pixels is None:
+                        raise ValueError('Image could not be decoded')
+                    details = analyzer.analyze_faces(pixels).get('face_details')
+                    if details is None:
+                        raise ValueError('Face detection unavailable')
+                    records = []
+                    for face in details:
+                        blob = face.get('embedding')
+                        if (not isinstance(blob, bytes) or len(blob) != expected_dim(model) * 4
+                                or not tag_matches(face.get('embedding_model'), model)):
+                            raise ValueError('Face embedding unavailable or incompatible')
+                        vector = np.frombuffer(blob, dtype=np.float32)
+                        if not np.isfinite(vector).all() or not np.any(vector):
+                            raise ValueError('Face embedding invalid')
+                        records.append(face_upsert_row(path, face, model))
                     conn.execute('BEGIN IMMEDIATE')
                     if conn.execute('SELECT stop_requested FROM face_update_jobs WHERE job_id=?', (job_id,)).fetchone()[0]:
                         break
@@ -209,16 +211,18 @@ def run_face_update(db_path, config, job_id, *, analyzer_factory=None, loader=No
                             conn.executemany(FACES_INSERT_SQL, records)
                             _record(conn, job_id, path, 'added' if records else 'empty', added=len(records))
                     conn.commit()
-            except Exception:
-                licensing.reraise_if_refused()
-                logger.exception('Face update could not process a captured photo')
-                with get_connection(db_path, row_factory=False) as conn:
+                except Exception:
+                    licensing.reraise_if_refused()
+                    logger.exception('Face update could not process a captured photo')
+                    # The failed write transaction may still be open on this
+                    # shared connection: discard it before recording, or the
+                    # new BEGIN IMMEDIATE would answer "within a transaction".
+                    conn.rollback()
                     conn.execute('BEGIN IMMEDIATE')
                     _record(conn, job_id, path, 'failed', error='processing_failed')
                     conn.commit()
-            with get_connection(db_path, row_factory=False) as conn:
                 processed, total = conn.execute('SELECT processed,total FROM face_update_jobs WHERE job_id=?', (job_id,)).fetchone()
-            emit_progress('faces', current=processed, total=total)
+                emit_progress('faces', current=processed, total=total)
         repair_person_matches(db_path, model, job_id)
         _finish(db_path, job_id, 'cancelled')
         return 0

@@ -25,6 +25,16 @@ logger = logging.getLogger("facet.watcher")
 WATCH_SUFFIXES = WATCHABLE_IMAGE_EXTENSIONS
 
 MAX_CONSECUTIVE_FAILURES = 3
+# A change-triggered watch scan that outlives this timeout is considered hung
+# (a dead NFS handle, an uncovered decode deadlock): it is killed and counted as
+# one failure, so the consecutive-failure give-up can fire instead of the
+# watcher silently never returning from a scan. Killing the subprocess orphans
+# its stay-open exiftool session (the parent held its watchdog timer), which
+# sits idle on stdin until the process exits — bounded by the give-up at three
+# strikes. The initial scan is exempt: a first watch over a large library, or an
+# initial --force, legitimately runs for longer, and a killed initial scan is
+# never retried — the rest of the library would wait for an unrelated file event.
+WATCH_SCAN_TIMEOUT_SECONDS = 6 * 60 * 60
 # _run_scan outcome for a scan skipped because another job holds the library lock.
 _LIBRARY_BUSY = object()
 
@@ -144,9 +154,14 @@ def run_watch_loop(directories, db_path, config_path=None, debounce_seconds=30,
     cmd = _build_scan_command(directories, db_path, config_path, extra_scan_args)
     initial_cmd = cmd + list(initial_scan_args or ())
 
-    def _run_scan(reason, scan_cmd=cmd):
+    def _run_scan(reason, scan_cmd=cmd, timeout=WATCH_SCAN_TIMEOUT_SECONDS):
         logger.info("Starting scan (%s)...", reason)
-        result = subprocess.run(scan_cmd)
+        try:
+            result = subprocess.run(scan_cmd, timeout=timeout)
+        except subprocess.TimeoutExpired:
+            logger.warning("Scan hung past the %d s watch timeout and was killed; "
+                           "counting it as a failure.", WATCH_SCAN_TIMEOUT_SECONDS)
+            return False
         if result.returncode == 0:
             logger.info("Scan finished.")
             return True
@@ -173,7 +188,7 @@ def run_watch_loop(directories, db_path, config_path=None, debounce_seconds=30,
         if initial_scan:
             # A failing initial scan counts as the streak's first failure, so a
             # broken install cannot watch forever while every scan crashes.
-            outcome = _run_scan('initial', initial_cmd)
+            outcome = _run_scan('initial', initial_cmd, timeout=None)
             if outcome is _LIBRARY_BUSY:
                 initial_retry_at = time.monotonic() + debounce_seconds
             elif outcome is False:
@@ -185,7 +200,7 @@ def run_watch_loop(directories, db_path, config_path=None, debounce_seconds=30,
             if initial_retry_at is not None:
                 if time.monotonic() < initial_retry_at:
                     continue
-                outcome = _run_scan('initial retry', initial_cmd)
+                outcome = _run_scan('initial retry', initial_cmd, timeout=None)
                 if outcome is _LIBRARY_BUSY:
                     initial_retry_at = time.monotonic() + debounce_seconds
                     continue

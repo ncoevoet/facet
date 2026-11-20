@@ -212,6 +212,10 @@ class ResourceMonitor:
         self.processor = batch_processor
         self.stop_event = threading.Event()
         self.thread = None
+        # A failing tick is logged once (same policy as
+        # MultiPassResourceMonitor._tick): the loop must survive, but a dead
+        # tuning loop has to leave a trace.
+        self._warned_failure = False
 
         # Configuration with defaults - support both old and new config format
         if config is None:
@@ -272,8 +276,15 @@ class ResourceMonitor:
             try:
                 self._collect_metrics()
                 self._apply_tuning()
-            except Exception:
-                pass  # Don't crash the monitor on errors
+            except Exception as e:
+                # Mirror MultiPassResourceMonitor._tick: warn once on the first
+                # failure, then keep the loop alive silently. Without this a
+                # dead tuning loop leaves the adaptive batch size inert for the
+                # whole scan with no trace of why.
+                if not self._warned_failure:
+                    self._warned_failure = True
+                    logger.warning("Resource monitor tick failed (adaptive chunk "
+                                   "tuning may be off for this scan): %s", e, exc_info=True)
 
             # Sleep in small increments to allow quick shutdown
             for _ in range(int(self.monitor_interval * 10)):
