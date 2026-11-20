@@ -28,8 +28,11 @@ MAX_CONSECUTIVE_FAILURES = 3
 # A watch scan that outlives this timeout is considered hung (a dead NFS
 # handle, an uncovered decode deadlock): it is killed and counted as one
 # failure, so the consecutive-failure give-up can fire instead of the watcher
-# silently never returning from a scan. Killing the scan subprocess leaves its
-# exiftool children to their own 30 s session timeout.
+# silently never returning from a scan. Killing the subprocess orphans its
+# stay-open exiftool session (the parent held its watchdog timer), which sits
+# idle on stdin until the process exits — bounded by the give-up at three
+# strikes. A legitimately enormous initial scan can also outlive this; its
+# photos saved so far survive, and later incremental scans resume.
 WATCH_SCAN_TIMEOUT_SECONDS = 6 * 60 * 60
 # _run_scan outcome for a scan skipped because another job holds the library lock.
 _LIBRARY_BUSY = object()

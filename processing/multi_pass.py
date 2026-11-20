@@ -1115,7 +1115,7 @@ class ChunkedMultiPassProcessor:
             # quickly instead of outliving the Ctrl-C.
             wanted = _resolved(paths)
             start = time.perf_counter()
-            found = self._fetch_exif(paths, self._decode_stop)
+            found = self._fetch_exif(paths, self._decode_stop) or {}
             spent = time.perf_counter() - start
             self._book_exif_batch(spent)
             with _EXIF_METRICS_LOCK:

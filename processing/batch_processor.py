@@ -115,18 +115,26 @@ class BatchProcessor:
             except ImportError:
                 return
             for i in range(0, len(paths), 500):
-                # Stay a bounded window ahead of the consumer: when the GPU
-                # thread stops popping, the prefetcher waits instead of
-                # pulling the whole worklist's EXIF into memory.
                 while not stop.is_set() and len(self._exif_cache) >= self._exif_prefetch_cap:
                     if stop.wait(0.25):
                         return
                 if stop.is_set():
                     return
-                chunk_exif = get_exif_batch(paths[i:i + 500], chunk_size=100)
+                # The stop event rides into the exiftool batch: after a stop,
+                # an in-flight chunk aborts within one sub-chunk instead of
+                # running its full 500 paths.
+                chunk_exif = get_exif_batch(paths[i:i + 500], chunk_size=100, stop_event=stop)
+                if stop.is_set():
+                    # The join can time out while this chunk is in flight;
+                    # depositing it into the cleared cache would count toward
+                    # the NEXT request's window and starve its prefetch.
+                    return
                 with self._exif_lock:
                     self._exif_cache.update(chunk_exif)
 
+        if self._exif_prefetch_thread is not None and self._exif_prefetch_thread.is_alive():
+            logger.warning("The previous EXIF prefetch thread is still running; "
+                           "starting a new request over it.")
         self._exif_prefetch_thread = threading.Thread(
             target=_prefetch, name='exif-prefetch', daemon=True
         )
@@ -165,6 +173,19 @@ class BatchProcessor:
             except ImportError:
                 pass
         return batch_exif
+
+    def _drop_exif_cache(self, raw_paths):
+        """Drop prefetched entries for paths that errored before consumption.
+
+        Error items are routed straight to the result queue and never reach
+        _get_batch_exif's pop, so their prefetched entries would sit in the
+        cache forever; a corrupt-file prefix larger than the window would park
+        the prefetcher at the cap and degrade every later batch to
+        synchronous fetches.
+        """
+        with self._exif_lock:
+            for raw in raw_paths:
+                self._exif_cache.pop(cached_resolve(raw), None)
 
     def _load_image(self, photo_path):
         """Load and preprocess a single image (runs in worker thread).
@@ -273,6 +294,7 @@ class BatchProcessor:
                 continue
 
             if 'error' in item:
+                self._drop_exif_cache([item['path']])
                 self.result_queue.put(item)
                 pbar.update(1)
                 continue
@@ -326,6 +348,7 @@ class BatchProcessor:
             licensing.reraise_if_refused()
             logger.exception("Batch inference failed for %d images", len(batch))
             for item in batch:
+                self._drop_exif_cache([item['path']])
                 self.result_queue.put({'path': item['path'], 'stage': 'score',
                                        'error': f'batch inference failed: {e}'})
             return
@@ -529,6 +552,7 @@ class BatchProcessor:
 
             except Exception as e:
                 licensing.reraise_if_refused()
+                self._drop_exif_cache([item['path']])
                 self.result_queue.put({'path': item['path'], 'stage': 'score', 'error': str(e)})
 
     def process_files(self, photo_paths, show_metrics=True):

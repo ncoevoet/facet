@@ -11,10 +11,9 @@ subprocess.run is replaced so no real scan ever spawns.
 
 import logging
 import os
+import subprocess
 import sys
 from types import SimpleNamespace
-
-import subprocess
 
 import pytest
 
@@ -738,7 +737,7 @@ class TestRunWatchLoopFailureHandling:
         assert len(runs) == 1 + MAX_CONSECUTIVE_FAILURES
 
 def test_a_hung_scan_is_killed_and_counts_toward_the_give_up(monkeypatch, tmp_path):
-    """B-row: a scan that never returns must not pin the watcher forever —
+    """(B201) A scan that never returns must not pin the watcher forever —
     the timeout kills it, the kill counts into the consecutive-failure
     streak, and three hung scans give up like three crashed ones."""
     native = _FakeObserver()

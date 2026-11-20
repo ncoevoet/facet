@@ -295,7 +295,7 @@ def test_photo_cascade_does_not_scan_unrelated_face_update_receipts(library, ope
         assert conn.execute("SELECT COUNT(*) FROM face_update_items WHERE path LIKE '/archive/%'").fetchone() == (5000,)
 
 def test_the_job_loop_holds_one_connection_not_four_per_photo(library, monkeypatch):
-    """B-row regression: the old loop opened four connections per photo (stop
+    """(B198) Regression: the old loop opened four connections per photo (stop
     poll, pending select, write transaction, progress read) plus the startup
     and finish ones — 20k photos ≈ 80k connect+PRAGMA storms. The loop now
     holds one connection for its whole life."""
@@ -312,5 +312,5 @@ def test_the_job_loop_holds_one_connection_not_four_per_photo(library, monkeypat
     assert update.run_face_update(db, None, JOB, analyzer_factory=analyzer,
                                   loader=lambda path: (object(), object())) == 0
     assert record(db)['state'] == 'completed'
-    # Two photos: one startup, one for the whole loop, one per repair/finish.
+    # Three photos: startup, pre-loop stop check, one connection for the whole loop, repair, finish.
     assert len(opens) <= 5
