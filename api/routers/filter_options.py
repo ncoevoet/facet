@@ -220,6 +220,7 @@ async def tags(
             return {'tags': data[:max_tags], 'cached': True}
 
     async with get_async_db() as conn:
+        await _prepare_like(conn, needle)
         # Both probes are cached, but a cache miss opens a sync connection and
         # queries it: run them on a worker thread so a miss never stalls the event
         # loop (and with it every other request in flight).

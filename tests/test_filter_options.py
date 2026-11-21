@@ -368,6 +368,16 @@ class TestQueryPushdown:
         assert resp.status_code == 200
         assert [row[0] for row in resp.json()["cameras"]] == ["X100VI"]
 
+    def test_a_non_ascii_tag_needle_matches_chinese_tags(self, tmp_path):
+        # The tags route runs its queries on its own connection: the Unicode
+        # folding helper must be registered there too, or even an EXACT
+        # Chinese tag search returns an empty list (no such function).
+        db_path = str(tmp_path / "vocab.db")
+        self._make_vocab_db(db_path, ["Red Apples"], tags=("风景", "城市"))
+        resp = self._get(db_path, "tags", {"query": "风景"})
+        assert resp.status_code == 200
+        assert [row[0] for row in resp.json()["tags"]] == ["风景"]
+
     def test_persons_query_filters_the_names_but_ids_stay_forced(self, tmp_path):
         db_path = str(tmp_path / "test.db")
         _make_db(db_path, [(1, "Alice"), (2, "Bob")], [
