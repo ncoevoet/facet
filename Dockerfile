@@ -18,7 +18,7 @@ ARG BASE_IMAGE=pytorch/pytorch:2.11.0-cuda12.8-cudnn9-runtime
 # image. Pinned to an exact patch, not the floating node:24-alpine: that tag is
 # republished with whatever npm it ships, and the npm 10.9.8 node:22-alpine
 # carried on 2026-08-22 could not resolve this dependency graph at all.
-FROM node:24.22.2-alpine AS client-build
+FROM node:24.22.3-alpine AS client-build
 
 WORKDIR /app/client
 # `npm ci` installs the locked transitive graph instead of re-resolving it from
