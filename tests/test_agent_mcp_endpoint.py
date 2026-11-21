@@ -170,6 +170,20 @@ class TestMount:
         assert set(MCP_FILTER_KEYS) <= set(GalleryParams.model_fields)
         assert {"min_aesthetic", "path_prefix", "album_id", "camera", "tag"} <= set(MCP_FILTER_KEYS)
 
+    def test_string_filter_values_are_bounded_in_both_consumers_of_the_key_table(self):
+        from pydantic import ValidationError
+        from api.agent.tools_common import FILTER_STRING_MAX_LENGTH
+        from api.agent.tools_read import SearchFilters
+        from api.agent.ui_tools import UiFilterPatch
+        for model in (SearchFilters, UiFilterPatch):
+            with pytest.raises(ValidationError):
+                model(tag="x" * (FILTER_STRING_MAX_LENGTH + 1))
+            assert model(tag="x" * FILTER_STRING_MAX_LENGTH) is not None
+            schema = model.model_json_schema()["properties"]["tag"]
+            branch = schema["anyOf"][0] if "anyOf" in schema else schema
+            assert branch.get("maxLength") == FILTER_STRING_MAX_LENGTH, model.__name__
+            assert model(min_aesthetic=3.5) is not None
+
 
 class TestReadTools:
     def test_status(self, agent_app):
@@ -201,6 +215,59 @@ class TestReadTools:
         assert set(row) >= {"path", "filename", "aggregate", "aesthetic", "caption", "tags"}
         assert len(row["tags"]) <= 5
         assert "thumbnail" not in row and "clip_embedding" not in row
+
+    def test_filter_options_pushes_the_query_upstream(self, agent_app, monkeypatch):
+        captured = {}
+
+        def capture(tool, kwargs):
+            if tool.startswith("filter_options."):
+                captured[tool] = kwargs.get("query")
+            return None
+
+        intercept_internal_call(monkeypatch, capture)
+        env = agent_app("open")
+        token = env.token(env.login())
+        env.call(token, "filter_options", {"kind": "categories", "query": "red"})
+        # junk_kinds and metric_ranges carry no text vocabulary to narrow; their read
+        # stays unfiltered upstream and the tool trims its answer instead.
+        env.call(token, "filter_options", {"kind": "metric_ranges", "query": "red"})
+        assert captured["filter_options.categories"] == {"query": "red"}
+        assert captured["filter_options.metric_ranges"] is None
+
+    # Parity guard: passes with OR without the SQL pushdown (the old client-side
+    # _trim_options filtered this answer too) — pins the user-visible narrowing.
+    def test_filter_options_query_narrows_the_answer(self, agent_app, seed_photos_prefix):
+        env = agent_app("multi")
+        alice = env.token(env.login("alice"), "user")
+        seed_photos_prefix(AGENT_DIR + "vocab/", [
+            {"path": AGENT_DIR + f"vocab/{i}.jpg",
+             "category": "Red Apples" if i % 2 else "Blue Sky"} for i in range(4)])
+
+        def names(result):
+            assert result["ok"] is True, result
+            return {row[0] for row in result["data"]["categories"]}
+
+        assert names(env.call(alice, "filter_options", {"kind": "categories"})) == {"Red Apples", "Blue Sky"}
+        assert names(env.call(alice, "filter_options", {"kind": "categories", "query": "red"})) == {"Red Apples"}
+        assert names(env.call(alice, "filter_options", {"kind": "categories", "query": "red"})) == {"Red Apples"}
+
+    def test_filter_options_matches_unicode_case_insensitively(self, agent_app, seed_photos_prefix):
+        # SQLite's LIKE folds ASCII only; the route's facet_lower comparison
+        # must keep a category named Été reachable by été (the old Python
+        # trim matched it via str.lower).
+        env = agent_app("multi")
+        alice = env.token(env.login("alice"), "user")
+        seed_photos_prefix(AGENT_DIR + "vocab/", [
+            {"path": AGENT_DIR + f"vocab/{i}.jpg",
+             "category": cat} for i, cat in enumerate(["Été", "Hiver"])])
+
+        def names(result):
+            assert result["ok"] is True, result
+            return {row[0] for row in result["data"]["categories"]}
+
+        assert names(env.call(alice, "filter_options", {"kind": "categories"})) == {"Été", "Hiver"}
+        assert names(env.call(alice, "filter_options",
+                              {"kind": "categories", "query": "été"})) == {"Été"}
 
     def test_row_cap_truncates(self, agent_app, seed_photos_prefix):
         env = agent_app("open", max_rows=100)
@@ -366,6 +433,18 @@ class TestFieldsAndDefaultRows:
         for tool in (t for t in tools if t["name"] in {"search_photos", "semantic_search", "similar_photos"}):
             offered = set(tool["inputSchema"]["properties"]["fields"]["anyOf"][0]["items"]["enum"])
             assert offered == set(ACCEPTED_FIELDS) and not offered & BLOB_COLUMNS, tool["name"]
+
+    def test_path_typed_read_tools_carry_the_4096_bound(self, agent_app):
+        env = agent_app("open")
+        tools = {t["name"]: t for t in env.rpc(env.token(env.login()), "tools/list").json()["result"]["tools"]}
+        for name in ("get_thumbnail", "get_photo", "similar_photos"):
+            prop = tools[name]["inputSchema"]["properties"]["path"]
+            branch = prop["anyOf"][0] if "anyOf" in prop else prop
+            assert branch.get("maxLength") == 4096, (name, prop)
+        token = env.token(env.login())
+        for name in ("get_photo", "similar_photos"):
+            result = env.call(token, name, {"path": "x" * 4097})
+            assert result["ok"] is False and result["error"] == "invalid_input", (name, result)
 
     def test_every_listed_field_is_a_column_the_gallery_route_serves(self, agent_app, photos):
         from api.agent.tools_read import PHOTO_FIELDS

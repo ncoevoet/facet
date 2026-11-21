@@ -244,7 +244,7 @@ class UiShowPhotos(UiArgs):
 
 
 class UiSelectPhotos(UiArgs):
-    paths: Optional[list[str]] = Field(
+    paths: Optional[list[Annotated[str, Field(min_length=1, max_length=4096)]]] = Field(
         default=None, max_length=MAX_SELECT_PATHS,
         description="Photo paths to select. Exactly one of `paths` and `select_view`.")
     select_view: bool = Field(
@@ -252,13 +252,6 @@ class UiSelectPhotos(UiArgs):
         description="true: select the WHOLE filtered view (not just the loaded rows), "
                     "scope 'view'. Only with mode replace or add.")
     mode: Literal["replace", "add", "remove"] = Field(default="replace")
-
-    @field_validator("paths")
-    @classmethod
-    def _clean_paths(cls, value: Optional[list[str]]) -> Optional[list[str]]:
-        if value is not None and any(not p or len(p) > 4096 for p in value):
-            raise ValueError("every path must be 1..4096 characters")
-        return value
 
     @model_validator(mode="after")
     def _one_target(self) -> "UiSelectPhotos":
@@ -527,8 +520,17 @@ def _simplify(node: Any, defs: dict, keep_null: bool = False) -> Any:
             return _simplify({**rest, **merged}, defs, keep_null)
         if len(branches) == 1:
             return _simplify({**rest, **branches[0]}, defs, keep_null)
-        if all(set(b) == {"type"} for b in branches):
-            return _simplify({**rest, "type": [b["type"] for b in branches]}, defs, keep_null)
+        # Scalar branches may each carry only the bound their type honours (a capped string
+        # inside a str/int/float/bool union, say). Hoisting those keys next to the flat
+        # `type` array keeps the client's hand-written checker enforcing them: JSON Schema
+        # applies each bound to its own type only, so a `maxLength` on a union that names
+        # string stays a string-only bound.
+        _SCALAR_TYPES = ("string", "integer", "number", "boolean", "null")
+        _SCALAR_BOUNDS = ("minLength", "maxLength", "minimum", "maximum")
+        if all(set(b) - set(_SCALAR_BOUNDS) == {"type"} and b.get("type") in _SCALAR_TYPES
+               for b in branches):
+            bounds = {k: v for b in branches for k, v in b.items() if k in _SCALAR_BOUNDS}
+            return _simplify({**rest, **bounds, "type": [b["type"] for b in branches]}, defs, keep_null)
         return {**_simplify(rest, defs, keep_null),
                 "anyOf": [_simplify(b, defs, keep_null) for b in branches]}
     out = {}
