@@ -111,6 +111,11 @@ STATS_KIND_PARAMS: dict[str, tuple[str, ...]] = {
 STATS_LIST_LIMIT = 50
 FilterKind = Literal["cameras", "lenses", "tags", "persons", "patterns", "categories",
                      "narrative_moments", "junk_kinds", "metric_ranges"]
+# Kinds whose route narrows by `query` in SQL. junk_kinds is a fixed handful of kinds
+# and metric_ranges is not a text vocabulary, so their reads stay unfiltered upstream
+# and `_trim_options` narrows the answer instead.
+FILTER_QUERY_KINDS = frozenset({
+    "cameras", "lenses", "tags", "persons", "patterns", "categories", "narrative_moments"})
 
 # The best semantic matches a filtered search narrows; the route's own cap is 200.
 SEMANTIC_CANDIDATES = 200
@@ -341,7 +346,7 @@ def register_read_tools(server: MCPServer, client: InternalClient, status_extra,
                                             cap=cap, exact_one=exact_one)
 
     async def get_photo(
-        ctx: Context, path: Annotated[Optional[str], Field(min_length=1)] = None,
+        ctx: Context, path: Annotated[Optional[str], Field(min_length=1, max_length=4096)] = None,
         target: SelectionTarget = None, tab_id: Optional[str] = None,
     ) -> CallToolResult:
         async def handler(grant, resolved, settings):
@@ -407,7 +412,7 @@ def register_read_tools(server: MCPServer, client: InternalClient, status_extra,
 
     async def similar_photos(
         ctx: Context,
-        path: Annotated[str, Field(min_length=1)],
+        path: Annotated[str, Field(min_length=1, max_length=4096)],
         limit: Annotated[int, Field(ge=1, le=50)] = 20,
         offset: Annotated[int, Field(ge=0)] = 0,
         mode: Literal["visual", "color"] = "visual",
@@ -445,11 +450,14 @@ def register_read_tools(server: MCPServer, client: InternalClient, status_extra,
         query: Annotated[Optional[str], Field(max_length=100)] = None,
     ) -> CallToolResult:
         async def handler(grant, resolved, settings):
-            upstream = await client.call(grant, f"filter_options.{kind}",
-                                         timeout=settings["call_timeout_s"])
+            needle = query or ""
+            upstream = await client.call(
+                grant, f"filter_options.{kind}",
+                query={"query": needle} if needle and kind in FILTER_QUERY_KINDS else None,
+                timeout=settings["call_timeout_s"])
             if not upstream["ok"]:
                 return upstream
-            data, truncated = _trim_options(upstream["data"], query)
+            data, truncated = _trim_options(upstream["data"], needle)
             return ok(data, **({"truncated": True} if truncated else {}))
         return await run_tool(ctx, "filter_options", handler)
 
@@ -665,7 +673,9 @@ def register_read_tools(server: MCPServer, client: InternalClient, status_extra,
         "`min_similarity` (0 to 1) sets the floor the route and the shown view both use. " + SHOW_RULE)
     add(filter_options, "filter_options",
         "List the vocabulary a filter accepts (cameras, lenses, tags, persons, patterns, "
-        "categories, narrative_moments, junk_kinds, metric_ranges).")
+        "categories, narrative_moments, junk_kinds, metric_ranges). `query` narrows the "
+        "listed vocabulary to entries containing it, applied upstream where the route "
+        "serves one (every kind except junk_kinds and metric_ranges).")
     add(list_persons, "list_persons",
         "Recognised people, optionally filtered by name. With show=true (default false) the /persons page opens "
         "in the user's tab with exactly this name search (empty clears it); `shown_in_tab` reports the outcome.")
