@@ -41,6 +41,29 @@ logger = logging.getLogger(__name__)
 # filtered read still fills the page — which is also why the whole-library cache
 # answers only unfiltered reads: its rows are already LIMIT-cut and cannot narrow.
 _LIKE_SUFFIX = " LIKE ? ESCAPE '\\'"
+# A non-ASCII needle cannot ride SQLite's ASCII-only LIKE folding (a category
+# named Été would be invisible to été, which the old Python trim matched via
+# str.lower), so non-ASCII needles switch to a Unicode-folding comparison with
+# a deterministic helper registered on the connection.
+_LIKE_FOLDED_SUFFIX = " LIKE ('%' || facet_lower(?) || '%') ESCAPE '\\'"
+
+
+def _facet_lower(value):
+    """str.lower, mirroring the old Python trim's case folding."""
+    return value.lower() if value is not None else value
+
+
+def _like_suffix(column: str, needle: str) -> str:
+    """The full predicate for this column/needle: plain LIKE folds ASCII only."""
+    if needle.isascii():
+        return f" {column} LIKE ? ESCAPE '\\'"
+    return f" facet_lower({column}) LIKE ('%' || facet_lower(?) || '%') ESCAPE '\\'"
+
+
+async def _prepare_like(conn, needle: str) -> None:
+    """Register the Unicode folding helper when a non-ASCII needle needs it."""
+    if not needle.isascii():
+        await conn.create_function("facet_lower", 1, _facet_lower, deterministic=True)
 # Cap for a `query`-filtered read on the endpoints that have no configured dropdown
 # maximum (patterns, categories, narrative_moments): an over-broad needle must not
 # serialize the whole matching vocabulary. It sits above the agent tool's own 200-row
@@ -116,11 +139,12 @@ async def cameras(
     needle = _like_needle(query)
 
     async def read(conn):
+        await _prepare_like(conn, needle)
         rows = await _fetch_all(
             conn,
             f"""
             SELECT camera_model, COUNT(*) as cnt FROM photos
-            WHERE camera_model IS NOT NULL{vis}{f" AND camera_model{_LIKE_SUFFIX}" if needle else ""}
+            WHERE camera_model IS NOT NULL{vis}{f" AND{_like_suffix('camera_model', needle)}" if needle else ""}
             GROUP BY camera_model ORDER BY cnt DESC LIMIT ?
             """,
             vp + ([needle] if needle else []) + [VIEWER_CONFIG['dropdowns']['max_cameras']],
@@ -144,11 +168,12 @@ async def lenses(
     needle = _like_needle(query)
 
     async def read(conn):
+        await _prepare_like(conn, needle)
         rows = await _fetch_all(
             conn,
             f"""
             SELECT lens_model, COUNT(*) as cnt FROM photos
-            WHERE lens_model IS NOT NULL{vis}{f" AND lens_model{_LIKE_SUFFIX}" if needle else ""}
+            WHERE lens_model IS NOT NULL{vis}{f" AND{_like_suffix('lens_model', needle)}" if needle else ""}
             GROUP BY lens_model ORDER BY cnt DESC LIMIT ?
             """,
             vp + ([needle] if needle else []) + [VIEWER_CONFIG['dropdowns']['max_lenses']],
@@ -215,7 +240,7 @@ async def tags(
                         f"""
                         SELECT tag, COUNT(*) as cnt
                         FROM ({tag_pairs})
-                        WHERE 1=1{vis_sub}{f" AND tag{_LIKE_SUFFIX}" if needle else ""}
+                        WHERE 1=1{vis_sub}{f" AND{_like_suffix('tag', needle)}" if needle else ""}
                         GROUP BY tag
                         ORDER BY cnt DESC, tag ASC
                         LIMIT ?
@@ -239,7 +264,7 @@ async def tags(
                         f"""
                         SELECT tag, SUM(n) AS cnt
                         FROM (SELECT tag, COUNT(*) AS n FROM photo_tags GROUP BY tag{manual_half})
-                        {f"WHERE tag{_LIKE_SUFFIX}" if needle else ""}
+                        {f"WHERE{_like_suffix('tag', needle)}" if needle else ""}
                         GROUP BY tag
                         ORDER BY cnt DESC, tag ASC
                         LIMIT ?
@@ -266,7 +291,7 @@ async def tags(
             )
             SELECT tag, COUNT(DISTINCT path) as cnt
             FROM split_tags
-            WHERE tag != ''{f" AND tag{_LIKE_SUFFIX}" if needle else ""}
+            WHERE tag != ''{f" AND{_like_suffix('tag', needle)}" if needle else ""}
             GROUP BY tag
             ORDER BY cnt DESC, tag ASC
             LIMIT ?
@@ -320,6 +345,7 @@ async def persons(
     needle = _like_needle(query)
 
     async def read(conn):
+        await _prepare_like(conn, needle)
         try:
             min_photos = VIEWER_CONFIG['dropdowns'].get('min_photos_for_person', 1)
             vis_join = f' AND f.photo_path IN (SELECT path FROM photos WHERE 1=1{vis})' if vis else ''
@@ -329,7 +355,7 @@ async def persons(
                 SELECT p.id, p.name, COUNT(DISTINCT f.photo_path) as photo_count
                 FROM persons p
                 JOIN faces f ON f.person_id = p.id
-                WHERE {person_not_hidden_clause('p')}{vis_join}{f" AND p.name{_LIKE_SUFFIX}" if needle else ""}
+                WHERE {person_not_hidden_clause('p')}{vis_join}{f" AND{_like_suffix('p.name', needle)}" if needle else ""}
                 GROUP BY p.id HAVING photo_count >= ?
                 ORDER BY photo_count DESC LIMIT ?
                 """,
@@ -375,13 +401,14 @@ async def patterns(
     needle = _like_needle(query)
 
     async def read(conn):
+        await _prepare_like(conn, needle)
         try:
             rows = await _fetch_all(
                 conn,
                 f"""
                 SELECT composition_pattern, COUNT(*) as cnt FROM photos
                 WHERE composition_pattern IS NOT NULL AND composition_pattern != ''{vis}
-                {f" AND composition_pattern{_LIKE_SUFFIX}" if needle else ""}
+                {f" AND{_like_suffix('composition_pattern', needle)}" if needle else ""}
                 GROUP BY composition_pattern ORDER BY cnt DESC{f" LIMIT {QUERY_MATCH_LIMIT}" if needle else ""}
                 """,
                 vp + ([needle] if needle else []),
@@ -550,13 +577,14 @@ async def categories(
     needle = _like_needle(query)
 
     async def read(conn):
+        await _prepare_like(conn, needle)
         try:
             rows = await _fetch_all(
                 conn,
                 f"""
                 SELECT category, COUNT(*) as cnt FROM photos
                 WHERE category IS NOT NULL{vis}
-                {f" AND category{_LIKE_SUFFIX}" if needle else ""}
+                {f" AND{_like_suffix('category', needle)}" if needle else ""}
                 GROUP BY category ORDER BY cnt DESC{f" LIMIT {QUERY_MATCH_LIMIT}" if needle else ""}
                 """,
                 vp + ([needle] if needle else []),
@@ -582,13 +610,14 @@ async def narrative_moments(
     needle = _like_needle(query)
 
     async def read(conn):
+        await _prepare_like(conn, needle)
         try:
             rows = await _fetch_all(
                 conn,
                 f"""
                 SELECT narrative_moment, COUNT(*) as cnt FROM photos
                 WHERE narrative_moment IS NOT NULL{vis}
-                {f" AND narrative_moment{_LIKE_SUFFIX}" if needle else ""}
+                {f" AND{_like_suffix('narrative_moment', needle)}" if needle else ""}
                 GROUP BY narrative_moment ORDER BY cnt DESC{f" LIMIT {QUERY_MATCH_LIMIT}" if needle else ""}
                 """,
                 vp + ([needle] if needle else []),

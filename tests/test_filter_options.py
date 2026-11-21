@@ -314,12 +314,29 @@ class TestQueryPushdown:
         assert resp.status_code == 200
         assert [row[0] for row in resp.json()["categories"]] == ["Red Apples", "Crimson Red"]
 
+    def test_an_underscore_needle_is_a_literal_too(self, tmp_path):
+        db_path = str(tmp_path / "vocab.db")
+        self._make_vocab_db(db_path, ["a_b", "axb", "Plain"])
+        resp = self._get(db_path, "categories", {"query": "a_b"})
+        assert resp.status_code == 200
+        assert [row[0] for row in resp.json()["categories"]] == ["a_b"]
+
     def test_no_query_returns_every_option(self, tmp_path):
         db_path = str(tmp_path / "vocab.db")
         self._make_vocab_db(db_path, ["Red Apples", "Crimson Red", "Blue Sky"])
         resp = self._get(db_path, "categories", {})
         assert resp.status_code == 200
         assert {row[0] for row in resp.json()["categories"]} == {"Red Apples", "Crimson Red", "Blue Sky"}
+
+    def test_a_non_ascii_needle_matches_unicode_case_insensitively(self, tmp_path):
+        # A category named Été must be found by été: SQLite's LIKE folds ASCII
+        # only, so the non-ASCII needle switches to the Unicode-folding
+        # comparison (the old Python trim matched via str.lower).
+        db_path = str(tmp_path / "vocab.db")
+        self._make_vocab_db(db_path, ["Été", "Hiver", "Étang"])
+        resp = self._get(db_path, "categories", {"query": "été"})
+        assert resp.status_code == 200
+        assert [row[0] for row in resp.json()["categories"]] == ["Été"]
 
     def test_query_is_a_literal_substring_not_a_wildcard(self, tmp_path):
         db_path = str(tmp_path / "vocab.db")
@@ -386,6 +403,7 @@ class TestQueryPushdown:
             resp = TestClient(app).get("/api/filter_options/categories", params={"query": "red"})
         finally:
             _stop_patches(patches)
+            _reset_side_table_caches()
         assert resp.status_code == 200
         cache_mock.assert_not_called()
 

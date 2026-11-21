@@ -80,7 +80,8 @@ MCP_FILTER_KEYS = tuple(dict.fromkeys(
 # 4096 matches the path-parameter convention. A scalar filter keeps its own meaning; only
 # the string member is capped.
 FILTER_STRING_MAX_LENGTH = 4096
-FilterValue = Union[Annotated[str, Field(max_length=FILTER_STRING_MAX_LENGTH)], int, float, bool]
+FilterValue = Union[Annotated[str, Field(max_length=FILTER_STRING_MAX_LENGTH)],
+                     int, Annotated[float, Field(allow_inf_nan=False)], bool]
 SortColumn = Literal[
     "aggregate", "aesthetic", "date_taken", "comp_score", "face_quality", "tech_sharpness",
     "exposure_score", "color_score", "contrast_score", "topiq_score", "quality_score",

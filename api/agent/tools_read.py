@@ -111,9 +111,9 @@ STATS_KIND_PARAMS: dict[str, tuple[str, ...]] = {
 STATS_LIST_LIMIT = 50
 FilterKind = Literal["cameras", "lenses", "tags", "persons", "patterns", "categories",
                      "narrative_moments", "junk_kinds", "metric_ranges"]
-# Kinds whose route narrows by `query` in SQL. junk_kinds is a fixed handful of kinds
-# and metric_ranges is not a text vocabulary, so their reads stay unfiltered upstream
-# and `_trim_options` narrows the answer instead.
+# Kinds whose route narrows by `query` in SQL. junk_kinds is a fixed handful of kinds,
+# so its read stays unfiltered upstream and `_trim_options` narrows the answer instead;
+# metric_ranges carries no text vocabulary at all, so a needle there is ignored.
 FILTER_QUERY_KINDS = frozenset({
     "cameras", "lenses", "tags", "persons", "patterns", "categories", "narrative_moments"})
 

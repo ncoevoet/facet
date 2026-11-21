@@ -234,6 +234,8 @@ class TestReadTools:
         assert captured["filter_options.categories"] == {"query": "red"}
         assert captured["filter_options.metric_ranges"] is None
 
+    # Parity guard: passes with OR without the SQL pushdown (the old client-side
+    # _trim_options filtered this answer too) — pins the user-visible narrowing.
     def test_filter_options_query_narrows_the_answer(self, agent_app, seed_photos_prefix):
         env = agent_app("multi")
         alice = env.token(env.login("alice"), "user")
@@ -247,6 +249,25 @@ class TestReadTools:
 
         assert names(env.call(alice, "filter_options", {"kind": "categories"})) == {"Red Apples", "Blue Sky"}
         assert names(env.call(alice, "filter_options", {"kind": "categories", "query": "red"})) == {"Red Apples"}
+        assert names(env.call(alice, "filter_options", {"kind": "categories", "query": "red"})) == {"Red Apples"}
+
+    def test_filter_options_matches_unicode_case_insensitively(self, agent_app, seed_photos_prefix):
+        # SQLite's LIKE folds ASCII only; the route's facet_lower comparison
+        # must keep a category named Été reachable by été (the old Python
+        # trim matched it via str.lower).
+        env = agent_app("multi")
+        alice = env.token(env.login("alice"), "user")
+        seed_photos_prefix(AGENT_DIR + "vocab/", [
+            {"path": AGENT_DIR + f"vocab/{i}.jpg",
+             "category": cat} for i, cat in enumerate(["Été", "Hiver"])])
+
+        def names(result):
+            assert result["ok"] is True, result
+            return {row[0] for row in result["data"]["categories"]}
+
+        assert names(env.call(alice, "filter_options", {"kind": "categories"})) == {"Été", "Hiver"}
+        assert names(env.call(alice, "filter_options",
+                              {"kind": "categories", "query": "été"})) == {"Été"}
 
     def test_row_cap_truncates(self, agent_app, seed_photos_prefix):
         env = agent_app("open", max_rows=100)
