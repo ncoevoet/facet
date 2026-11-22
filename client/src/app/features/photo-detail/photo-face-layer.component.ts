@@ -169,6 +169,7 @@ export class PhotoFaceLayerComponent {
 
   private readonly menu = viewChild.required(PersonFaceMenuComponent);
   private readonly rows = signal<PhotoFaceRow[]>([]);
+  protected readonly loadFailed = signal(false);
   private press: FacePress | null = null;
   private pendingOpen: ReturnType<typeof setTimeout> | null = null;
 
@@ -222,9 +223,15 @@ export class PhotoFaceLayerComponent {
   async load(path: string = this.path()): Promise<void> {
     try {
       const res = await firstValueFrom(this.api.get<{ faces: PhotoFaceRow[] }>('/photo/faces', { path }));
-      if (path === this.path()) this.rows.set(res.faces ?? []);
+      if (path === this.path()) {
+        this.loadFailed.set(false);
+        this.rows.set(res.faces ?? []);
+      }
     } catch {
-      if (path === this.path()) this.rows.set([]);
+      if (path === this.path()) {
+        this.rows.set([]);
+        this.loadFailed.set(true);
+      }
     }
   }
 

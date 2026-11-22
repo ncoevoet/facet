@@ -176,10 +176,15 @@ export class GearChartCardComponent {
     : this.sortedItems().map(item => ({ name: item.name, value: this.metricValue(item, this.selectedMetric()) })));
 
   constructor() {
-    // Persistence: Load selected metric from localStorage
+    // Persistence: Load selected metric from localStorage. Guarded like the
+    // other preference services: a storage-blocked browser (Safari's "block
+    // all cookies") must not throw out of a stats-page effect.
     effect(() => {
       const key = this.titleKey();
-      const saved = localStorage.getItem(`gear_metric_${key}`);
+      let saved: string | null = null;
+      try {
+        saved = localStorage.getItem(`gear_metric_${key}`);
+      } catch { /* storage unavailable */ }
       if (saved && this.metricOptions.some(opt => opt.key === saved)) {
         this.selectedMetric.set(saved);
       } else {
@@ -194,7 +199,9 @@ export class GearChartCardComponent {
     effect(() => {
       const key = this.titleKey();
       const metric = this.selectedMetric();
-      localStorage.setItem(`gear_metric_${key}`, metric);
+      try {
+        localStorage.setItem(`gear_metric_${key}`, metric);
+      } catch { /* storage unavailable */ }
     });
 
     // Rebuild chart when data, metric, or canvas changes

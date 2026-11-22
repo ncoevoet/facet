@@ -19,6 +19,7 @@ import { HttpContext } from '@angular/common/http';
 import { HANDLE_SERVER_ERROR_LOCALLY } from '../../core/utils/http-error-context';
 import { I18nService } from '../../core/services/i18n.service';
 import { TranslatePipe } from '../../shared/pipes/translate.pipe';
+import { formatCaptureDate } from '../../shared/utils/date-format';
 import { ThemeService } from '../../core/services/theme.service';
 import { HeaderSlotService } from '../../core/services/header-slot.service';
 import { SortOptionIconPipe } from '../../shared/pipes/sort-option-icon.pipe';
@@ -487,13 +488,9 @@ export class StatsComponent {
   });
   protected readonly filterSummary = computed(() => {
     const category = this.statsFilters.filterCategory();
-    const displayDate = (date: string) => {
-      const parts = /^(\d{4})-(\d{2})-(\d{2})$/.exec(date);
-      return parts ? `${parts[3]}/${parts[2]}/${parts[1]}` : date;
-    };
     const from = this.statsFilters.dateFrom();
     const to = this.statsFilters.dateTo();
-    return [category ? this.translateCategory(category) : '', from ? displayDate(from) : '', to ? displayDate(to) : ''].filter(Boolean).join(' · ');
+    return [category ? this.translateCategory(category) : '', from ? formatCaptureDate(from, this.i18n.locale()) : '', to ? formatCaptureDate(to, this.i18n.locale()) : ''].filter(Boolean).join(' · ');
   });
   readonly themeService = inject(ThemeService);
   private readonly pageHelp = inject(PageHelpService);

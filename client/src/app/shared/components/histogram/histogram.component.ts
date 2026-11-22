@@ -179,6 +179,16 @@ export const HISTOGRAM_PANEL_HEIGHT = 160;
         </div>
       }
     }
+    @if (storedFailed()) {
+      <!-- The stored read failed (5xx, network): that is not the same as "the
+           photo was never measured" — the low-quality fallback would pass as
+           the real curve. Mirror the sample-failure row. -->
+      <div class="flex items-center gap-2 text-sm" data-histogram-stored-unavailable>
+        <span>{{ I18N.errors.server_error | translate }}</span>
+        <button type="button" class="underline cursor-pointer" data-histogram-retry
+                (click)="retryStored()">{{ I18N.histogram.retry | translate }}</button>
+      </div>
+    }
     @if (sampleFailed()) {
       <!-- Sampling failed (the fallback thumbnail 404'd or the network
            dropped). The stored luma fallback may still render above; this
@@ -233,6 +243,7 @@ export class HistogramComponent {
   /** The fallback thumbnail failed to load: without this the panel would sit
    *  silently blank (no stored measurement exists to fall back to either). */
   protected readonly sampleFailed = signal(false);
+  protected readonly storedFailed = signal(false);
   private lastSampleUrl: string | null = null;
   protected readonly clipped = signal<ClipPercents | null>(null);
 
@@ -377,9 +388,17 @@ export class HistogramComponent {
     const subscription = this.api
       .get<HistogramChannels & { clipped?: ClipPercents | null }>(
         '/photo/histogram', { path, bins: DISPLAY_BINS })
-      .pipe(catchError(() => of(null)))
+      .pipe(catchError(() => {
+        // A stored read that fails (5xx, network) is not the same as "the photo
+        // has no stored histogram": without saying so, the user gets a low-quality
+        // sampled curve labeled thumbnail — or, with no thumbnail URL, a blank
+        // curve area with no explanation at all. Mirror the sample failure path.
+        this.storedFailed.set(true);
+        return of(null);
+      }))
       .subscribe(stored => {
         if (this.destroyed || token !== this.generation) return;
+        this.storedFailed.set(false);
         if (stored?.luma?.length) {
           // Markers come exclusively from this stored measurement -- a legacy
           // row genuinely was never measured for clipping, and that must stay
@@ -391,6 +410,12 @@ export class HistogramComponent {
         }
       });
     return () => subscription.unsubscribe();
+  }
+
+  protected retryStored(): void {
+    this.storedFailed.set(false);
+    const path = this.path();
+    if (path) this.loadStored(path, this.lastSampleUrl ?? '', this.generation);
   }
 
   private sample(url: string, token: number): void {

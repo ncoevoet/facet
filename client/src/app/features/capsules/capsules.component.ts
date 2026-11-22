@@ -262,6 +262,20 @@ export class CapsulesComponent implements OnDestroy {
         }
       });
     });
+    // A date-range change re-fetches the grid (the regenerate button already
+    // did) and drops the per-capsule shuffle/resume caches, whose photos were
+    // captured under the old dates — replaying them would show the old range.
+    effect(() => {
+      const from = this.capsuleFilters.dateFrom();
+      const to = this.capsuleFilters.dateTo();
+      untracked(() => {
+        if (!from && !to) return;
+        this.currentPage = 1;
+        this.capsuleShuffledPhotos.clear();
+        this.capsuleResumeIndex.clear();
+        this.loadCapsules();
+      });
+    });
   }
 
   ngOnDestroy(): void {

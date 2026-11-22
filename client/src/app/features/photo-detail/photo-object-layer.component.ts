@@ -1,4 +1,6 @@
-import { ChangeDetectionStrategy, Component, effect, inject, input, signal } from '@angular/core';
+import {ChangeDetectionStrategy, Component, DestroyRef, effect, inject, input, signal} from '@angular/core';
+import { TranslatePipe } from '../../shared/pipes/translate.pipe';
+import { i18nKeys } from '../../core/i18n/keys';
 import { firstValueFrom } from 'rxjs';
 import { ApiService } from '../../core/services/api.service';
 import type { components } from '../../core/api/schema';
@@ -13,9 +15,22 @@ export type PhotoObject = components['schemas']['PhotoObject'];
  */
 @Component({
   selector: 'app-photo-object-layer',
+  imports: [TranslatePipe],
   changeDetection: ChangeDetectionStrategy.OnPush,
   host: { class: 'absolute inset-0 pointer-events-none' },
   template: `
+    @if (loadFailed()) {
+      <div class="absolute inset-x-0 top-2 z-10 flex justify-center">
+        <button
+          type="button"
+          role="alert"
+          class="pointer-events-auto flex items-center gap-1 rounded-full bg-[var(--mat-sys-error-container)] px-3 py-1 text-xs text-[var(--mat-sys-on-error-container)]"
+          (click)="retry()">
+          {{ I18N.errors.server_error | translate }}
+          <span class="underline">{{ I18N.gallery.load_error.retry | translate }}</span>
+        </button>
+      </div>
+    }
     @if (objects().length && imageWidth() && imageHeight()) {
       <svg class="w-full h-full" [attr.viewBox]="'0 0 ' + imageWidth() + ' ' + imageHeight()"
         preserveAspectRatio="xMidYMid meet" [style.transform]="transform()" aria-hidden="true">
@@ -34,7 +49,9 @@ export type PhotoObject = components['schemas']['PhotoObject'];
   `,
 })
 export class PhotoObjectLayerComponent {
+  protected readonly I18N = i18nKeys();
   private readonly api = inject(ApiService);
+  private readonly destroyRef = inject(DestroyRef);
   readonly path = input.required<string>();
   readonly imageWidth = input<number | null | undefined>();
   readonly imageHeight = input<number | null | undefined>();
@@ -42,6 +59,7 @@ export class PhotoObjectLayerComponent {
   /** Bump to re-read the objects after the editor changed them. */
   readonly revision = input(0);
   readonly objects = signal<PhotoObject[]>([]);
+  protected readonly loadFailed = signal(false);
 
   constructor() {
     effect((onCleanup) => {
@@ -49,9 +67,33 @@ export class PhotoObjectLayerComponent {
       this.revision();
       let live = true;
       onCleanup(() => { live = false; });
-      firstValueFrom(this.api.get<components['schemas']['PhotoObjectsResponse']>('/photo/objects', { path }))
-        .then((res) => { if (live) this.objects.set(res?.objects ?? []); })
-        .catch(() => { if (live) this.objects.set([]); });
+      this.load(path).then(() => { if (!live) return; });
     });
+  }
+
+  protected retry(): void {
+    void this.load(this.path());
+  }
+
+  /** One objects read; the retry chip and the effect both land here. */
+  protected load(path: string): Promise<void> {
+    let live = true;
+    this.destroyRef.onDestroy(() => { live = false; });
+    return firstValueFrom(
+      this.api.get<components['schemas']['PhotoObjectsResponse']>('/photo/objects', { path }))
+      .then((res) => {
+        if (live) {
+          this.loadFailed.set(false);
+          this.objects.set(res?.objects ?? []);
+        }
+      })
+      .catch(() => {
+        // The user asked for object boxes (mode on): a failed read must say
+        // so instead of silently dropping every box they were shown.
+        if (live) {
+          this.objects.set([]);
+          this.loadFailed.set(true);
+        }
+      });
   }
 }
