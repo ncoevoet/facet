@@ -50,17 +50,63 @@ def _candidate_fingerprint(rows, settings, *, logical=False):
 _THRESHOLD_STEP = 0.02
 
 
+_TORCH_CUDA: bool | None = None
+
+
+def _cuda_available() -> bool:
+    """Resolved once per process: importing torch costs real time on CPU-only
+    installs, and the answer never changes within a run."""
+    global _TORCH_CUDA
+    if _TORCH_CUDA is None:
+        try:
+            import torch
+            _TORCH_CUDA = torch.cuda.is_available()
+        except ImportError:
+            _TORCH_CUDA = False
+    return _TORCH_CUDA
+
+
+def _similar_pairs(matrix, threshold):
+    """Yield every ``(i, j)`` with ``i < j`` whose cosine similarity reaches
+    ``threshold``.
+
+    The embeddings are normalized, so cosine is a plain dot product and the
+    chunked numpy matmul below is BLAS — already the fast path on CPU. When
+    torch with CUDA is available the same computation runs on the device
+    (the same float32 inputs, C-level there), which matters on the 10k-photo
+    cache-miss path. Both paths yield the same pairs up to float rounding at
+    the threshold boundary.
+
+    Exact, not top-K: every pair above the threshold participates, so the
+    connected components (and the oversized-split downstream) see exactly
+    what the all-pairs computation always saw. A scoped call cannot ride a
+    global KNN — a photo's nearest neighbors may sit outside its album or
+    date window, and a global top-K would drop in-scope edges beyond rank K.
+    """
+    if _cuda_available():
+        import torch
+        device = torch.device('cuda')
+        emb = torch.from_numpy(np.ascontiguousarray(matrix)).to(device)
+        sims = emb @ emb.T
+        mask = torch.triu(sims >= threshold, diagonal=1)
+        for pair in torch.argwhere(mask).cpu().numpy():
+            yield int(pair[0]), int(pair[1])
+        return
+    chunk_size = 500  # chunked so the n x n similarity matrix never has to exist
+    for i in range(0, len(matrix), chunk_size):
+        sims = matrix[i:i + chunk_size] @ matrix.T
+        for ci in range(len(sims)):
+            gi = i + ci
+            for j in np.where(sims[ci, gi + 1:] >= threshold)[0] + gi + 1:
+                yield gi, int(j)
+
+
 def _components(matrix, members, threshold):
     """Connected components of ``members`` whose cosine similarity reaches ``threshold``."""
     sub = matrix[members]
     uf = UnionFind(len(members))
-    chunk_size = 500  # chunked so the n x n similarity matrix never has to exist
-    for i in range(0, len(members), chunk_size):
-        sims = sub[i:i + chunk_size] @ sub.T
-        for ci in range(len(sims)):
-            gi = i + ci
-            for j in np.where(sims[ci, gi + 1:] >= threshold)[0] + gi + 1:
-                uf.union(gi, int(j))
+    for gi, gj in _similar_pairs(sub, threshold):
+        uf.union(int(gi), int(gj))
     grouped = defaultdict(list)
     for k, idx in enumerate(members):
         grouped[uf.find(k)].append(idx)
