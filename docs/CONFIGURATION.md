@@ -2060,7 +2060,7 @@ Event-driven plugin system for reacting to scoring events. Plugins can be Python
 
 ### Writing a Plugin
 
-Place a `.py` file in the `plugins/` directory. Define functions named after the events you want to handle:
+Place a `.py` file in the `plugins/` directory, or in the folder named by the `FACET_PLUGINS_DIR` environment variable. Define functions named after the events you want to handle:
 
 ```python
 def on_score_complete(data: dict) -> None:

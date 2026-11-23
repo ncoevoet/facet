@@ -126,6 +126,10 @@ def _first_public_address(addr_infos) -> str | None:
     return resolved_ip
 
 
+# A read-only install (the macOS app bundle) keeps user plugins outside its own folder.
+PLUGINS_DIR_ENV = "FACET_PLUGINS_DIR"
+
+
 class PluginManager:
     """Discovers plugin modules, manages event hooks, and dispatches events.
 
@@ -135,8 +139,8 @@ class PluginManager:
         The full ``scoring_config.json`` dict.  When *None* the manager
         starts with plugins disabled and no webhooks/actions configured.
     plugins_dir : str | None
-        Directory to scan for plugin modules.  Defaults to the ``plugins/``
-        directory next to this file.
+        Directory to scan for plugin modules.  Defaults to ``$FACET_PLUGINS_DIR``,
+        else the ``plugins/`` directory next to this file.
     max_workers : int
         Size of the thread pool used for non-blocking webhook delivery
         and built-in actions.
@@ -164,7 +168,7 @@ class PluginManager:
         self._max_workers = max_workers
 
         if plugins_dir is None:
-            plugins_dir = os.path.dirname(os.path.abspath(__file__))
+            plugins_dir = os.environ.get(PLUGINS_DIR_ENV) or os.path.dirname(os.path.abspath(__file__))
         self._plugins_dir = plugins_dir
 
         if self._enabled:
