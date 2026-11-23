@@ -236,7 +236,9 @@ def test_single_photo_search_membership_probes_instead_of_listing(captioned_phot
         album = conn.execute("SELECT * FROM albums WHERE id = ?", (album_id,)).fetchone()
         conn.statements.clear()
         assert _photo_in_album(conn, album, CAPTIONED)
-        sql, parameters = next((s, p) for s, p in conn.statements if "photos_fts" in s)
+        # A cold FTS-availability cache first probes sqlite_master for photos_fts: skip that one.
+        sql, parameters = next((s, p) for s, p in conn.statements
+                               if "photos_fts" in s and "sqlite_master" not in s)
         plan = [row["detail"] for row in conn.execute(f"EXPLAIN QUERY PLAN {sql}", parameters)]
     finally:
         conn.close()
