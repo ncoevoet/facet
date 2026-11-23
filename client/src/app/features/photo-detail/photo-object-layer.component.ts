@@ -20,10 +20,9 @@ export type PhotoObject = components['schemas']['PhotoObject'];
   host: { class: 'absolute inset-0 pointer-events-none' },
   template: `
     @if (loadFailed()) {
-      <div class="absolute inset-x-0 top-2 z-10 flex justify-center">
+      <div role="alert" class="absolute inset-x-0 top-2 z-10 flex justify-center">
         <button
           type="button"
-          role="alert"
           class="pointer-events-auto flex items-center gap-1 rounded-full bg-[var(--mat-sys-error-container)] px-3 py-1 text-xs text-[var(--mat-sys-on-error-container)]"
           (click)="retry()">
           {{ I18N.errors.server_error | translate }}
@@ -60,14 +59,14 @@ export class PhotoObjectLayerComponent {
   readonly revision = input(0);
   readonly objects = signal<PhotoObject[]>([]);
   protected readonly loadFailed = signal(false);
+  private generation = 0;
 
   constructor() {
     effect((onCleanup) => {
       const path = this.path();
       this.revision();
-      let live = true;
-      onCleanup(() => { live = false; });
-      this.load(path).then(() => { if (!live) return; });
+      void this.load(path);
+      onCleanup(() => { this.generation++; });
     });
   }
 
@@ -77,12 +76,13 @@ export class PhotoObjectLayerComponent {
 
   /** One objects read; the retry chip and the effect both land here. */
   protected load(path: string): Promise<void> {
-    let live = true;
-    this.destroyRef.onDestroy(() => { live = false; });
+    const token = ++this.generation;
+    this.objects.set([]);
+    this.loadFailed.set(false);
     return firstValueFrom(
       this.api.get<components['schemas']['PhotoObjectsResponse']>('/photo/objects', { path }))
       .then((res) => {
-        if (live) {
+        if (!this.destroyRef.destroyed && token === this.generation && path === this.path()) {
           this.loadFailed.set(false);
           this.objects.set(res?.objects ?? []);
         }
@@ -90,7 +90,7 @@ export class PhotoObjectLayerComponent {
       .catch(() => {
         // The user asked for object boxes (mode on): a failed read must say
         // so instead of silently dropping every box they were shown.
-        if (live) {
+        if (!this.destroyRef.destroyed && token === this.generation && path === this.path()) {
           this.objects.set([]);
           this.loadFailed.set(true);
         }
