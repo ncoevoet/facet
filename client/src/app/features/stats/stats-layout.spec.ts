@@ -77,7 +77,7 @@ describe('statistics page states', () => {
     fixture.detectChanges(); await fixture.whenStable(); fixture.detectChanges();
     const summary = fixture.nativeElement.querySelector('details summary');
     expect(summary.textContent).toContain('astro');
-    expect(summary.textContent).toContain('06/11/2026');
+    expect(summary.textContent).toContain('6. Nov. 2026');
   });
 
   it('shows only the page failure instead of empty chart states when the overview fails', async () => {
