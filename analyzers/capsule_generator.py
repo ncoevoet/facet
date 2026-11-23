@@ -1163,6 +1163,8 @@ def _generate_seeded(conn, capsule_config, min_aggregate, vis, user_id):
     max_photos = capsule_config.get("max_photos_per_capsule", 40)
 
     vis_sql, vis_params = vis
+    # The person and tag axes join photos under an alias the shared clause can't name.
+    ph_vis_sql, ph_vis_params = _person_photo_visibility(user_id, capsule_config)
 
     # Align seed lifetime to freshness if not explicitly configured
     freshness_hours = capsule_config.get("freshness_hours", 24)
@@ -1269,15 +1271,15 @@ def _generate_seeded(conn, capsule_config, min_aggregate, vis, user_id):
 
         # --- Same person axis ---
         person_rows = conn.execute(
-            f"""SELECT DISTINCT f.photo_path AS path, p.aggregate
+            f"""SELECT DISTINCT f.photo_path AS path, ph.aggregate
                FROM faces f
-               JOIN photos p ON p.path = f.photo_path
+               JOIN photos ph ON ph.path = f.photo_path
                WHERE f.person_id IN (SELECT person_id FROM faces WHERE photo_path = ?)
                  AND f.photo_path != ?
-                 AND p.aggregate >= ? AND {vis_sql}
-               ORDER BY p.aggregate DESC
+                 AND ph.aggregate >= ? AND {ph_vis_sql}
+               ORDER BY ph.aggregate DESC
                LIMIT ?""",
-            [seed_path, seed_path, min_aggregate] + vis_params + [max_photos],
+            [seed_path, seed_path, min_aggregate] + ph_vis_params + [max_photos],
         ).fetchall()
         if person_rows:
             # Get person name for title
@@ -1301,14 +1303,14 @@ def _generate_seeded(conn, capsule_config, min_aggregate, vis, user_id):
         if tag_list:
             top_tag = tag_list[0]
             tag_rows = conn.execute(
-                f"""SELECT DISTINCT pt.photo_path AS path, p.aggregate
+                f"""SELECT DISTINCT pt.photo_path AS path, ph.aggregate
                    FROM photo_tags pt
-                   JOIN photos p ON p.path = pt.photo_path
+                   JOIN photos ph ON ph.path = pt.photo_path
                    WHERE pt.tag = ? AND pt.photo_path != ?
-                     AND p.aggregate >= ? AND {vis_sql}
-                   ORDER BY p.aggregate DESC
+                     AND ph.aggregate >= ? AND {ph_vis_sql}
+                   ORDER BY ph.aggregate DESC
                    LIMIT ?""",
-                [top_tag, seed_path, min_aggregate] + vis_params + [max_photos],
+                [top_tag, seed_path, min_aggregate] + ph_vis_params + [max_photos],
             ).fetchall()
             if tag_rows:
                 avg_agg = sum(r["aggregate"] for r in tag_rows) / len(tag_rows)
