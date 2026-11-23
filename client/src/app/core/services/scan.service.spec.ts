@@ -554,6 +554,33 @@ describe('ScanService', () => {
     });
   });
 
+  describe('isRunning()', () => {
+    const status = (running: boolean) => ({
+      running, directories: [], output: [], elapsed_seconds: null, exit_code: null,
+    });
+
+    it('reports a scan under way', async () => {
+      const promise = service.isRunning();
+      httpTesting.expectOne('/api/scan/status').flush(status(true));
+      expect(await promise).toBe(true);
+    });
+
+    it('reports an idle server', async () => {
+      const promise = service.isRunning();
+      httpTesting.expectOne('/api/scan/status').flush(status(false));
+      expect(await promise).toBe(false);
+    });
+
+    it('treats a failed or malformed read as no scan', async () => {
+      const failed = service.isRunning();
+      httpTesting.expectOne('/api/scan/status').flush('', { status: 500, statusText: 'Server Error' });
+      expect(await failed).toBe(false);
+      const malformed = service.isRunning();
+      httpTesting.expectOne('/api/scan/status').flush({ running: 'yes' });
+      expect(await malformed).toBe(false);
+    });
+  });
+
   describe('canLaunch', () => {
     function setAuth(overrides: {
       isMultiUser?: boolean;

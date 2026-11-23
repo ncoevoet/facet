@@ -617,7 +617,7 @@ Start a scan from the browser. The Scan button appears when **both** hold:
 
 On an open single-user install (empty `viewer.edition_password`, the default), nobody can scan from the browser. Exception: under `viewer.trusted_local_editing`, a trusted-local browser session, or a local assistant with a Full-editing token, can scan without `show_scan_button` or an edition password.
 
-The empty gallery offers **Scan photos to get started**. **Scan for new photos** is also available in the global navigation area at every width. Both open the scan launcher:
+The empty gallery offers **Scan photos to get started**. **Scan for new photos** is also available in the global navigation area at every width. Both open the scan launcher. An empty gallery opened while a scan the viewer started is running (from another tab, or from the macOS app's menu bar) opens it by itself, showing that scan (one run with `facet.py` in a terminal is not shown):
 
 - Pick a directory from the list and start the scan. When only one directory is configured it is already selected.
 - While it runs, the dialog shows the three stages of a scan (**Find**, **Analyze**, **Organize**), what the current step is doing in plain words ("Finding the main subject"), how many photos are done and roughly how long the analysis has left (the Organize stage has no estimate). The raw output lines are folded under **Technical log**, which opens by itself when a scan fails.

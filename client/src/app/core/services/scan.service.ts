@@ -185,6 +185,16 @@ export class ScanService implements OnDestroy {
     return response;
   }
 
+  /** One status read, for a page that only needs to know whether a scan is under way. */
+  async isRunning(): Promise<boolean> {
+    try {
+      const status = await this.sessionRead(() => this.api.get<unknown>('/scan/status'));
+      return isScanStatus(status) && status.running;
+    } catch {
+      return false;
+    }
+  }
+
   async loadDirectories(): Promise<ScanDirectory[]> {
     const response = await this.sessionRead(() => this.api.get<{ directories: ScanDirectory[] }>('/scan/directories'));
     return response.directories;

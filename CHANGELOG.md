@@ -10,6 +10,7 @@ All notable changes to Facet are documented in this file.
 
 ### Fixed
 
+- **An empty gallery follows a scan that is already running.** Opening the gallery on an empty library while a scan runs — the first scan, or one started from another tab or the macOS app's menu bar — used to show "No photos found" until a manual reload. It now opens the scan's progress dialog, and the grid fills in when the scan finishes.
 - **Scans skip Apple Photos libraries.** `scanning.skip_directories` now also lists `*.photoslibrary` by default, so picking `~/Pictures` no longer scans the originals and derivatives inside `Photos Library.photoslibrary` as duplicates of photos kept elsewhere. A list in your `scoring_config.json` still replaces the default.
 - **SAMP-Net, U2-Net-P and the PIAA prior stop depending on the working directory.** Their default paths (`pretrained_models/samp_net.pth`, `pretrained_models/u2netp.pth`, `piaa_prior.models_dir`) were read against wherever `facet.py` or `viewer.py` was started, so a run from another folder downloaded SAMP-Net and U2-Net-P again there. A configured path starting with `pretrained_models/` now means Facet's models folder, like every other auto-downloaded weight. The new `FACET_MODELS_DIR` environment variable moves that folder, for an install whose own folder is read-only.
 

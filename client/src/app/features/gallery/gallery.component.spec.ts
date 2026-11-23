@@ -299,7 +299,8 @@ describe('GalleryComponent', () => {
           },
         },
         { provide: ActivatedRoute, useValue: routeMock },
-        { provide: ScanService, useValue: { canLaunch: signal(false), openLauncher: vi.fn(() => Promise.resolve(false)) } },
+        { provide: ScanService, useValue: { canLaunch: signal(false), openLauncher: vi.fn(() => Promise.resolve(false)),
+          isRunning: vi.fn(() => Promise.resolve(false)) } },
         { provide: RouterOutlet, useValue: outletMock },
         { provide: ChangeDetectorRef, useValue: { detectChanges: vi.fn() } },
         { provide: MatDialog, useValue: { open: vi.fn() } },
@@ -5445,13 +5446,16 @@ describe('GalleryComponent', () => {
       fixture = null;
     });
 
-    function render(canLaunch: boolean, library: typeof photos, launched = true) {
+    function render(canLaunch: boolean, library: typeof photos, launched = true, scanRunning = false) {
       mockAuth['downloadProfiles'] = vi.fn(() => []);
       mockStore.photos.set(library);
       mockStore.total.set(library.length);
-      const scan = TestBed.inject(ScanService) as unknown as { canLaunch: WritableSignal<boolean>; openLauncher: Mock };
+      const scan = TestBed.inject(ScanService) as unknown as {
+        canLaunch: WritableSignal<boolean>; openLauncher: Mock; isRunning: Mock;
+      };
       scan.canLaunch.set(canLaunch);
       scan.openLauncher.mockResolvedValue(launched);
+      scan.isRunning.mockResolvedValue(scanRunning);
       fixture = TestBed.createComponent(GalleryComponent);
       fixture.detectChanges();
       return { f: fixture, scan };
@@ -5490,6 +5494,26 @@ describe('GalleryComponent', () => {
       await vi.waitFor(() => expect(mockStore.reloadPhotos).toHaveBeenCalledTimes(1));
       expect(scan.openLauncher).toHaveBeenCalledTimes(1);
       expect(mockStore.loadTypeCounts).toHaveBeenCalled();
+    });
+
+    it('shows the progress of a scan already running on an empty library, then reloads', async () => {
+      const { scan } = render(true, [], true, true);
+      await vi.waitFor(() => expect(scan.openLauncher).toHaveBeenCalledTimes(1));
+      await vi.waitFor(() => expect(mockStore.reloadPhotos).toHaveBeenCalled());
+    });
+
+    it('leaves an empty library alone when no scan is running', async () => {
+      const { f, scan } = render(true, []);
+      await vi.waitFor(() => expect(scan.isRunning).toHaveBeenCalled());
+      await f.whenStable();
+      expect(scan.openLauncher).not.toHaveBeenCalled();
+    });
+
+    it('never asks about scans over a populated library', async () => {
+      const { f, scan } = render(true, photos, true, true);
+      await f.whenStable();
+      expect(scan.isRunning).not.toHaveBeenCalled();
+      expect(scan.openLauncher).not.toHaveBeenCalled();
     });
 
     it('reloads nothing when the launcher is dismissed', async () => {
