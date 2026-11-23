@@ -251,6 +251,24 @@ class TestReadTools:
         assert names(env.call(alice, "filter_options", {"kind": "categories", "query": "red"})) == {"Red Apples"}
         assert names(env.call(alice, "filter_options", {"kind": "categories", "query": "red"})) == {"Red Apples"}
 
+    @pytest.mark.parametrize("extra", [0, 1])
+    def test_filter_options_reports_only_known_dropdown_overflow(self, agent_app, seed_photos_prefix, extra):
+        env = agent_app("multi")
+        token = env.token(env.login("alice"), "user")
+        seed_photos_prefix(AGENT_DIR + "vocab/", [
+            {"path": AGENT_DIR + f"vocab/{i}.jpg", "camera_model": f"Overflow camera {i}"}
+            for i in range(50 + extra)
+        ])
+
+        result = env.call(token, "filter_options", {"kind": "cameras", "query": "Overflow camera"})
+        assert result["ok"] is True, result
+        assert len(result["data"]["cameras"]) == 50
+        if extra:
+            assert result["truncated"] is True
+        else:
+            assert "truncated" not in result
+        assert "truncated" not in result["data"]
+
     def test_filter_options_matches_unicode_case_insensitively(self, agent_app, seed_photos_prefix):
         # SQLite's LIKE folds ASCII only; the route's facet_lower comparison
         # must keep a category named Été reachable by été (the old Python

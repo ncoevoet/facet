@@ -98,7 +98,7 @@ curl -s -X POST http://localhost:5000/api/mcp/tokens -H "Authorization: Bearer $
 | `contact_sheet` | 将 1 至 16 张照片作为一张带编号的网格图查看(`columns` 2 至 4,最长边 1024)。文本部分列出 `legend`(格子编号对应路径,按请求顺序)和 `unavailable`(因照片缺失或不可见而留空的格子);或用 `target: "selection"` 指定选中的照片(最多 16 张) |
 | `possible_faces` | 与某个已识别人物相似的人脸:与该人物质心的余弦相似度,最佳在前,仅限同一嵌入模型。`scope` 为 `unassigned`(默认)、`unnamed`(不在任何分组中、或所在分组无人命名的人脸)、`other_persons` 或 `all`;`min_similarity` 默认 0.30;`limit` 最多 100。超过 192000 张人脸的扫描会被拒绝(`too_large`):用 `scope`、`path_prefix`、`date_from` 或 `date_to` 缩小范围。照片会显示在你的标签页中。每行包含字段 `owner`(`ungrouped`、`unnamed_group` 或 `named`)。`candidates` 是范围内您可见的人脸数量（在嵌入维度检查之前）；`faces_scanned` 是实际评分的行数。 |
 | `similar_photos` | 按视觉嵌入或颜色查找与某张照片相似的照片；`min_similarity`（0 到 1）设定下限 |
-| `filter_options` | 筛选条件接受的词汇：相机、镜头、标签、人物、构图模式、类别、叙事瞬间、垃圾类型、指标范围 |
+| `filter_options` | 筛选条件接受的词汇：相机、镜头、标签、人物、构图模式、类别、叙事瞬间、垃圾类型、指标范围。`query` 按子字符串筛选。对于相机、镜头、标签和人物，筛选后若可见匹配项超出下拉菜单上限，则返回 `truncated: true`；未筛选时，仅达到该上限不会设置此标记。工具按自身上限截断结果时仍会设置此标记。 |
 | `list_persons` | 已识别的人物，可按姓名过滤;`show: true` 会以该搜索打开 `/persons` |
 | `list_albums` | 令牌所有者能看到的相册;`show: true` 会以该搜索打开 `/albums` |
 | `library_stats` | 照片库统计：`kind` 选择规模与评分概览（默认）或统计页面的任意数据（见下文） |

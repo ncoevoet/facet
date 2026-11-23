@@ -15,6 +15,9 @@ from api.exposure import exposure_seconds_sql
 
 logger = logging.getLogger(__name__)
 
+# Private request/response metadata for the in-process agent's filtered dropdown reads.
+FILTER_OPTIONS_OVERFLOW_HEADER = "X-Facet-Filter-Options-Overflow"
+
 # Junk-sweep sentinels shared by the gallery filter and filter_options.
 # NOTE: the value must match models.junk_classifier.NOT_JUNK; kept as a plain
 # literal here so the API never imports the torch-heavy classifier module.

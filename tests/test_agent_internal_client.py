@@ -7,7 +7,7 @@ from datetime import timedelta
 from types import MappingProxyType
 
 import pytest
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Request, Response
 from fastapi.testclient import TestClient
 from fastapi.responses import JSONResponse
 
@@ -299,6 +299,34 @@ class TestStatusMapping:
         client = InternalClient(_fake_app(), allowlist={"big": RouteSpec("GET", "/big", "readonly")})
         result = _run(client.call(tokens.verify(token), "big"))
         assert result["ok"] is True and result["data"]["total"] == 500
+
+
+@pytest.mark.parametrize("kind,probes", [
+    ("cameras", True), ("lenses", True), ("tags", True), ("persons", True), ("categories", False),
+])
+def test_filter_options_probes_only_filtered_dropdowns(agent_app, kind, probes):
+    header = "X-Facet-Filter-Options-Overflow"
+    app = FastAPI()
+
+    @app.get("/api/filter_options/{route_kind}")
+    async def report_probe(route_kind: str, request: Request, response: Response):
+        probe = request.headers.get(header)
+        if probe == "1":
+            response.headers[header] = "1"
+        return {"kind": route_kind, "probe": probe}
+
+    env = agent_app("open")
+    grant = tokens.verify(env.token(env.login(), "readonly"))
+    client = InternalClient(app)
+    for query in (None, {"query": ""}, {"query": "sun"}):
+        expected = "1" if probes and query and query["query"] else None
+        result = _run(client.call(grant, f"filter_options.{kind}", query=query))
+        assert result["ok"] is True, result
+        assert result["data"] == {"kind": kind, "probe": expected}
+        if expected:
+            assert result["truncated"] is True
+        else:
+            assert "truncated" not in result
 
 
 class TestCaps:

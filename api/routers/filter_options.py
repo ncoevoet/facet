@@ -11,13 +11,13 @@ import sqlite3
 import threading
 import time
 from typing import Optional
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response
 
 from api.auth import CurrentUser, get_optional_user, require_authenticated
 from api.config import VIEWER_CONFIG, is_multi_user_enabled
 from api.database import get_async_db, get_db
 from api.db_helpers import is_manual_tags_available, is_photo_tags_available, get_visibility_clause
-from api.types import JUNK_NOT_JUNK
+from api.types import FILTER_OPTIONS_OVERFLOW_HEADER, JUNK_NOT_JUNK
 from api.models.gallery import PERSON_FILTER_LIMIT, person_filter_ids
 from api.models.media import (
     MediaFilterOptionCamerasResponse,
@@ -75,6 +75,19 @@ def _like_needle(query: str) -> str:
     return f"%{escaped}%"
 
 
+def _dropdown_query_limit(cap: int, request: Request, needle: str) -> int:
+    """Read one additional visible match only for the agent's filtered lookup."""
+    return cap + int(cap >= 0 and bool(needle)
+                     and request.headers.get(FILTER_OPTIONS_OVERFLOW_HEADER) == "1")
+
+
+def _trim_dropdown_probe(rows: list, cap: int, response: Response) -> list:
+    if cap >= 0 and len(rows) > cap:
+        response.headers[FILTER_OPTIONS_OVERFLOW_HEADER] = "1"
+        return rows[:cap]
+    return rows
+
+
 def _vis_where(user: Optional[CurrentUser]):
     """Return (where_fragment, params) for visibility filtering.
 
@@ -126,12 +139,16 @@ async def _fetch_all(conn, sql: str, params=None):
 
 @router.get("/cameras", response_model=MediaFilterOptionCamerasResponse, response_model_exclude_unset=True)
 async def cameras(
+    request: Request,
+    response: Response,
     query: str = Query("", max_length=100),
     user: Optional[CurrentUser] = Depends(get_optional_user),
 ):
     """Lazy-load camera options with counts. `query` narrows to camera models containing it."""
     vis, vp = _vis_where(user)
     needle = _like_needle(query)
+    cap = VIEWER_CONFIG['dropdowns']['max_cameras']
+    limit = _dropdown_query_limit(cap, request, needle)
 
     async def read(conn):
         await _prepare_like(conn, needle)
@@ -142,9 +159,9 @@ async def cameras(
             WHERE camera_model IS NOT NULL{vis}{f" AND{_like_suffix('camera_model', needle)}" if needle else ""}
             GROUP BY camera_model ORDER BY cnt DESC LIMIT ?
             """,
-            vp + ([needle] if needle else []) + [VIEWER_CONFIG['dropdowns']['max_cameras']],
+            vp + ([needle] if needle else []) + [limit],
         )
-        return [(r[0], r[1]) for r in rows]
+        return [(r[0], r[1]) for r in _trim_dropdown_probe(rows, cap, response)]
 
     if needle:
         async with get_async_db() as conn:
@@ -155,12 +172,16 @@ async def cameras(
 
 @router.get("/lenses", response_model=MediaFilterOptionLensesResponse, response_model_exclude_unset=True)
 async def lenses(
+    request: Request,
+    response: Response,
     query: str = Query("", max_length=100),
     user: Optional[CurrentUser] = Depends(get_optional_user),
 ):
     """Lazy-load lens options with counts. `query` narrows to lens models containing it."""
     vis, vp = _vis_where(user)
     needle = _like_needle(query)
+    cap = VIEWER_CONFIG['dropdowns']['max_lenses']
+    limit = _dropdown_query_limit(cap, request, needle)
 
     async def read(conn):
         await _prepare_like(conn, needle)
@@ -171,9 +192,9 @@ async def lenses(
             WHERE lens_model IS NOT NULL{vis}{f" AND{_like_suffix('lens_model', needle)}" if needle else ""}
             GROUP BY lens_model ORDER BY cnt DESC LIMIT ?
             """,
-            vp + ([needle] if needle else []) + [VIEWER_CONFIG['dropdowns']['max_lenses']],
+            vp + ([needle] if needle else []) + [limit],
         )
-        return [(r[0], r[1]) for r in rows]
+        return [(r[0], r[1]) for r in _trim_dropdown_probe(rows, cap, response)]
 
     if needle:
         async with get_async_db() as conn:
@@ -190,6 +211,8 @@ def _tag_tables_ready():
 
 @router.get("/tags", response_model=MediaFilterOptionTagsResponse, response_model_exclude_unset=True)
 async def tags(
+    request: Request,
+    response: Response,
     query: str = Query("", max_length=100),
     user: Optional[CurrentUser] = Depends(get_optional_user),
 ):
@@ -207,6 +230,7 @@ async def tags(
     max_tags = VIEWER_CONFIG['dropdowns']['max_tags']
     vis, vp = _vis_where(user)
     needle = _like_needle(query)
+    limit = _dropdown_query_limit(max_tags, request, needle)
 
     if not vis and not needle and not is_multi_user_enabled():
         data, is_fresh = await asyncio.to_thread(
@@ -241,7 +265,7 @@ async def tags(
                         ORDER BY cnt DESC, tag ASC
                         LIMIT ?
                         """,
-                        vp + ([needle] if needle else []) + [max_tags],
+                        vp + ([needle] if needle else []) + [limit],
                     )
                 else:
                     # Whole library: count the AI pairs with an index-only GROUP BY on
@@ -265,9 +289,9 @@ async def tags(
                         ORDER BY cnt DESC, tag ASC
                         LIMIT ?
                         """,
-                        ([needle] if needle else []) + [max_tags],
+                        ([needle] if needle else []) + [limit],
                     )
-                return {'tags': [(r[0], r[1]) for r in rows], 'cached': False}
+                return {'tags': [(r[0], r[1]) for r in _trim_dropdown_probe(rows, max_tags, response)], 'cached': False}
             except sqlite3.Error:
                 logger.debug("photo_tags query failed, falling back to split", exc_info=True)
 
@@ -295,8 +319,8 @@ async def tags(
         try:
             rows = await _fetch_all(
                 conn, tag_query,
-                vp + (vp if manual_ready else []) + ([needle] if needle else []) + [max_tags])
-            return {'tags': [(r[0], r[1]) for r in rows], 'cached': False}
+                vp + (vp if manual_ready else []) + ([needle] if needle else []) + [limit])
+            return {'tags': [(r[0], r[1]) for r in _trim_dropdown_probe(rows, max_tags, response)], 'cached': False}
         except sqlite3.Error:
             logger.exception("Failed to query tags")
             return {'tags': [], 'cached': False}
@@ -322,6 +346,8 @@ def _parse_forced_ids(ids: str) -> list[int]:
 
 @router.get("/persons", response_model=MediaFilterOptionPersonsResponse, response_model_exclude_unset=True)
 async def persons(
+    request: Request,
+    response: Response,
     ids: str = Query("", max_length=4096),
     query: str = Query("", max_length=100),
     user: Optional[CurrentUser] = Depends(get_optional_user),
@@ -335,6 +361,8 @@ async def persons(
     vis, vp = _vis_where(user)
     forced_ids = _parse_forced_ids(ids)
     needle = _like_needle(query)
+    cap = VIEWER_CONFIG['dropdowns']['max_persons']
+    limit = _dropdown_query_limit(cap, request, needle)
 
     async def read(conn):
         await _prepare_like(conn, needle)
@@ -351,9 +379,9 @@ async def persons(
                 GROUP BY p.id HAVING photo_count >= ?
                 ORDER BY photo_count DESC LIMIT ?
                 """,
-                vp + ([needle] if needle else []) + [min_photos, VIEWER_CONFIG['dropdowns']['max_persons']],
+                vp + ([needle] if needle else []) + [min_photos, limit],
             )
-            result = [(r[0], r[1], r[2]) for r in rows]
+            result = [(r[0], r[1], r[2]) for r in _trim_dropdown_probe(rows, cap, response)]
             if forced_ids:
                 present = {r[0] for r in result}
                 missing = [i for i in forced_ids if i not in present]
