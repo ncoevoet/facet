@@ -1,0 +1,7 @@
+# Inputs of the macOS app's lock (requirements.lock.txt beside this file).
+# Regenerate with ./compile-lock.sh; never edit the lock by hand.
+-r ../requirements.txt
+-r ../requirements.restricted.txt
+# The Windows and Docker builds pin this torch; PyPI's macOS wheel includes MPS.
+torch==2.11.0
+torchvision==0.26.0
