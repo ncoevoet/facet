@@ -234,9 +234,14 @@ export class PhotoFaceLayerComponent {
     });
   }
 
+  private shownPath = '';
+
   async load(path: string = this.path()): Promise<void> {
     const token = ++this.generation;
-    this.rows.set([]);
+    // A reread of the same photo (after an edit, or Retry) keeps the boxes
+    // until it lands; only a new photo blanks the previous one's.
+    if (path !== this.shownPath) this.rows.set([]);
+    this.shownPath = path;
     this.loadFailed.set(false);
     try {
       const res = await firstValueFrom(this.api.get<{ faces: PhotoFaceRow[] }>('/photo/faces', { path }));

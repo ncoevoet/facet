@@ -498,4 +498,21 @@ describe('PhotoFaceLayerComponent', () => {
       expect((fixture.nativeElement.querySelector('rect[data-face]') as SVGRectElement).classList).toContain('opacity-100');
     });
   });
+  it('keeps the faces visible while a same-path reread is pending, and clears them for a new path', async () => {
+    await render();
+    expect(component.faces().length).toBeGreaterThan(0);
+    const pending = new Subject<{ faces: PhotoFaceRow[] }>();
+    mockApi.get.mockReturnValue(pending);
+    const reread = component.load();
+    expect(component.faces().length).toBeGreaterThan(0);
+    pending.next({ faces: ROWS });
+    pending.complete();
+    await reread;
+    const next = new Subject<{ faces: PhotoFaceRow[] }>();
+    mockApi.get.mockReturnValue(next);
+    fixture.componentRef.setInput('path', '/p/b.jpg');
+    fixture.detectChanges();
+    expect(component.faces()).toEqual([]);
+  });
+
 });

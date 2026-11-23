@@ -84,6 +84,19 @@ describe('GearChartCardComponent', () => {
     fixture.componentRef.setInput('color', '#ff0000');
   });
 
+  it('survives localStorage getItem and setItem throwing', () => {
+    vi.spyOn(Storage.prototype, 'getItem').mockImplementation((key: string) => {
+      if (key.startsWith('gear_metric_')) throw new DOMException('blocked', 'SecurityError');
+      return null;
+    });
+    vi.spyOn(Storage.prototype, 'setItem').mockImplementation((key: string) => {
+      if (key.startsWith('gear_metric_')) throw new DOMException('blocked', 'SecurityError');
+    });
+    expect(() => fixture.detectChanges()).not.toThrow();
+    expect((component as any).selectedMetric()).toBe('count');
+    expect(fixture.nativeElement.querySelector('details table')).not.toBeNull();
+  });
+
   it('should create the component and restore metric from localStorage', () => {
     fixture.detectChanges();
     expect(component).toBeTruthy();
@@ -209,4 +222,5 @@ describe('axisLabelIndexAt', () => {
     expect(axisLabelIndexAt(chart, 40, 5)).toBeNull();
     expect(axisLabelIndexAt(chart, 40, 170)).toBeNull();
   });
+
 });

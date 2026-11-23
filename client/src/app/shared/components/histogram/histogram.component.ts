@@ -392,12 +392,15 @@ export class HistogramComponent {
     this.storedSubscription = this.api
       .get<HistogramChannels & { clipped?: ClipPercents | null }>(
         '/photo/histogram', { path, bins: DISPLAY_BINS })
-      .pipe(catchError(() => {
+      .pipe(catchError((err: unknown) => {
         // A stored read that fails (5xx, network) is not the same as "the photo
         // has no stored histogram": without saying so, the user gets a low-quality
         // sampled curve labeled thumbnail — or, with no thumbnail URL, a blank
         // curve area with no explanation at all. Mirror the sample failure path.
-        if (!this.destroyed && token === this.generation) this.storedFailed.set(true);
+        // A 404 IS that answer (the row has no stored histogram), so it falls
+        // through to the thumbnail sample like an empty reply.
+        const missing = (err as { status?: number } | null)?.status === 404;
+        if (!missing && !this.destroyed && token === this.generation) this.storedFailed.set(true);
         return of(null);
       }))
       .subscribe(stored => {

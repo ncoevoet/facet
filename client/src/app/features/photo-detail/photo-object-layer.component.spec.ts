@@ -129,4 +129,19 @@ describe('PhotoObjectLayerComponent', () => {
     await Promise.resolve();
     expect(fixture.componentInstance.objects()).toEqual([]);
   });
+  it('keeps the boxes visible while a same-path revision reread is pending, and clears them for a new path', async () => {
+    const fixture = render();
+    fixture.detectChanges();
+    await fixture.whenStable();
+    const pending = new Subject<{ objects: typeof objects }>();
+    api.get.mockReturnValue(pending);
+    fixture.componentRef.setInput('revision', 1);
+    fixture.detectChanges();
+    expect(api.get).toHaveBeenCalledTimes(2);
+    expect(fixture.nativeElement.querySelector('rect')).not.toBeNull();
+    fixture.componentRef.setInput('path', '/b.jpg');
+    fixture.detectChanges();
+    expect(fixture.nativeElement.querySelector('rect')).toBeNull();
+  });
+
 });

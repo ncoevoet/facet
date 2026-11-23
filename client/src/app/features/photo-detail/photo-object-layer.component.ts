@@ -60,6 +60,7 @@ export class PhotoObjectLayerComponent {
   readonly objects = signal<PhotoObject[]>([]);
   protected readonly loadFailed = signal(false);
   private generation = 0;
+  private shownPath = '';
 
   constructor() {
     effect((onCleanup) => {
@@ -77,7 +78,10 @@ export class PhotoObjectLayerComponent {
   /** One objects read; the retry chip and the effect both land here. */
   protected load(path: string): Promise<void> {
     const token = ++this.generation;
-    this.objects.set([]);
+    // A reread of the same photo (after an object edit, or Retry) keeps the
+    // boxes until it lands; only a new photo blanks the previous one's.
+    if (path !== this.shownPath) this.objects.set([]);
+    this.shownPath = path;
     this.loadFailed.set(false);
     return firstValueFrom(
       this.api.get<components['schemas']['PhotoObjectsResponse']>('/photo/objects', { path }))

@@ -621,4 +621,10 @@ describe('HistogramComponent', () => {
 
     expect(polylines()).toHaveLength(0);
   });
+  it.each([[404, false], [500, true]])('a %i stored read sets the failure state: %s', (status, failed) => {
+    mockApi.get.mockReturnValue(throwError(() => ({ status })));
+    render({ path: '/a.jpg' });
+    expect(fixture.nativeElement.querySelector('[data-histogram-stored-unavailable]') !== null).toBe(failed);
+  });
+
 });

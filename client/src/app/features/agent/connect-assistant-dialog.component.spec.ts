@@ -331,6 +331,18 @@ describe('ConnectAssistantDialogComponent', () => {
       expect(query('[data-testid="live-region"]')?.textContent).toContain('dialog.connect_assistant.copied');
     });
 
+    it('opens the copy_failed snackbar and leaves copied false when writeText rejects', async () => {
+      Object.defineProperty(navigator, 'clipboard', { value: { writeText: vi.fn(() => Promise.reject(new Error('denied'))) }, configurable: true });
+      (document as unknown as Record<string, unknown>)['execCommand'] = vi.fn(() => false);
+      await create();
+      await mintAs('x');
+      buttonByText('dialog.connect_assistant.copy_prompt')!.click();
+      await flush();
+      expect(TestBed.inject(MatSnackBar).open).toHaveBeenCalledWith('ui.copy_failed', '', { duration: 3000 });
+      expect(text()).not.toContain('dialog.connect_assistant.copied');
+      expect(buttonByText('dialog.connect_assistant.copy_prompt')).toBeDefined();
+    });
+
     it('says nothing when both copy routes fail', async () => {
       Object.defineProperty(navigator, 'clipboard', { value: undefined, configurable: true });
       (document as unknown as Record<string, unknown>)['execCommand'] = vi.fn(() => false);

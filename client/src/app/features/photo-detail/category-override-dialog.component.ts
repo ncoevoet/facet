@@ -60,7 +60,7 @@ interface CategoryOption {
     </mat-dialog-content>
     <mat-dialog-actions align="end">
       <button mat-button mat-dialog-close>{{ I18N.ui.buttons.cancel | translate }}</button>
-      <button mat-flat-button [disabled]="!selectedCategory() || saving()" (click)="save()">
+      <button mat-flat-button [disabled]="!selectedCategory() || saving() || loadFailed()" (click)="save()">
         {{ saving() ? (I18N.ui.buttons.saving | translate) : (I18N.ui.buttons.save | translate) }}
       </button>
     </mat-dialog-actions>

@@ -69,7 +69,10 @@ export class CaptionEditDialogComponent {
     } catch {
       // The dialog stays open: without feedback the user believes the caption saved.
       this.saveFailed.set(true);
-      afterNextRender(() => this.saveButton()?.nativeElement.focus(), { injector: this.injector });
+      // Back may already have closed the dialog: a destroyed injector throws NG0911.
+      if (!this.destroyRef.destroyed) {
+        afterNextRender(() => this.saveButton()?.nativeElement.focus(), { injector: this.injector });
+      }
     } finally {
       this.saving.set(false);
     }

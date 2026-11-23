@@ -274,6 +274,9 @@ export class CapsulesComponent implements OnDestroy {
       const to = this.capsuleFilters.dateTo();
       // afterNextRender owns the first load, including a preset date range.
       if (from === previousFrom && to === previousTo) return;
+      // A date input commits on every typed year digit (0002, 0020, 0202,
+      // 2025): skip the partial years rather than generate capsules for each.
+      if ((from && from < '1000') || (to && to < '1000')) return;
       previousFrom = from;
       previousTo = to;
       untracked(() => {

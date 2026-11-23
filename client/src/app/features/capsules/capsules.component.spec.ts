@@ -165,6 +165,19 @@ describe('CapsulesComponent', () => {
       expect(mockApi.get).toHaveBeenCalledTimes(1);
     });
 
+    it('ignores a partial typed year and requests once for a full one', async () => {
+      const fixture = await mount('');
+      mockApi.get.mockClear();
+      TestBed.inject(CapsuleFiltersService).dateFrom.set('0202-01-01');
+      fixture.detectChanges();
+      await fixture.whenStable();
+      expect(mockApi.get).not.toHaveBeenCalled();
+      TestBed.inject(CapsuleFiltersService).dateFrom.set('2025-01-01');
+      fixture.detectChanges();
+      await fixture.whenStable();
+      expect(mockApi.get).toHaveBeenCalledTimes(1);
+    });
+
     it('clearing the last date reloads page one and clears shuffle/resume caches', async () => {
       const fixture = await mount('2026-01-01');
       internals().currentPage = 3;
