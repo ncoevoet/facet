@@ -4264,5 +4264,102 @@
       "help_label": "About keyword editing"
     },
     "help_label": "About the keyword tree"
+  },
+  "macos_app": {
+    "onboarding": {
+      "welcome_title": "Welcome to Facet",
+      "welcome_body": "Facet scores and sorts your photos on this Mac, so the best ones rise to the top. Setup takes a few minutes.",
+      "welcome_private": "Everything runs on your Mac. Your photos never leave it.",
+      "continue": "Continue",
+      "back": "Back",
+      "skip": "Skip for now",
+      "open_facet": "Open Facet",
+      "step_of": "Step {current} of {total}"
+    },
+    "this_mac": {
+      "title": "Your Mac",
+      "body": "Facet uses the GPU in Apple silicon to score photos.",
+      "chip": "Chip",
+      "memory": "Memory",
+      "disk": "Free space",
+      "free_gb": "{gb} GB free",
+      "gpu": "GPU (Metal)",
+      "gpu_after_setup": "Checked once setup is done",
+      "gpu_ok": "Ready",
+      "gpu_cpu": "Not available, Facet will use the CPU",
+      "models_note": "The first scan also downloads Facet's models: 5 to 20 GB, depending on your Mac's memory.",
+      "low_disk": "Only {gb} GB free: the first scan needs room for the models."
+    },
+    "folders": {
+      "title": "Choose your photo folders",
+      "body": "Facet scans these folders. You can add more later from the menu bar.",
+      "none": "No folders yet",
+      "add": "Add Folder…",
+      "photos_note": "Apple Photos libraries are skipped: Facet reads ordinary photo folders."
+    },
+    "setup": {
+      "title": "Setting up Facet",
+      "body": "Facet is downloading what it needs, about 450 MB.",
+      "downloaded": "{done} of {total}",
+      "phase_environment": "Preparing…",
+      "phase_library": "Creating your library…",
+      "phase_check": "Checking the GPU…",
+      "done_gpu": "Ready, with the GPU",
+      "done_cpu": "Ready, on the CPU",
+      "failed": "Setup didn't finish",
+      "failed_generic": "Setup stopped unexpectedly.",
+      "error_no_space": "Facet needs {needed} GB of free space to set up, and this Mac has {free} GB. Free up some space, then try again.",
+      "error_busy": "Another copy of Facet is setting up right now. Quit it, then try again.",
+      "error_download": "Facet couldn't download what it needs. Check your internet connection, then try again.",
+      "error_library": "Facet couldn't create your library. The logs say why.",
+      "error_check": "Facet's packages were installed but don't start. The logs say why.",
+      "retry": "Try Again"
+    },
+    "ready": {
+      "title": "Facet is ready",
+      "body": "Facet opens in your browser and keeps running in the menu bar.",
+      "scan_now": "Start scanning my folders now",
+      "menu_note": "Use the camera icon in the menu bar to open Facet, add folders and start scans.",
+      "no_folders": "No folders yet. Add them any time with Add Folder in the menu bar."
+    },
+    "menu": {
+      "open": "Open Facet",
+      "add_folder": "Add Folder…",
+      "scan_all": "Scan All Folders",
+      "scanning": "Scanning…",
+      "setup_window": "Setup…",
+      "show_logs": "Show Logs",
+      "copy_diagnostics": "Copy Diagnostics",
+      "restart": "Restart Facet",
+      "quit": "Quit Facet"
+    },
+    "status": {
+      "stopped": "Facet is stopped",
+      "starting": "Starting…",
+      "running": "Facet is running",
+      "scanning": "Scanning…",
+      "scanning_count": "Scanning {current} of {total}",
+      "setting_up": "Setting up…",
+      "setting_up_percent": "Setting up… {percent}%",
+      "setup_failed": "Setup didn't finish",
+      "error": "Error: {message}"
+    },
+    "server": {
+      "no_port": "No free port between 5000 and 5049.",
+      "no_answer": "Facet didn't start within 2 minutes. See the logs.",
+      "crashed": "Facet stopped unexpectedly (code {code}). See the logs.",
+      "not_running": "Facet isn't running."
+    },
+    "scan": {
+      "no_folders": "Add a photo folder first."
+    },
+    "install": {
+      "dmg_title": "Copy Facet to Applications",
+      "dmg_body": "Facet can't run from the disk image. Copy it to Applications and open it from there.",
+      "copy": "Copy and Open",
+      "quit": "Quit",
+      "move_title": "Move Facet to Applications",
+      "move_body": "macOS is running Facet from a temporary, read-only copy. Quit, drag Facet into the Applications folder, then open it from there."
+    }
   }
 }

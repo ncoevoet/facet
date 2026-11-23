@@ -4264,5 +4264,102 @@
       "help_label": "Sobre a edição de palavras-chave"
     },
     "help_label": "Sobre a árvore de palavras-chave"
+  },
+  "macos_app": {
+    "onboarding": {
+      "welcome_title": "Bem-vindo ao Facet",
+      "welcome_body": "O Facet pontua e ordena as suas fotografias neste Mac, para que as melhores fiquem no topo. A configuração demora alguns minutos.",
+      "welcome_private": "Tudo corre no seu Mac. As suas fotografias nunca saem dele.",
+      "continue": "Continuar",
+      "back": "Anterior",
+      "skip": "Ignorar por agora",
+      "open_facet": "Abrir o Facet",
+      "step_of": "Passo {current} de {total}"
+    },
+    "this_mac": {
+      "title": "O seu Mac",
+      "body": "O Facet usa a GPU do Apple silicon para pontuar as fotografias.",
+      "chip": "Chip",
+      "memory": "Memória",
+      "disk": "Espaço livre",
+      "free_gb": "{gb} GB livres",
+      "gpu": "GPU (Metal)",
+      "gpu_after_setup": "Verificada no fim da configuração",
+      "gpu_ok": "Pronta",
+      "gpu_cpu": "Indisponível, o Facet vai usar a CPU",
+      "models_note": "A primeira análise também descarrega os modelos do Facet: de 5 a 20 GB, conforme a memória do seu Mac.",
+      "low_disk": "Apenas {gb} GB livres: a primeira análise precisa de espaço para os modelos."
+    },
+    "folders": {
+      "title": "Escolha as pastas de fotografias",
+      "body": "O Facet analisa estas pastas. Pode adicionar mais depois, na barra de menus.",
+      "none": "Ainda sem pastas",
+      "add": "Adicionar pasta…",
+      "photos_note": "As fototecas da app Fotografias da Apple são ignoradas: o Facet lê pastas de fotografias normais."
+    },
+    "setup": {
+      "title": "A configurar o Facet",
+      "body": "O Facet está a descarregar o que precisa, cerca de 450 MB.",
+      "downloaded": "{done} de {total}",
+      "phase_environment": "A preparar…",
+      "phase_library": "A criar a sua biblioteca…",
+      "phase_check": "A verificar a GPU…",
+      "done_gpu": "Pronto, com a GPU",
+      "done_cpu": "Pronto, com a CPU",
+      "failed": "A configuração não terminou",
+      "failed_generic": "A configuração parou inesperadamente.",
+      "error_no_space": "O Facet precisa de {needed} GB livres para a configuração e este Mac tem {free} GB. Liberte espaço e tente novamente.",
+      "error_busy": "Outra cópia do Facet está a ser configurada neste momento. Feche-a e tente novamente.",
+      "error_download": "O Facet não conseguiu descarregar o que precisa. Verifique a ligação à Internet e tente novamente.",
+      "error_library": "O Facet não conseguiu criar a sua biblioteca. Os registos indicam o motivo.",
+      "error_check": "Os pacotes do Facet foram instalados, mas não arrancam. Os registos indicam o motivo.",
+      "retry": "Tentar novamente"
+    },
+    "ready": {
+      "title": "O Facet está pronto",
+      "body": "O Facet abre no seu navegador e continua ativo na barra de menus.",
+      "scan_now": "Começar já a analisar as minhas pastas",
+      "menu_note": "Use o ícone da câmara na barra de menus para abrir o Facet, adicionar pastas e iniciar análises.",
+      "no_folders": "Ainda não há pastas. Adicione-as quando quiser com Adicionar pasta na barra de menus."
+    },
+    "menu": {
+      "open": "Abrir o Facet",
+      "add_folder": "Adicionar pasta…",
+      "scan_all": "Analisar todas as pastas",
+      "scanning": "A analisar…",
+      "setup_window": "Configuração…",
+      "show_logs": "Mostrar registos",
+      "copy_diagnostics": "Copiar diagnóstico",
+      "restart": "Reiniciar o Facet",
+      "quit": "Sair do Facet"
+    },
+    "status": {
+      "stopped": "O Facet está parado",
+      "starting": "A iniciar…",
+      "running": "O Facet está ativo",
+      "scanning": "A analisar…",
+      "scanning_count": "A analisar {current} de {total}",
+      "setting_up": "A configurar…",
+      "setting_up_percent": "A configurar… {percent}%",
+      "setup_failed": "A configuração não terminou",
+      "error": "Erro: {message}"
+    },
+    "server": {
+      "no_port": "Nenhuma porta livre entre 5000 e 5049.",
+      "no_answer": "O Facet não arrancou em 2 minutos. Consulte os registos.",
+      "crashed": "O Facet parou inesperadamente (código {code}). Consulte os registos.",
+      "not_running": "O Facet não está ativo."
+    },
+    "scan": {
+      "no_folders": "Adicione primeiro uma pasta de fotografias."
+    },
+    "install": {
+      "dmg_title": "Copie o Facet para Aplicações",
+      "dmg_body": "O Facet não pode correr a partir da imagem de disco. Copie-o para Aplicações e abra-o a partir daí.",
+      "copy": "Copiar e abrir",
+      "quit": "Sair",
+      "move_title": "Mova o Facet para Aplicações",
+      "move_body": "O macOS está a executar o Facet a partir de uma cópia temporária só de leitura. Saia, arraste o Facet para a pasta Aplicações e abra-o a partir daí."
+    }
   }
 }

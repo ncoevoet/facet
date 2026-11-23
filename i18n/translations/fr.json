@@ -4264,5 +4264,102 @@
       "help_label": "À propos de la modification des mots-clés"
     },
     "help_label": "À propos de l’arbre des mots-clés"
+  },
+  "macos_app": {
+    "onboarding": {
+      "welcome_title": "Bienvenue dans Facet",
+      "welcome_body": "Facet note et trie vos photos sur ce Mac pour faire remonter les meilleures. La configuration prend quelques minutes.",
+      "welcome_private": "Tout se passe sur votre Mac. Vos photos ne le quittent jamais.",
+      "continue": "Continuer",
+      "back": "Retour",
+      "skip": "Passer pour l'instant",
+      "open_facet": "Ouvrir Facet",
+      "step_of": "Étape {current} sur {total}"
+    },
+    "this_mac": {
+      "title": "Votre Mac",
+      "body": "Facet utilise le GPU de la puce Apple pour noter les photos.",
+      "chip": "Puce",
+      "memory": "Mémoire",
+      "disk": "Espace libre",
+      "free_gb": "{gb} Go libres",
+      "gpu": "GPU (Metal)",
+      "gpu_after_setup": "Vérifié à la fin de l'installation",
+      "gpu_ok": "Prêt",
+      "gpu_cpu": "Indisponible, Facet utilisera le processeur",
+      "models_note": "Le premier scan télécharge aussi les modèles de Facet : de 5 à 20 Go selon la mémoire de votre Mac.",
+      "low_disk": "Seulement {gb} Go libres : le premier scan a besoin de place pour les modèles."
+    },
+    "folders": {
+      "title": "Choisissez vos dossiers de photos",
+      "body": "Facet scanne ces dossiers. Vous pourrez en ajouter d'autres plus tard depuis la barre des menus.",
+      "none": "Aucun dossier pour l'instant",
+      "add": "Ajouter un dossier…",
+      "photos_note": "Les photothèques Apple Photos sont ignorées : Facet lit des dossiers de photos ordinaires."
+    },
+    "setup": {
+      "title": "Configuration de Facet",
+      "body": "Facet télécharge ce dont il a besoin, environ 450 Mo.",
+      "downloaded": "{done} sur {total}",
+      "phase_environment": "Préparation…",
+      "phase_library": "Création de votre bibliothèque…",
+      "phase_check": "Vérification du GPU…",
+      "done_gpu": "Prêt, avec le GPU",
+      "done_cpu": "Prêt, sur le processeur",
+      "failed": "La configuration n'a pas abouti",
+      "failed_generic": "La configuration s'est arrêtée de façon inattendue.",
+      "error_no_space": "Facet a besoin de {needed} Go d'espace libre pour s'installer, et ce Mac n'en a que {free} Go. Libérez de l'espace, puis réessayez.",
+      "error_busy": "Une autre copie de Facet est en cours d'installation. Quittez-la, puis réessayez.",
+      "error_download": "Facet n'a pas pu télécharger ce dont il a besoin. Vérifiez la connexion Internet, puis réessayez.",
+      "error_library": "Facet n'a pas pu créer votre bibliothèque. Les journaux en donnent la raison.",
+      "error_check": "Les paquets de Facet sont installés mais ne démarrent pas. Les journaux en donnent la raison.",
+      "retry": "Réessayer"
+    },
+    "ready": {
+      "title": "Facet est prêt",
+      "body": "Facet s'ouvre dans votre navigateur et reste actif dans la barre des menus.",
+      "scan_now": "Lancer le scan de mes dossiers maintenant",
+      "menu_note": "L'icône d'appareil photo dans la barre des menus ouvre Facet, ajoute des dossiers et lance les scans.",
+      "no_folders": "Aucun dossier pour l'instant. Ajoutez-en quand vous voulez avec Ajouter un dossier dans la barre des menus."
+    },
+    "menu": {
+      "open": "Ouvrir Facet",
+      "add_folder": "Ajouter un dossier…",
+      "scan_all": "Scanner tous les dossiers",
+      "scanning": "Scan en cours…",
+      "setup_window": "Configuration…",
+      "show_logs": "Afficher les journaux",
+      "copy_diagnostics": "Copier le diagnostic",
+      "restart": "Redémarrer Facet",
+      "quit": "Quitter Facet"
+    },
+    "status": {
+      "stopped": "Facet est arrêté",
+      "starting": "Démarrage…",
+      "running": "Facet est actif",
+      "scanning": "Scan en cours…",
+      "scanning_count": "Scan : {current} sur {total}",
+      "setting_up": "Configuration…",
+      "setting_up_percent": "Configuration… {percent} %",
+      "setup_failed": "La configuration n'a pas abouti",
+      "error": "Erreur : {message}"
+    },
+    "server": {
+      "no_port": "Aucun port libre entre 5000 et 5049.",
+      "no_answer": "Facet n'a pas démarré en 2 minutes. Consultez les journaux.",
+      "crashed": "Facet s'est arrêté de façon inattendue (code {code}). Consultez les journaux.",
+      "not_running": "Facet n'est pas actif."
+    },
+    "scan": {
+      "no_folders": "Ajoutez d'abord un dossier de photos."
+    },
+    "install": {
+      "dmg_title": "Copier Facet dans Applications",
+      "dmg_body": "Facet ne peut pas fonctionner depuis l'image disque. Copiez-le dans Applications et ouvrez-le depuis là.",
+      "copy": "Copier et ouvrir",
+      "quit": "Quitter",
+      "move_title": "Déplacer Facet dans Applications",
+      "move_body": "macOS exécute Facet depuis une copie temporaire en lecture seule. Quittez Facet, faites-le glisser dans le dossier Applications, puis ouvrez-le depuis là."
+    }
   }
 }

@@ -429,7 +429,10 @@ only what reading those two will NOT tell you.
   both `promote` and `excluded`; a partial body 422s rather than silently clearing one.
 - **Every writer of `scoring_config.json` shares `api.config.CONFIG_WRITE_LOCK`** — priorities,
   weights, contexts, panorama thresholds, the share-secret eviction and the plaintext-password
-  upgrade. They rewrite different parts of one file, and two locks lost whole updates.
+  upgrade. They rewrite different parts of one file, and two locks lost whole updates. The one
+  writer outside the viewer process is the macOS app's `facet_mac.py add-folder`, which cannot
+  take that in-process lock; the app restarts the viewer right after it, so only a save made in
+  that same instant can be lost.
 - **The config writer has two commit routes.** The default is an atomic rename over the
   destination; when the destination's owner cannot be adopted (a rootless container, most
   commonly), it falls back to an inode-preserving in-place rewrite instead — same inode, owner

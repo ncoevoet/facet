@@ -4264,5 +4264,102 @@
       "help_label": "Acerca de la edición de palabras clave"
     },
     "help_label": "Acerca del árbol de palabras clave"
+  },
+  "macos_app": {
+    "onboarding": {
+      "welcome_title": "Te damos la bienvenida a Facet",
+      "welcome_body": "Facet puntúa y ordena tus fotos en este Mac para que las mejores queden arriba. La configuración tarda unos minutos.",
+      "welcome_private": "Todo se ejecuta en tu Mac. Tus fotos nunca salen de él.",
+      "continue": "Continuar",
+      "back": "Atrás",
+      "skip": "Omitir por ahora",
+      "open_facet": "Abrir Facet",
+      "step_of": "Paso {current} de {total}"
+    },
+    "this_mac": {
+      "title": "Tu Mac",
+      "body": "Facet usa la GPU de Apple silicon para puntuar las fotos.",
+      "chip": "Chip",
+      "memory": "Memoria",
+      "disk": "Espacio libre",
+      "free_gb": "{gb} GB libres",
+      "gpu": "GPU (Metal)",
+      "gpu_after_setup": "Se comprueba al terminar la configuración",
+      "gpu_ok": "Lista",
+      "gpu_cpu": "No disponible, Facet usará la CPU",
+      "models_note": "El primer escaneo también descarga los modelos de Facet: de 5 a 20 GB, según la memoria de tu Mac.",
+      "low_disk": "Solo {gb} GB libres: el primer escaneo necesita espacio para los modelos."
+    },
+    "folders": {
+      "title": "Elige tus carpetas de fotos",
+      "body": "Facet escanea estas carpetas. Puedes añadir más después desde la barra de menús.",
+      "none": "Aún no hay carpetas",
+      "add": "Añadir carpeta…",
+      "photos_note": "Las fototecas de Fotos de Apple se omiten: Facet lee carpetas de fotos normales."
+    },
+    "setup": {
+      "title": "Configurando Facet",
+      "body": "Facet está descargando lo que necesita, unos 450 MB.",
+      "downloaded": "{done} de {total}",
+      "phase_environment": "Preparando…",
+      "phase_library": "Creando tu biblioteca…",
+      "phase_check": "Comprobando la GPU…",
+      "done_gpu": "Listo, con la GPU",
+      "done_cpu": "Listo, con la CPU",
+      "failed": "La configuración no terminó",
+      "failed_generic": "La configuración se detuvo de forma inesperada.",
+      "error_no_space": "Facet necesita {needed} GB libres para configurarse y este Mac tiene {free} GB. Libera espacio y vuelve a intentarlo.",
+      "error_busy": "Otra copia de Facet se está configurando ahora mismo. Ciérrala y vuelve a intentarlo.",
+      "error_download": "Facet no ha podido descargar lo que necesita. Comprueba la conexión a internet y vuelve a intentarlo.",
+      "error_library": "Facet no ha podido crear tu biblioteca. Los registros indican el motivo.",
+      "error_check": "Los paquetes de Facet se instalaron, pero no arrancan. Los registros indican el motivo.",
+      "retry": "Reintentar"
+    },
+    "ready": {
+      "title": "Facet está listo",
+      "body": "Facet se abre en tu navegador y sigue funcionando en la barra de menús.",
+      "scan_now": "Empezar a escanear mis carpetas ahora",
+      "menu_note": "Usa el icono de la cámara en la barra de menús para abrir Facet, añadir carpetas e iniciar escaneos.",
+      "no_folders": "Aún no hay carpetas. Añádelas cuando quieras con Añadir carpeta en la barra de menús."
+    },
+    "menu": {
+      "open": "Abrir Facet",
+      "add_folder": "Añadir carpeta…",
+      "scan_all": "Escanear todas las carpetas",
+      "scanning": "Escaneando…",
+      "setup_window": "Configuración…",
+      "show_logs": "Mostrar registros",
+      "copy_diagnostics": "Copiar diagnóstico",
+      "restart": "Reiniciar Facet",
+      "quit": "Salir de Facet"
+    },
+    "status": {
+      "stopped": "Facet está detenido",
+      "starting": "Iniciando…",
+      "running": "Facet está en funcionamiento",
+      "scanning": "Escaneando…",
+      "scanning_count": "Escaneando {current} de {total}",
+      "setting_up": "Configurando…",
+      "setting_up_percent": "Configurando… {percent} %",
+      "setup_failed": "La configuración no terminó",
+      "error": "Error: {message}"
+    },
+    "server": {
+      "no_port": "No hay ningún puerto libre entre 5000 y 5049.",
+      "no_answer": "Facet no se inició en 2 minutos. Consulta los registros.",
+      "crashed": "Facet se detuvo de forma inesperada (código {code}). Consulta los registros.",
+      "not_running": "Facet no está en funcionamiento."
+    },
+    "scan": {
+      "no_folders": "Primero añade una carpeta de fotos."
+    },
+    "install": {
+      "dmg_title": "Copia Facet en Aplicaciones",
+      "dmg_body": "Facet no puede ejecutarse desde la imagen de disco. Cópialo en Aplicaciones y ábrelo desde ahí.",
+      "copy": "Copiar y abrir",
+      "quit": "Salir",
+      "move_title": "Mueve Facet a Aplicaciones",
+      "move_body": "macOS está ejecutando Facet desde una copia temporal de solo lectura. Sal, arrastra Facet a la carpeta Aplicaciones y ábrelo desde ahí."
+    }
   }
 }

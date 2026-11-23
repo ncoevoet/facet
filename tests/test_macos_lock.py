@@ -82,3 +82,13 @@ def test_torch_matches_the_windows_installer():
     assert current, 'Setup-Facet.ps1 torch pin moved: update this test'
     mac = _pins(MAC_LOCK)
     assert (mac['torch'], mac['torchvision']) == current.groups()
+
+
+def test_the_app_bundles_the_same_exiftool_as_the_docker_image():
+    # 13.23-13.27 corrupt darktable XMP sidecars: one pin, checked in two places.
+    docker = (REPO / 'Dockerfile').read_text()
+    build = (REPO / 'macos' / 'build-app.sh').read_text()
+    for name in ('EXIFTOOL_VERSION', 'EXIFTOOL_SHA256'):
+        pinned = re.search(rf'^ARG {name}=(\S+)$', docker, re.M)
+        bundled = re.search(rf'^{name}=(\S+)$', build, re.M)
+        assert pinned and bundled and pinned[1] == bundled[1], name

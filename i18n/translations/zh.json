@@ -4264,5 +4264,102 @@
       "help_label": "关于关键词编辑"
     },
     "help_label": "关于关键词树"
+  },
+  "macos_app": {
+    "onboarding": {
+      "welcome_title": "欢迎使用 Facet",
+      "welcome_body": "Facet 在这台 Mac 上为你的照片评分和排序，让最好的照片排在前面。设置只需几分钟。",
+      "welcome_private": "一切都在你的 Mac 上运行，照片不会离开这台电脑。",
+      "continue": "继续",
+      "back": "返回",
+      "skip": "暂时跳过",
+      "open_facet": "打开 Facet",
+      "step_of": "第 {current} 步，共 {total} 步"
+    },
+    "this_mac": {
+      "title": "你的 Mac",
+      "body": "Facet 使用 Apple 芯片的 GPU 为照片评分。",
+      "chip": "芯片",
+      "memory": "内存",
+      "disk": "可用空间",
+      "free_gb": "{gb} GB 可用",
+      "gpu": "GPU（Metal）",
+      "gpu_after_setup": "设置完成后检测",
+      "gpu_ok": "就绪",
+      "gpu_cpu": "不可用，Facet 将使用 CPU",
+      "models_note": "首次扫描还会下载 Facet 的模型：5 至 20 GB，取决于你的 Mac 内存大小。",
+      "low_disk": "仅剩 {gb} GB 可用：首次扫描需要空间存放模型。"
+    },
+    "folders": {
+      "title": "选择照片文件夹",
+      "body": "Facet 会扫描这些文件夹。之后可以在菜单栏中添加更多。",
+      "none": "还没有文件夹",
+      "add": "添加文件夹…",
+      "photos_note": "会跳过 Apple“照片”图库：Facet 读取普通的照片文件夹。"
+    },
+    "setup": {
+      "title": "正在设置 Facet",
+      "body": "Facet 正在下载所需组件，约 450 MB。",
+      "downloaded": "{done} / {total}",
+      "phase_environment": "正在准备…",
+      "phase_library": "正在创建图库…",
+      "phase_check": "正在检查 GPU…",
+      "done_gpu": "已就绪，使用 GPU",
+      "done_cpu": "已就绪，使用 CPU",
+      "failed": "设置未完成",
+      "failed_generic": "设置意外停止。",
+      "error_no_space": "Facet 需要 {needed} GB 可用空间才能完成设置，这台 Mac 只有 {free} GB。请释放一些空间后重试。",
+      "error_busy": "另一个 Facet 副本正在进行设置。请先退出它，然后重试。",
+      "error_download": "Facet 无法下载所需组件。请检查网络连接后重试。",
+      "error_library": "Facet 无法创建图库。原因请查看日志。",
+      "error_check": "Facet 的组件已安装但无法启动。原因请查看日志。",
+      "retry": "重试"
+    },
+    "ready": {
+      "title": "Facet 已就绪",
+      "body": "Facet 会在浏览器中打开，并继续在菜单栏中运行。",
+      "scan_now": "立即开始扫描我的文件夹",
+      "menu_note": "使用菜单栏中的相机图标打开 Facet、添加文件夹和开始扫描。",
+      "no_folders": "还没有文件夹。可随时通过菜单栏中的“添加文件夹”添加。"
+    },
+    "menu": {
+      "open": "打开 Facet",
+      "add_folder": "添加文件夹…",
+      "scan_all": "扫描所有文件夹",
+      "scanning": "正在扫描…",
+      "setup_window": "设置…",
+      "show_logs": "显示日志",
+      "copy_diagnostics": "复制诊断信息",
+      "restart": "重新启动 Facet",
+      "quit": "退出 Facet"
+    },
+    "status": {
+      "stopped": "Facet 已停止",
+      "starting": "正在启动…",
+      "running": "Facet 正在运行",
+      "scanning": "正在扫描…",
+      "scanning_count": "正在扫描 {current} / {total}",
+      "setting_up": "正在设置…",
+      "setting_up_percent": "正在设置… {percent}%",
+      "setup_failed": "设置未完成",
+      "error": "错误：{message}"
+    },
+    "server": {
+      "no_port": "5000 至 5049 之间没有可用端口。",
+      "no_answer": "Facet 未在 2 分钟内启动。请查看日志。",
+      "crashed": "Facet 意外停止（代码 {code}）。请查看日志。",
+      "not_running": "Facet 未在运行。"
+    },
+    "scan": {
+      "no_folders": "请先添加一个照片文件夹。"
+    },
+    "install": {
+      "dmg_title": "将 Facet 拷贝到“应用程序”",
+      "dmg_body": "Facet 不能从磁盘映像运行。请将其拷贝到“应用程序”，然后从那里打开。",
+      "copy": "拷贝并打开",
+      "quit": "退出",
+      "move_title": "将 Facet 移到“应用程序”",
+      "move_body": "macOS 正在从临时的只读副本运行 Facet。请退出，将 Facet 拖到“应用程序”文件夹，然后从那里打开。"
+    }
   }
 }
