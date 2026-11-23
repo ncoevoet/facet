@@ -3,6 +3,7 @@
 import hashlib
 import logging
 import sqlite3
+import sys
 import time
 import json
 import numpy as np
@@ -50,21 +51,24 @@ def _candidate_fingerprint(rows, settings, *, logical=False):
 _THRESHOLD_STEP = 0.02
 
 
-_TORCH_CUDA: bool | None = None
 _PAIR_CHUNK_SIZE = 500
 
 
 def _cuda_available() -> bool:
-    """Resolved once per process: importing torch costs real time on CPU-only
-    installs, and the answer never changes within a run."""
-    global _TORCH_CUDA
-    if _TORCH_CUDA is None:
-        try:
-            import torch
-            _TORCH_CUDA = torch.cuda.is_available()
-        except ImportError:
-            _TORCH_CUDA = False
-    return _TORCH_CUDA
+    """True when this process already runs torch on a usable CUDA device.
+
+    Never imports torch itself: a CPU-only viewer keeps its request paths
+    torch-free (the import alone costs seconds and hundreds of MB), and the
+    CPU path below is already BLAS. The device choice goes through
+    ``utils.device`` so ``FACET_DEVICE=cpu`` and the GPU-arch check apply.
+    """
+    if 'torch' not in sys.modules:
+        return False
+    from utils.device import get_device
+    try:
+        return get_device() == 'cuda'
+    except (RuntimeError, ValueError):
+        return False
 
 
 def _cuda_pair_batches(matrix, threshold):
@@ -89,11 +93,11 @@ def _similar_pairs(matrix, threshold):
 
     The embeddings are normalized, so cosine is a plain dot product and the
     chunked numpy matmul below is BLAS — already the fast path on CPU. When
-    torch with CUDA is available the same computation runs on the device
+    the process already runs torch on CUDA the same computation runs there
     (the same float32 inputs, C-level there), which matters on the 10k-photo
     cache-miss path. Both paths yield the same pairs up to float rounding at
     the threshold boundary. Scores are bounded to 500-row blocks on either
-    backend; a CUDA allocation failure resumes the unfinished rows on CPU.
+    backend; a CUDA failure resumes the unfinished rows on CPU.
 
     Exact, not top-K: every pair above the threshold participates, so the
     connected components (and the oversized-split downstream) see exactly
@@ -103,18 +107,22 @@ def _similar_pairs(matrix, threshold):
     """
     start = 0
     if _cuda_available():
-        import torch
+        from utils.device import clear_device_cache, is_out_of_memory_error
         try:
             for offset, pairs in _cuda_pair_batches(matrix, threshold):
-                for ci, j in pairs:
-                    yield offset + int(ci), int(j)
+                for ci, j in pairs.tolist():
+                    yield offset + ci, j
                 start = offset + _PAIR_CHUNK_SIZE
             return
-        except torch.OutOfMemoryError:
+        except RuntimeError as ex:
+            # torch.OutOfMemoryError is a RuntimeError, and so is the
+            # AcceleratorError a full device raises at context creation.
+            if not is_out_of_memory_error(ex):
+                raise
             logger.warning("CUDA similarity allocation failed; resuming on CPU at row %d", start)
         # Leave the exception scope before releasing cached allocations, so
         # its traceback no longer retains the failed block's CUDA tensors.
-        torch.cuda.empty_cache()
+        clear_device_cache('cuda')
     for i in range(start, len(matrix), _PAIR_CHUNK_SIZE):
         sims = matrix[i:i + _PAIR_CHUNK_SIZE] @ matrix.T
         for ci in range(len(sims)):

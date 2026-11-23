@@ -159,3 +159,37 @@ def test_real_cuda_cross_block_pairs(monkeypatch, record_property):
     torch.cuda.synchronize()
     assert pairs == [(499, 500), (598, 599)]
     record_property('cuda_peak_allocated_bytes', torch.cuda.max_memory_allocated())
+
+
+def test_cpu_only_process_never_imports_torch():
+    import subprocess
+    import sys
+    code = (
+        "import sys, numpy as np\n"
+        "from api.similarity_groups import _similar_pairs\n"
+        "m = np.eye(4, dtype='float32')\n"
+        "list(_similar_pairs(m, 0.5))\n"
+        "assert 'torch' not in sys.modules, 'similarity imported torch'\n"
+    )
+    subprocess.run([sys.executable, '-c', code], check=True)
+
+
+def test_facet_device_cpu_keeps_similarity_off_cuda(monkeypatch):
+    import pytest
+    import api.similarity_groups as groups
+    torch = pytest.importorskip('torch')
+    monkeypatch.setattr(torch.cuda, 'is_available', lambda: True)
+    monkeypatch.setattr(torch.cuda, 'device_count', lambda: 1)
+    monkeypatch.setenv('FACET_DEVICE', 'cpu')
+    assert groups._cuda_available() is False
+
+
+def test_cuda_context_oom_falls_back_to_cpu(monkeypatch):
+    torch = _cpu_tensors_for_cuda_loop(monkeypatch)
+
+    def oom(*args, **kwargs):
+        raise RuntimeError('CUDA error: out of memory')
+
+    monkeypatch.setattr(torch.Tensor, 'to', oom)
+    matrix = _boundary_matrix()
+    assert list(_similar_pairs(matrix, 0.9999)) == _old_pairs(matrix, 0.9999)
