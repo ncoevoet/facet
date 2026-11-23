@@ -4,6 +4,10 @@ All notable changes to Facet are documented in this file.
 
 ## [Unreleased]
 
+### Added
+
+- **A macOS app for Apple silicon.** `macos/build-app.sh` builds `Facet.app` and a disk image: a menu-bar app that bundles its own Python and, the first time it opens, walks through setup in a window — it installs Facet's packages from a hash-pinned lock (about 450 MB), asks for photo folders and checks the GPU. It then keeps the gallery running on this Mac only, opens it in the browser, and adds folders or scans them all from the menu bar. Everything it writes lives under `~/Library` (environment, database, config, models, logs), except the face models InsightFace keeps in `~/.insightface`, and never inside the signed app. The new `FACET_PLUGINS_DIR` environment variable moves the plugins folder, as `FACET_MODELS_DIR` moves the models. Each published GitHub Release gets the disk image attached by the new `macos-app.yml` workflow. See [docs/INSTALLATION.md](docs/INSTALLATION.md#macos-app).
+
 ### Fixed
 
 - **Scans skip Apple Photos libraries.** `scanning.skip_directories` now also lists `*.photoslibrary` by default, so picking `~/Pictures` no longer scans the originals and derivatives inside `Photos Library.photoslibrary` as duplicates of photos kept elsewhere. A list in your `scoring_config.json` still replaces the default.

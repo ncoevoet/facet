@@ -12,14 +12,15 @@ performance. Pick the one that fits you.
 
 | | Docker | Without Docker |
 |---|---|---|
-| Installing | One command: everything comes in the image | `install.sh` (Linux, macOS) or the Windows installer builds a Python environment on the machine |
-| Updating | Pull the new image | Update the code and run `install.sh` again, or install the new Windows installer |
+| Installing | One command: everything comes in the image | `install.sh` (Linux, macOS), the macOS app or the Windows installer builds a Python environment on the machine |
+| Updating | Pull the new image | Update the code and run `install.sh` again, or install the new macOS app or Windows installer |
 | Performance | A container sits between Facet and your files and graphics card; on Windows it runs inside WSL2 | Facet uses the machine's graphics card and files directly |
 
 | Your situation | Go to |
 |----------------|-------|
 | Windows, macOS or Linux, in a container | [Install with Docker](#install-with-docker) |
 | Windows, macOS or Linux, without containers | [Install without Docker](#install-without-docker) |
+| A Mac with Apple silicon, without a terminal | [macOS app](#macos-app) |
 | A NAS, or a server you want to reach from other machines | [Deployment](DEPLOYMENT.md) |
 
 ## Which profile fits my hardware?
@@ -167,7 +168,50 @@ python viewer.py                       # start the gallery
 
 Open <http://localhost:5000>.
 
-### macOS
+### macOS app
+
+Facet.app is a menu-bar app for Apple silicon Macs on macOS 15 or later. It sets Facet up the
+first time it opens, then keeps the gallery running in the background.
+
+**Getting the app.** No release ships one yet. Build it from a clone with
+`macos/build-app.sh`, which needs the Xcode Command Line Tools (`xcode-select --install`) and a
+built client (`cd client && npm ci && npm run build`, with Node.js 24). It packages the committed
+tree and writes `macos/out/Facet-<version>-<commit>.dmg`.
+
+**First open.** Open the disk image and drag Facet into Applications. The app is not notarized,
+so macOS blocks a copy that was downloaded: open it once, then choose **Open Anyway** in System
+Settings, Privacy & Security. A window then walks through setup. It downloads the packages Facet
+needs (about 450 MB, 1.5 GB once installed), asks for your photo folders and checks the GPU. The
+first scan also downloads the models, 5 to 20 GB depending on the Mac's memory.
+
+| Folder | What it holds |
+|---|---|
+| `~/Library/Application Support/Facet/venv` | the Python environment, built again when an update changes Facet's dependencies or the app is moved |
+| `~/Library/Application Support/Facet/library` | the database (`photo_scores_pro.db`) |
+| `~/Library/Application Support/Facet/config` | `scoring_config.json` |
+| `~/Library/Application Support/Facet/models`, `huggingface`, `torch` | the downloaded models |
+| `~/.insightface` | the face models, where InsightFace always keeps them (about 300 MB) |
+| `~/Library/Logs/Facet` | `setup.log`, `viewer.log` and the previous run's `viewer.previous.log` |
+
+**Every day.** The camera icon in the menu bar opens the gallery, adds folders, scans them all
+and shows the logs. The gallery answers on this Mac only, on the port it used last when that is
+still free, else on the first port from 5000 that nothing else listens on (AirPlay, or a viewer
+you started in a terminal, often holds 5000). The app turns on `viewer.trusted_local_editing`, so
+a browser on this Mac can edit and start scans without a password, while requests from other
+devices are refused. "This Mac" includes its other user accounts: on a shared Mac, set
+`viewer.password` or `viewer.edition_password`, which turns the trust off. The menu can then no
+longer start scans or follow them, so start them from the browser. Add folders only when no scan is running: adding one restarts the gallery. Apple Photos libraries are
+skipped: point Facet at ordinary photo folders.
+
+**Updating.** Drag the new version over the old one. When an update needs a new environment, the
+setup window opens at the download step; your library, config and models stay. The app is signed
+ad hoc, so macOS may ask again for access to protected folders such as Documents after an update.
+
+**Uninstalling.** Quit Facet from its menu, delete the app, then delete
+`~/Library/Application Support/Facet`, `~/Library/Caches/Facet` and `~/Library/Logs/Facet`.
+Delete `~/.insightface` too, unless another Facet install on this Mac still uses it.
+
+### macOS from a clone
 
 ```bash
 git clone https://github.com/ncoevoet/facet.git && cd facet
