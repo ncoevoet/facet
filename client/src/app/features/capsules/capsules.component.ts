@@ -26,7 +26,7 @@ interface Capsule {
   title_key: string;
   title_params: Record<string, string>;
   subtitle: string;
-  cover_photo_path: string;
+  cover_photo_path?: string | null;
   preview_revision?: string | null;
   photo_count: number;
   icon: string;
@@ -242,6 +242,8 @@ export class CapsulesComponent implements OnDestroy {
   private readonly perPage = 24;
   private transitionTimer: ReturnType<typeof setTimeout> | null = null;
   private destroyed = false;
+  private capsuleRequest = 0;
+  private photoRequest = 0;
 
   constructor() {
     this.pageHelp.setDescription(I18N.capsules.intro);
@@ -258,8 +260,32 @@ export class CapsulesComponent implements OnDestroy {
       untracked(() => {
         if (this.capsules().length > 0) {
           this.currentPage = 1;
-          this.loadCapsules(true);
+          this.loadCapsules(true, true);
         }
+      });
+    });
+    // A date-range change re-fetches the grid (the regenerate button already
+    // did) and drops the per-capsule shuffle/resume caches, whose photos were
+    // captured under the old dates — replaying them would show the old range.
+    let previousFrom = this.capsuleFilters.dateFrom();
+    let previousTo = this.capsuleFilters.dateTo();
+    effect(() => {
+      const from = this.capsuleFilters.dateFrom();
+      const to = this.capsuleFilters.dateTo();
+      // afterNextRender owns the first load, including a preset date range.
+      if (from === previousFrom && to === previousTo) return;
+      // A date input commits on every typed year digit (0002, 0020, 0202,
+      // 2025): skip the partial years rather than generate capsules for each.
+      if ((from && from < '1000') || (to && to < '1000')) return;
+      previousFrom = from;
+      previousTo = to;
+      untracked(() => {
+        this.currentPage = 1;
+        this.closeSlideshow();
+        this.currentPlayingCapsuleId = '';
+        this.capsuleShuffledPhotos.clear();
+        this.capsuleResumeIndex.clear();
+        this.loadCapsules(false, true);
       });
     });
   }
@@ -273,21 +299,23 @@ export class CapsulesComponent implements OnDestroy {
     this.clearTransitionTimer();
   }
 
-  private async loadCapsules(refresh = false): Promise<void> {
-    if (this.loading()) return;
+  private async loadCapsules(refresh = false, replace = false): Promise<void> {
+    if (this.destroyed || (this.loading() && !replace)) return;
+    const request = ++this.capsuleRequest;
     const page = this.currentPage;
     this.loading.set(true);
-    if (refresh) this.capsuleFilters.refreshing.set(true);
+    this.capsuleFilters.refreshing.set(refresh);
     try {
       const res = await firstValueFrom(
         this.api.get<CapsulesResponse>('/capsules', {
-          page: this.currentPage,
+          page,
           per_page: this.perPage,
           date_from: this.capsuleFilters.dateFrom(),
           date_to: this.capsuleFilters.dateTo(),
           ...(refresh ? { refresh: true } : {}),
         }),
       );
+      if (this.destroyed || request !== this.capsuleRequest) return;
       const resolved = res.capsules.map(c => this.resolveParams(c));
       // Compare the page this response is FOR, not the current field: a slow
       // page-2 answer landing after a regenerate must not replace the grid.
@@ -300,6 +328,7 @@ export class CapsulesComponent implements OnDestroy {
       this.hasMore.set(res.has_more);
       this.total.set(res.total);
     } catch {
+      if (this.destroyed || request !== this.capsuleRequest) return;
       if (page > 1) {
         // Roll the page back: loadMore already incremented it, and a failed
         // append must be refetched, not skipped. The grid still holds earlier
@@ -314,8 +343,10 @@ export class CapsulesComponent implements OnDestroy {
         this.loadError.set(true);
       }
     } finally {
-      this.loading.set(false);
-      this.capsuleFilters.refreshing.set(false);
+      if (!this.destroyed && request === this.capsuleRequest) {
+        this.loading.set(false);
+        this.capsuleFilters.refreshing.set(false);
+      }
     }
   }
 
@@ -338,6 +369,7 @@ export class CapsulesComponent implements OnDestroy {
   }
 
   private async loadAndStartCapsule(capsule: Capsule): Promise<void> {
+    const request = ++this.photoRequest;
     this.currentPlayingCapsuleId = capsule.id;
     this.currentTransition.set(this.typeTransitions[capsule.type] || 'crossfade');
     this.slideshowLoading.set(true);
@@ -359,7 +391,7 @@ export class CapsulesComponent implements OnDestroy {
           date_to: this.capsuleFilters.dateTo(),
         }),
       );
-      if (this.destroyed) return;
+      if (this.destroyed || request !== this.photoRequest) return;
 
       // Shuffle photos for playback variety
       const shuffled = normalisePhotoFlagsAll(res.photos);
@@ -368,10 +400,11 @@ export class CapsulesComponent implements OnDestroy {
       this.slideshowStartIndex.set(0);
       this.slideshowPhotos.set(shuffled);
     } catch {
+      if (this.destroyed || request !== this.photoRequest) return;
       this.slideshowActive.set(false);
       this.snackBar.open(this.i18n.t(I18N.capsules.load_error), '', { duration: 3000 });
     } finally {
-      this.slideshowLoading.set(false);
+      if (!this.destroyed && request === this.photoRequest) this.slideshowLoading.set(false);
     }
   }
 
@@ -409,7 +442,9 @@ export class CapsulesComponent implements OnDestroy {
   }
 
   protected closeSlideshow(): void {
+    this.photoRequest++;
     this.slideshowActive.set(false);
+    this.slideshowLoading.set(false);
     this.slideshowPhotos.set([]);
     this.transitionVisible.set(false);
     this.clearTransitionTimer();
@@ -421,6 +456,7 @@ export class CapsulesComponent implements OnDestroy {
   }
 
   private async chainNextCapsule(): Promise<void> {
+    const request = this.photoRequest;
     this.currentCapsuleIndex++;
     if (this.currentCapsuleIndex >= this.shuffledOrder.length) {
       // All capsules played — stop instead of looping
@@ -439,7 +475,7 @@ export class CapsulesComponent implements OnDestroy {
       this.transitionTimer = setTimeout(resolve, 2000);
     });
 
-    if (this.destroyed) return;
+    if (this.destroyed || request !== this.photoRequest) return;
 
     this.transitionVisible.set(false);
     this.nextCapsulePreview.set(null);

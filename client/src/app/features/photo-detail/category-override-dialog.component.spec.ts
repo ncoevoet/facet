@@ -23,7 +23,7 @@ describe('CategoryOverrideDialogComponent', () => {
       providers: [
         { provide: ApiService, useValue: { get, post } },
         { provide: MatSnackBar, useValue: { open: snackOpen } },
-        { provide: I18nService, useValue: { t: (k: string) => k } },
+        { provide: I18nService, useValue: { t: (k: string) => k, translations: () => ({}) } },
         { provide: MatDialogRef, useValue: { close: dialogClose } },
         { provide: MAT_DIALOG_DATA, useValue: { path: '/a.jpg', currentCategory } },
       ],
@@ -68,5 +68,29 @@ describe('CategoryOverrideDialogComponent', () => {
 
     expect(dialogClose).not.toHaveBeenCalled();
     expect(component.saving()).toBe(false);
+  });
+  it('a failed category load shows the alert, disables Save, and Retry recovers', async () => {
+    build('silhouette');
+    get.mockReturnValueOnce(throwError(() => new Error('boom')));
+    const fixture = TestBed.createComponent(CategoryOverrideDialogComponent);
+    fixture.detectChanges();
+    await fixture.whenStable();
+    fixture.detectChanges();
+    const el: HTMLElement = fixture.nativeElement;
+    const saveButton = () => el.querySelector('mat-dialog-actions button:last-child') as HTMLButtonElement;
+
+    expect((fixture.componentInstance as any).loadFailed()).toBe(true);
+    expect(el.querySelector('[role="alert"]')).not.toBeNull();
+    expect(saveButton().disabled).toBe(true);
+
+    (el.querySelector('[role="alert"] button') as HTMLButtonElement).click();
+    await fixture.whenStable();
+    fixture.detectChanges();
+
+    expect(get).toHaveBeenCalledTimes(2);
+    expect((fixture.componentInstance as any).loadFailed()).toBe(false);
+    expect((fixture.componentInstance as any).categories()).toEqual(['silhouette', 'sports', 'fashion']);
+    expect(el.querySelector('[role="alert"]')).toBeNull();
+    expect(saveButton().disabled).toBe(false);
   });
 });

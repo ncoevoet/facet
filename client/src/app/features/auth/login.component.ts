@@ -44,7 +44,7 @@ import { I18N, i18nKeys } from '../../core/i18n/keys';
             <input matInput type="password" [(ngModel)]="password" (keyup.enter)="login()" />
           </mat-form-field>
           @if (error()) {
-            <p class="text-red-400 text-sm mt-1">{{ error() }}</p>
+            <p role="alert" class="text-red-400 text-sm mt-1">{{ error() }}</p>
           }
         </mat-card-content>
         <mat-card-actions class="!px-4 !pb-4">

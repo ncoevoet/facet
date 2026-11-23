@@ -74,6 +74,17 @@ interface FacePress {
   changeDetection: ChangeDetectionStrategy.Eager,
   host: { class: 'contents' },
   template: `
+    @if (loadFailed() && mode() !== 'off') {
+      <div role="alert" class="absolute inset-x-0 top-2 z-10 flex justify-center">
+        <button
+          type="button"
+          class="pointer-events-auto flex items-center gap-1 rounded-full bg-[var(--mat-sys-error-container)] px-3 py-1 text-xs text-[var(--mat-sys-on-error-container)]"
+          (click)="load()">
+          {{ I18N.errors.server_error | translate }}
+          <span class="underline">{{ I18N.gallery.load_error.retry | translate }}</span>
+        </button>
+      </div>
+    }
     @if (viewBox(); as vb) {
       <svg
         class="absolute inset-0 w-full h-full pointer-events-none"
@@ -148,6 +159,8 @@ interface FacePress {
 export class PhotoFaceLayerComponent {
   protected readonly I18N = i18nKeys();
   private readonly api = inject(ApiService);
+  private readonly destroyRef = inject(DestroyRef);
+  private generation = 0;
 
   readonly path = input.required<string>();
   readonly imageWidth = input<number | null>(null);
@@ -169,6 +182,7 @@ export class PhotoFaceLayerComponent {
 
   private readonly menu = viewChild.required(PersonFaceMenuComponent);
   private readonly rows = signal<PhotoFaceRow[]>([]);
+  protected readonly loadFailed = signal(false);
   private press: FacePress | null = null;
   private pendingOpen: ReturnType<typeof setTimeout> | null = null;
 
@@ -209,22 +223,37 @@ export class PhotoFaceLayerComponent {
   });
 
   constructor() {
-    inject(DestroyRef).onDestroy(() => this.cancelPendingOpen());
+    this.destroyRef.onDestroy(() => this.cancelPendingOpen());
     effect(() => {
       if (this.mode() === 'off') this.cancelPendingOpen();
     });
-    effect(() => {
+    effect(onCleanup => {
       const path = this.path();
       void this.load(path);
+      onCleanup(() => { this.generation++; });
     });
   }
 
+  private shownPath = '';
+
   async load(path: string = this.path()): Promise<void> {
+    const token = ++this.generation;
+    // A reread of the same photo (after an edit, or Retry) keeps the boxes
+    // until it lands; only a new photo blanks the previous one's.
+    if (path !== this.shownPath) this.rows.set([]);
+    this.shownPath = path;
+    this.loadFailed.set(false);
     try {
       const res = await firstValueFrom(this.api.get<{ faces: PhotoFaceRow[] }>('/photo/faces', { path }));
-      if (path === this.path()) this.rows.set(res.faces ?? []);
+      if (!this.destroyRef.destroyed && token === this.generation && path === this.path()) {
+        this.loadFailed.set(false);
+        this.rows.set(res.faces ?? []);
+      }
     } catch {
-      if (path === this.path()) this.rows.set([]);
+      if (!this.destroyRef.destroyed && token === this.generation && path === this.path()) {
+        this.rows.set([]);
+        this.loadFailed.set(true);
+      }
     }
   }
 

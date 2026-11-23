@@ -621,11 +621,12 @@ describe('PhotoDetailComponent', () => {
       ] })
       : of(samplePhoto));
     const view = renderDetail();
-    view.componentInstance.photo.set(makePhoto({ persons: [{ id: 1, name: 'Alice' }], image_width: 1000, image_height: 800 }));
+    view.componentInstance.photo.set(makePhoto({ path: samplePhoto.path, persons: [{ id: 1, name: 'Alice' }], image_width: 1000, image_height: 800 }));
     view.detectChanges();
     await view.whenStable();
     view.detectChanges();
     const avatar = view.nativeElement.querySelector('button[data-person-avatar]') as HTMLButtonElement;
+    expect(mockApi.get).toHaveBeenCalledWith('/photo/faces', { path: samplePhoto.path });
     expect(avatar.getAttribute('aria-haspopup')).toBe('menu');
     avatar.click();
     view.detectChanges();

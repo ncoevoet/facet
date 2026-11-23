@@ -386,6 +386,12 @@ function inDetectedSet(photo: Photo): boolean {
                     <mat-option [value]="name">{{ name | categoryLabel }}</mat-option>
                   }
                 </mat-select>
+                @if (explainerLoadFailed()) {
+                  <p role="alert" class="mt-1 text-xs text-[var(--mat-sys-on-error-container)]">
+                    {{ I18N.errors.server_error | translate }}
+                    <button type="button" class="underline" (click)="loadExplainerCategories()">{{ I18N.gallery.load_error.retry | translate }}</button>
+                  </p>
+                }
                 <mat-hint>{{ I18N.photo.category_override.target_category_hint | translate }}</mat-hint>
               </mat-form-field>
               @if (explainerTargetCategory(); as target) {
@@ -872,6 +878,7 @@ export class PhotoDetailComponent extends PhotoDetailBase implements OnInit {
   // Category explainer ("why isn't this photo classified as X?")
   protected readonly explainerCategories = signal<string[]>([]);
   protected readonly explainerTargetCategory = signal<string | null>(null);
+  protected readonly explainerLoadFailed = signal(false);
 
   // Face boxes: off, on hover, or always shown. Remembered per browser.
   protected readonly faceBoxMode = signal<FaceBoxMode>(readFaceBoxMode());
@@ -1817,9 +1824,14 @@ export class PhotoDetailComponent extends PhotoDetailBase implements OnInit {
 
   protected loadExplainerCategories(): void {
     if (this.explainerCategories().length === 0) {
+      this.explainerLoadFailed.set(false);
       firstValueFrom(this.api.get<{ categories: { name: string }[] }>('/config/category_priorities'))
         .then(res => this.explainerCategories.set(res.categories.map(c => c.name)))
-        .catch(() => this.explainerCategories.set([]));
+        .catch(() => {
+          // An empty dropdown with a disabled save gives the user nothing to
+          // do: surface the failure with a retry instead.
+          this.explainerLoadFailed.set(true);
+        });
     }
   }
 
