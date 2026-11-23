@@ -3,7 +3,7 @@ import { TestBed, ComponentFixture } from '@angular/core/testing';
 import { MatDialog } from '@angular/material/dialog';
 import { MatSnackBar } from '@angular/material/snack-bar';
 import { Router } from '@angular/router';
-import { of, throwError } from 'rxjs';
+import { of, Subject, throwError } from 'rxjs';
 import { ApiService } from '../../core/services/api.service';
 import { I18nService } from '../../core/services/i18n.service';
 import { GalleryStore } from '../gallery/gallery.store';
@@ -96,6 +96,76 @@ describe('PhotoFaceLayerComponent', () => {
   it('asks the server for the photo faces', async () => {
     await render();
     expect(mockApi.get).toHaveBeenCalledWith('/photo/faces', { path: '/p/a.jpg' });
+  });
+
+  it('renders a failed-read chip and retries until the face boxes recover', async () => {
+    await render();
+    mockApi.get.mockReturnValue(throwError(() => new Error('network')));
+    await component.load();
+    fixture.detectChanges();
+    const error = () => fixture.nativeElement.querySelector('[role="alert"] button');
+    expect(error()).not.toBeNull();
+    expect(fixture.nativeElement.querySelector('[data-face]')).toBeNull();
+    error().click();
+    await fixture.whenStable();
+    fixture.detectChanges();
+    expect(error()).not.toBeNull();
+    mockApi.get.mockReturnValue(of({ faces: ROWS }));
+    error().click();
+    await fixture.whenStable();
+    fixture.detectChanges();
+    expect(mockApi.get).toHaveBeenLastCalledWith('/photo/faces', { path: '/p/a.jpg' });
+    expect(error()).toBeNull();
+    expect(fixture.nativeElement.querySelectorAll('[data-face]')).toHaveLength(2);
+  });
+
+  it('hides the failed-read chip when face mode is off', async () => {
+    await render();
+    mockApi.get.mockReturnValue(throwError(() => new Error('network')));
+    await component.load();
+    fixture.componentRef.setInput('mode', 'off');
+    fixture.detectChanges();
+    expect(fixture.nativeElement.querySelector('[role="alert"]')).toBeNull();
+    fixture.componentRef.setInput('mode', 'always');
+    fixture.detectChanges();
+    expect(fixture.nativeElement.querySelector('[role="alert"]')).not.toBeNull();
+  });
+
+  it('ignores an older same-photo failure after a newer retry succeeds', async () => {
+    await render();
+    const pending = new Subject<{ faces: PhotoFaceRow[] }>();
+    mockApi.get.mockReturnValueOnce(pending);
+    const oldLoad = component.load();
+    await component.load();
+    pending.error(new Error('stale failure'));
+    await oldLoad;
+    fixture.detectChanges();
+    expect(fixture.nativeElement.querySelector('[role="alert"]')).toBeNull();
+    expect(fixture.nativeElement.querySelectorAll('[data-face]')).toHaveLength(2);
+  });
+
+  it('clears old faces during navigation and ignores a stale reply after returning', async () => {
+    await render();
+    const old = new Subject<{ faces: PhotoFaceRow[] }>();
+    mockApi.get.mockReturnValueOnce(old);
+    const oldLoad = component.load();
+    const next = new Subject<{ faces: PhotoFaceRow[] }>();
+    mockApi.get.mockReturnValueOnce(next);
+    fixture.componentRef.setInput('path', '/p/b.jpg');
+    fixture.detectChanges();
+    expect(fixture.nativeElement.querySelector('[data-face]')).toBeNull();
+    next.next({ faces: [{ ...ROWS[0], id: 50 }] });
+    await fixture.whenStable();
+    fixture.detectChanges();
+    expect(component.faces().map(face => face.id)).toEqual([50]);
+    mockApi.get.mockReturnValue(of({ faces: [{ ...ROWS[0], id: 99 }] }));
+    fixture.componentRef.setInput('path', '/p/a.jpg');
+    fixture.detectChanges();
+    await fixture.whenStable();
+    old.next({ faces: ROWS });
+    await oldLoad;
+    fixture.detectChanges();
+    expect(component.faces().map(face => face.id)).toEqual([99]);
   });
 
   it('draws each trusted face in the photo pixel frame', async () => {
@@ -428,4 +498,21 @@ describe('PhotoFaceLayerComponent', () => {
       expect((fixture.nativeElement.querySelector('rect[data-face]') as SVGRectElement).classList).toContain('opacity-100');
     });
   });
+  it('keeps the faces visible while a same-path reread is pending, and clears them for a new path', async () => {
+    await render();
+    expect(component.faces().length).toBeGreaterThan(0);
+    const pending = new Subject<{ faces: PhotoFaceRow[] }>();
+    mockApi.get.mockReturnValue(pending);
+    const reread = component.load();
+    expect(component.faces().length).toBeGreaterThan(0);
+    pending.next({ faces: ROWS });
+    pending.complete();
+    await reread;
+    const next = new Subject<{ faces: PhotoFaceRow[] }>();
+    mockApi.get.mockReturnValue(next);
+    fixture.componentRef.setInput('path', '/p/b.jpg');
+    fixture.detectChanges();
+    expect(component.faces()).toEqual([]);
+  });
+
 });

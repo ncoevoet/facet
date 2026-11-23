@@ -3,7 +3,7 @@ import {
   untracked,
 } from '@angular/core';
 import { MatTooltipModule } from '@angular/material/tooltip';
-import { catchError, of } from 'rxjs';
+import { catchError, of, type Subscription } from 'rxjs';
 import { ApiService } from '../../../core/services/api.service';
 import { HistogramPreferencesService, HistogramSurface } from '../../../core/services/histogram-preferences.service';
 import { I18nService } from '../../../core/services/i18n.service';
@@ -179,6 +179,16 @@ export const HISTOGRAM_PANEL_HEIGHT = 160;
         </div>
       }
     }
+    @if (storedFailed()) {
+      <!-- The stored read failed (5xx, network): that is not the same as "the
+           photo was never measured" — the low-quality fallback would pass as
+           the real curve. Mirror the sample-failure row. -->
+      <div class="flex items-center gap-2 text-sm" data-histogram-stored-unavailable>
+        <span>{{ I18N.errors.server_error | translate }}</span>
+        <button type="button" class="underline cursor-pointer" data-histogram-retry
+                (click)="retryStored()">{{ I18N.histogram.retry | translate }}</button>
+      </div>
+    }
     @if (sampleFailed()) {
       <!-- Sampling failed (the fallback thumbnail 404'd or the network
            dropped). The stored luma fallback may still render above; this
@@ -233,6 +243,7 @@ export class HistogramComponent {
   /** The fallback thumbnail failed to load: without this the panel would sit
    *  silently blank (no stored measurement exists to fall back to either). */
   protected readonly sampleFailed = signal(false);
+  protected readonly storedFailed = signal(false);
   private lastSampleUrl: string | null = null;
   protected readonly clipped = signal<ClipPercents | null>(null);
 
@@ -303,9 +314,10 @@ export class HistogramComponent {
   private readonly i18n = inject(I18nService);
   private readonly destroyRef = inject(DestroyRef);
   private destroyed = false;
-  // Bumped on every input change so a slow response can't overwrite the curves
-  // of the photo the user has already moved on to.
+  // Bumped on every input change or stored retry so obsolete reads and image
+  // callbacks cannot replace the current photo's recovered curves.
   private generation = 0;
+  private storedSubscription: Subscription | null = null;
 
   constructor() {
     this.destroyRef.onDestroy(() => { this.destroyed = true; });
@@ -317,6 +329,7 @@ export class HistogramComponent {
         this.storedChannels.set(null);
         this.sampledChannels.set(null);
         this.clipped.set(null);
+        this.storedFailed.set(false);
         // A previous photo's failed sample must not follow the user: its Retry
         // would draw that photo's thumbnail as this one's curves.
         this.sampleFailed.set(false);
@@ -325,7 +338,8 @@ export class HistogramComponent {
       if (path) {
         // Unsubscribing aborts the request, so scrubbing the gallery cancels
         // the tooltips the pointer already left instead of queueing them.
-        onCleanup(this.loadStored(path, url, token));
+        this.loadStored(path, url, token);
+        onCleanup(() => this.storedSubscription?.unsubscribe());
       } else if (url) {
         this.sample(url, token);
       }
@@ -373,24 +387,48 @@ export class HistogramComponent {
       .join(' · ');
   }
 
-  private loadStored(path: string, url: string, token: number): () => void {
-    const subscription = this.api
+  private loadStored(path: string, url: string, token: number): void {
+    this.storedSubscription?.unsubscribe();
+    this.storedSubscription = this.api
       .get<HistogramChannels & { clipped?: ClipPercents | null }>(
         '/photo/histogram', { path, bins: DISPLAY_BINS })
-      .pipe(catchError(() => of(null)))
+      .pipe(catchError((err: unknown) => {
+        // A stored read that fails (5xx, network) is not the same as "the photo
+        // has no stored histogram": without saying so, the user gets a low-quality
+        // sampled curve labeled thumbnail — or, with no thumbnail URL, a blank
+        // curve area with no explanation at all. Mirror the sample failure path.
+        // A 404 IS that answer (the row has no stored histogram), so it falls
+        // through to the thumbnail sample like an empty reply.
+        const missing = (err as { status?: number } | null)?.status === 404;
+        if (!missing && !this.destroyed && token === this.generation) this.storedFailed.set(true);
+        return of(null);
+      }))
       .subscribe(stored => {
         if (this.destroyed || token !== this.generation) return;
+        if (stored) this.storedFailed.set(false);
         if (stored?.luma?.length) {
           // Markers come exclusively from this stored measurement -- a legacy
           // row genuinely was never measured for clipping, and that must stay
           // "unknown", never get filled in from the (also legacy) fallback.
           this.clipped.set(stored.clipped ?? null);
           this.storedChannels.set(stored);
+          if (stored.r?.length) {
+            this.sampledChannels.set(null);
+            this.sampleFailed.set(false);
+          }
         } else if (url) {
           this.sample(url, token);
         }
       });
-    return () => subscription.unsubscribe();
+  }
+
+  protected retryStored(): void {
+    // Retire both the old stored read and its thumbnail fallback callbacks.
+    const token = ++this.generation;
+    this.storedFailed.set(false);
+    this.sampleFailed.set(false);
+    const path = this.path();
+    if (path) this.loadStored(path, this.src(), token);
   }
 
   private sample(url: string, token: number): void {

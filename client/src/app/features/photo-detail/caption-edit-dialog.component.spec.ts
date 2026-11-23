@@ -112,4 +112,36 @@ describe('CaptionEditDialogComponent', () => {
     else expect(mockDialogRef.close).toHaveBeenCalledWith('Submitted');
   });
 
+  it('a failed save sets saveFailed, renders the alert and keeps the dialog open; a later success clears it', async () => {
+    const fixture = TestBed.createComponent(CaptionEditDialogComponent);
+    fixture.detectChanges();
+    const cmp = fixture.componentInstance;
+    mockApi.put.mockReturnValue(throwError(() => new Error('boom')));
+
+    await cmp.save();
+    fixture.detectChanges();
+
+    expect(cmp.saveFailed()).toBe(true);
+    expect(fixture.nativeElement.querySelector('[role="alert"]')).not.toBeNull();
+    expect(mockDialogRef.close).not.toHaveBeenCalled();
+
+    mockApi.put.mockReturnValue(of({}));
+    await cmp.save();
+    fixture.detectChanges();
+
+    expect(cmp.saveFailed()).toBe(false);
+    expect(fixture.nativeElement.querySelector('[role="alert"]')).toBeNull();
+  });
+
+  it('a failure arriving after the component is destroyed does not throw', async () => {
+    const pending = new Subject<unknown>();
+    mockApi.put.mockReturnValue(pending);
+    const fixture = TestBed.createComponent(CaptionEditDialogComponent);
+    fixture.detectChanges();
+    const saving = fixture.componentInstance.save();
+    fixture.destroy();
+    pending.error(new Error('late'));
+    await expect(saving).resolves.toBeUndefined();
+  });
+
 });

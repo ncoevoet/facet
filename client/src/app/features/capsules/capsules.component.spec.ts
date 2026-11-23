@@ -1,12 +1,14 @@
 import type { Mock } from 'vitest';
+import { signal } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
-import { of, throwError } from 'rxjs';
+import { of, Subject, throwError } from 'rxjs';
 import { MatSnackBar } from '@angular/material/snack-bar';
 import { ApiService } from '../../core/services/api.service';
 import { AuthService } from '../../core/services/auth.service';
 import { I18nService } from '../../core/services/i18n.service';
 import { HeaderSlotService } from '../../core/services/header-slot.service';
 import { CapsulesComponent } from './capsules.component';
+import { CapsuleFiltersService } from './capsule-filters.service';
 import { I18N } from '../../core/i18n/keys';
 
 describe('CapsulesComponent', () => {
@@ -135,6 +137,143 @@ describe('CapsulesComponent', () => {
       // the failure must still be visible, as a toast.
       expect(mockSnackBar.open).toHaveBeenCalledWith(
         I18N.capsules.load_error, '', { duration: 3000 });
+    });
+  });
+
+  describe('date range reloads', () => {
+    const mount = async (from: string) => {
+      TestBed.resetTestingModule();
+      TestBed.configureTestingModule({
+        providers: [
+          { provide: ApiService, useValue: mockApi },
+          { provide: AuthService, useValue: mockAuth },
+          { provide: I18nService, useValue: { ...mockI18n, translations: signal({}), locale: signal('en') } },
+          { provide: MatSnackBar, useValue: mockSnackBar },
+        ],
+      });
+      TestBed.inject(CapsuleFiltersService).dateFrom.set(from);
+      const fixture = TestBed.createComponent(CapsulesComponent);
+      component = fixture.componentInstance;
+      fixture.detectChanges();
+      await fixture.whenStable();
+      fixture.detectChanges();
+      return fixture;
+    };
+
+    it.each(['', '2026-01-01'])('loads an initial date range once: %s', async from => {
+      await mount(from);
+      expect(mockApi.get).toHaveBeenCalledTimes(1);
+    });
+
+    it('ignores a partial typed year and requests once for a full one', async () => {
+      const fixture = await mount('');
+      mockApi.get.mockClear();
+      TestBed.inject(CapsuleFiltersService).dateFrom.set('0202-01-01');
+      fixture.detectChanges();
+      await fixture.whenStable();
+      expect(mockApi.get).not.toHaveBeenCalled();
+      TestBed.inject(CapsuleFiltersService).dateFrom.set('2025-01-01');
+      fixture.detectChanges();
+      await fixture.whenStable();
+      expect(mockApi.get).toHaveBeenCalledTimes(1);
+    });
+
+    it('clearing the last date reloads page one and clears shuffle/resume caches', async () => {
+      const fixture = await mount('2026-01-01');
+      internals().currentPage = 3;
+      internals().capsuleShuffledPhotos.set('c1', [{ path: '/old.jpg' }]);
+      internals().capsuleResumeIndex.set('c1', 4);
+      mockApi.get.mockClear();
+      TestBed.inject(CapsuleFiltersService).dateFrom.set('');
+      fixture.detectChanges();
+      await fixture.whenStable();
+      expect(mockApi.get).toHaveBeenCalledWith('/capsules', expect.objectContaining({
+        page: 1, date_from: '', date_to: '',
+      }));
+      expect(internals().capsuleShuffledPhotos.size).toBe(0);
+      expect(internals().capsuleResumeIndex.size).toBe(0);
+    });
+
+    it.each([1, 2])('a cleared range supersedes an in-flight page %s', async page => {
+      const fixture = await mount('2026-01-01');
+      const pending = new Subject<typeof mockCapsulesResponse>();
+      mockApi.get.mockReturnValueOnce(pending);
+      if (page === 2) internals().loadMore();
+      else {
+        TestBed.inject(CapsuleFiltersService).dateFrom.set('2026-02-01');
+        fixture.detectChanges();
+      }
+      mockApi.get.mockReturnValue(of({ ...mockCapsulesResponse,
+        capsules: [{ ...mockCapsulesResponse.capsules[0], id: 'all-dates' }],
+        has_more: false, total: 1,
+      }));
+      TestBed.inject(CapsuleFiltersService).dateFrom.set('');
+      fixture.detectChanges();
+      await fixture.whenStable();
+      pending.next({ ...mockCapsulesResponse,
+        capsules: [{ ...mockCapsulesResponse.capsules[0], id: 'old-range' }],
+      });
+      await Promise.resolve();
+      expect(internals().capsules().map((c: { id: string }) => c.id)).toEqual(['all-dates']);
+      expect(internals().currentPage).toBe(1);
+      expect(internals().total()).toBe(1);
+      expect(internals().hasMore()).toBe(false);
+    });
+
+    it.each([1, 2])('an old page-%s failure cannot roll back the new range or show a stale error', async page => {
+      const fixture = await mount('2026-01-01');
+      const pending = new Subject<typeof mockCapsulesResponse>();
+      mockApi.get.mockReturnValueOnce(pending);
+      if (page === 2) internals().loadMore();
+      else {
+        TestBed.inject(CapsuleFiltersService).dateFrom.set('2026-02-01');
+        fixture.detectChanges();
+      }
+      TestBed.inject(CapsuleFiltersService).dateFrom.set('');
+      fixture.detectChanges();
+      await fixture.whenStable();
+      pending.error(new Error('old page failed'));
+      await Promise.resolve();
+      expect(internals().currentPage).toBe(1);
+      expect(internals().loadError()).toBe(false);
+      expect(mockSnackBar.open).not.toHaveBeenCalled();
+    });
+
+    it('an old append cannot clear the replacement request loading state', async () => {
+      const fixture = await mount('2026-01-01');
+      const oldPage = new Subject<typeof mockCapsulesResponse>();
+      const newRange = new Subject<typeof mockCapsulesResponse>();
+      mockApi.get.mockReturnValueOnce(oldPage).mockReturnValueOnce(newRange);
+      internals().loadMore();
+      TestBed.inject(CapsuleFiltersService).dateFrom.set('');
+      fixture.detectChanges();
+      oldPage.next(mockCapsulesResponse);
+      await Promise.resolve();
+      expect(internals().loading()).toBe(true);
+      expect(internals().capsules()).toHaveLength(1);
+      newRange.next(mockCapsulesResponse);
+      await Promise.resolve();
+      expect(internals().loading()).toBe(false);
+    });
+
+    it.each(['success', 'failure'])('old photo %s cannot affect a cleared date range', async outcome => {
+      const fixture = await mount('2026-01-01');
+      const pending = new Subject<{ photos: { path: string }[] }>();
+      mockApi.get.mockReturnValueOnce(pending);
+      const playing = internals().loadAndStartCapsule(mockCapsulesResponse.capsules[0]);
+      internals().closeSlideshow();
+      TestBed.inject(CapsuleFiltersService).dateFrom.set('');
+      fixture.detectChanges();
+      await fixture.whenStable();
+      if (outcome === 'success') pending.next({ photos: [{ path: '/old.jpg' }] });
+      else pending.error(new Error('old photo read failed'));
+      await playing;
+      expect(internals().capsuleShuffledPhotos.size).toBe(0);
+      expect(internals().slideshowPhotos()).toEqual([]);
+      expect(mockSnackBar.open).not.toHaveBeenCalled();
+      mockApi.get.mockReturnValueOnce(of({ photos: [{ path: '/new.jpg' }] }));
+      await internals().loadAndStartCapsule(mockCapsulesResponse.capsules[0]);
+      expect(internals().slideshowPhotos()[0].path).toBe('/new.jpg');
     });
   });
 

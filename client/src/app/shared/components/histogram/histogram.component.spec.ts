@@ -1,6 +1,6 @@
 import type { Mock } from 'vitest';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
-import { of, throwError } from 'rxjs';
+import { of, Subject, throwError } from 'rxjs';
 import { ApiService } from '../../../core/services/api.service';
 import { HISTOGRAM_MODE_KEYS } from '../../../core/services/histogram-preferences.service';
 import { I18nService } from '../../../core/services/i18n.service';
@@ -259,6 +259,92 @@ describe('HistogramComponent', () => {
     expect(getContext).toHaveBeenCalled();
     expect(polylines()).toHaveLength(3);
   });
+
+  it('keeps a stored-read error visible without a thumbnail and recovers through retry', () => {
+    mockApi.get.mockReturnValue(throwError(() => new Error('network')));
+    render({ path: '/a.jpg', defaultMode: 'luma' });
+    const error = () => fixture.nativeElement.querySelector('[data-histogram-stored-unavailable]');
+    expect(error()).not.toBeNull();
+    expect(svg()).toBeNull();
+
+    error().querySelector('button').click();
+    fixture.detectChanges();
+    expect(error()).not.toBeNull();
+
+    mockApi.get.mockReturnValue(of({ bins: 4, luma: [1, 0.5, 0, 0] }));
+    error().querySelector('button').click();
+    fixture.detectChanges();
+    expect(mockApi.get).toHaveBeenLastCalledWith('/photo/histogram', { path: '/a.jpg', bins: 64 });
+    expect(error()).toBeNull();
+    expect(fixture.nativeElement.querySelector('polygon')).not.toBeNull();
+  });
+
+  it('keeps a stored-read warning alongside the sampled fallback', () => {
+    mockApi.get.mockReturnValue(throwError(() => new Error('network')));
+    render({ path: '/a.jpg', src: '/thumb/a.jpg' });
+    loadedImages[0].onload!();
+    fixture.detectChanges();
+    expect(polylines()).toHaveLength(3);
+    expect(fixture.nativeElement.querySelector('[data-histogram-stored-unavailable]')).not.toBeNull();
+    expect(fixture.nativeElement.querySelector('[data-histogram-source] summary').textContent)
+      .toContain('histogram.provenance.thumbnail');
+  });
+
+  it('clears a stored-read failure when moving to a thumbnail-only photo', () => {
+    mockApi.get.mockReturnValue(throwError(() => new Error('network')));
+    render({ path: '/a.jpg' });
+    expect(fixture.nativeElement.querySelector('[data-histogram-stored-unavailable]')).not.toBeNull();
+    render({ path: '', src: '/thumb/b.jpg' });
+    loadedImages.at(-1)!.onload!();
+    fixture.detectChanges();
+    expect(fixture.nativeElement.querySelector('[data-histogram-stored-unavailable]')).toBeNull();
+    expect(polylines()).toHaveLength(3);
+  });
+
+  for (const sampleDone of [true, false]) {
+    it(`restores stored RGB after retry when fallback sampleDone=${sampleDone}`, () => {
+      mockApi.get.mockReturnValue(throwError(() => new Error('network')));
+      render({ path: '/a.jpg', src: '/thumb/a.jpg', defaultMode: 'rgb' });
+      const fallback = loadedImages[0];
+      if (sampleDone) fallback.onload!();
+      fixture.detectChanges();
+      mockApi.get.mockReturnValue(of({ bins: 4, luma: [1, 0.5, 0, 0],
+        r: [1, 0.5, 0, 0], g: [1, 0.5, 0, 0], b: [1, 0.5, 0, 0] }));
+      fixture.nativeElement.querySelector('[data-histogram-stored-unavailable] button').click();
+      fixture.detectChanges();
+      if (!sampleDone) fallback.onload!();
+      fixture.detectChanges();
+      expect(fixture.nativeElement.querySelector('[data-histogram-source] summary').textContent)
+        .toContain('histogram.provenance.stored');
+    });
+  }
+
+  it('ignores an old thumbnail failure after a complete stored retry recovered', () => {
+    mockApi.get.mockReturnValue(throwError(() => new Error('network')));
+    render({ path: '/a.jpg', src: '/thumb/a.jpg', defaultMode: 'rgb' });
+    const fallback = loadedImages[0];
+    mockApi.get.mockReturnValue(of({ bins: 4, luma: [1, 0.5, 0, 0],
+      r: [1, 0.5, 0, 0], g: [1, 0.5, 0, 0], b: [1, 0.5, 0, 0] }));
+    fixture.nativeElement.querySelector('[data-histogram-stored-unavailable] button').click();
+    fixture.detectChanges();
+    fallback.onerror!();
+    fixture.detectChanges();
+    expect(fixture.nativeElement.querySelector('[data-histogram-unavailable]')).toBeNull();
+  });
+
+  for (const leave of ['navigate', 'destroy'] as const) {
+    it(`cancels a pending stored retry on ${leave}`, () => {
+      mockApi.get.mockReturnValue(throwError(() => new Error('network')));
+      render({ path: '/a.jpg' });
+      const retry = new Subject<{ bins: number; luma: number[] }>();
+      mockApi.get.mockReturnValue(retry);
+      fixture.nativeElement.querySelector('[data-histogram-stored-unavailable] button').click();
+      expect(retry.observed).toBe(true);
+      if (leave === 'destroy') fixture.destroy();
+      else render({ path: '', src: '/thumb/b.jpg' });
+      expect(retry.observed).toBe(false);
+    });
+  }
 
   it('samples the thumbnail when no path is provided at all', () => {
     render({ src: '/thumb/a.jpg' });
@@ -535,4 +621,10 @@ describe('HistogramComponent', () => {
 
     expect(polylines()).toHaveLength(0);
   });
+  it.each([[404, false], [500, true]])('a %i stored read sets the failure state: %s', (status, failed) => {
+    mockApi.get.mockReturnValue(throwError(() => ({ status })));
+    render({ path: '/a.jpg' });
+    expect(fixture.nativeElement.querySelector('[data-histogram-stored-unavailable]') !== null).toBe(failed);
+  });
+
 });

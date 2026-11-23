@@ -363,7 +363,12 @@ export class ConnectAssistantDialogComponent implements OnDestroy {
   }
 
   protected async copy(text: string): Promise<void> {
-    if (!await copyText(text)) return;
+    if (!await copyText(text)) {
+      // Carrying the token to the assistant is the whole point of this dialog:
+      // a clipboard refusal must not pass silently.
+      this.snackBar.open(this.i18n.t(this.I18N.ui.copy_failed), '', { duration: 3000 });
+      return;
+    }
     this.copied.set(true);
     this.announce(this.i18n.t(this.I18N.dialog.connect_assistant.copied));
     setTimeout(() => this.copied.set(false), 2000);

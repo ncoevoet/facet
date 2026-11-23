@@ -208,7 +208,7 @@ describe('StatsComponent', () => {
     component.statsFilters.dateFrom.set('2026-11-06');
     expect(c().unknownCategory()).toBe('astro');
     expect(c().unknownCategoryLabel()).toBe('Astrofotografie');
-    expect(c().filterSummary()).toBe('Astrofotografie · 06/11/2026');
+    expect(c().filterSummary()).toBe('Astrofotografie · 6 Nov 2026');
     types.set([{ id: 'astro', count: 1 }]);
     expect(c().unknownCategory()).toBeNull();
   });
