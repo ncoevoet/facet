@@ -361,7 +361,8 @@ def test_a_killed_python_takes_its_exiftool_process_with_it(tmp_path):
         while time.monotonic() < deadline:
             try:
                 state = Path(f'/proc/{pid}/stat').read_text().rsplit(')', 1)[1].split()[0]
-            except FileNotFoundError:
+            # An exit between open and read raises ESRCH instead of ENOENT: gone either way.
+            except (FileNotFoundError, ProcessLookupError):
                 break
             if state == 'Z':
                 break

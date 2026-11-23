@@ -93,10 +93,13 @@ def _ready_change_token(db_path, seconds=5.0):
     """A busy first read has not attached the sentinel to the WAL yet."""
     deadline = time.monotonic() + seconds
     while True:
+        # Judge the deadline before the read: a slow read (or a slow release in a
+        # test's side effect) must still be followed by one more attempt.
+        expired = time.monotonic() >= deadline
         token = db_change_token(db_path)
         if not token.startswith("x"):
             return token
-        assert time.monotonic() < deadline, "change-token sentinel stayed busy"
+        assert not expired, "change-token sentinel stayed busy"
         time.sleep(0.01)
 
 
