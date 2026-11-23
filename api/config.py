@@ -38,7 +38,10 @@ def child_process_env(extra=None):
     """
     import licensing
 
-    env = {**os.environ, **(extra or {})}
+    # The viewer reads a child's output line by line, so every progress-bar redraw
+    # (and the blank padding that clears it) became a line of its log; children
+    # report progress as @FACET_PROGRESS events instead. Honoured by tqdm >= 4.66.
+    env = {**os.environ, 'TQDM_DISABLE': '1', **(extra or {})}
     if licensing.is_commercial():
         env[licensing.LICENSING_MODE_ENV] = licensing.MODE_COMMERCIAL
         if not licensing.policy().allow_unclear:
