@@ -3,6 +3,7 @@
 import sqlite3
 from unittest import mock
 
+import pytest
 from fastapi.testclient import TestClient
 
 from api import create_app
@@ -288,22 +289,27 @@ class TestQueryPushdown:
         conn.commit()
         conn.close()
 
-    def _get(self, db_path: str, endpoint: str, params: dict):
+    def _get(self, db_path: str, endpoint: str, params: dict, *,
+             photo_tags: bool = True, visibility: tuple = ("1=1", [])):
         app, patches = _build_app_with(db_path, {
             "dropdowns": {"min_photos_for_person": 1, "max_persons": 100,
                           "max_tags": 20, "max_cameras": 50, "max_lenses": 50}
         })
         # The availability probes are TTL-cached process-wide (a sibling test's answer
         # would stick for 5 minutes), so pin them to what the vocab DB actually holds.
-        patches.extend([
-            mock.patch("api.routers.filter_options.is_photo_tags_available", return_value=True),
+        overrides = [
+            mock.patch("api.routers.filter_options.is_photo_tags_available", return_value=photo_tags),
             mock.patch("api.routers.filter_options.is_manual_tags_available", return_value=False),
-        ])
-        for p in patches[5:]:
+            mock.patch("api.routers.filter_options.get_visibility_clause", return_value=visibility),
+        ]
+        for p in overrides:
             p.start()
         try:
             return TestClient(app).get(f"/api/filter_options/{endpoint}", params=params)
         finally:
+            # The visibility override sits on top of _build_app_with's own patch of
+            # the same name, so it must unwind first.
+            _stop_patches(reversed(overrides))
             _stop_patches(patches)
             _reset_side_table_caches()
 
@@ -360,6 +366,24 @@ class TestQueryPushdown:
         resp = self._get(db_path, "tags", {"query": "sunset"})
         assert resp.status_code == 200
         assert {row[0] for row in resp.json()["tags"]} == {"Sunset", "sunset beach"}
+
+    @pytest.mark.parametrize("photo_tags", [True, False], ids=["photo_tags", "split_fallback"])
+    def test_tags_query_runs_under_a_visibility_clause(self, tmp_path, photo_tags):
+        # A restricted caller takes the pair-level branch (or the recursive split
+        # when photo_tags is missing); both bind the visibility params before the
+        # needle, so a wrong order would surface here as a 500 or an empty list.
+        db_path = str(tmp_path / "vocab.db")
+        self._make_vocab_db(db_path, [], tags=["sunset", "sunrise", "mountain"])
+        conn = sqlite3.connect(db_path)
+        conn.execute("ALTER TABLE photos ADD COLUMN tags TEXT")
+        conn.executemany("INSERT INTO photos (path, tags) VALUES (?, ?)",
+                         [("/t0.jpg", "sunset"), ("/t1.jpg", "sunrise"), ("/t2.jpg", "mountain")])
+        conn.commit()
+        conn.close()
+        resp = self._get(db_path, "tags", {"query": "sun"}, photo_tags=photo_tags,
+                         visibility=("photos.path != ?", ["/t1.jpg"]))
+        assert resp.status_code == 200
+        assert [row[0] for row in resp.json()["tags"]] == ["sunset"]
 
     def test_cameras_query_filters_the_models(self, tmp_path):
         db_path = str(tmp_path / "vocab.db")

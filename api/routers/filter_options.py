@@ -18,7 +18,7 @@ from api.config import VIEWER_CONFIG, is_multi_user_enabled
 from api.database import get_async_db, get_db
 from api.db_helpers import is_manual_tags_available, is_photo_tags_available, get_visibility_clause
 from api.types import JUNK_NOT_JUNK
-from api.models.gallery import PERSON_FILTER_LIMIT
+from api.models.gallery import PERSON_FILTER_LIMIT, person_filter_ids
 from api.models.media import (
     MediaFilterOptionCamerasResponse,
     MediaFilterOptionJunkKindsResponse,
@@ -36,16 +36,11 @@ logger = logging.getLogger(__name__)
 # The vocabulary endpoints accept an optional `query` so a caller (the agent-facing
 # filter_options tool) narrows the vocabulary in SQL instead of pulling the whole list
 # and trimming afterwards. The needle is a LITERAL substring: %, _ and \ lose their
-# wildcard meaning via ESCAPE, and the match is case-insensitive for ASCII (SQLite
-# LIKE), case-sensitive otherwise. It applies BEFORE the route's own LIMIT, so a
+# wildcard meaning via ESCAPE. An ASCII needle rides SQLite LIKE's ASCII case folding;
+# a non-ASCII one switches to a Unicode-folding comparison (`_like_suffix`), so a
+# category named Été still matches été. It applies BEFORE the route's own LIMIT, so a
 # filtered read still fills the page — which is also why the whole-library cache
 # answers only unfiltered reads: its rows are already LIMIT-cut and cannot narrow.
-_LIKE_SUFFIX = " LIKE ? ESCAPE '\\'"
-# A non-ASCII needle cannot ride SQLite's ASCII-only LIKE folding (a category
-# named Été would be invisible to été, which the old Python trim matched via
-# str.lower), so non-ASCII needles switch to a Unicode-folding comparison with
-# a deterministic helper registered on the connection.
-_LIKE_FOLDED_SUFFIX = " LIKE ('%' || facet_lower(?) || '%') ESCAPE '\\'"
 
 
 def _facet_lower(value):
@@ -316,22 +311,18 @@ def _parse_forced_ids(ids: str) -> list[int]:
     dropped: a silently-empty list would answer "no forced persons" where the
     client made a mistake.
     """
-    if not ids:
-        return []
-    tokens = [token.strip() for token in ids.split(',')]
-    if any(not token.isascii() or not token.isdecimal()
-           or not 0 < int(token) <= 9223372036854775807 for token in tokens):
-        raise HTTPException(status_code=422, detail="ids must be a comma list of positive person IDs")
-    unique = list(dict.fromkeys(map(int, tokens)))
-    if len(unique) > PERSON_FILTER_LIMIT:
-        raise HTTPException(status_code=422,
-                            detail=f"ids accepts at most {PERSON_FILTER_LIMIT} person IDs")
-    return unique
+    try:
+        return person_filter_ids(ids)
+    except ValueError:
+        raise HTTPException(
+            status_code=422,
+            detail=f"ids must be a comma list of at most {PERSON_FILTER_LIMIT} positive person IDs",
+        ) from None
 
 
 @router.get("/persons", response_model=MediaFilterOptionPersonsResponse, response_model_exclude_unset=True)
 async def persons(
-    ids: str = Query("", max_length=PERSON_FILTER_LIMIT * 20),
+    ids: str = Query("", max_length=4096),
     query: str = Query("", max_length=100),
     user: Optional[CurrentUser] = Depends(get_optional_user),
 ):

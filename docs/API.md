@@ -78,6 +78,8 @@ Developers: `cd client && npm run gen:api` regenerates the client types in `clie
 | `GET /api/filter_options/colors` | Color temperature and hue-bucket facets with counts |
 | `GET /api/filter_options/metric_ranges` | Observed min/max and histogram per numeric metric (for slider bounds) |
 
+`cameras`, `lenses`, `tags`, `persons`, `patterns`, `categories` and `narrative_moments` accept an optional `query` (up to 100 characters): a literal, case-insensitive substring that narrows the list in SQL before the dropdown limit, so a filtered read always runs live instead of coming from the stats cache. `/persons` also takes `ids`, a comma list of at most 200 positive person IDs that are always included; anything else in `ids` answers 422.
+
 ## Batch Operations
 
 All endpoints here use the [batch target contract](#conventions).
