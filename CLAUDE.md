@@ -407,6 +407,8 @@ only what reading those two will NOT tell you.
   viewer-DB export (`db/maintenance.py`) and `--extract-gps` / `--rescan-gps`; and
   `photos.date_manually_set`, set by `POST /api/photos/capture_date/apply`, cleared by
   `DELETE /api/photo/capture_date` and honoured by the same two upserts and the viewer-DB export.
+  `photos.date_added` is kept across rescans too, though nobody sets it by hand: the scanner
+  stamps it on insert and both upserts only ever fill it (`DATE_ADDED_KEEP_SET`).
   **Any new writer of `gps_latitude` / `gps_longitude` or `date_taken` must skip or preserve rows
   where the matching flag is 1.**
 - **Review-field writes stamp their own edit clock.** The `metadata_review_*` triggers
