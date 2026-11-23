@@ -14,13 +14,12 @@ import { SortOptionIconPipe } from '../../shared/pipes/sort-option-icon.pipe';
 import { SortGroupIconPipe, SortGroupKeyPipe } from '../../shared/pipes/sort-group-key.pipe';
 import { useDesktopSignal, useHoverCapableSignal, DETAILS_RAIL_MIN_WIDTH_PX } from '../../shared/utils/media-query';
 import { GalleryFilters, GalleryStore } from './gallery.store';
-import { TILE_FITS, GalleryMode, PanelActivation, TooltipMode } from './gallery-filters.util';
+import { TILE_FITS, GalleryMode, PanelActivation, TooltipMode, inAlbum } from './gallery-filters.util';
 import { closeOverlayDirectives } from '../../shared/utils/overlays';
-import { sortLabelKey } from '../../shared/utils/sort-label';
+import { sortLabelKey, sortOptionLabelKey } from '../../shared/utils/sort-label';
 import { AuthService } from '../../core/services/auth.service';
 import { GalleryReviewNavigationService } from './gallery-review-navigation.service';
 
-const sortOptionLabelKey = (column: string): string => `sort_options.${column}`;
 
 /** One collection-command owner at every viewport width. */
 @Component({
@@ -312,6 +311,7 @@ export class GalleryViewControlsComponent {
 
   protected readonly sortMenuSections = computed(() => {
     const filters = this.store.filters();
+    const album = inAlbum(filters);
     const sections: { header: string | null; active: boolean; options: { column: string; labelKey: string }[] }[] = [];
     if (filters.semanticQuery) sections.push({ header: null, active: false, options: [{ column: 'relevance', labelKey: I18N.gallery.sort_relevance }] });
     if (this.store.config()?.features?.show_my_taste) sections.push({ header: null, active: false, options: [{ column: 'learned_score', labelKey: I18N.gallery.sort_my_taste }] });
@@ -320,7 +320,7 @@ export class GalleryViewControlsComponent {
       for (const [name, options] of groups) {
         sections.push({
           header: name, active: options.some(opt => opt.column === filters.sort),
-          options: options.map(opt => ({ column: opt.column, labelKey: sortOptionLabelKey(opt.column) })),
+          options: options.map(opt => ({ column: opt.column, labelKey: sortOptionLabelKey(opt.column, album) })),
         });
       }
     } else {
@@ -336,7 +336,7 @@ export class GalleryViewControlsComponent {
   protected readonly currentSortLabelKey = computed(() => {
     const sort = this.store.filters().sort;
     const match = this.sortMenuSections().flatMap(section => section.options).find(opt => opt.column === sort);
-    return match?.labelKey ?? sortLabelKey(sort);
+    return match?.labelKey ?? sortLabelKey(sort, inAlbum(this.store.filters()));
   });
 
   protected onSortChange(sort: string): void {
