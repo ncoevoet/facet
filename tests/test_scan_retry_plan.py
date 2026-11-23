@@ -345,6 +345,7 @@ def test_os_owned_input_survives_launcher_death_without_orphan_worklist(failed_r
     import hashlib
     import json
     import subprocess
+    import psutil
     from processing.scan_retry import retry_manifest_bytes
     db, first, _ = failed_run
     config = tmp_path / 'config.json'
@@ -363,7 +364,8 @@ print(json.dumps([str(p) for p in retry_plan_paths(plan)],ensure_ascii=False),fl
 import os,sys,tempfile,subprocess
 transport=tempfile.TemporaryFile(mode='w+b',dir=sys.argv[5])
 transport.write(sys.stdin.buffer.read());transport.seek(0)
-subprocess.Popen([sys.executable,'-c',sys.argv[1],*sys.argv[2:5]],stdin=transport)
+child=subprocess.Popen([sys.executable,'-c',sys.argv[1],*sys.argv[2:5]],stdin=transport)
+print(child.pid,flush=True)
 os._exit(0)
 """
     # Captured stdout stays open in the child: communicate waits for its EOF,
@@ -371,5 +373,14 @@ os._exit(0)
     result = subprocess.run([sys.executable, '-c', parent, child, digest, db, str(config), str(tmp_path)],
                             input=payload, capture_output=True, timeout=20)
     assert result.returncode == 0, result.stderr.decode('utf-8')
-    assert json.loads(result.stdout.decode('utf-8')) == [str(first)]
+    # Launcher and child share the pipe: one line is the child's pid, the other its plan.
+    lines = result.stdout.decode('utf-8').splitlines()
+    child_pid = next(line for line in lines if line.isdigit())
+    assert [json.loads(line) for line in lines if line != child_pid] == [[str(first)]]
+    # Windows can deliver stdout EOF before the dying child closes its stdin
+    # handle, which is what deletes the TemporaryFile. Wait for the exit itself.
+    try:
+        psutil.Process(int(child_pid)).wait(timeout=20)
+    except psutil.NoSuchProcess:
+        pass
     assert {path.name for path in tmp_path.iterdir()} == before
