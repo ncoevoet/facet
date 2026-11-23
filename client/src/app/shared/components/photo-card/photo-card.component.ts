@@ -769,8 +769,9 @@ export class PhotoCardComponent {
   readonly naturalFit = input(false);
   readonly mosaicMode = input(false);
   readonly listMode = input(false);
+  readonly inAlbum = input(false);
   private static nextListId = 0;
-  protected readonly listSortLabel = computed(() => sortLabelKey(this.currentSort()));
+  protected readonly listSortLabel = computed(() => sortLabelKey(this.currentSort(), this.inAlbum()));
   private readonly listSortValue = computed(() => (this.photo() as unknown as Record<string, unknown>)[this.currentSort()]);
   protected readonly listSortNumber = computed(() => {
     const value = this.listSortValue();

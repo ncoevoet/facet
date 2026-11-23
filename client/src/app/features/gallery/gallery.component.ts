@@ -84,7 +84,7 @@ import {
   gridColumnCount, totalRowsHeight, windowRange, MOBILE_MIN_COLUMNS, MOBILE_DETAILS_MIN_COLUMNS,
 } from './gallery-rows.util';
 import { noticeLiftPx } from './selection-bar-layout.util';
-import { GalleryFilters, applyQueryParams, applySavedAlbumFilters, loadDisplayOptionsFromStorage, nextGalleryMode } from './gallery-filters.util';
+import { GalleryFilters, applyQueryParams, applySavedAlbumFilters, loadDisplayOptionsFromStorage, nextGalleryMode, inAlbum } from './gallery-filters.util';
 import { AlbumService, Album } from '../../core/services/album.service';
 import { InfiniteScrollDirective } from '../../shared/directives/infinite-scroll.directive';
 import { I18N, i18nKeys } from '../../core/i18n/keys';
@@ -444,6 +444,7 @@ const SET_KIND_TOGGLE: Record<string, keyof HiddenFilterFlags> = {
                     [hideDetails]="rowCardHideDetails()"
                     [mosaicMode]="effectiveGalleryMode() === 'mosaic'"
                     [listMode]="listMode()"
+                    [inAlbum]="inAlbumScope()"
                     [attr.aria-setsize]="listMode() ? store.photos().length : null"
                     [attr.aria-posinset]="listMode() ? row.startIndex + i + 1 : null"
                     [config]="store.config()"
@@ -515,6 +516,7 @@ const SET_KIND_TOGGLE: Record<string, keyof HiddenFilterFlags> = {
                   [naturalFit]="naturalGridFit()"
                   [hideDetails]="effectiveHideDetails()"
                   [listMode]="listMode()"
+                  [inAlbum]="inAlbumScope()"
                   [style.height.px]="listMode() ? listRowHeight() : null"
                   [attr.aria-setsize]="listMode() ? store.photos().length : null"
                   [attr.aria-posinset]="listMode() ? i + 1 : null"
@@ -1349,6 +1351,7 @@ export class GalleryComponent implements OnInit, OnDestroy {
   );
 
   readonly listMode = computed(() => this.effectiveGalleryMode() === 'list');
+  protected readonly inAlbumScope = computed(() => inAlbum(this.store.filters()));
   protected readonly showSelectionIndicators = computed(() =>
     this.selectionAffordance() || (this.selectingPhotos() && !this.isDesktop()),
   );

@@ -553,6 +553,7 @@ export const I18N = {
     qrealign_score: "sort_options.qrealign_score",
     date_taken: "sort_options.date_taken",
     date_added: "sort_options.date_added",
+    date_added_library: "sort_options.date_added_library",
     star_rating: "sort_options.star_rating",
     face_quality: "sort_options.face_quality",
     eye_sharpness: "sort_options.eye_sharpness",

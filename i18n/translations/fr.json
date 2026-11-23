@@ -514,6 +514,7 @@
     "qrealign_score": "Q-ReAlign (esthétique)",
     "date_taken": "Date de prise",
     "date_added": "Date d'ajout",
+    "date_added_library": "Date d'ajout à la bibliothèque",
     "star_rating": "Étoiles",
     "face_quality": "Qualité visage",
     "eye_sharpness": "Netteté yeux",

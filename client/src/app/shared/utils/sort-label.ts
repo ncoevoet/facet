@@ -11,8 +11,14 @@ const SORT_LABELS_OUTSIDE_OPTIONS = (): Readonly<Record<string, string>> => {
   };
 };
 
+/** Translation key of a `sort_options` column. Inside an album, "Date Added" could read as when
+ *  the photo joined the album, while it sorts by library import time: name the library. */
+export function sortOptionLabelKey(column: string, inAlbum = false): string {
+  return inAlbum && column === 'date_added' ? i18nKeys().sort_options.date_added_library : `sort_options.${column}`;
+}
+
 /** Translation key naming a gallery sort column. */
-export function sortLabelKey(sort: string): string {
+export function sortLabelKey(sort: string, inAlbum = false): string {
   const outside = SORT_LABELS_OUTSIDE_OPTIONS();
-  return Object.hasOwn(outside, sort) ? outside[sort] : `sort_options.${sort}`;
+  return Object.hasOwn(outside, sort) ? outside[sort] : sortOptionLabelKey(sort, inAlbum);
 }

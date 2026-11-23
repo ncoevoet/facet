@@ -77,12 +77,14 @@ def unavailable_columns():
 # Sorts whose column stays all-NULL on installs that never compute it (the model is
 # off, the library predates it, a CPU-only scanner): config cannot tell, because
 # "auto" resolves from the SCANNER's GPU and the viewer may run elsewhere. The
-# option is listed only once some photo carries a value. Adding a sibling metric
+# option is listed only once some photo carries a value. ``date_added`` is here
+# because it has no upgrade backfill: an upgraded library is all-NULL until a scan
+# rewrites its rows, and the sort would only order by path. Adding a sibling metric
 # is one entry here (``NULLABLE_SORT_COLS`` derives from it) plus its
 # ``(col DESC, path)`` index in ``db/schema.py`` INDEXES and
 # ``ANALYZE_ON_BUILD_INDEXES``, which keeps the DESC sort off a temp B-tree.
 # VALID_SORT_COLS is untouched, so an explicit ``sort=<column>`` request keeps working.
-DATA_GATED_SORT_COLS = ('qrealign_score', 'deqa_score', 'aesthetic_v25')
+DATA_GATED_SORT_COLS = ('qrealign_score', 'deqa_score', 'aesthetic_v25', 'date_added')
 DATA_GATE_TTL_SECONDS = 60
 _data_gate_cache = {'cols': frozenset(), 'expires': 0.0}
 _data_gate_lock = threading.Lock()
@@ -188,7 +190,7 @@ VALID_SORT_COLS = [opt[0] for opt in SORT_OPTIONS] + ['top_picks_score', 'learne
 # the column. ``shutter_speed`` is not listed: it sorts
 # through its own seconds expression (see ``order_by_clause``) and always sinks its
 # missing and invalid values.
-NULLABLE_SORT_COLS = ('learned_score', 'narrative_moment_confidence', 'aesthetic_iaa', 'date_added',
+NULLABLE_SORT_COLS = ('learned_score', 'narrative_moment_confidence', 'aesthetic_iaa',
                       'liqe_score', 'face_quality_iqa') + DATA_GATED_SORT_COLS
 
 
