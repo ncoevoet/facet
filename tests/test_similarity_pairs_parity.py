@@ -53,3 +53,109 @@ def test_cross_chunk_pairs_are_not_lost_at_the_chunk_boundary():
 def test_single_row_matrix_returns_no_pairs():
     matrix = np.ones((1, 8), dtype=np.float32)
     assert list(_similar_pairs(matrix, 0.5)) == []
+
+
+def _boundary_matrix():
+    rng = np.random.default_rng(84)
+    matrix = rng.standard_normal((600, 128)).astype(np.float32)
+    matrix /= np.linalg.norm(matrix, axis=1, keepdims=True)
+    matrix[499] = matrix[500]
+    matrix[598] = matrix[599]
+    return matrix
+
+
+def _cpu_tensors_for_cuda_loop(monkeypatch):
+    """Exercise CUDA dispatch with real CPU torch ops; not a CUDA hardware test."""
+    import pytest
+    import api.similarity_groups as groups
+    torch = pytest.importorskip('torch')
+    original_to = torch.Tensor.to
+
+    def cpu_to(self, device, *args, **kwargs):
+        assert str(device) == 'cuda'
+        return original_to(self, 'cpu', *args, **kwargs)
+
+    monkeypatch.setattr(groups, '_cuda_available', lambda: True)
+    monkeypatch.setattr(torch.Tensor, 'to', cpu_to)
+    return torch
+
+
+def test_cuda_dispatch_bounds_score_blocks_and_transfers_only_pair_indices(monkeypatch):
+    torch = _cpu_tensors_for_cuda_loop(monkeypatch)
+    sizes = []
+    transfers = []
+    original_matmul = torch.Tensor.__matmul__
+    original_cpu = torch.Tensor.cpu
+
+    def matmul(self, other):
+        sizes.append((tuple(self.shape), tuple(other.shape)))
+        return original_matmul(self, other)
+
+    def cpu(self, *args, **kwargs):
+        transfers.append((self.dtype, tuple(self.shape)))
+        return original_cpu(self, *args, **kwargs)
+
+    monkeypatch.setattr(torch.Tensor, '__matmul__', matmul)
+    monkeypatch.setattr(torch.Tensor, 'cpu', cpu)
+    matrix = _boundary_matrix()
+    pairs = list(_similar_pairs(matrix, 0.9999))
+    assert pairs == [(499, 500), (598, 599)]
+    assert sizes == [((500, 128), (128, 600)), ((100, 128), (128, 600))]
+    assert transfers == [(torch.int64, (1, 2)), (torch.int64, (1, 2))]
+
+
+def test_cuda_oom_during_transfer_falls_back_to_cpu(monkeypatch):
+    torch = _cpu_tensors_for_cuda_loop(monkeypatch)
+
+    def oom(*args, **kwargs):
+        raise torch.OutOfMemoryError('injected transfer OOM')
+
+    monkeypatch.setattr(torch.Tensor, 'to', oom)
+    matrix = _boundary_matrix()
+    assert list(_similar_pairs(matrix, 0.9999)) == _old_pairs(matrix, 0.9999)
+
+
+def test_cuda_oom_after_one_block_resumes_without_repeating_pairs(monkeypatch, caplog):
+    torch = _cpu_tensors_for_cuda_loop(monkeypatch)
+    original = torch.Tensor.__matmul__
+    calls = []
+
+    def matmul(self, other):
+        calls.append(tuple(self.shape))
+        if len(calls) == 2:
+            raise torch.OutOfMemoryError('injected later-block OOM')
+        return original(self, other)
+
+    monkeypatch.setattr(torch.Tensor, '__matmul__', matmul)
+    matrix = _boundary_matrix()
+    pairs = list(_similar_pairs(matrix, 0.9999))
+    assert len(calls) == 2
+    assert pairs == [(499, 500), (598, 599)]
+    assert len(pairs) == len(set(pairs))
+    assert 'CPU' in caplog.text
+
+
+def test_cuda_non_memory_errors_are_not_hidden(monkeypatch):
+    import pytest
+    torch = _cpu_tensors_for_cuda_loop(monkeypatch)
+
+    def broken(self, other):
+        raise RuntimeError('injected unrelated CUDA failure')
+
+    monkeypatch.setattr(torch.Tensor, '__matmul__', broken)
+    with pytest.raises(RuntimeError, match='unrelated CUDA failure'):
+        list(_similar_pairs(_boundary_matrix(), 0.9999))
+
+
+def test_real_cuda_cross_block_pairs(monkeypatch, record_property):
+    import pytest
+    import api.similarity_groups as groups
+    torch = pytest.importorskip('torch')
+    if not torch.cuda.is_available():
+        pytest.skip('requires a real CUDA device and CUDA-enabled torch')
+    monkeypatch.setattr(groups, '_cuda_available', lambda: True)
+    torch.cuda.reset_peak_memory_stats()
+    pairs = list(_similar_pairs(_boundary_matrix(), 0.9999))
+    torch.cuda.synchronize()
+    assert pairs == [(499, 500), (598, 599)]
+    record_property('cuda_peak_allocated_bytes', torch.cuda.max_memory_allocated())

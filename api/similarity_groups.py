@@ -51,6 +51,7 @@ _THRESHOLD_STEP = 0.02
 
 
 _TORCH_CUDA: bool | None = None
+_PAIR_CHUNK_SIZE = 500
 
 
 def _cuda_available() -> bool:
@@ -66,6 +67,22 @@ def _cuda_available() -> bool:
     return _TORCH_CUDA
 
 
+def _cuda_pair_batches(matrix, threshold):
+    """Transfer only matching indices from one bounded score block at a time."""
+    import torch
+
+    emb = torch.from_numpy(np.ascontiguousarray(matrix)).to(torch.device('cuda'))
+    for start in range(0, len(matrix), _PAIR_CHUNK_SIZE):
+        with torch.inference_mode():
+            sims = emb[start:start + _PAIR_CHUNK_SIZE] @ emb.T
+            # triu uses local row indices, so offset its diagonal by the
+            # block's global start to retain precisely global i < j.
+            mask = torch.triu(sims >= threshold, diagonal=start + 1)
+            pairs = torch.argwhere(mask).cpu().numpy()
+            del sims, mask
+        yield start, pairs
+
+
 def _similar_pairs(matrix, threshold):
     """Yield every ``(i, j)`` with ``i < j`` whose cosine similarity reaches
     ``threshold``.
@@ -75,7 +92,8 @@ def _similar_pairs(matrix, threshold):
     torch with CUDA is available the same computation runs on the device
     (the same float32 inputs, C-level there), which matters on the 10k-photo
     cache-miss path. Both paths yield the same pairs up to float rounding at
-    the threshold boundary.
+    the threshold boundary. Scores are bounded to 500-row blocks on either
+    backend; a CUDA allocation failure resumes the unfinished rows on CPU.
 
     Exact, not top-K: every pair above the threshold participates, so the
     connected components (and the oversized-split downstream) see exactly
@@ -83,18 +101,22 @@ def _similar_pairs(matrix, threshold):
     global KNN — a photo's nearest neighbors may sit outside its album or
     date window, and a global top-K would drop in-scope edges beyond rank K.
     """
+    start = 0
     if _cuda_available():
         import torch
-        device = torch.device('cuda')
-        emb = torch.from_numpy(np.ascontiguousarray(matrix)).to(device)
-        sims = emb @ emb.T
-        mask = torch.triu(sims >= threshold, diagonal=1)
-        for pair in torch.argwhere(mask).cpu().numpy():
-            yield int(pair[0]), int(pair[1])
-        return
-    chunk_size = 500  # chunked so the n x n similarity matrix never has to exist
-    for i in range(0, len(matrix), chunk_size):
-        sims = matrix[i:i + chunk_size] @ matrix.T
+        try:
+            for offset, pairs in _cuda_pair_batches(matrix, threshold):
+                for ci, j in pairs:
+                    yield offset + int(ci), int(j)
+                start = offset + _PAIR_CHUNK_SIZE
+            return
+        except torch.OutOfMemoryError:
+            logger.warning("CUDA similarity allocation failed; resuming on CPU at row %d", start)
+        # Leave the exception scope before releasing cached allocations, so
+        # its traceback no longer retains the failed block's CUDA tensors.
+        torch.cuda.empty_cache()
+    for i in range(start, len(matrix), _PAIR_CHUNK_SIZE):
+        sims = matrix[i:i + _PAIR_CHUNK_SIZE] @ matrix.T
         for ci in range(len(sims)):
             gi = i + ci
             for j in np.where(sims[ci, gi + 1:] >= threshold)[0] + gi + 1:
