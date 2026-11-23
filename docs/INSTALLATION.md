@@ -173,7 +173,8 @@ Open <http://localhost:5000>.
 Facet.app is a menu-bar app for Apple silicon Macs on macOS 15 or later. It sets Facet up the
 first time it opens, then keeps the gallery running in the background.
 
-**Getting the app.** No release ships one yet. Build it from a clone with
+**Getting the app.** GitHub Releases after 1.31.0 carry the disk image,
+`Facet-<version>-<commit>.dmg`, among their assets, with its checksum in `SHA256SUMS`. To build one yourself, use
 `macos/build-app.sh`, which needs the Xcode Command Line Tools (`xcode-select --install`) and a
 built client (`cd client && npm ci && npm run build`, with Node.js 24). It packages the committed
 tree and writes `macos/out/Facet-<version>-<commit>.dmg`.
