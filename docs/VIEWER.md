@@ -229,7 +229,7 @@ The sort button in the header (and mobile toolbar) shows the current sort's icon
 
 Shutter speeds sort by duration, so `1/250` and `0.004` are equal. Missing or invalid values sort last in either direction.
 
-**Date Added** sorts by when Facet first scanned a photo, so a new import comes first in descending order whatever its capture date. A rescan, even with `--force`, keeps it. A photo you moved yourself comes back as a new one unless you run [`--relink-photos`](RELINK.md). Photos already in the library when you upgrade have no date until a scan rewrites them (they then take the time of their previous scan), and sort last in either direction. Until at least one photo has a date, the option is left out of the sort menu. Inside an album it reads **Date Added to Library**, because it is not when the photo joined the album. Shared-album links neither show this date nor sort by it.
+**Date Added** sorts by when Facet first scanned a photo, so a new import comes first in descending order whatever its capture date. A rescan, even with `--force`, keeps it. A photo you moved yourself comes back as a new one unless you run [`--relink-photos`](RELINK.md). Photos already in the library when you upgrade have no date until a scan rewrites them (they then take the time of their previous scan), and sort last in either direction. Until at least one photo has a date, the option is left out of the sort menu. Inside an album it reads **Date Added to Library**, because it is not when the photo joined the album. Shared-album links neither show this date nor sort by it. Only list view shows the added date; grid cards keep showing the capture date.
 
 Sortable columns by group (from `viewer.sort_options`):
 
