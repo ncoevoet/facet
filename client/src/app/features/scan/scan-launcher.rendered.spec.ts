@@ -77,7 +77,11 @@ describe('Scan launcher rendered phase labels', () => {
     await settle();
   });
 
-  afterEach(() => { http.verify(); TestBed.resetTestingModule(); });
+  afterEach(() => {
+    // The showcase reads the newest photos each time a chunk is saved; answer whatever is left.
+    http.match(request => request.url === '/api/photos').forEach(request => request.flush({ photos: [] }));
+    http.verify(); TestBed.resetTestingModule();
+  });
 
   async function settle() {
     fixture.detectChanges();
@@ -155,6 +159,63 @@ describe('Scan launcher rendered phase labels', () => {
     expect(closeLabel()).toBe('Run in background');
     await scoring({}, { running: false, exit_code: 1 });
     expect(closeLabel()).toBe('Close');
+  });
+
+  it('shows placeholder tiles, then the newest photos once a chunk is saved', async () => {
+    await scoring({ step: 'analyze', fraction: 0.1 }, { kind: 'scan' });
+    const showcase = () => root.querySelector('app-scan-showcase')!;
+    expect(showcase().getAttribute('aria-hidden')).toBe('true');
+    expect(showcase().querySelectorAll('img')).toHaveLength(0);
+    http.expectNone(request => request.url === '/api/photos');
+
+    await scoring({ current: 2, step: 'analyze', fraction: 0.4 }, { kind: 'scan' });
+    const read = http.expectOne(request => request.url === '/api/photos');
+    expect(read.request.params.get('sort')).toBe('date_added');
+    expect(read.request.params.get('sort_direction')).toBe('DESC');
+    read.flush({ photos: [{ path: '/fixture/photos/b.jpg' }, { path: '/fixture/photos/a.jpg' }] });
+    await settle();
+    const images = [...showcase().querySelectorAll('img')].map(img => decodeURIComponent(img.getAttribute('src')!));
+    expect(images).toHaveLength(2);
+    expect(images[0]).toContain('/fixture/photos/b.jpg');
+    expect(showcase().querySelector('div > div')!.className).toContain('col-span-2');
+  });
+
+  it('keeps the newest photos when an older read answers last', async () => {
+    await scoring({ current: 2, step: 'analyze', fraction: 0.2 }, { kind: 'scan' });
+    await scoring({ current: 4, step: 'analyze', fraction: 0.4 }, { kind: 'scan' });
+    const [older, newer] = http.match(request => request.url === '/api/photos');
+    newer.flush({ photos: [{ path: '/fixture/photos/new.jpg' }] });
+    older.flush({ photos: [{ path: '/fixture/photos/old.jpg' }] });
+    await settle();
+    const images = [...root.querySelectorAll('app-scan-showcase img')].map(img => decodeURIComponent(img.getAttribute('src')!));
+    expect(images).toHaveLength(1);
+    expect(images[0]).toContain('/fixture/photos/new.jpg');
+  });
+
+  it('keeps scanning when the photo read fails', async () => {
+    await scoring({ current: 2, step: 'analyze', fraction: 0.4 }, { kind: 'scan' });
+    http.expectOne(request => request.url === '/api/photos').flush('boom', { status: 500, statusText: 'Server Error' });
+    await settle();
+    expect(root.querySelectorAll('app-scan-showcase img')).toHaveLength(0);
+    expect(root.textContent).toContain('2 of 6 photos');
+  });
+
+  it('makes room for the technical log while it is open', async () => {
+    await scoring({ current: 2, step: 'analyze', fraction: 0.4 }, { kind: 'scan' });
+    const log = root.querySelector<HTMLDetailsElement>('details')!;
+    log.open = true;
+    log.dispatchEvent(new Event('toggle'));
+    await settle();
+    expect(root.querySelector('app-scan-showcase')).toBeNull();
+    log.open = false;
+    log.dispatchEvent(new Event('toggle'));
+    await settle();
+    expect(root.querySelector('app-scan-showcase')).not.toBeNull();
+  });
+
+  it('shows no showcase for a job that is not a library scan', async () => {
+    await scoring({ current: 2, step: 'analyze', fraction: 0.4 }, { kind: 'recompute' });
+    expect(root.querySelector('app-scan-showcase')).toBeNull();
   });
 
   it('counts photos once a chunk has been saved', async () => {

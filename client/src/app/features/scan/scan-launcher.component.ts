@@ -1,5 +1,6 @@
-import { ChangeDetectionStrategy, Component, OnInit, computed, effect, inject, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, OnInit, computed, effect, inject, signal, untracked } from '@angular/core';
 import { HttpErrorResponse } from '@angular/common/http';
+import { firstValueFrom } from 'rxjs';
 import { MatDialogRef, MatDialogModule } from '@angular/material/dialog';
 import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
@@ -9,6 +10,9 @@ import { TranslatePipe } from '../../shared/pipes/translate.pipe';
 import { FilenamePipe } from '../../shared/pipes/filename.pipe';
 import { I18N, i18nKeys } from '../../core/i18n/keys';
 import { ScanHistoryComponent } from './scan-history.component';
+import { SHOWCASE_PHOTOS, ScanShowcaseComponent } from './scan-showcase.component';
+import { ApiService } from '../../core/services/api.service';
+import type { PhotosResponse } from '../gallery/gallery.store';
 
 /** Statuses that prove the server refused this start (a 409 may still mean another scan runs). */
 const DEFINITE_REFUSALS = new Set([400, 403, 409, 422, 429]);
@@ -42,7 +46,7 @@ const ANALYSIS_OF_MODEL: readonly (readonly [RegExp, keyof typeof I18N.scan.anal
 @Component({
   selector: 'app-scan-launcher',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [MatDialogModule, MatButtonModule, MatIconModule, MatProgressBarModule, TranslatePipe, FilenamePipe, ScanHistoryComponent],
+  imports: [MatDialogModule, MatButtonModule, MatIconModule, MatProgressBarModule, TranslatePipe, FilenamePipe, ScanHistoryComponent, ScanShowcaseComponent],
   template: `
     <h2 mat-dialog-title>{{ I18N.scan.title | translate }}</h2>
     <mat-dialog-content class="!pt-2 min-w-0 w-full max-w-[34rem]">
@@ -87,6 +91,10 @@ const ANALYSIS_OF_MODEL: readonly (readonly [RegExp, keyof typeof I18N.scan.anal
           </div>
         }
       } @else {
+        <!-- Hidden while the log is read: both together are taller than the dialog. -->
+        @if (live() && status().kind === 'scan' && !readingLog()) {
+          <app-scan-showcase class="mb-4" [photos]="recent()" />
+        }
         @if (stages(); as stageList) {
           <ol class="flex items-center gap-2 mb-4 mt-1 p-0 list-none text-xs" [attr.aria-label]="I18N.scan.stages_label | translate">
             @for (stage of stageList; track stage.key) {
@@ -134,7 +142,7 @@ const ANALYSIS_OF_MODEL: readonly (readonly [RegExp, keyof typeof I18N.scan.anal
         }
         @if (outputTail()) {
           <!-- A reversed box opens at its oldest line; 0 is its newest. -->
-          <details class="mt-3" [open]="logOpen()" (toggle)="logBox.scrollTop = 0">
+          <details #log class="mt-3" [open]="logOpen()" (toggle)="readingLog.set(log.open); logBox.scrollTop = 0">
             <summary class="min-h-11 cursor-pointer select-none text-sm font-medium">
               {{ ((!statusKnown() || observationError()) ? I18N.scan.last_observed_output : I18N.scan.details) | translate }}
             </summary>
@@ -173,6 +181,7 @@ const ANALYSIS_OF_MODEL: readonly (readonly [RegExp, keyof typeof I18N.scan.anal
 export class ScanLauncherComponent implements OnInit {
   protected readonly I18N = i18nKeys();
   private readonly scan = inject(ScanService);
+  private readonly api = inject(ApiService);
   private readonly dialogRef = inject(MatDialogRef<ScanLauncherComponent>);
 
   protected readonly directories = signal<ScanDirectory[]>([]);
@@ -189,6 +198,10 @@ export class ScanLauncherComponent implements OnInit {
   protected readonly pendingStopId = signal<string | null>(null);
   protected readonly canCancel = this.scan.canCancel;
 
+  /** The newest photos in the library, refreshed each time the scan saves a chunk. */
+  protected readonly recent = signal<readonly { path: string }[]>([]);
+  protected readonly readingLog = signal(false);
+  private recentRequest = 0;
   protected readonly status = this.scan.status;
   protected readonly connected = this.scan.connected;
   protected readonly statusKnown = this.scan.statusKnown;
@@ -264,7 +277,16 @@ export class ScanLauncherComponent implements OnInit {
   // Libraries pad their output with blank lines; they only push the real lines out of view.
   protected readonly outputTail = computed(() => this.status().output.filter(line => line.trim()).slice(-20).join('\n'));
 
+  /** Photos this scan has saved so far; each new chunk brings new photos to show. */
+  private readonly savedSoFar = computed(() => {
+    const p = this.status().progress;
+    return this.live() && p?.phase === 'scoring' ? p.current ?? 0 : 0;
+  });
+
   constructor() {
+    effect(() => {
+      if (this.savedSoFar() > 0) untracked(() => void this.loadRecent());
+    });
     // Close with success once THIS run was observed running and then finished
     // cleanly — guarding against a stale prior-run success in the shared signal.
     effect(() => {
@@ -280,6 +302,16 @@ export class ScanLauncherComponent implements OnInit {
         this.dialogRef.close(true);
       }
     });
+  }
+
+  private async loadRecent(): Promise<void> {
+    const request = ++this.recentRequest;
+    try {
+      const data = await firstValueFrom(this.api.get<PhotosResponse>('/photos', {
+        sort: 'date_added', sort_direction: 'DESC', per_page: SHOWCASE_PHOTOS, page: 1,
+      }));
+      if (request === this.recentRequest) this.recent.set(data.photos);
+    } catch { /* Decorative: the scan's own status is unaffected. */ }
   }
 
   protected noteRetrySubmitted(): void {
