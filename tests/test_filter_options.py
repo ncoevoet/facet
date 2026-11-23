@@ -290,9 +290,9 @@ class TestQueryPushdown:
         conn.close()
 
     def _get(self, db_path: str, endpoint: str, params: dict, *,
-             photo_tags: bool = True, visibility: tuple = ("1=1", [])):
+             photo_tags: bool = True, visibility: tuple = ("1=1", []), headers=None):
         app, patches = _build_app_with(db_path, {
-            "dropdowns": {"min_photos_for_person": 1, "max_persons": 100,
+            "dropdowns": {"min_photos_for_person": 1, "max_persons": 50,
                           "max_tags": 20, "max_cameras": 50, "max_lenses": 50}
         })
         # The availability probes are TTL-cached process-wide (a sibling test's answer
@@ -305,13 +305,66 @@ class TestQueryPushdown:
         for p in overrides:
             p.start()
         try:
-            return TestClient(app).get(f"/api/filter_options/{endpoint}", params=params)
+            return TestClient(app).get(f"/api/filter_options/{endpoint}", params=params, headers=headers)
         finally:
             # The visibility override sits on top of _build_app_with's own patch of
             # the same name, so it must unwind first.
             _stop_patches(reversed(overrides))
             _stop_patches(patches)
             _reset_side_table_caches()
+
+    @pytest.mark.parametrize("kind,cap", [("tags", 20), ("cameras", 50), ("lenses", 50), ("persons", 50)])
+    @pytest.mark.parametrize("extra", [0, 1])
+    def test_agent_probe_reports_real_dropdown_overflow_without_returning_the_extra_row(
+        self, tmp_path, kind, cap, extra,
+    ):
+        header = "X-Facet-Filter-Options-Overflow"
+        db_path = str(tmp_path / "vocab.db")
+        names = [f"test-{i:02d}" for i in range(cap + extra)] + ["not a match"]
+        if kind == "persons":
+            _make_db(db_path, list(enumerate(names, 1)),
+                     [(i, i, f"/p_{i}.jpg") for i in range(1, len(names) + 1)])
+        elif kind == "tags":
+            self._make_vocab_db(db_path, [], tags=names)
+        else:
+            from db.schema import init_database
+
+            init_database(db_path)
+            column = "camera_model" if kind == "cameras" else "lens_model"
+            with sqlite3.connect(db_path) as conn:
+                conn.executemany(f"INSERT INTO photos (path, {column}) VALUES (?, ?)",
+                                 [(f"/p_{i}.jpg", name) for i, name in enumerate(names)])
+        headers = {header: "1"}
+        params = {"query": "test-"}
+        ordinary = self._get(db_path, kind, params)
+        probed = self._get(db_path, kind, params, headers=headers)
+        assert ordinary.status_code == probed.status_code == 200
+        assert ordinary.json() == probed.json()
+        assert len(probed.json()[kind]) == cap
+        assert header not in ordinary.headers
+        assert probed.headers.get(header) == ("1" if extra else None)
+
+    @pytest.mark.parametrize("photo_tags", [True, False], ids=["photo_tags", "split_fallback"])
+    def test_tag_overflow_probe_respects_visibility(self, tmp_path, photo_tags):
+        from db.schema import init_database
+
+        db_path = str(tmp_path / "vocab.db")
+        init_database(db_path)
+        with sqlite3.connect(db_path) as conn:
+            conn.executemany("INSERT INTO photos (path, tags) VALUES (?, ?)",
+                             [(f"/p_{i}.jpg", f"match-{i:02d}") for i in range(21)])
+            conn.executemany("INSERT OR IGNORE INTO photo_tags (photo_path, tag) VALUES (?, ?)",
+                             [(f"/p_{i}.jpg", f"match-{i:02d}") for i in range(21)])
+        header = "X-Facet-Filter-Options-Overflow"
+        headers = {header: "1"}
+        params = {"query": "match-"}
+        limited = self._get(db_path, "tags", params, headers=headers, photo_tags=photo_tags,
+                            visibility=("photos.path != ?", ["/p_20.jpg"]))
+        overflow = self._get(db_path, "tags", params, headers=headers, photo_tags=photo_tags,
+                             visibility=("photos.path != ?", ["/outside.jpg"]))
+        assert limited.status_code == overflow.status_code == 200
+        assert len(limited.json()["tags"]) == len(overflow.json()["tags"]) == 20
+        assert header not in limited.headers and overflow.headers[header] == "1"
 
     def test_query_filters_the_vocabulary_case_insensitively(self, tmp_path):
         db_path = str(tmp_path / "vocab.db")

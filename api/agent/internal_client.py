@@ -27,11 +27,13 @@ from pydantic import ValidationError
 from api.agent import tokens
 from api.agent.live_updates import LIVE_SINK_OVERRIDE
 from api.auth import create_access_token
+from api.types import FILTER_OPTIONS_OVERFLOW_HEADER
 
 logger = logging.getLogger(__name__)
 
 INTERNAL_BASE_URL = "http://facet.internal"
 INTERNAL_JWT_SECONDS = 60
+_FILTER_OPTIONS_PROBED = frozenset(f"filter_options.{kind}" for kind in ("cameras", "lenses", "tags", "persons"))
 
 
 @dataclass(frozen=True)
@@ -242,6 +244,8 @@ class InternalClient:
                 return err("invalid_input",
                            "A path argument may not be empty or contain '.' or '..' segments"), None, resolved
         headers = {}
+        if tool in _FILTER_OPTIONS_PROBED and (query or {}).get("query"):
+            headers[FILTER_OPTIONS_OVERFLOW_HEADER] = "1"
         claims = resolved.jwt_claims()
         if claims is not None:
             jwt_token = create_access_token(claims, expires_delta=timedelta(seconds=INTERNAL_JWT_SECONDS))
@@ -286,6 +290,8 @@ class InternalClient:
             return _status_to_error(response.status_code, detail)
         if self._allowlist[tool].write:
             await self._notify_write(resolved, tool, json, body)
+        if tool in _FILTER_OPTIONS_PROBED and response.headers.get(FILTER_OPTIONS_OVERFLOW_HEADER) == "1":
+            return ok(body, truncated=True)
         return ok(body)
 
     async def call_bytes(

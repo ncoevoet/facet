@@ -458,7 +458,7 @@ def register_read_tools(server: MCPServer, client: InternalClient, status_extra,
             if not upstream["ok"]:
                 return upstream
             data, truncated = _trim_options(upstream["data"], needle)
-            return ok(data, **({"truncated": True} if truncated else {}))
+            return ok(data, **({"truncated": True} if truncated or upstream.get("truncated") else {}))
         return await run_tool(ctx, "filter_options", handler)
 
     async def list_persons(
@@ -675,7 +675,8 @@ def register_read_tools(server: MCPServer, client: InternalClient, status_extra,
         "List the vocabulary a filter accepts (cameras, lenses, tags, persons, patterns, "
         "categories, narrative_moments, junk_kinds, metric_ranges). `query` narrows the "
         "listed vocabulary to entries containing it, applied upstream where the route "
-        "serves one (every kind except junk_kinds and metric_ranges).")
+        "serves one (every kind except junk_kinds and metric_ranges). `truncated` is true "
+        "when more matches exist beyond the result limit.")
     add(list_persons, "list_persons",
         "Recognised people, optionally filtered by name. With show=true (default false) the /persons page opens "
         "in the user's tab with exactly this name search (empty clears it); `shown_in_tab` reports the outcome.")
