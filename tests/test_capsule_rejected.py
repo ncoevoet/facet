@@ -6,7 +6,7 @@ import time
 import pytest
 
 import analyzers.capsule_generator as cg
-from api.db_helpers import hide_rejected_sql
+from api.db_helpers import get_visibility_clause, hide_rejected_sql
 from db.schema import init_database
 
 REJECTED = "/p/0.jpg"
@@ -78,6 +78,42 @@ def test_multi_user_reject_is_per_user(conn, monkeypatch):
     _reject(conn, True, "alice")
     assert all(REJECTED in paths for kind, paths in _capsules_by_type(conn, "bob").items()
                if kind in EXPECTED_TYPES - {"seeded"})
+
+
+@pytest.mark.parametrize("date_range", [False, True])
+def test_seeded_runs_under_real_multi_user_visibility(conn, monkeypatch, date_range):
+    """The stubbed "1=1" above hides the clause's `photos.path`; build the real one."""
+    monkeypatch.setattr("api.db_helpers.get_visibility_clause", get_visibility_clause)
+    monkeypatch.setattr("api.db_helpers.is_multi_user_enabled", lambda: True)
+    monkeypatch.setattr("api.db_helpers.get_user_directories", lambda user_id: ["/p"])
+    _reject(conn, True)
+    # Tags make the tag axis run too: it joins photos under the same alias.
+    conn.execute("UPDATE photos SET tags = 'beach'")
+    conn.executemany("INSERT INTO photo_tags (photo_path, tag) VALUES (?, 'beach')",
+                     [(f"/p/{i}.jpg",) for i in range(20)])
+    # The strongest photos share Ann and the tag, so only the clause keeps them
+    # out: one sits outside alice's directory, one before the requested range.
+    outside, too_old = "/other/0.jpg", "/p/old.jpg"
+    conn.executemany(
+        "INSERT INTO photos (path, filename, aggregate, date_taken, tags) VALUES (?, ?, 9.5, ?, 'beach')",
+        [(outside, "0.jpg", "2024:03:11 10:00:00"), (too_old, "old.jpg", "2023:01:01 10:00:00")],
+    )
+    conn.executemany("INSERT INTO faces (photo_path, face_index, person_id, embedding) VALUES (?, 0, 1, x'00')",
+                     [(outside,), (too_old,)])
+    conn.executemany("INSERT INTO photo_tags (photo_path, tag) VALUES (?, 'beach')", [(outside,), (too_old,)])
+    dates = {"date_from": "2024-03-01", "date_to": "2024-03-31"} if date_range else {}
+    capsules = cg.generate_all_capsules(conn, config={"capsules": {
+        "reverse_geocoding": False, "max_photo_overlap": 1.0,
+        "seeded": {"num_seeds": 20, "min_photos": 3},
+    }}, user_id="alice", **dates)
+    seeded = [c for c in capsules if c["type"] == "seeded"]
+    assert seeded, "the seeded generator raised and was skipped"
+    used = set()
+    for c in seeded:
+        used.update([c["cover_photo_path"], *c["params"]["paths"]])
+    assert REJECTED not in used
+    assert outside not in used
+    assert (too_old in used) is not date_range
 
 
 @pytest.mark.parametrize("multi_user", [False, True])
