@@ -1948,7 +1948,7 @@ export interface paths {
         };
         /**
          * Cameras
-         * @description Lazy-load camera options with counts.
+         * @description Lazy-load camera options with counts. `query` narrows to camera models containing it.
          */
         get: operations["cameras_api_filter_options_cameras_get"];
         put?: never;
@@ -1968,7 +1968,7 @@ export interface paths {
         };
         /**
          * Categories
-         * @description Lazy-load category options with counts.
+         * @description Lazy-load category options with counts. `query` narrows to categories containing it.
          */
         get: operations["categories_api_filter_options_categories_get"];
         put?: never;
@@ -2058,7 +2058,7 @@ export interface paths {
         };
         /**
          * Lenses
-         * @description Lazy-load lens options with counts.
+         * @description Lazy-load lens options with counts. `query` narrows to lens models containing it.
          */
         get: operations["lenses_api_filter_options_lenses_get"];
         put?: never;
@@ -2122,7 +2122,7 @@ export interface paths {
         };
         /**
          * Narrative Moments
-         * @description Lazy-load narrative-moment options with counts.
+         * @description Lazy-load narrative-moment options with counts. `query` narrows to moments containing it.
          */
         get: operations["narrative_moments_api_filter_options_narrative_moments_get"];
         put?: never;
@@ -2142,7 +2142,7 @@ export interface paths {
         };
         /**
          * Patterns
-         * @description Lazy-load composition pattern options with counts.
+         * @description Lazy-load composition pattern options with counts. `query` narrows to patterns containing it.
          */
         get: operations["patterns_api_filter_options_patterns_get"];
         put?: never;
@@ -2163,6 +2163,10 @@ export interface paths {
         /**
          * Persons
          * @description Lazy-load person options with photo counts. `ids` forces specific persons to be included.
+         *
+         *     `ids` is a comma list of person IDs (deduplicated, at most
+         *     ``PERSON_FILTER_LIMIT`` of them); anything else is a 422. `query` narrows the
+         *     ranked list to names containing it — forced ids stay forced, whatever their name.
          */
         get: operations["persons_api_filter_options_persons_get"];
         put?: never;
@@ -2182,12 +2186,14 @@ export interface paths {
         };
         /**
          * Tags
-         * @description Lazy-load tag options with counts.
+         * @description Lazy-load tag options with counts. `query` narrows to tags containing it.
          *
          *     Owns a private cache branch instead of ``_cached_filter_query`` because the
          *     payload is trimmed to ``max_tags`` on the way out, but it is gated on the
          *     same rule: the cached list is whole-library, so a caller with a non-empty
-         *     ``vis`` fragment must miss it and run the clause.
+         *     ``vis`` fragment must miss it and run the clause. A `query`-filtered read
+         *     misses it too: the cached rows are already LIMIT-cut, so they cannot narrow
+         *     past the cut.
          */
         get: operations["tags_api_filter_options_tags_get"];
         put?: never;
@@ -14924,7 +14930,9 @@ export interface operations {
     };
     cameras_api_filter_options_cameras_get: {
         parameters: {
-            query?: never;
+            query?: {
+                query?: string;
+            };
             header?: never;
             path?: never;
             cookie?: never;
@@ -14940,11 +14948,22 @@ export interface operations {
                     "application/json": components["schemas"]["MediaFilterOptionCamerasResponse"];
                 };
             };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
         };
     };
     categories_api_filter_options_categories_get: {
         parameters: {
-            query?: never;
+            query?: {
+                query?: string;
+            };
             header?: never;
             path?: never;
             cookie?: never;
@@ -14958,6 +14977,15 @@ export interface operations {
                 };
                 content: {
                     "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };
@@ -15024,7 +15052,9 @@ export interface operations {
     };
     lenses_api_filter_options_lenses_get: {
         parameters: {
-            query?: never;
+            query?: {
+                query?: string;
+            };
             header?: never;
             path?: never;
             cookie?: never;
@@ -15038,6 +15068,15 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["MediaFilterOptionLensesResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };
@@ -15096,7 +15135,9 @@ export interface operations {
     };
     narrative_moments_api_filter_options_narrative_moments_get: {
         parameters: {
-            query?: never;
+            query?: {
+                query?: string;
+            };
             header?: never;
             path?: never;
             cookie?: never;
@@ -15112,11 +15153,22 @@ export interface operations {
                     "application/json": unknown;
                 };
             };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
         };
     };
     patterns_api_filter_options_patterns_get: {
         parameters: {
-            query?: never;
+            query?: {
+                query?: string;
+            };
             header?: never;
             path?: never;
             cookie?: never;
@@ -15130,6 +15182,15 @@ export interface operations {
                 };
                 content: {
                     "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };
@@ -15137,7 +15198,8 @@ export interface operations {
     persons_api_filter_options_persons_get: {
         parameters: {
             query?: {
-                ids?: string | null;
+                ids?: string;
+                query?: string;
             };
             header?: never;
             path?: never;
@@ -15167,7 +15229,9 @@ export interface operations {
     };
     tags_api_filter_options_tags_get: {
         parameters: {
-            query?: never;
+            query?: {
+                query?: string;
+            };
             header?: never;
             path?: never;
             cookie?: never;
@@ -15181,6 +15245,15 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["MediaFilterOptionTagsResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };

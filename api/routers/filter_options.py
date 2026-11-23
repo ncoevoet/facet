@@ -11,13 +11,14 @@ import sqlite3
 import threading
 import time
 from typing import Optional
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException, Query
 
 from api.auth import CurrentUser, get_optional_user, require_authenticated
 from api.config import VIEWER_CONFIG, is_multi_user_enabled
 from api.database import get_async_db, get_db
 from api.db_helpers import is_manual_tags_available, is_photo_tags_available, get_visibility_clause
 from api.types import JUNK_NOT_JUNK
+from api.models.gallery import PERSON_FILTER_LIMIT, person_filter_ids
 from api.models.media import (
     MediaFilterOptionCamerasResponse,
     MediaFilterOptionJunkKindsResponse,
@@ -31,6 +32,47 @@ from db.stats_cache import METRIC_RANGES_KEY, cache_stat_if_unchanged, cache_sta
 
 router = APIRouter(prefix="/api/filter_options", tags=["filter_options"])
 logger = logging.getLogger(__name__)
+
+# The vocabulary endpoints accept an optional `query` so a caller (the agent-facing
+# filter_options tool) narrows the vocabulary in SQL instead of pulling the whole list
+# and trimming afterwards. The needle is a LITERAL substring: %, _ and \ lose their
+# wildcard meaning via ESCAPE. An ASCII needle rides SQLite LIKE's ASCII case folding;
+# a non-ASCII one switches to a Unicode-folding comparison (`_like_suffix`), so a
+# category named Été still matches été. It applies BEFORE the route's own LIMIT, so a
+# filtered read still fills the page — which is also why the whole-library cache
+# answers only unfiltered reads: its rows are already LIMIT-cut and cannot narrow.
+
+
+def _facet_lower(value):
+    """str.lower, mirroring the old Python trim's case folding."""
+    return value.lower() if value is not None else value
+
+
+def _like_suffix(column: str, needle: str) -> str:
+    """The full predicate for this column/needle: plain LIKE folds ASCII only."""
+    if needle.isascii():
+        return f" {column} LIKE ? ESCAPE '\\'"
+    return f" facet_lower({column}) LIKE ('%' || facet_lower(?) || '%') ESCAPE '\\'"
+
+
+async def _prepare_like(conn, needle: str) -> None:
+    """Register the Unicode folding helper when a non-ASCII needle needs it."""
+    if not needle.isascii():
+        await conn.create_function("facet_lower", 1, _facet_lower, deterministic=True)
+# Cap for a `query`-filtered read on the endpoints that have no configured dropdown
+# maximum (patterns, categories, narrative_moments): an over-broad needle must not
+# serialize the whole matching vocabulary. It sits above the agent tool's own 200-row
+# trim so the tool still sees the overflow and can flag it as truncated; unfiltered
+# reads keep their existing shape for the viewer dropdowns.
+QUERY_MATCH_LIMIT = 500
+
+
+def _like_needle(query: str) -> str:
+    """`query` as a literal-substring LIKE needle ('' when absent), wildcards escaped."""
+    if not query:
+        return ""
+    escaped = query.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+    return f"%{escaped}%"
 
 
 def _vis_where(user: Optional[CurrentUser]):
@@ -83,43 +125,61 @@ async def _fetch_all(conn, sql: str, params=None):
 
 
 @router.get("/cameras", response_model=MediaFilterOptionCamerasResponse, response_model_exclude_unset=True)
-async def cameras(user: Optional[CurrentUser] = Depends(get_optional_user)):
-    """Lazy-load camera options with counts."""
+async def cameras(
+    query: str = Query("", max_length=100),
+    user: Optional[CurrentUser] = Depends(get_optional_user),
+):
+    """Lazy-load camera options with counts. `query` narrows to camera models containing it."""
     vis, vp = _vis_where(user)
+    needle = _like_needle(query)
 
-    async def query(conn):
+    async def read(conn):
+        await _prepare_like(conn, needle)
         rows = await _fetch_all(
             conn,
             f"""
             SELECT camera_model, COUNT(*) as cnt FROM photos
-            WHERE camera_model IS NOT NULL{vis}
+            WHERE camera_model IS NOT NULL{vis}{f" AND{_like_suffix('camera_model', needle)}" if needle else ""}
             GROUP BY camera_model ORDER BY cnt DESC LIMIT ?
             """,
-            vp + [VIEWER_CONFIG['dropdowns']['max_cameras']],
+            vp + ([needle] if needle else []) + [VIEWER_CONFIG['dropdowns']['max_cameras']],
         )
         return [(r[0], r[1]) for r in rows]
 
-    return await _cached_filter_query('cameras', 'cameras', query, vis)
+    if needle:
+        async with get_async_db() as conn:
+            data = await read(conn)
+        return {'cameras': data, 'cached': False}
+    return await _cached_filter_query('cameras', 'cameras', read, vis)
 
 
 @router.get("/lenses", response_model=MediaFilterOptionLensesResponse, response_model_exclude_unset=True)
-async def lenses(user: Optional[CurrentUser] = Depends(get_optional_user)):
-    """Lazy-load lens options with counts."""
+async def lenses(
+    query: str = Query("", max_length=100),
+    user: Optional[CurrentUser] = Depends(get_optional_user),
+):
+    """Lazy-load lens options with counts. `query` narrows to lens models containing it."""
     vis, vp = _vis_where(user)
+    needle = _like_needle(query)
 
-    async def query(conn):
+    async def read(conn):
+        await _prepare_like(conn, needle)
         rows = await _fetch_all(
             conn,
             f"""
             SELECT lens_model, COUNT(*) as cnt FROM photos
-            WHERE lens_model IS NOT NULL{vis}
+            WHERE lens_model IS NOT NULL{vis}{f" AND{_like_suffix('lens_model', needle)}" if needle else ""}
             GROUP BY lens_model ORDER BY cnt DESC LIMIT ?
             """,
-            vp + [VIEWER_CONFIG['dropdowns']['max_lenses']],
+            vp + ([needle] if needle else []) + [VIEWER_CONFIG['dropdowns']['max_lenses']],
         )
         return [(r[0], r[1]) for r in rows]
 
-    return await _cached_filter_query('lenses', 'lenses', query, vis)
+    if needle:
+        async with get_async_db() as conn:
+            data = await read(conn)
+        return {'lenses': data, 'cached': False}
+    return await _cached_filter_query('lenses', 'lenses', read, vis)
 
 
 def _tag_tables_ready():
@@ -129,26 +189,33 @@ def _tag_tables_ready():
 
 
 @router.get("/tags", response_model=MediaFilterOptionTagsResponse, response_model_exclude_unset=True)
-async def tags(user: Optional[CurrentUser] = Depends(get_optional_user)):
-    """Lazy-load tag options with counts.
+async def tags(
+    query: str = Query("", max_length=100),
+    user: Optional[CurrentUser] = Depends(get_optional_user),
+):
+    """Lazy-load tag options with counts. `query` narrows to tags containing it.
 
     Owns a private cache branch instead of ``_cached_filter_query`` because the
     payload is trimmed to ``max_tags`` on the way out, but it is gated on the
     same rule: the cached list is whole-library, so a caller with a non-empty
-    ``vis`` fragment must miss it and run the clause.
+    ``vis`` fragment must miss it and run the clause. A `query`-filtered read
+    misses it too: the cached rows are already LIMIT-cut, so they cannot narrow
+    past the cut.
     """
     from db import get_cached_stat, DEFAULT_DB_PATH
 
     max_tags = VIEWER_CONFIG['dropdowns']['max_tags']
     vis, vp = _vis_where(user)
+    needle = _like_needle(query)
 
-    if not vis and not is_multi_user_enabled():
+    if not vis and not needle and not is_multi_user_enabled():
         data, is_fresh = await asyncio.to_thread(
             get_cached_stat, DEFAULT_DB_PATH, 'tags', max_age_seconds=300)
         if data and is_fresh:
             return {'tags': data[:max_tags], 'cached': True}
 
     async with get_async_db() as conn:
+        await _prepare_like(conn, needle)
         # Both probes are cached, but a cache miss opens a sync connection and
         # queries it: run them on a worker thread so a miss never stalls the event
         # loop (and with it every other request in flight).
@@ -169,12 +236,12 @@ async def tags(user: Optional[CurrentUser] = Depends(get_optional_user)):
                         f"""
                         SELECT tag, COUNT(*) as cnt
                         FROM ({tag_pairs})
-                        WHERE 1=1{vis_sub}
+                        WHERE 1=1{vis_sub}{f" AND{_like_suffix('tag', needle)}" if needle else ""}
                         GROUP BY tag
                         ORDER BY cnt DESC, tag ASC
                         LIMIT ?
                         """,
-                        vp + [max_tags],
+                        vp + ([needle] if needle else []) + [max_tags],
                     )
                 else:
                     # Whole library: count the AI pairs with an index-only GROUP BY on
@@ -193,11 +260,12 @@ async def tags(user: Optional[CurrentUser] = Depends(get_optional_user)):
                         f"""
                         SELECT tag, SUM(n) AS cnt
                         FROM (SELECT tag, COUNT(*) AS n FROM photo_tags GROUP BY tag{manual_half})
+                        {f"WHERE{_like_suffix('tag', needle)}" if needle else ""}
                         GROUP BY tag
                         ORDER BY cnt DESC, tag ASC
                         LIMIT ?
                         """,
-                        [max_tags],
+                        ([needle] if needle else []) + [max_tags],
                     )
                 return {'tags': [(r[0], r[1]) for r in rows], 'cached': False}
             except sqlite3.Error:
@@ -219,26 +287,57 @@ async def tags(user: Optional[CurrentUser] = Depends(get_optional_user)):
             )
             SELECT tag, COUNT(DISTINCT path) as cnt
             FROM split_tags
-            WHERE tag != ''
+            WHERE tag != ''{f" AND{_like_suffix('tag', needle)}" if needle else ""}
             GROUP BY tag
             ORDER BY cnt DESC, tag ASC
             LIMIT ?
         """
         try:
-            rows = await _fetch_all(conn, tag_query, vp + (vp if manual_ready else []) + [max_tags])
+            rows = await _fetch_all(
+                conn, tag_query,
+                vp + (vp if manual_ready else []) + ([needle] if needle else []) + [max_tags])
             return {'tags': [(r[0], r[1]) for r in rows], 'cached': False}
         except sqlite3.Error:
             logger.exception("Failed to query tags")
             return {'tags': [], 'cached': False}
 
 
-@router.get("/persons", response_model=MediaFilterOptionPersonsResponse, response_model_exclude_unset=True)
-async def persons(ids: Optional[str] = None, user: Optional[CurrentUser] = Depends(get_optional_user)):
-    """Lazy-load person options with photo counts. `ids` forces specific persons to be included."""
-    vis, vp = _vis_where(user)
-    forced_ids = [int(i) for i in ids.split(',') if i.strip().isdigit()] if ids else []
+def _parse_forced_ids(ids: str) -> list[int]:
+    """Parse the ``/persons`` force-include ``ids`` comma list: deduped, order preserved.
 
-    async def query(conn):
+    The same ceiling a gallery ``person`` filter enforces (``PERSON_FILTER_LIMIT``,
+    positive safe integers) keeps the forced-include ``IN`` clause far under
+    SQLite's variable limit. Bad input is refused with 422 instead of silently
+    dropped: a silently-empty list would answer "no forced persons" where the
+    client made a mistake.
+    """
+    try:
+        return person_filter_ids(ids)
+    except ValueError:
+        raise HTTPException(
+            status_code=422,
+            detail=f"ids must be a comma list of at most {PERSON_FILTER_LIMIT} positive person IDs",
+        ) from None
+
+
+@router.get("/persons", response_model=MediaFilterOptionPersonsResponse, response_model_exclude_unset=True)
+async def persons(
+    ids: str = Query("", max_length=4096),
+    query: str = Query("", max_length=100),
+    user: Optional[CurrentUser] = Depends(get_optional_user),
+):
+    """Lazy-load person options with photo counts. `ids` forces specific persons to be included.
+
+    `ids` is a comma list of person IDs (deduplicated, at most
+    ``PERSON_FILTER_LIMIT`` of them); anything else is a 422. `query` narrows the
+    ranked list to names containing it — forced ids stay forced, whatever their name.
+    """
+    vis, vp = _vis_where(user)
+    forced_ids = _parse_forced_ids(ids)
+    needle = _like_needle(query)
+
+    async def read(conn):
+        await _prepare_like(conn, needle)
         try:
             min_photos = VIEWER_CONFIG['dropdowns'].get('min_photos_for_person', 1)
             vis_join = f' AND f.photo_path IN (SELECT path FROM photos WHERE 1=1{vis})' if vis else ''
@@ -248,11 +347,11 @@ async def persons(ids: Optional[str] = None, user: Optional[CurrentUser] = Depen
                 SELECT p.id, p.name, COUNT(DISTINCT f.photo_path) as photo_count
                 FROM persons p
                 JOIN faces f ON f.person_id = p.id
-                WHERE {person_not_hidden_clause('p')}{vis_join}
+                WHERE {person_not_hidden_clause('p')}{vis_join}{f" AND{_like_suffix('p.name', needle)}" if needle else ""}
                 GROUP BY p.id HAVING photo_count >= ?
                 ORDER BY photo_count DESC LIMIT ?
                 """,
-                vp + [min_photos, VIEWER_CONFIG['dropdowns']['max_persons']],
+                vp + ([needle] if needle else []) + [min_photos, VIEWER_CONFIG['dropdowns']['max_persons']],
             )
             result = [(r[0], r[1], r[2]) for r in rows]
             if forced_ids:
@@ -277,35 +376,44 @@ async def persons(ids: Optional[str] = None, user: Optional[CurrentUser] = Depen
             logger.exception("Failed to query persons")
             return []
 
-    if forced_ids:
+    if forced_ids or needle:
         async with get_async_db() as conn:
-            data = await query(conn)
+            data = await read(conn)
         return {'persons': data, 'cached': False}
-    return await _cached_filter_query('persons', 'persons', query, vis)
+    return await _cached_filter_query('persons', 'persons', read, vis)
 
 
 @router.get("/patterns")
-async def patterns(user: Optional[CurrentUser] = Depends(get_optional_user)):
-    """Lazy-load composition pattern options with counts."""
+async def patterns(
+    query: str = Query("", max_length=100),
+    user: Optional[CurrentUser] = Depends(get_optional_user),
+):
+    """Lazy-load composition pattern options with counts. `query` narrows to patterns containing it."""
     vis, vp = _vis_where(user)
+    needle = _like_needle(query)
 
-    async def query(conn):
+    async def read(conn):
+        await _prepare_like(conn, needle)
         try:
             rows = await _fetch_all(
                 conn,
                 f"""
                 SELECT composition_pattern, COUNT(*) as cnt FROM photos
                 WHERE composition_pattern IS NOT NULL AND composition_pattern != ''{vis}
-                GROUP BY composition_pattern ORDER BY cnt DESC
+                {f" AND{_like_suffix('composition_pattern', needle)}" if needle else ""}
+                GROUP BY composition_pattern ORDER BY cnt DESC{f" LIMIT {QUERY_MATCH_LIMIT}" if needle else ""}
                 """,
-                vp,
+                vp + ([needle] if needle else []),
             )
             return [(r[0], r[1]) for r in rows]
         except sqlite3.Error:
             logger.exception("Failed to query composition patterns")
             return []
 
-    return await _cached_filter_query('composition_patterns', 'patterns', query, vis)
+    if needle:
+        async with get_async_db() as conn:
+            return {'patterns': await read(conn), 'cached': False}
+    return await _cached_filter_query('composition_patterns', 'patterns', read, vis)
 
 
 @router.get("/apertures")
@@ -452,51 +560,69 @@ async def colors(user: Optional[CurrentUser] = Depends(get_optional_user)):
 
 
 @router.get("/categories")
-async def categories(user: Optional[CurrentUser] = Depends(get_optional_user)):
-    """Lazy-load category options with counts."""
+async def categories(
+    query: str = Query("", max_length=100),
+    user: Optional[CurrentUser] = Depends(get_optional_user),
+):
+    """Lazy-load category options with counts. `query` narrows to categories containing it."""
     vis, vp = _vis_where(user)
+    needle = _like_needle(query)
 
-    async def query(conn):
+    async def read(conn):
+        await _prepare_like(conn, needle)
         try:
             rows = await _fetch_all(
                 conn,
                 f"""
                 SELECT category, COUNT(*) as cnt FROM photos
                 WHERE category IS NOT NULL{vis}
-                GROUP BY category ORDER BY cnt DESC
+                {f" AND{_like_suffix('category', needle)}" if needle else ""}
+                GROUP BY category ORDER BY cnt DESC{f" LIMIT {QUERY_MATCH_LIMIT}" if needle else ""}
                 """,
-                vp,
+                vp + ([needle] if needle else []),
             )
             return [(r[0], r[1]) for r in rows]
         except sqlite3.Error:
             logger.exception("Failed to query categories")
             return []
 
-    return await _cached_filter_query('categories', 'categories', query, vis)
+    if needle:
+        async with get_async_db() as conn:
+            return {'categories': await read(conn), 'cached': False}
+    return await _cached_filter_query('categories', 'categories', read, vis)
 
 
 @router.get("/narrative_moments")
-async def narrative_moments(user: Optional[CurrentUser] = Depends(get_optional_user)):
-    """Lazy-load narrative-moment options with counts."""
+async def narrative_moments(
+    query: str = Query("", max_length=100),
+    user: Optional[CurrentUser] = Depends(get_optional_user),
+):
+    """Lazy-load narrative-moment options with counts. `query` narrows to moments containing it."""
     vis, vp = _vis_where(user)
+    needle = _like_needle(query)
 
-    async def query(conn):
+    async def read(conn):
+        await _prepare_like(conn, needle)
         try:
             rows = await _fetch_all(
                 conn,
                 f"""
                 SELECT narrative_moment, COUNT(*) as cnt FROM photos
                 WHERE narrative_moment IS NOT NULL{vis}
-                GROUP BY narrative_moment ORDER BY cnt DESC
+                {f" AND{_like_suffix('narrative_moment', needle)}" if needle else ""}
+                GROUP BY narrative_moment ORDER BY cnt DESC{f" LIMIT {QUERY_MATCH_LIMIT}" if needle else ""}
                 """,
-                vp,
+                vp + ([needle] if needle else []),
             )
             return [(r[0], r[1]) for r in rows]
         except sqlite3.Error:
             logger.exception("Failed to query narrative_moments")
             return []
 
-    return await _cached_filter_query('narrative_moments', 'narrative_moments', query, vis)
+    if needle:
+        async with get_async_db() as conn:
+            return {'narrative_moments': await read(conn), 'cached': False}
+    return await _cached_filter_query('narrative_moments', 'narrative_moments', read, vis)
 
 
 @router.get("/junk_kinds", response_model=MediaFilterOptionJunkKindsResponse, response_model_exclude_unset=True)

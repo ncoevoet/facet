@@ -122,6 +122,19 @@ def test_ui_show_photos_path_bound_is_in_the_contract_and_enforced():
         UiShowPhotos(paths=[""])
 
 
+def test_ui_select_photos_path_bound_is_in_the_contract_and_enforced():
+    from api.agent.ui_tools import UiSelectPhotos, input_schema
+    raw_items = UiSelectPhotos.model_json_schema()["properties"]["paths"]["anyOf"][0]["items"]
+    assert raw_items["minLength"] == 1 and raw_items["maxLength"] == 4096
+    schema = input_schema(next(t for t in UI_TOOLS if t.name == "ui_select_photos"))
+    items = schema["properties"]["paths"]["items"]
+    assert items["minLength"] == 1 and items["maxLength"] == 4096
+    with pytest.raises(ValueError):
+        UiSelectPhotos(paths=["x" * 4097])
+    with pytest.raises(ValueError):
+        UiSelectPhotos(paths=[""])
+
+
 def test_ui_show_photos_takes_only_paths_and_rejects_the_removed_review_fields():
     from api.agent.ui_tools import UiShowPhotos
     assert UiShowPhotos(paths=["a", "b"]).forward() == {"paths": ["a", "b"]}

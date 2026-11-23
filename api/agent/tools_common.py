@@ -1,9 +1,10 @@
 """What every tool module shares: the untrusted-content marker, the MCP safety hints and the registrar."""
 
-from typing import Any, Callable, Literal, Mapping, Optional, Union
+from typing import Annotated, Any, Callable, Literal, Mapping, Optional, Union
 
 from mcp.server.mcpserver import MCPServer
 from mcp.types import ToolAnnotations
+from pydantic import Field
 
 from api.models.gallery import GalleryParams
 
@@ -73,7 +74,14 @@ MCP_FILTER_KEYS = tuple(dict.fromkeys(
     + tuple(f"{bound}_{stem}" for stem in _METRIC_STEMS for bound in ("min", "max")
             if f"{bound}_{stem}" in GalleryParams.model_fields)
 ))
-FilterValue = Union[str, int, float, bool]
+# One bound for every free-text filter value (`tag`, `search`, `path_prefix`, camera, ...):
+# the value rides into SQL on the HTTP route and is mirrored into the show patch, so an
+# unbounded string is an unbounded surface on the MCP tools and their ui twins alike.
+# 4096 matches the path-parameter convention. A scalar filter keeps its own meaning; only
+# the string member is capped.
+FILTER_STRING_MAX_LENGTH = 4096
+FilterValue = Union[Annotated[str, Field(max_length=FILTER_STRING_MAX_LENGTH)],
+                     int, Annotated[float, Field(allow_inf_nan=False)], bool]
 SortColumn = Literal[
     "aggregate", "aesthetic", "date_taken", "comp_score", "face_quality", "tech_sharpness",
     "exposure_score", "color_score", "contrast_score", "topiq_score", "quality_score",
