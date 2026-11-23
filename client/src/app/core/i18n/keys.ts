@@ -2251,6 +2251,9 @@ export const I18N = {
     added_plural: "scan.added_plural",
     none_new: "scan.none_new",
     progress_label: "scan.progress_label",
+    total: "scan.total",
+    total_plural: "scan.total_plural",
+    run_in_background: "scan.run_in_background",
   },
   persons: {
     help: "persons.help",

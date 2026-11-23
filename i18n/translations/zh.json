@@ -2211,7 +2211,10 @@
     "added": "已添加 {count} 张新照片",
     "added_plural": "已添加 {count} 张新照片",
     "none_new": "未发现新照片",
-    "progress_label": "扫描进度"
+    "progress_label": "扫描进度",
+    "total": "{total} 张照片",
+    "total_plural": "{total} 张照片",
+    "run_in_background": "在后台运行"
   },
   "persons": {
     "help": "通过人脸识别检测到的人物。你可以为未命名的人脸组命名、合并重复人物、设置头像或隐藏人物。点击人物可查看其照片。",

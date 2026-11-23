@@ -2211,7 +2211,10 @@
     "added": "{count} nouvelle photo ajoutée",
     "added_plural": "{count} nouvelles photos ajoutées",
     "none_new": "Aucune nouvelle photo trouvée",
-    "progress_label": "Progression de l'analyse"
+    "progress_label": "Progression de l'analyse",
+    "total": "{total} photo",
+    "total_plural": "{total} photos",
+    "run_in_background": "Continuer en arrière-plan"
   },
   "persons": {
     "help": "Personnes détectées par la reconnaissance faciale. Nommez les groupes sans nom, fusionnez les doublons, définissez un avatar ou masquez une personne. Cliquez sur une personne pour voir ses photos.",

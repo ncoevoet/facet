@@ -2236,7 +2236,10 @@
     "added": "{count} new photo added",
     "added_plural": "{count} new photos added",
     "none_new": "No new photos found",
-    "progress_label": "Scan progress"
+    "progress_label": "Scan progress",
+    "total": "{total} photo",
+    "total_plural": "{total} photos",
+    "run_in_background": "Run in background"
   },
   "persons": {
     "help": "People detected by face recognition. Name unnamed clusters, merge duplicates, set an avatar, or hide a person. Click a person to see their photos.",

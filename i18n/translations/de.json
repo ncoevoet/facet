@@ -2211,7 +2211,10 @@
     "added": "{count} neues Foto hinzugefügt",
     "added_plural": "{count} neue Fotos hinzugefügt",
     "none_new": "Keine neuen Fotos gefunden",
-    "progress_label": "Scan-Fortschritt"
+    "progress_label": "Scan-Fortschritt",
+    "total": "{total} Foto",
+    "total_plural": "{total} Fotos",
+    "run_in_background": "Im Hintergrund weiterlaufen"
   },
   "persons": {
     "help": "Von der Gesichtserkennung erkannte Personen. Benennen Sie unbenannte Cluster, führen Sie Duplikate zusammen, legen Sie einen Avatar fest oder blenden Sie eine Person aus. Klicken Sie auf eine Person, um ihre Fotos zu sehen.",

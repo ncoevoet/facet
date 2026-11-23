@@ -12,9 +12,9 @@ import { ScanHistoryComponent } from './scan-history.component';
 const translations = {
   scan: {
     checking_status: 'Checking scan status…', status_unavailable: 'Status unavailable', retry_status: 'Read scan status again', failed: 'Scan ended with an error',
-    title: 'Scan Photos', close: 'Close', start_button: 'Start Scan', running: 'Running',
+    title: 'Scan Photos', close: 'Close', run_in_background: 'Run in background', start_button: 'Start Scan', running: 'Running',
     pick_directory: 'Pick a directory',
-    time_left_seconds: 'about {n}s left', time_left_minutes: 'about {n} min left', count: '{current} of {total} photos',
+    time_left_seconds: 'about {n}s left', time_left_minutes: 'about {n} min left', count: '{current} of {total} photos', total: '{total} photo', total_plural: '{total} photos',
     details: 'Technical log', last_observed_output: 'Last observed output', stages_label: 'Scan steps', progress_label: 'Scan progress',
     stage: { find: 'Find', analyze: 'Analyze', organize: 'Organize' },
     step: { decode: 'Reading photos', models: 'Loading models', analyze: 'Analyzing photos', save: 'Saving results' },
@@ -39,6 +39,7 @@ describe('Scan launcher rendered phase labels', () => {
   let startScan: ReturnType<typeof vi.fn>;
   let cancelScan: ReturnType<typeof vi.fn>;
   let close: ReturnType<typeof vi.fn>;
+  let picker: { name: string; path: string };
 
   beforeEach(async () => {
     status = signal<ScanStatus>({ running: false, directories: [], output: [], elapsed_seconds: null, exit_code: null });
@@ -65,6 +66,9 @@ describe('Scan launcher rendered phase labels', () => {
     fixture = TestBed.createComponent(ScanLauncherComponent);
     root = fixture.nativeElement;
     await settle();
+    const option = root.querySelector<HTMLInputElement>('input[type="radio"]')!.closest('label')!;
+    const [name, path] = [...option.querySelectorAll('span span')].map(span => span.textContent?.trim() ?? '');
+    picker = { name, path };
     root.querySelector<HTMLInputElement>('input[type="radio"]')!.dispatchEvent(new Event('change'));
     await settle();
     const start = [...root.querySelectorAll<HTMLButtonElement>('button')].find(button => button.textContent?.trim() === 'Start Scan')!;
@@ -123,6 +127,34 @@ describe('Scan launcher rendered phase labels', () => {
     expect(root.textContent).not.toContain('0 of 6 photos');
     expect(root.textContent).toContain('about 2 min left');
     expect(root.textContent).not.toContain('saliency');
+  });
+
+  it('names each folder first and keeps its full path beside it', () => {
+    expect(picker).toEqual({ name: 'photos', path: '/fixture/photos' });
+  });
+
+  it('says how many photos the scan has before the first one is saved', async () => {
+    await scoring({ step: 'analyze', detail: 'saliency', fraction: 0.1 });
+    expect(root.textContent).toContain('6 photos');
+  });
+
+  it('says one photo, not one photos', async () => {
+    await scoring({ step: 'analyze', fraction: 0.1, total: 1 });
+    expect(root.textContent).toContain('1 photo');
+    expect(root.textContent).not.toContain('1 photos');
+  });
+
+  it('keeps blank lines out of the log', async () => {
+    await scoring({ step: 'models' }, { output: ['', 'INFO first', '    ', 'INFO second', ''] });
+    expect(root.querySelector('details pre')?.textContent).toBe('INFO first\nINFO second');
+  });
+
+  it('says closing leaves a running scan going, and plain Close once it ended', async () => {
+    const closeLabel = () => [...root.querySelectorAll('mat-dialog-actions button')][0]?.textContent?.trim();
+    await scoring({ step: 'models' });
+    expect(closeLabel()).toBe('Run in background');
+    await scoring({}, { running: false, exit_code: 1 });
+    expect(closeLabel()).toBe('Close');
   });
 
   it('counts photos once a chunk has been saved', async () => {

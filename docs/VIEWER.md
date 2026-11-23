@@ -619,8 +619,9 @@ On an open single-user install (empty `viewer.edition_password`, the default), n
 
 The empty gallery offers **Scan photos to get started**. **Scan for new photos** is also available in the global navigation area at every width. Both open the scan launcher. An empty gallery opened while a scan the viewer started is running (from another tab, or from the macOS app's menu bar) opens it by itself, showing that scan (one run with `facet.py` in a terminal is not shown):
 
-- Pick a directory from the list and start the scan. When only one directory is configured it is already selected.
-- While it runs, the dialog shows the three stages of a scan (**Find**, **Analyze**, **Organize**), what the current step is doing in plain words ("Finding the main subject"), how many photos are done and roughly how long the analysis has left (the Organize stage has no estimate). The raw output lines are folded under **Technical log**, which opens by itself when a scan fails.
+- Pick a folder from the list (its name first, its full path below) and start the scan. When only one folder is configured it is already selected.
+- While it runs, the dialog shows the three stages of a scan (**Find**, **Analyze**, **Organize**), what the current step is doing in plain words ("Finding the main subject"), how many photos the scan holds and how many are done, and roughly how long the analysis has left (the Organize stage has no estimate). The raw output lines are folded under **Technical log**, which keeps the newest line in view and opens by itself when a scan fails.
+- **Run in background** closes the dialog without stopping the scan; **Stop scan** stops it.
 - The gallery refreshes when the scan ends, and a message says how many new photos were added.
 - The scan runs `facet.py` in the background; one scan at a time.
 - The directory list combines each user's `directories`, shared directories, `path_mapping` targets and `viewer.scan_directories`. Seed `viewer.scan_directories` (e.g. `/data/photos`) so single-user and Docker installs have a target.

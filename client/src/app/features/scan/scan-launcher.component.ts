@@ -6,6 +6,7 @@ import { MatIconModule } from '@angular/material/icon';
 import { MatProgressBarModule } from '@angular/material/progress-bar';
 import { ScanService, ScanDirectory } from '../../core/services/scan.service';
 import { TranslatePipe } from '../../shared/pipes/translate.pipe';
+import { FilenamePipe } from '../../shared/pipes/filename.pipe';
 import { I18N, i18nKeys } from '../../core/i18n/keys';
 import { ScanHistoryComponent } from './scan-history.component';
 
@@ -41,7 +42,7 @@ const ANALYSIS_OF_MODEL: readonly (readonly [RegExp, keyof typeof I18N.scan.anal
 @Component({
   selector: 'app-scan-launcher',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [MatDialogModule, MatButtonModule, MatIconModule, MatProgressBarModule, TranslatePipe, ScanHistoryComponent],
+  imports: [MatDialogModule, MatButtonModule, MatIconModule, MatProgressBarModule, TranslatePipe, FilenamePipe, ScanHistoryComponent],
   template: `
     <h2 mat-dialog-title>{{ I18N.scan.title | translate }}</h2>
     <mat-dialog-content class="!pt-2 min-w-0 w-full max-w-[34rem]">
@@ -72,11 +73,15 @@ const ANALYSIS_OF_MODEL: readonly (readonly [RegExp, keyof typeof I18N.scan.anal
           <p class="text-sm text-[var(--mat-sys-on-surface-variant)] mb-2">{{ I18N.scan.pick_directory | translate }}</p>
           <div class="flex flex-col gap-1 max-h-64 overflow-y-auto">
             @for (dir of directories(); track dir.path) {
-              <label class="flex items-center gap-2 px-2 py-1.5 rounded cursor-pointer hover:bg-[var(--mat-sys-surface-container-high)]">
-                <input type="radio" name="scanDir" [value]="dir.path"
+              <label class="flex items-center gap-3 px-2 py-2 rounded cursor-pointer hover:bg-[var(--mat-sys-surface-container-high)]">
+                <input type="radio" name="scanDir" class="shrink-0 w-4 h-4 accent-[var(--mat-sys-primary)]" [value]="dir.path"
                        [checked]="selectedDir() === dir.path"
                        (change)="selectedDir.set(dir.path)" />
-                <span class="text-sm font-mono truncate">{{ dir.path }}</span>
+                <mat-icon class="shrink-0 text-[var(--mat-sys-primary)]" aria-hidden="true">folder</mat-icon>
+                <span class="min-w-0 flex flex-col">
+                  <span class="text-sm font-medium truncate">{{ (dir.path | filename) || dir.path }}</span>
+                  <span class="text-xs text-[var(--mat-sys-on-surface-variant)] truncate" [title]="dir.path">{{ dir.path }}</span>
+                </span>
               </label>
             }
           </div>
@@ -113,6 +118,8 @@ const ANALYSIS_OF_MODEL: readonly (readonly [RegExp, keyof typeof I18N.scan.anal
           </span>
           @if (photoCount(); as count) {
             <span class="ml-auto text-sm tabular-nums text-[var(--mat-sys-on-surface-variant)]">{{ I18N.scan.count | translate:count }}</span>
+          } @else if (photoTotal(); as total) {
+            <span class="ml-auto text-sm tabular-nums text-[var(--mat-sys-on-surface-variant)]">{{ (total === 1 ? I18N.scan.total : I18N.scan.total_plural) | translate:{ total } }}</span>
           }
         </div>
         <div class="flex items-baseline gap-3 min-h-5 mb-2 text-sm text-[var(--mat-sys-on-surface-variant)]">
@@ -126,11 +133,15 @@ const ANALYSIS_OF_MODEL: readonly (readonly [RegExp, keyof typeof I18N.scan.anal
                             [value]="progressValue() ?? 0" [attr.aria-label]="I18N.scan.progress_label | translate" />
         }
         @if (outputTail()) {
-          <details class="mt-3" [open]="logOpen()">
-            <summary class="text-xs cursor-pointer select-none text-[var(--mat-sys-on-surface-variant)]">
+          <!-- A reversed box opens at its oldest line; 0 is its newest. -->
+          <details class="mt-3" [open]="logOpen()" (toggle)="logBox.scrollTop = 0">
+            <summary class="min-h-11 cursor-pointer select-none text-sm font-medium">
               {{ ((!statusKnown() || observationError()) ? I18N.scan.last_observed_output : I18N.scan.details) | translate }}
             </summary>
-            <pre class="mt-2 text-xs font-mono whitespace-pre-wrap max-h-48 overflow-y-auto opacity-70 bg-[var(--mat-sys-surface-container)] rounded p-2">{{ outputTail() }}</pre>
+            <!-- column-reverse keeps the newest line in view as lines arrive -->
+            <div #logBox class="max-h-48 overflow-y-auto flex flex-col-reverse rounded bg-[var(--mat-sys-surface-container)]">
+              <pre class="m-0 p-2 text-xs font-mono whitespace-pre-wrap [overflow-wrap:anywhere] opacity-70">{{ outputTail() }}</pre>
+            </div>
           </details>
         }
       }
@@ -144,7 +155,8 @@ const ANALYSIS_OF_MODEL: readonly (readonly [RegExp, keyof typeof I18N.scan.anal
       }
     </mat-dialog-content>
     <mat-dialog-actions align="end">
-      <button mat-button [mat-dialog-close]="(sawRunning || retryExitObserved()) && statusKnown() && !observationError() && !status().running && status().exit_code !== null">{{ I18N.scan.close | translate }}</button>
+      <!-- Closing never stops a scan; while one runs the button says so. -->
+      <button mat-button [mat-dialog-close]="(sawRunning || retryExitObserved()) && statusKnown() && !observationError() && !status().running && status().exit_code !== null">{{ (live() ? I18N.scan.run_in_background : I18N.scan.close) | translate }}</button>
       @if (canCancel() && !pendingStopId()) {
         <button mat-button (click)="askStop()" [disabled]="stopping()">{{ I18N.scan.stop_button | translate }}</button>
       }
@@ -197,7 +209,7 @@ export class ScanLauncherComponent implements OnInit {
     if (!p.total) return null;
     return Math.round(((p.current ?? 0) / p.total) * 100);
   });
-  private readonly live = computed(() => this.statusKnown() && !this.observationError() && this.status().running && !this.status().cancel_requested);
+  protected readonly live = computed(() => this.statusKnown() && !this.observationError() && this.status().running && !this.status().cancel_requested);
   /** The three things a scan does, for a scan's own phases only (a recompute has no such shape). */
   protected readonly stages = computed(() => {
     const phase = this.status().progress?.phase;
@@ -211,6 +223,11 @@ export class ScanLauncherComponent implements OnInit {
     // chunk throughout, so "0 of N" would contradict the moving bar.
     if (!this.live() || p?.phase !== 'scoring' || !p.total || !p.current) return null;
     return { current: p.current ?? 0, total: p.total };
+  });
+  /** Before the first chunk is saved, the size of the job is still worth saying. */
+  protected readonly photoTotal = computed(() => {
+    const p = this.status().progress;
+    return this.live() && p?.phase === 'scoring' && p.total ? p.total : null;
   });
   protected readonly stepLabelKey = computed(() => {
     const p = this.status().progress;
@@ -244,7 +261,8 @@ export class ScanLauncherComponent implements OnInit {
   });
   protected readonly eta = computed(() => this.statusKnown() && !this.observationError() && this.status().running && !this.status().cancel_requested
     ? this.status().progress?.eta_seconds ?? null : null);
-  protected readonly outputTail = computed(() => this.status().output.slice(-20).join('\n'));
+  // Libraries pad their output with blank lines; they only push the real lines out of view.
+  protected readonly outputTail = computed(() => this.status().output.filter(line => line.trim()).slice(-20).join('\n'));
 
   constructor() {
     // Close with success once THIS run was observed running and then finished
