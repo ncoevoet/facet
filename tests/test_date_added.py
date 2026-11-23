@@ -1,6 +1,9 @@
 """``photos.date_added``: written once on insert, kept by every rescan, sorted with NULLs last."""
 
+import os
 import re
+import time
+from datetime import datetime, timezone
 from types import SimpleNamespace
 
 import pytest
@@ -47,10 +50,35 @@ def _date_added(lib):
     return _execute(lib, 'SELECT date_added FROM photos WHERE path=?', lib.a)[0][0]
 
 
-@pytest.mark.parametrize('partial', [False, True])
-def test_insert_stamps_iso_utc(lib, partial):
+@pytest.fixture()
+def far_from_utc():
+    """Run at UTC+5, so a local-time stamp misses the UTC bounds even on a UTC CI runner."""
+    if not hasattr(time, 'tzset'):  # Windows: the bounds still catch a local-time stamp off UTC
+        yield
+        return
+    saved = os.environ.get('TZ')
+    os.environ['TZ'] = 'FAR-05'
+    time.tzset()
+    yield
+    if saved is None:
+        del os.environ['TZ']
+    else:
+        os.environ['TZ'] = saved
+    time.tzset()
+
+
+def _assert_stamped_now(lib, partial):
+    before = datetime.now(timezone.utc).replace(microsecond=0)
     _save(lib, partial)
-    assert ISO_UTC.match(_date_added(lib))
+    after = datetime.now(timezone.utc)
+    stamp = _date_added(lib)
+    assert ISO_UTC.match(stamp)
+    assert before <= datetime.strptime(stamp, '%Y-%m-%dT%H:%M:%SZ').replace(tzinfo=timezone.utc) <= after
+
+
+@pytest.mark.parametrize('partial', [False, True])
+def test_insert_stamps_iso_utc(lib, partial, far_from_utc):
+    _assert_stamped_now(lib, partial)
 
 
 @pytest.mark.parametrize('partial', [False, True])
@@ -69,10 +97,9 @@ def test_row_predating_the_column_inherits_its_old_scan_time(lib, partial):
 
 
 @pytest.mark.parametrize('partial', [False, True])
-def test_row_with_no_scan_time_gets_now(lib, partial):
+def test_row_with_no_scan_time_gets_now(lib, partial, far_from_utc):
     _execute(lib, 'INSERT INTO photos(path) VALUES (?)', lib.a)
-    _save(lib, partial)
-    assert ISO_UTC.match(_date_added(lib))
+    _assert_stamped_now(lib, partial)
 
 
 def _rows():

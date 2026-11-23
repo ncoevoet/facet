@@ -27,6 +27,7 @@ from api.db_helpers import (
 )
 from api.models.albums import AlbumPhotosResponse, PhotoAlbum, SharedAlbumResponse
 from api.models.gallery import BY_PATHS_MISSING_CAP
+from api.shared_assets import OWNER_HISTORY_FIELDS
 from api.top_picks import get_top_picks_score_sql, with_top_picks_alias
 from db.stats_cache import cache_stats_best_effort
 from metric_columns import SCORE_RANGE_COLUMNS
@@ -1316,7 +1317,7 @@ async def get_shared_album(
                 pass
 
         sort = explicit_sort or saved_sort or 'aggregate'
-        private_sort_columns = {*get_preference_columns(), 'date_added'}
+        private_sort_columns = {*get_preference_columns(), *OWNER_HISTORY_FIELDS}
         if sort not in VALID_SORT_COLS or sort in private_sort_columns:
             sort = 'aggregate'
         effective_sort_dir = explicit_sort_dir or saved_sort_dir or 'DESC'
