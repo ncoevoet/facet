@@ -162,7 +162,7 @@ Controls which directories the scan visits.
 {
   "scanning": {
     "skip_hidden_directories": true,
-    "skip_directories": ["@eaDir", "#recycle", "#snapshot", "@Recycle"],
+    "skip_directories": ["@eaDir", "#recycle", "#snapshot", "@Recycle", "*.photoslibrary"],
     "skip_raw": false
   }
 }
@@ -171,12 +171,12 @@ Controls which directories the scan visits.
 | Setting | Default | Description |
 |---------|---------|-------------|
 | `skip_hidden_directories` | `true` | Skip directories whose name starts with `.` |
-| `skip_directories` | `["@eaDir", "#recycle", "#snapshot", "@Recycle"]` | Folder-name globs skipped at any depth |
+| `skip_directories` | `["@eaDir", "#recycle", "#snapshot", "@Recycle", "*.photoslibrary"]` | Folder-name globs skipped at any depth |
 | `skip_raw` | `false` | Skip camera RAW files during directory scans |
 
 Notes on `skip_directories`:
 - Globs use `fnmatch`, are case-sensitive and match the folder name only.
-- Defaults cover Synology `@eaDir` (its `SYNOPHOTO_THUMB_*.jpg` thumbnails), `#recycle`, `#snapshot` and QNAP `@Recycle`.
+- Defaults cover Synology `@eaDir` (its `SYNOPHOTO_THUMB_*.jpg` thumbnails), `#recycle`, `#snapshot`, QNAP `@Recycle`, and Apple Photos libraries (`*.photoslibrary`), whose originals and derivatives would otherwise be scanned as duplicates of photos you keep elsewhere.
 - Your list replaces the default; `[]` disables name skipping. The scan root is never skipped.
 - Photos already indexed from these folders stay in the database.
 

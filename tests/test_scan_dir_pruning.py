@@ -10,7 +10,7 @@ import pytest
 from config.scoring_config import ScoringConfig
 from config_resolve import defaults_path
 
-DEFAULT_GLOBS = ["@eaDir", "#recycle", "#snapshot", "@Recycle"]
+DEFAULT_GLOBS = ["@eaDir", "#recycle", "#snapshot", "@Recycle", "*.photoslibrary"]
 
 
 def _gather(paths, settings):
@@ -34,12 +34,13 @@ def _touch(root, rel):
 def _tree(root):
     for rel in ("a/img.jpg", "a/@eaDir/SYNOPHOTO_THUMB_M.jpg", "#recycle/z.jpg",
                 "a/b/@eaDir/deep.jpg", "a/b/keep.jpg", "#snapshot/s.jpg",
-                "q/@Recycle/r.jpg", "a/.hidden/h.jpg"):
+                "q/@Recycle/r.jpg", "a/.hidden/h.jpg",
+                "Photos Library.photoslibrary/originals/0/o.jpg"):
         _touch(root, rel)
 
 
 class TestConfigDefault:
-    def test_resolved_default_lists_synology_and_qnap_dirs(self):
+    def test_resolved_default_lists_nas_dirs_and_apple_photos_libraries(self):
         cfg = ScoringConfig(defaults_path(), validate=False)
         assert cfg.get_scanning_settings()["skip_directories"] == DEFAULT_GLOBS
 
@@ -75,7 +76,7 @@ class TestGather:
         _tree(tmp_path)
         files = _gather([tmp_path], {"skip_hidden_directories": True,
                                      "skip_directories": []})
-        assert len(files) == 7
+        assert len(files) == 8
 
     def test_custom_glob_replaces_default(self, tmp_path):
         _tree(tmp_path)
