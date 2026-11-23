@@ -589,6 +589,11 @@ export function saveDisplayOptionsToStorage(filters: GalleryFilters): void {
   } catch { /* ignore */ }
 }
 
+/** An album is open; '0' is the review queue's "no album" marker. */
+export function inAlbum(f: Pick<GalleryFilters, 'album_id'>): boolean {
+  return !!f.album_id && f.album_id !== '0';
+}
+
 /** The keys of the active (non-default) filters, in a stable order. */
 export function activeFilterKeys(f: GalleryFilters): (keyof GalleryFilters)[] {
   const stringKeys: (keyof GalleryFilters)[] = [...RANGE_AND_SELECT_KEYS, 'similar_to', 'semanticQuery'];

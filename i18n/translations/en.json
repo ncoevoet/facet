@@ -539,6 +539,7 @@
     "qrealign_score": "Q-ReAlign (Aesthetic)",
     "date_taken": "Date Taken",
     "date_added": "Date Added",
+    "date_added_library": "Date Added to Library",
     "star_rating": "Star Rating",
     "face_quality": "Face Quality",
     "eye_sharpness": "Eye Sharpness",

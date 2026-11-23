@@ -375,6 +375,25 @@ describe('GalleryViewControlsComponent', () => {
       expect(accent(item)).toBe(true);
     });
 
+    it('names the library in the Date Added label only inside an album', async () => {
+      const { fixture, root, store } = render({ sort_options_grouped: { General: [{ column: 'date_added', label: 'Date Added' }] } });
+      store.filters.update(filters => ({ ...filters, sort: 'date_added' }));
+      fixture.detectChanges();
+      const label = () => sortButtons(root)[0].textContent ?? '';
+      expect(label()).toContain('sort_options.date_added');
+      expect(label()).not.toContain('sort_options.date_added_library');
+      store.filters.update(filters => ({ ...filters, album_id: '7' }));
+      fixture.detectChanges();
+      expect(label()).toContain('sort_options.date_added_library');
+      await openMenu(fixture, sortButtons(root)[0]);
+      await openMenu(fixture, document.querySelector<HTMLButtonElement>('.mat-mdc-menu-panel [data-sort-group]')!);
+      const panels = document.querySelectorAll('.mat-mdc-menu-panel');
+      expect(panels[panels.length - 1].querySelector('[role="menuitemradio"]')?.textContent).toContain('sort_options.date_added_library');
+      store.filters.update(filters => ({ ...filters, album_id: '0' }));
+      fixture.detectChanges();
+      expect(label()).not.toContain('sort_options.date_added_library');
+    });
+
     it('offers the tooltip modes as one shared radio menu with the current mode checked', async () => {
       const { fixture, root, store } = render();
       store.filters.update(filters => ({ ...filters, tooltip_mode: 'click' }));

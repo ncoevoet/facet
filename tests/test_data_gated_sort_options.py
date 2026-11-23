@@ -38,6 +38,11 @@ def _check_aesthetic_v25(lang: str, labels: Dict[str, str]) -> None:
         assert label.startswith(labels["aesthetic"]) and label != "Aesthetic v2.5"
 
 
+# Not a model metric (no loader, a TEXT stamp): gated only because an upgraded library
+# has no date until a scan rewrites its rows. Covered by its own tests below.
+DATE_ADDED = 'date_added'
+
+
 @dataclass(frozen=True)
 class Spec:
     column: str
@@ -78,7 +83,7 @@ def _advertised(body):
 
 
 def test_every_data_gated_column_is_covered():
-    assert set(DATA_GATED_SORT_COLS) == {s.column for s in SPECS}
+    assert set(DATA_GATED_SORT_COLS) == {s.column for s in SPECS} | {DATE_ADDED}
 
 
 def test_metric_is_advertised_and_allowed(spec, populated, anonymous_client):
@@ -179,3 +184,34 @@ def test_sort_visibility_follows_existing_loader_license(
     assert (spec.column in flat) is allowed
     assert (spec.column in grouped) is allowed
     assert (spec.column in body["unavailable_metrics"]) is not allowed
+
+
+def _advertises_date_added(client):
+    response = client.get("/api/config")
+    assert response.status_code == 200
+    flat, grouped = _advertised(response.json())
+    assert (DATE_ADDED in flat) == (DATE_ADDED in grouped)
+    return DATE_ADDED in flat
+
+
+def test_date_added_sort_waits_for_a_dated_photo(seed_photos_prefix, anonymous_client):
+    """An upgraded, unrescanned library has no Date Added: the sort would only order by path."""
+    with get_db() as conn:
+        dated = conn.execute("SELECT path, date_added FROM photos WHERE date_added IS NOT NULL").fetchall()
+        conn.execute("UPDATE photos SET date_added = NULL")
+        conn.commit()
+    try:
+        reset_data_gate_cache()
+        assert not _advertises_date_added(anonymous_client)
+        assert DATE_ADDED in VALID_SORT_COLS
+        prefix = "/date_added-sort/gate/"
+        seed_photos_prefix(prefix, [{"path": prefix + "a.jpg", "filename": "a.jpg", "aggregate": 5.0,
+                                     DATE_ADDED: "2026-11-23T09:00:00Z"}])
+        reset_data_gate_cache()
+        assert _advertises_date_added(anonymous_client)
+    finally:
+        with get_db() as conn:
+            conn.executemany("UPDATE photos SET date_added = ? WHERE path = ?",
+                             [(row["date_added"], row["path"]) for row in dated])
+            conn.commit()
+        reset_data_gate_cache()

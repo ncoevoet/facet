@@ -8,6 +8,7 @@ import pytest
 pytest.importorskip("imagehash")
 pytest.importorskip("cv2")
 
+from api.types import reset_data_gate_cache  # noqa: E402
 from db import get_connection  # noqa: E402
 from db.schema import init_database  # noqa: E402
 from processing.scorer import Facet  # noqa: E402
@@ -97,8 +98,13 @@ def test_gallery_sorts_by_date_added_with_null_last(direction, expected, seed_ph
     assert {p['filename']: p['date_added'] for p in photos}['c_new.jpg'] == '2026-01-01T00:00:00Z'
 
 
-def test_date_added_is_a_configured_sort_option(anonymous_client):
+def test_date_added_is_a_configured_sort_option(seed_photos_prefix, anonymous_client):
+    # The option is data-gated (test_data_gated_sort_options): it needs one dated photo.
+    seed_photos_prefix(f'{PREFIX}option/', [{'path': f'{PREFIX}option/a.jpg', 'filename': 'a.jpg',
+                                             'date_added': '2026-11-23T09:00:00Z'}])
+    reset_data_gate_cache()
     options = anonymous_client.get('/api/config').json()['sort_options_grouped']
+    reset_data_gate_cache()
     assert any(o['column'] == 'date_added' for group in options.values() for o in group)
 
 
