@@ -158,9 +158,14 @@ class BlendshapeScorer:
                 return True
             except Exception as e:
                 self._load_failed = True
-                logger.warning(
-                    "MediaPipe blendshapes unavailable (%s); using landmark-geometry "
-                    "face scores. To enable: pip install mediapipe==0.10.35 --no-deps", e)
+                if isinstance(e, ModuleNotFoundError) and e.name == 'mediapipe':
+                    # Optional, and absent by design in the macOS app, whose users can't run pip.
+                    logger.info("MediaPipe is not installed; using landmark-geometry face scores "
+                                "(docs/FACE_RECOGNITION.md says how to add it).")
+                else:
+                    # Includes a missing dependency of an installed MediaPipe (absl-py after --no-deps).
+                    logger.warning("MediaPipe blendshapes unavailable (%s); using landmark-geometry "
+                                   "face scores. See docs/FACE_RECOGNITION.md.", e)
                 return False
 
     def analyze_face_crop(self, bgr_crop):

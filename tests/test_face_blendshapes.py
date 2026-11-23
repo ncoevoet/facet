@@ -7,6 +7,7 @@ when mediapipe or the model bundle is absent.
 """
 
 import os
+import sys
 
 import numpy as np
 import pytest
@@ -159,6 +160,36 @@ class TestScoreFaceCropFallback:
         scorer = BlendshapeScorer(min_crop_size=1)
         scorer._load_failed = True
         assert scorer.score_face_crop(np.zeros((10, 10, 3), dtype=np.uint8)) is None
+
+
+class TestMissingMediaPipe:
+    def test_an_absent_package_is_noted_without_a_shell_command(self, monkeypatch, caplog):
+        # None in sys.modules makes `import mediapipe` raise ImportError, as on an install without it.
+        monkeypatch.setitem(sys.modules, 'mediapipe', None)
+        scorer = BlendshapeScorer(min_crop_size=1)
+        with caplog.at_level('INFO', logger='facet.face_blendshapes'):
+            assert scorer._ensure_loaded() is False
+        notes = [r for r in caplog.records if 'MediaPipe' in r.getMessage()]
+        assert [r.levelname for r in notes] == ['INFO']
+        assert 'pip' not in notes[0].getMessage()
+        assert scorer._ensure_loaded() is False  # decided once, not retried per face
+
+    def test_a_missing_dependency_of_an_installed_mediapipe_still_warns(self, monkeypatch, caplog):
+        import builtins
+        real_import = builtins.__import__
+
+        def fake_import(name, *args, **kwargs):
+            if name == 'mediapipe':
+                raise ModuleNotFoundError("No module named 'absl'", name='absl')
+            return real_import(name, *args, **kwargs)
+
+        monkeypatch.setattr(builtins, '__import__', fake_import)
+        scorer = BlendshapeScorer(min_crop_size=1)
+        with caplog.at_level('INFO', logger='facet.face_blendshapes'):
+            assert scorer._ensure_loaded() is False
+        notes = [r for r in caplog.records if 'MediaPipe' in r.getMessage()]
+        assert [r.levelname for r in notes] == ['WARNING']
+        assert 'absl' in notes[0].getMessage()
 
 
 class TestEnsureModelFile:

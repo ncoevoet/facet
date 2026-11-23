@@ -256,11 +256,11 @@ Two backends produce them on the same scale:
    (`eyeBlink*`, `mouthSmile*`, `mouthFrown*`) map to the same scales. It reads
    closed eyes, subtle smiles and turned heads better, so its value **replaces**
    the geometric one. If MediaPipe or its model is missing, or the crop is too
-   small, the geometric value is kept.
+   small, the geometric value is kept, and the scan log notes once that MediaPipe is not installed.
 
 ### Installing MediaPipe
 
-MediaPipe is optional. Install it **without** its bundled `opencv-contrib-python`,
+MediaPipe is optional, and the macOS app does not include it. Install it **without** its bundled `opencv-contrib-python`,
 which would clash with Facet's `opencv-python` (both provide `cv2`):
 
 ```bash
