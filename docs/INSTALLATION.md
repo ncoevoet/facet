@@ -715,7 +715,10 @@ Models download on first use into:
 - `~/.cache/torch/hub/` (PyIQA weights)
 - `~/.insightface/` (face detection/recognition)
 - `pretrained_models/` in the repository root: `samp_net.pth`, `u2netp.pth`,
-  `face_landmarker.task`, and `aesthetic_predictor_weights.pth` (`legacy`/`8gb` only)
+  `face_landmarker.task`, and `aesthetic_predictor_weights.pth` (`legacy`/`8gb` only).
+  Set `FACET_MODELS_DIR` to keep them somewhere else, for example when the install
+  folder is read-only. A configured path that starts with `pretrained_models/`
+  (`samp_net.model_path`, `piaa_prior.models_dir`) follows it.
 
 In Docker these are named volumes (`pretrained_models/` is `facet-pretrained`), so nothing
 re-downloads when the container is recreated. No weights are baked into the image.

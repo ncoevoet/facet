@@ -4,6 +4,10 @@ All notable changes to Facet are documented in this file.
 
 ## [Unreleased]
 
+### Fixed
+
+- **SAMP-Net, U2-Net-P and the PIAA prior stop depending on the working directory.** Their default paths (`pretrained_models/samp_net.pth`, `pretrained_models/u2netp.pth`, `piaa_prior.models_dir`) were read against wherever `facet.py` or `viewer.py` was started, so a run from another folder downloaded SAMP-Net and U2-Net-P again there. A configured path starting with `pretrained_models/` now means Facet's models folder, like every other auto-downloaded weight. The new `FACET_MODELS_DIR` environment variable moves that folder, for an install whose own folder is read-only.
+
 ## [1.31.0] "Huangpu" — 2026-11-25
 
 ### Added

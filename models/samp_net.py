@@ -22,7 +22,7 @@ from PIL import Image
 
 import licensing
 from models.composition_patterns import COMPOSITION_PATTERNS
-from models.weights import download_weights
+from models.weights import download_weights, resolve_models_path
 
 logger = logging.getLogger("facet.samp_net")
 
@@ -392,7 +392,7 @@ class SaliencyDetector:
     def __init__(self, device='cuda', weights_path='pretrained_models/u2netp.pth'):
         from utils.device import is_device_available
         self.device = device if is_device_available(device, torch_module=torch) else 'cpu'
-        self.weights_path = weights_path
+        self.weights_path = resolve_models_path(weights_path)
         self.model = None
         self._initialized = False
 
@@ -869,7 +869,7 @@ class SAMPNetScorer:
         if device is None:
             device = get_device()
         self.device = device if is_device_available(device, torch_module=torch) else 'cpu'
-        self.model_path = model_path or 'pretrained_models/samp_net.pth'
+        self.model_path = resolve_models_path(model_path or 'pretrained_models/samp_net.pth')
 
         # Image preprocessing (224x224 for SAMP-Net)
         self.transform = transforms.Compose([
