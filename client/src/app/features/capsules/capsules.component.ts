@@ -26,7 +26,7 @@ interface Capsule {
   title_key: string;
   title_params: Record<string, string>;
   subtitle: string;
-  cover_photo_path: string;
+  cover_photo_path?: string | null;
   preview_revision?: string | null;
   photo_count: number;
   icon: string;
