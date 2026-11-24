@@ -604,7 +604,7 @@ Saving, editing or removing a manual face updates the photo’s face boxes and p
 
 The legacy `viewer.performance.face_cache_size` setting is ignored and can be removed.
 
-**Objects.** The same editor can mark an object instead: choose **Object**, draw the box, type a label (for example "birthday cake") and save. Objects show as blue labelled boxes on the photo, the gallery search finds them by label, and assistants can read them (`GET /api/photo/objects`, or the `objects` field of the `get_photo` tool) to know which region is meant. Marks are always drawn by you, never detected automatically: they tell an assistant where to act, for example a box labelled "remove" on one of three bottles in a shot. An object is never a face: it does not touch detection, clustering, people or face scores.
+**Objects.** The same editor can mark an object instead: choose **Object**, draw the box, type a label (for example "birthday cake") and save. Objects show as blue labelled boxes on the photo, the gallery search finds them by label, and assistants can read them (`GET /api/photo/objects`, or the `objects` field of the `get_photo` tool) to know which region is meant. Marks are always drawn by you, never detected automatically: they tell an assistant where to act, for example a box labelled "remove" on one of three bottles in a shot. An object is never a face: it does not touch detection, clustering, people or face scores. If the face and object overlays fail to load, each has its own labeled retry button on the photo. Retrying one does not reload the other; the face retry is hidden when face boxes are **Off**.
 
 ## Scan Trigger
 
@@ -691,7 +691,7 @@ See [Portfolio Export configuration](CONFIGURATION.md#portfolio-export). Endpoin
 
 ### Photo Sharing
 
-Share albums through tokenized links. Viewing a shared album needs no login.
+Share albums through tokenized links. Viewing a shared album needs no login. If the browser refuses to copy a link, the dialog reports the failure and leaves the link visible for manual copying.
 
 | Action | How To |
 |--------|--------|
@@ -876,7 +876,7 @@ Click a capsule card to start a slideshow:
 
 ### Freshness
 
-Capsules rotate on a schedule (default: 24 hours). **Regenerate** in the header refreshes them now.
+Capsules rotate on a schedule (default: 24 hours). **Regenerate** in the header refreshes them now. Open a capsule again to play its refreshed photos.
 
 ### Reverse Geocoding
 

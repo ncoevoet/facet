@@ -62,7 +62,9 @@ export interface ShareDialogData {
           <mat-label>{{ linkLabelKey | translate }}</mat-label>
           <input matInput [value]="fullShareUrl()" readonly />
         </mat-form-field>
-        @if (copied()) {
+        @if (copyFailed()) {
+          <p role="alert" class="text-sm text-[var(--mat-sys-error)] mt-1">{{ I18N.ui.copy_failed | translate }}</p>
+        } @else if (copied()) {
           <p class="text-sm text-[var(--facet-positive)] mt-1">
             {{ copiedKey | translate }}
           </p>
@@ -116,6 +118,8 @@ export class ShareDialogComponent implements OnInit {
   protected readonly fullShareUrl = computed(() => `${window.location.origin}${this.shareUrl()}`);
   protected readonly loading = signal(false);
   protected readonly copied = signal(false);
+  protected readonly copyFailed = signal(false);
+  private copying = false;
   protected readonly error = signal(false);
   protected readonly policy = signal<components['schemas']['SharedAlbumPolicy'] | null>(null);
   protected readonly recipientCount = signal(0);
@@ -184,11 +188,21 @@ export class ShareDialogComponent implements OnInit {
   }
 
   protected async copyLink(): Promise<void> {
-    if (!this.context.current() || this.loading() || (this.data.entityType === 'album' && !this.policy())) return;
-    if (!await copyText(this.fullShareUrl())) return;
-    if (!this.context.current()) return;
-    this.copied.set(true);
+    if (this.copying || !this.context.current() || this.loading() || !this.shareUrl()
+      || (this.data.entityType === 'album' && !this.policy())) return;
+    const url = this.fullShareUrl();
+    this.copying = true;
+    this.copyFailed.set(false);
+    this.copied.set(false);
     clearTimeout(this.copyTimer);
+    const copied = await copyText(url).catch(() => false);
+    this.copying = false;
+    if (!this.context.current() || this.fullShareUrl() !== url) return;
+    if (!copied) {
+      this.copyFailed.set(true);
+      return;
+    }
+    this.copied.set(true);
     this.copyTimer = setTimeout(() => this.copied.set(false), 2000);
   }
 

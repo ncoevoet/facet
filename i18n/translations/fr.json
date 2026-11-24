@@ -3314,6 +3314,8 @@
     "load_failed": "Impossible de charger les photos de la carte. Déplacez ou zoomez pour réessayer."
   },
   "photo_detail": {
+    "retry_face_boxes": "Réessayer de charger les cadres de visages",
+    "retry_object_boxes": "Réessayer de charger les cadres d’objets",
     "copy_image": "Copier l’image",
     "copy_image_done": "Image copiée",
     "copy_image_failed": "Impossible de copier l’image. Essayez de la télécharger.",

@@ -175,6 +175,27 @@ describe('HistogramComponent', () => {
     expect(polylines()).toHaveLength(3);
   });
 
+  it('shares a pending legacy thumbnail sample across channel switches', () => {
+    render({ path: '/a.jpg', src: '/thumb/a.jpg', showModeToggle: true, defaultMode: 'luma' });
+
+    modeButtons()[1].click(); // RGB starts thumbnail sampling.
+    fixture.detectChanges();
+    const sample = loadedImages[0];
+    modeButtons()[2].click(); // Red still needs the same sample.
+    fixture.detectChanges();
+    modeButtons()[1].click(); // Back to RGB before the image resolves.
+    fixture.detectChanges();
+
+    loadedImages.at(-1)!.onload!();
+    // On the old path an earlier duplicate could fail after the RGB curves
+    // were already drawn, replacing the success state with a Retry button.
+    if (loadedImages.length > 1) sample.onerror!();
+    fixture.detectChanges();
+    expect(fixture.nativeElement.querySelector('[data-histogram-retry]')).toBeNull();
+    expect(polylines()).toHaveLength(3);
+    expect(loadedImages).toEqual([sample]);
+  });
+
   it('offers a retry when the sampled thumbnail fails to load', () => {
     // Legacy luma-only row: the panel must sample the thumbnail for RGB.
     mockApi.get.mockReturnValue(of({ bins: 4, luma: [1, 0.5, 0, 0], r: null, g: null, b: null }));

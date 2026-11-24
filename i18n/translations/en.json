@@ -3339,6 +3339,8 @@
     "load_failed": "Could not load the map photos. Pan or zoom to retry."
   },
   "photo_detail": {
+    "retry_face_boxes": "Retry loading face boxes",
+    "retry_object_boxes": "Retry loading object boxes",
     "copy_image": "Copy image",
     "copy_image_done": "Image copied",
     "copy_image_failed": "Could not copy the image. Try Download instead.",

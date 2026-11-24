@@ -113,6 +113,49 @@ describe('ShareDialogComponent', () => {
       expect(writeText).toHaveBeenCalledExactlyOnceWith(expect.stringContaining('/shared/album/1?token=abc'));
     });
 
+    it('reports a failed clipboard copy and clears it after successfully retrying the same link', async () => {
+      createComponent(albumData);
+      const writeText = vi.fn().mockRejectedValueOnce(new Error('blocked'))
+        .mockResolvedValueOnce(undefined).mockRejectedValueOnce(new Error('blocked'));
+      const fallback = vi.fn().mockReturnValueOnce(false).mockImplementationOnce(() => { throw new Error('blocked'); });
+      const clipboardProperty = Object.getOwnPropertyDescriptor(navigator, 'clipboard');
+      const fallbackProperty = Object.getOwnPropertyDescriptor(document, 'execCommand');
+      Object.defineProperty(navigator, 'clipboard', { configurable: true, value: { writeText } });
+      Object.defineProperty(document, 'execCommand', { configurable: true, value: fallback });
+      const fixture = TestBed.createComponent(ShareDialogComponent);
+      try {
+        fixture.detectChanges(); await fixture.whenStable(); fixture.detectChanges();
+        const root: HTMLElement = fixture.nativeElement;
+        const expected = expect.stringContaining('/shared/album/1?token=abc');
+
+        async function clickCopy() {
+          await (fixture.componentInstance as any).copyLink();
+          fixture.detectChanges();
+        }
+
+        await clickCopy();
+        expect(root.querySelector('[role="alert"]')?.textContent ?? '').toContain('ui.copy_failed');
+        expect(root.textContent).not.toContain('albums.link_copied');
+        expect(root.querySelector('input')?.value).toEqual(expected);
+
+        await clickCopy();
+        expect(root.querySelector('[role="alert"]')).toBeNull();
+        expect(root.textContent).toContain('albums.link_copied');
+
+        await clickCopy();
+        expect(root.querySelector('[role="alert"]')?.textContent ?? '').toContain('ui.copy_failed');
+        expect(root.textContent).not.toContain('albums.link_copied');
+        expect(writeText.mock.calls).toEqual([[expected], [expected], [expected]]);
+        expect(fallback.mock.calls).toEqual([['copy'], ['copy']]);
+      } finally {
+        fixture.destroy();
+        if (clipboardProperty) Object.defineProperty(navigator, 'clipboard', clipboardProperty);
+        else Reflect.deleteProperty(navigator, 'clipboard');
+        if (fallbackProperty) Object.defineProperty(document, 'execCommand', fallbackProperty);
+        else Reflect.deleteProperty(document, 'execCommand');
+      }
+    });
+
     it('shows changing smart-album membership and enabled proofing to the sender', async () => {
       mockApi.get.mockReturnValue(of({ sharing_policy: { ...policy, membership: 'smart', proofing: true }, total: 9 }));
       createComponent(albumData);

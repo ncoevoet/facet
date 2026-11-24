@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, OnInit, inject, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, OnInit, inject, signal } from '@angular/core';
 import { MAT_DIALOG_DATA, MatDialogModule, MatDialogRef } from '@angular/material/dialog';
 import { MatButtonModule } from '@angular/material/button';
 import { MatFormFieldModule } from '@angular/material/form-field';
@@ -60,7 +60,7 @@ interface CategoryOption {
     </mat-dialog-content>
     <mat-dialog-actions align="end">
       <button mat-button mat-dialog-close>{{ I18N.ui.buttons.cancel | translate }}</button>
-      <button mat-flat-button [disabled]="!selectedCategory() || saving() || loadFailed()" (click)="save()">
+      <button mat-flat-button [disabled]="!canSave()" (click)="save()">
         {{ saving() ? (I18N.ui.buttons.saving | translate) : (I18N.ui.buttons.save | translate) }}
       </button>
     </mat-dialog-actions>
@@ -79,6 +79,10 @@ export class CategoryOverrideDialogComponent implements OnInit {
   protected readonly saving = signal(false);
   protected readonly categories = signal<string[]>([]);
   protected readonly selectedCategory = signal(this.data.currentCategory ?? '');
+  protected readonly canSave = computed(() =>
+    !this.loading() && !this.loadFailed() && !this.saving()
+    && this.categories().includes(this.selectedCategory()),
+  );
 
   async ngOnInit(): Promise<void> {
     await this.loadCategories();
@@ -91,9 +95,9 @@ export class CategoryOverrideDialogComponent implements OnInit {
       const res = await firstValueFrom(this.api.get<{ categories: CategoryOption[] }>('/config/category_priorities'));
       const names = res.categories.map(c => c.name);
       this.categories.set(names);
-      if (!this.selectedCategory() && names.length) {
-        this.selectedCategory.set(names[0]);
-      }
+      const selected = this.selectedCategory();
+      if (!selected) this.selectedCategory.set(names[0] ?? '');
+      else if (!names.includes(selected)) this.selectedCategory.set('');
     } catch {
       // The snackbar alone leaves the dialog permanently unusable once the
       // spinner ends: an empty dropdown with a disabled save and no way back
@@ -106,8 +110,8 @@ export class CategoryOverrideDialogComponent implements OnInit {
   }
 
   protected async save(): Promise<void> {
+    if (!this.canSave()) return;
     const category = this.selectedCategory();
-    if (!category || this.saving()) return;
     this.saving.set(true);
     try {
       const res = await firstValueFrom(

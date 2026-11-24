@@ -1,5 +1,5 @@
 import { TestBed } from '@angular/core/testing';
-import { of, throwError } from 'rxjs';
+import { of, Subject, throwError } from 'rxjs';
 import { MAT_DIALOG_DATA, MatDialogRef } from '@angular/material/dialog';
 import { MatSnackBar } from '@angular/material/snack-bar';
 import { ApiService } from '../../core/services/api.service';
@@ -69,6 +69,47 @@ describe('CategoryOverrideDialogComponent', () => {
     expect(dialogClose).not.toHaveBeenCalled();
     expect(component.saving()).toBe(false);
   });
+  it('cannot save a seeded category during the initial load', async () => {
+    build('silhouette');
+    const response = new Subject<{ categories: { name: string }[] }>();
+    get.mockReturnValueOnce(response);
+    const fixture = TestBed.createComponent(CategoryOverrideDialogComponent);
+    fixture.detectChanges();
+
+    const saveButton: HTMLButtonElement = fixture.nativeElement.querySelector('mat-dialog-actions button:last-child');
+    expect(saveButton.disabled).toBe(true);
+    await (fixture.componentInstance as any).save();
+    expect(post).not.toHaveBeenCalled();
+
+    response.next({ categories: [{ name: 'silhouette' }] });
+    await fixture.whenStable();
+    fixture.detectChanges();
+
+    expect(saveButton.disabled).toBe(false);
+  });
+
+  it('does not save a category that is missing from the returned options', async () => {
+    build('retired_category');
+    const fixture = TestBed.createComponent(CategoryOverrideDialogComponent);
+    fixture.detectChanges();
+    await fixture.whenStable();
+    fixture.detectChanges();
+    const instance = fixture.componentInstance as any;
+    const saveButton: HTMLButtonElement = fixture.nativeElement.querySelector('mat-dialog-actions button:last-child');
+
+    expect(instance.selectedCategory()).toBe('');
+    expect(saveButton.disabled).toBe(true);
+    await instance.save();
+    expect(post).not.toHaveBeenCalled();
+
+    instance.selectedCategory.set('sports');
+    fixture.detectChanges();
+    expect(saveButton.disabled).toBe(false);
+    saveButton.click();
+    await fixture.whenStable();
+    expect(post).toHaveBeenCalledExactlyOnceWith('/comparison/override_category', { path: '/a.jpg', category: 'sports' });
+  });
+
   it('a failed category load shows the alert, disables Save, and Retry recovers', async () => {
     build('silhouette');
     get.mockReturnValueOnce(throwError(() => new Error('boom')));
@@ -83,7 +124,15 @@ describe('CategoryOverrideDialogComponent', () => {
     expect(el.querySelector('[role="alert"]')).not.toBeNull();
     expect(saveButton().disabled).toBe(true);
 
+    const response = new Subject<{ categories: { name: string }[] }>();
+    get.mockReturnValueOnce(response);
     (el.querySelector('[role="alert"] button') as HTMLButtonElement).click();
+    fixture.detectChanges();
+    expect(saveButton().disabled).toBe(true);
+    await (fixture.componentInstance as any).save();
+    expect(post).not.toHaveBeenCalled();
+
+    response.next({ categories: [{ name: 'silhouette' }, { name: 'sports' }, { name: 'fashion' }] });
     await fixture.whenStable();
     fixture.detectChanges();
 

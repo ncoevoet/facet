@@ -34,6 +34,7 @@ import { privateImageSessionKey, resetPrivateImageSession } from '../../shared/u
 // flaky CI failure. The shared singleton keeps the real Leaflet out of the registry and
 // makes every leaflet-using spec's binding identical regardless of load order.
 import { leafletMock, leafletMockMap } from '../../../testing/leaflet-mock';
+import { FACE_BOX_MODE_KEY } from './face-box-mode';
 
 vi.doMock('leaflet', () => leafletMock);
 
@@ -315,6 +316,70 @@ describe('PhotoDetailComponent', () => {
     expect(undecided.getAttribute('aria-pressed')).toBe('false');
     const zoom = root.querySelector<HTMLButtonElement>('app-rendition-readout button[aria-label="gallery.compare.rendition.zoom_out"]')!;
     expect(zoom.disabled).toBe(true);
+  });
+
+  it('retries failed face and object overlay reads independently from the photo canvas', async () => {
+    const previousMode = localStorage.getItem(FACE_BOX_MODE_KEY);
+    localStorage.setItem(FACE_BOX_MODE_KEY, 'always');
+    const faceKey = 'photo_detail.retry_face_boxes';
+    const objectKey = 'photo_detail.retry_object_boxes';
+    const fail = () => throwError(() => new Error('network'));
+    let faces: () => Observable<unknown> = fail;
+    let objects: () => Observable<unknown> = fail;
+    mockApi.get.mockImplementation((url: string) => {
+      if (url === '/photo/faces') return faces();
+      if (url === '/photo/objects') return objects();
+      if (url === '/photo') return of(samplePhoto);
+      return of({});
+    });
+    const view = renderDetail();
+    const canvas = () => (view.nativeElement as HTMLElement).querySelector('[data-photo-canvas]')!;
+    const buttons = () => Array.from(canvas().querySelectorAll<HTMLButtonElement>('[role="alert"] > button'));
+    const labels = () => buttons().map(button => button.textContent.trim());
+    const settle = async () => {
+      view.detectChanges();
+      await view.whenStable();
+      view.detectChanges();
+    };
+    try {
+      view.componentInstance.photo.set(makePhoto({ path: samplePhoto.path, image_width: 1000, image_height: 500 }));
+      await settle();
+      expect(labels()).toEqual([faceKey, objectKey]);
+      expect(buttons()[0].parentElement?.parentElement).toBe(buttons()[1].parentElement?.parentElement);
+
+      mockApi.get.mockClear();
+      buttons()[0].click();
+      await settle();
+      expect(mockApi.get).toHaveBeenCalledExactlyOnceWith('/photo/faces', { path: samplePhoto.path });
+      expect(labels()).toEqual([faceKey, objectKey]);
+
+      const modeButton = (view.nativeElement as HTMLElement).querySelector<HTMLButtonElement>('[data-face-box-mode]')!;
+      modeButton.click();
+      await settle();
+      expect(labels()).toEqual([objectKey]);
+
+      objects = () => of({ objects: [{ id: 1, label: 'cake', box: [0.1, 0.2, 0.5, 0.6] }] });
+      mockApi.get.mockClear();
+      buttons()[0].click();
+      await settle();
+      expect(mockApi.get).toHaveBeenCalledExactlyOnceWith('/photo/objects', { path: samplePhoto.path });
+      expect(labels()).toEqual([]);
+      expect(canvas().querySelector('app-photo-object-layer text')?.textContent).toBe('cake');
+
+      modeButton.click();
+      await settle();
+      expect(labels()).toEqual([faceKey]);
+      faces = () => of({ faces: [{ id: 1, face_index: 0, box: [0.2, 0.3, 0.5, 0.8] }] });
+      mockApi.get.mockClear();
+      buttons()[0].click();
+      await settle();
+      expect(mockApi.get).toHaveBeenCalledExactlyOnceWith('/photo/faces', { path: samplePhoto.path });
+      expect(labels()).toEqual([]);
+      expect(canvas().querySelector('[data-face]')).not.toBeNull();
+    } finally {
+      if (previousMode === null) localStorage.removeItem(FACE_BOX_MODE_KEY);
+      else localStorage.setItem(FACE_BOX_MODE_KEY, previousMode);
+    }
   });
 
   it('refreshes rendered face boxes after every committed manual edit', async () => {

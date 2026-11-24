@@ -3314,6 +3314,8 @@
     "load_failed": "Impossibile caricare le foto della mappa. Sposta o ingrandisci per riprovare."
   },
   "photo_detail": {
+    "retry_face_boxes": "Riprova a caricare i riquadri dei volti",
+    "retry_object_boxes": "Riprova a caricare i riquadri degli oggetti",
     "copy_image": "Copia immagine",
     "copy_image_done": "Immagine copiata",
     "copy_image_failed": "Impossibile copiare l’immagine. Prova a scaricarla.",

@@ -3353,6 +3353,8 @@ export const I18N = {
     load_failed: "map.load_failed",
   },
   photo_detail: {
+    retry_face_boxes: "photo_detail.retry_face_boxes",
+    retry_object_boxes: "photo_detail.retry_object_boxes",
     copy_image: "photo_detail.copy_image",
     copy_image_done: "photo_detail.copy_image_done",
     copy_image_failed: "photo_detail.copy_image_failed",

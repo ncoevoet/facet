@@ -1,7 +1,6 @@
 import { TestBed } from '@angular/core/testing';
 import { of, Subject, throwError } from 'rxjs';
 import { ApiService } from '../../core/services/api.service';
-import { I18nService } from '../../core/services/i18n.service';
 import { PhotoObjectLayerComponent } from './photo-object-layer.component';
 
 describe('PhotoObjectLayerComponent', () => {
@@ -12,7 +11,6 @@ describe('PhotoObjectLayerComponent', () => {
     api = { get: vi.fn(() => of({ objects })) };
     TestBed.configureTestingModule({ providers: [
       { provide: ApiService, useValue: api },
-      { provide: I18nService, useValue: { t: (key: string) => key, translations: () => ({}) } },
     ] });
     const fixture = TestBed.createComponent(PhotoObjectLayerComponent);
     fixture.componentRef.setInput('path', '/a.jpg');
@@ -48,24 +46,24 @@ describe('PhotoObjectLayerComponent', () => {
     expect(api.get).toHaveBeenCalledTimes(2);
   });
 
-  it('reports a failed read, keeps a failed retry visible, and recovers the boxes', async () => {
+  it('offers a retry after each failed read and recovers the boxes', async () => {
     const fixture = render();
     api.get.mockReturnValue(throwError(() => new Error('network')));
     fixture.detectChanges();
     await fixture.whenStable();
     fixture.detectChanges();
-    const error = () => fixture.nativeElement.querySelector('[role="alert"] button');
-    expect(error()).not.toBeNull();
-    error().click();
+    const layer = fixture.componentInstance;
+    expect(layer.canRetry()).toBe(true);
+    layer.retry();
     await fixture.whenStable();
     fixture.detectChanges();
-    expect(error()).not.toBeNull();
+    expect(layer.canRetry()).toBe(true);
     api.get.mockReturnValue(of({ objects }));
-    error().click();
+    layer.retry();
     await fixture.whenStable();
     fixture.detectChanges();
     expect(api.get).toHaveBeenCalledTimes(3);
-    expect(error()).toBeNull();
+    expect(layer.canRetry()).toBe(false);
     expect(fixture.nativeElement.querySelector('text').textContent.trim()).toBe('cake');
   });
 
@@ -86,7 +84,7 @@ describe('PhotoObjectLayerComponent', () => {
       await fixture.whenStable();
       fixture.detectChanges();
       expect(fixture.nativeElement.querySelector('text')?.textContent.trim()).toBe('cake');
-      expect(fixture.nativeElement.querySelector('[role="alert"]')).toBeNull();
+      expect(fixture.componentInstance.canRetry()).toBe(false);
     });
   }
 

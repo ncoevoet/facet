@@ -3314,6 +3314,8 @@
     "load_failed": "地图照片加载失败。平移或缩放即可重试。"
   },
   "photo_detail": {
+    "retry_face_boxes": "重试加载人脸框",
+    "retry_object_boxes": "重试加载物体框",
     "copy_image": "复制图像",
     "copy_image_done": "图像已复制",
     "copy_image_failed": "无法复制图像，请尝试下载。",

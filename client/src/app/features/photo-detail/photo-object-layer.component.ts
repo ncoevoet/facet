@@ -1,6 +1,4 @@
 import {ChangeDetectionStrategy, Component, DestroyRef, effect, inject, input, signal} from '@angular/core';
-import { TranslatePipe } from '../../shared/pipes/translate.pipe';
-import { i18nKeys } from '../../core/i18n/keys';
 import { firstValueFrom } from 'rxjs';
 import { ApiService } from '../../core/services/api.service';
 import type { components } from '../../core/api/schema';
@@ -15,21 +13,9 @@ export type PhotoObject = components['schemas']['PhotoObject'];
  */
 @Component({
   selector: 'app-photo-object-layer',
-  imports: [TranslatePipe],
   changeDetection: ChangeDetectionStrategy.OnPush,
   host: { class: 'absolute inset-0 pointer-events-none' },
   template: `
-    @if (loadFailed()) {
-      <div role="alert" class="absolute inset-x-0 top-2 z-10 flex justify-center">
-        <button
-          type="button"
-          class="pointer-events-auto flex items-center gap-1 rounded-full bg-[var(--mat-sys-error-container)] px-3 py-1 text-xs text-[var(--mat-sys-on-error-container)]"
-          (click)="retry()">
-          {{ I18N.errors.server_error | translate }}
-          <span class="underline">{{ I18N.gallery.load_error.retry | translate }}</span>
-        </button>
-      </div>
-    }
     @if (objects().length && imageWidth() && imageHeight()) {
       <svg class="w-full h-full" [attr.viewBox]="'0 0 ' + imageWidth() + ' ' + imageHeight()"
         preserveAspectRatio="xMidYMid meet" [style.transform]="transform()" aria-hidden="true">
@@ -48,7 +34,6 @@ export type PhotoObject = components['schemas']['PhotoObject'];
   `,
 })
 export class PhotoObjectLayerComponent {
-  protected readonly I18N = i18nKeys();
   private readonly api = inject(ApiService);
   private readonly destroyRef = inject(DestroyRef);
   readonly path = input.required<string>();
@@ -58,7 +43,8 @@ export class PhotoObjectLayerComponent {
   /** Bump to re-read the objects after the editor changed them. */
   readonly revision = input(0);
   readonly objects = signal<PhotoObject[]>([]);
-  protected readonly loadFailed = signal(false);
+  private readonly loadFailed = signal(false);
+  readonly canRetry = this.loadFailed.asReadonly();
   private generation = 0;
   private shownPath = '';
 
@@ -71,7 +57,7 @@ export class PhotoObjectLayerComponent {
     });
   }
 
-  protected retry(): void {
+  retry(): void {
     void this.load(this.path());
   }
 

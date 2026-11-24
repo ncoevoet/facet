@@ -100,8 +100,8 @@ interface CapsulesResponse {
           tabindex="0"
           [attr.aria-label]="capsule.title"
           (click)="playCapsule(capsule)"
-          (keydown.enter)="playCapsule(capsule)"
-          (keydown.space)="playCapsule(capsule); $event.preventDefault()"
+          (keydown.enter)="onCardKeydown($event, capsule)"
+          (keydown.space)="onCardKeydown($event, capsule, true)"
         >
           @if (capsule.cover_photo_path) {
             <div class="relative w-full aspect-[4/3] overflow-hidden">
@@ -281,10 +281,7 @@ export class CapsulesComponent implements OnDestroy {
       previousTo = to;
       untracked(() => {
         this.currentPage = 1;
-        this.closeSlideshow();
-        this.currentPlayingCapsuleId = '';
-        this.capsuleShuffledPhotos.clear();
-        this.capsuleResumeIndex.clear();
+        this.invalidatePlayback();
         this.loadCapsules(false, true);
       });
     });
@@ -320,6 +317,8 @@ export class CapsulesComponent implements OnDestroy {
       // Compare the page this response is FOR, not the current field: a slow
       // page-2 answer landing after a regenerate must not replace the grid.
       if (page === 1) {
+        // Regeneration may change the photos behind the same capsule ID.
+        if (refresh) this.invalidatePlayback();
         this.capsules.set(resolved);
         this.loadError.set(false);
       } else {
@@ -354,6 +353,13 @@ export class CapsulesComponent implements OnDestroy {
     if (this.loading() || !this.hasMore()) return;
     this.currentPage++;
     this.loadCapsules();
+  }
+
+  protected onCardKeydown(event: Event, capsule: Capsule, preventScroll = false): void {
+    // A nested Save as album button handles keyboard activation natively.
+    if (event.target !== event.currentTarget) return;
+    if (preventScroll) event.preventDefault();
+    void this.playCapsule(capsule);
   }
 
   protected async playCapsule(capsule: Capsule): Promise<void> {
@@ -439,6 +445,13 @@ export class CapsulesComponent implements OnDestroy {
     if (this.currentPlayingCapsuleId) {
       this.capsuleResumeIndex.set(this.currentPlayingCapsuleId, index);
     }
+  }
+
+  private invalidatePlayback(): void {
+    this.closeSlideshow();
+    this.currentPlayingCapsuleId = '';
+    this.capsuleShuffledPhotos.clear();
+    this.capsuleResumeIndex.clear();
   }
 
   protected closeSlideshow(): void {
