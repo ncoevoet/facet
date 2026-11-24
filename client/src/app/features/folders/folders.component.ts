@@ -2,12 +2,15 @@ import { Component, inject, signal, computed, effect, OnInit, OnDestroy, Destroy
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { Router, ActivatedRoute } from '@angular/router';
 import { DecimalPipe, NgTemplateOutlet } from '@angular/common';
+import { HttpContext } from '@angular/common/http';
 import { MatIconModule } from '@angular/material/icon';
 import { MatButtonModule } from '@angular/material/button';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { MatTooltipModule } from '@angular/material/tooltip';
 import { firstValueFrom } from 'rxjs';
 import { ApiService } from '../../core/services/api.service';
+import { HANDLE_SERVER_ERROR_LOCALLY } from '../../core/utils/http-error-context';
+import { LatestRequest } from '../../shared/utils/latest-request';
 import { HeaderSlotService } from '../../core/services/header-slot.service';
 import { PageHelpService } from '../../core/services/page-help.service';
 import { TranslatePipe } from '../../shared/pipes/translate.pipe';
@@ -66,9 +69,14 @@ export const KEEP_CHAIN_STATE = 'foldersKeepChain';
       <div class="flex justify-center py-16">
         <mat-spinner diameter="48" [attr.aria-label]="I18N.ui.labels.loading | translate" />
       </div>
-    }
-
-    @if (!loading() && folders().length === 0) {
+    } @else if (loadFailed()) {
+      <div class="text-center py-16 text-[var(--mat-sys-on-surface-variant)]">
+        <p role="alert">{{ I18N.errors.server_error | translate }}</p>
+        <button mat-stroked-button class="mt-3 max-lg:!min-h-11" data-folders-retry (click)="retryLoad()">
+          {{ I18N.gallery.load_error.retry | translate }}
+        </button>
+      </div>
+    } @else if (folders().length === 0) {
       <div class="text-center py-16 text-[var(--mat-sys-on-surface-variant)]">
         <mat-icon class="!text-5xl !w-12 !h-12 mb-4">folder_off</mat-icon>
         <p>{{ I18N.folders.empty | translate }}</p>
@@ -122,13 +130,15 @@ export class FoldersComponent implements OnInit, OnDestroy {
   private readonly router = inject(Router);
   private readonly route = inject(ActivatedRoute);
   private readonly destroyRef = inject(DestroyRef);
+  private readonly loads = new LatestRequest(this.destroyRef);
   private readonly pageHelp = inject(PageHelpService);
   private readonly store = inject(GalleryStore);
   private readonly headerSlot = inject(HeaderSlotService);
   private readonly toolbarTpl = viewChild<TemplateRef<unknown>>('foldersToolbar');
 
   protected readonly folders = signal<FolderItem[]>([]);
-  protected readonly loading = signal(false);
+  protected readonly loading = signal(true);
+  protected readonly loadFailed = signal(false);
   protected readonly currentPrefix = signal('');
 
   protected readonly breadcrumbs = computed(() => buildFolderBreadcrumbs(this.currentPrefix()));
@@ -141,7 +151,7 @@ export class FoldersComponent implements OnInit, OnDestroy {
     effect(() => {
       this.currentPrefix();
       this.store.viewFilterParams();
-      this.loadFolders();
+      void this.loadFolders();
     });
     effect(() => {
       const t = this.toolbarTpl();
@@ -162,35 +172,44 @@ export class FoldersComponent implements OnInit, OnDestroy {
     });
   }
 
-  private loadSeq = 0;
+  protected retryLoad(): void {
+    if (this.loadFailed() && !this.loading()) void this.loadFolders();
+  }
 
   private async loadFolders(): Promise<void> {
-    const seq = ++this.loadSeq;
+    const req = this.loads.begin();
+    const prefix = this.currentPrefix();
+    const filters = this.store.viewFilterParams();
+    // Check the inputs too: their signals can change before the next effect runs.
+    const current = () => req.isCurrent()
+      && this.currentPrefix() === prefix && this.store.viewFilterParams() === filters;
     this.loading.set(true);
+    this.loadFailed.set(false);
+    this.folders.set([]);
     // A redirect branch leaves loading true: the navigation re-runs this load for the next
     // prefix, and clearing it here would flash the empty state between hops.
     let redirected = false;
     try {
       const res = await firstValueFrom(
-        this.api.get<FoldersResponse>('/folders', {
-          prefix: this.currentPrefix(),
-          ...this.store.viewFilterParams(),
-        }),
+        req.bind(this.api.get<FoldersResponse>('/folders', {
+          prefix,
+          ...filters,
+        }, new HttpContext().set(HANDLE_SERVER_ERROR_LOCALLY, true))),
       );
       // A newer load owns the spinner and the list; a late answer must not redirect or overwrite it.
-      if (seq !== this.loadSeq) { redirected = true; return; }
+      if (!current()) return;
       // Auto-redirect to gallery if no subfolders (leaf directory)
       // replaceUrl avoids a back-button loop (back → leaf folder → redirect → gallery → …)
-      if (res.folders.length === 0 && this.currentPrefix()) {
+      if (res.folders.length === 0 && prefix) {
         redirected = true;
         this.settleRedirect(this.router.navigate(['/'], {
           queryParams: {
-            path_prefix: this.currentPrefix(),
+            path_prefix: prefix,
             sort: 'date_taken',
             sort_direction: 'DESC',
           },
           replaceUrl: true,
-        }));
+        }), current);
         return;
       }
       // A lone folder with nothing beside it is a path prefix, not a choice (/Users/me/...).
@@ -198,20 +217,22 @@ export class FoldersComponent implements OnInit, OnDestroy {
       // Not when a breadcrumb led here: that level was chosen, and skipping bounced straight back.
       if (res.folders.length === 1 && !res.has_direct_photos && !history.state?.[KEEP_CHAIN_STATE]) {
         redirected = true;
-        this.settleRedirect(this.router.navigate(['/folders'], { queryParams: { prefix: res.folders[0].path }, replaceUrl: true }));
+        this.settleRedirect(this.router.navigate(['/folders'], { queryParams: { prefix: res.folders[0].path }, replaceUrl: true }), current);
         return;
       }
       this.folders.set(res.folders);
+    } catch {
+      if (current()) this.loadFailed.set(true);
     } finally {
-      if (!redirected) this.loading.set(false);
+      if (!redirected && current()) this.loading.set(false);
     }
   }
 
   /** A redirect that does not happen (resolved false or rejected) must not leave the spinner up for good. */
-  private settleRedirect(navigation: Promise<boolean>): void {
+  private settleRedirect(navigation: Promise<boolean>, current: () => boolean): void {
     Promise.resolve(navigation).then(
-      navigated => { if (!navigated) this.loading.set(false); },
-      () => this.loading.set(false),
+      navigated => { if (!navigated && current()) this.loading.set(false); },
+      () => { if (current()) this.loading.set(false); },
     );
   }
 

@@ -134,6 +134,10 @@ export interface paths {
          *     context instead of being left unscored (see
          *     ``_clear_album_context_overrides``).
          *
+         *     Removing the stored cover of a manual album promotes its first remaining
+         *     member, or clears the cover when the album is empty. An explicit cover
+         *     outside the album is not affected by a request to remove a non-member.
+         *
          *     A no-op for smart albums: ``album_photos`` carries no rows for them (their
          *     membership is resolved live from ``smart_filter_json``), so there is
          *     nothing to remove — and the removed photos would typically still be

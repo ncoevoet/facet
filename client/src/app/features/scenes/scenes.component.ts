@@ -1,6 +1,8 @@
-import { Component, inject, signal, computed, OnInit, HostListener, ChangeDetectionStrategy } from '@angular/core';
+import { Component, DestroyRef, inject, signal, computed, OnInit, HostListener, ChangeDetectionStrategy } from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { ActivatedRoute, Router } from '@angular/router';
 import { NgClass } from '@angular/common';
+import { HttpContext } from '@angular/common/http';
 import { MatIconModule } from '@angular/material/icon';
 import { MatButtonModule } from '@angular/material/button';
 import { MatCardModule } from '@angular/material/card';
@@ -11,6 +13,8 @@ import { MatTooltipModule } from '@angular/material/tooltip';
 import { MatSnackBar } from '@angular/material/snack-bar';
 import { firstValueFrom } from 'rxjs';
 import { ApiService } from '../../core/services/api.service';
+import { HANDLE_SERVER_ERROR_LOCALLY } from '../../core/utils/http-error-context';
+import { LatestRequest } from '../../shared/utils/latest-request';
 import { registerPageContext } from '../../core/agent/page-context.service';
 import { AlbumService, Album } from '../../core/services/album.service';
 import { AuthService } from '../../core/services/auth.service';
@@ -107,7 +111,14 @@ interface ScenesResponse {
       </div>
       <p class="text-sm text-[var(--mat-sys-on-surface-variant)] mb-4">{{ I18N.scenes.subtitle | translate }}</p>
 
-      @if (loading() && scenes().length === 0) {
+      @if (firstPageLoadFailed()) {
+        <div class="flex flex-wrap justify-center items-center gap-2 py-10">
+          <p role="alert" class="m-0">{{ I18N.scenes.load_error | translate }}</p>
+          <button mat-button data-scenes-retry [attr.aria-disabled]="loading()" (click)="retryInitialLoad()">
+            {{ (loading() ? I18N.ui.labels.loading : I18N.gallery.load_error.retry) | translate }}
+          </button>
+        </div>
+      } @else if (loading() && scenes().length === 0) {
         <div class="flex justify-center py-10"><mat-spinner diameter="32" [attr.aria-label]="I18N.ui.labels.loading | translate" /></div>
       } @else if (scenes().length === 0) {
         <div class="text-[var(--mat-sys-on-surface-variant)] py-10 text-center">{{ I18N.scenes.empty | translate }}</div>
@@ -167,6 +178,8 @@ export class ScenesComponent implements OnInit {
   private readonly snack = inject(MatSnackBar);
   private readonly i18n = inject(I18nService);
   private readonly route = inject(ActivatedRoute);
+  private readonly destroyRef = inject(DestroyRef);
+  private readonly loads = new LatestRequest(this.destroyRef);
   private readonly router = inject(Router);
   private readonly albumService = inject(AlbumService);
   protected readonly auth = inject(AuthService);
@@ -174,6 +187,7 @@ export class ScenesComponent implements OnInit {
 
   protected readonly scenes = signal<Scene[]>([]);
   protected readonly loading = signal(true);
+  protected readonly firstPageLoadFailed = signal(false);
   protected readonly total = signal(0);
   protected readonly hasMore = signal(false);
   // Optional album scope from /scenes?album=ID.
@@ -193,9 +207,6 @@ export class ScenesComponent implements OnInit {
 
   private page = 1;
   private readonly perPage = 20;
-  // Bumped on every load() so a slow in-flight request can't append its scenes
-  // after the scope changed (fast album switching / ngOnInit race).
-  private loadGeneration = 0;
 
   constructor() {
     registerPageContext('scenes', () => ({ album_id: this.albumId(), total: this.total() }));
@@ -203,6 +214,17 @@ export class ScenesComponent implements OnInit {
 
   async ngOnInit(): Promise<void> {
     this.albumId.set(this.route.snapshot.queryParamMap.get('album'));
+    this.route.queryParamMap.pipe(takeUntilDestroyed(this.destroyRef)).subscribe(params => {
+      const id = params.get('album');
+      if (id === this.albumId()) return;
+      this.albumId.set(id);
+      this.page = 1;
+      this.firstPageLoadFailed.set(false);
+      this.scenes.set([]);
+      this.total.set(0);
+      this.hasMore.set(false);
+      void this.load();
+    });
     void this.loadAlbums();
     await this.load();
   }
@@ -218,11 +240,8 @@ export class ScenesComponent implements OnInit {
   /** Re-scope the scenes feed to an album (or the whole library when null). */
   protected async selectAlbum(id: string | null): Promise<void> {
     if (id === this.albumId()) return;
-    this.albumId.set(id);
-    void this.router.navigate(['/scenes'], { queryParams: { album: id ?? null } });
-    this.page = 1;
-    this.scenes.set([]);
-    await this.load();
+    // All scopes are driven by the committed route, including Back/Forward.
+    await this.router.navigate(['/scenes'], { queryParams: { album: id } });
   }
 
   @HostListener('document:keydown.z', ['$event'])
@@ -231,7 +250,7 @@ export class ScenesComponent implements OnInit {
   }
 
   private async load(): Promise<void> {
-    const gen = ++this.loadGeneration;
+    const req = this.loads.begin();
     const page = this.page;
     this.loading.set(true);
     try {
@@ -239,21 +258,31 @@ export class ScenesComponent implements OnInit {
       const album = this.albumId();
       if (album) params['album_id'] = album;
       const data = await firstValueFrom(
-        this.api.get<ScenesResponse>('/scenes', params),
+        req.bind(this.api.get<ScenesResponse>('/scenes', params, new HttpContext().set(HANDLE_SERVER_ERROR_LOCALLY, true))),
       );
-      if (gen !== this.loadGeneration) return;
+      if (!req.isCurrent()) return;
+      this.firstPageLoadFailed.set(false);
       this.scenes.update(s => [...s, ...data.scenes]);
       this.total.set(data.total);
       this.hasMore.set(this.page < data.total_pages);
     } catch {
-      if (gen !== this.loadGeneration) return;
+      if (!req.isCurrent()) return;
       // Give the page back: loadMore already incremented it, and a failed
       // append must be refetched, not skipped.
-      if (page > 1) this.page = page - 1;
-      this.snack.open(this.i18n.t(I18N.scenes.load_error), this.i18n.t(I18N.common.dismiss), { duration: 3000 });
+      if (page > 1) {
+        this.page = page - 1;
+        this.snack.open(this.i18n.t(I18N.scenes.load_error), this.i18n.t(I18N.common.dismiss), { duration: 3000 });
+      } else {
+        this.firstPageLoadFailed.set(true);
+      }
     } finally {
-      if (gen === this.loadGeneration) this.loading.set(false);
+      if (req.isCurrent()) this.loading.set(false);
     }
+  }
+
+  protected async retryInitialLoad(): Promise<void> {
+    if (this.loading() || !this.firstPageLoadFailed()) return;
+    await this.load();
   }
 
   protected async loadMore(): Promise<void> {

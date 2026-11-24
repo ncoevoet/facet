@@ -74,17 +74,6 @@ interface FacePress {
   changeDetection: ChangeDetectionStrategy.Eager,
   host: { class: 'contents' },
   template: `
-    @if (loadFailed() && mode() !== 'off') {
-      <div role="alert" class="absolute inset-x-0 top-2 z-10 flex justify-center">
-        <button
-          type="button"
-          class="pointer-events-auto flex items-center gap-1 rounded-full bg-[var(--mat-sys-error-container)] px-3 py-1 text-xs text-[var(--mat-sys-on-error-container)]"
-          (click)="load()">
-          {{ I18N.errors.server_error | translate }}
-          <span class="underline">{{ I18N.gallery.load_error.retry | translate }}</span>
-        </button>
-      </div>
-    }
     @if (viewBox(); as vb) {
       <svg
         class="absolute inset-0 w-full h-full pointer-events-none"
@@ -182,7 +171,8 @@ export class PhotoFaceLayerComponent {
 
   private readonly menu = viewChild.required(PersonFaceMenuComponent);
   private readonly rows = signal<PhotoFaceRow[]>([]);
-  protected readonly loadFailed = signal(false);
+  private readonly loadFailed = signal(false);
+  readonly canRetry = computed(() => this.loadFailed() && this.mode() !== 'off');
   private press: FacePress | null = null;
   private pendingOpen: ReturnType<typeof setTimeout> | null = null;
 
@@ -236,7 +226,11 @@ export class PhotoFaceLayerComponent {
 
   private shownPath = '';
 
-  async load(path: string = this.path()): Promise<void> {
+  retry(): Promise<void> {
+    return this.load(this.path());
+  }
+
+  private async load(path: string): Promise<void> {
     const token = ++this.generation;
     // A reread of the same photo (after an edit, or Retry) keeps the boxes
     // until it lands; only a new photo blanks the previous one's.
@@ -322,7 +316,7 @@ export class PhotoFaceLayerComponent {
   }
 
   protected async afterChange(): Promise<void> {
-    await this.load();
+    await this.load(this.path());
     this.changed.emit();
   }
 }

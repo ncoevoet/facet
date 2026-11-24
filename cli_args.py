@@ -116,8 +116,9 @@ Configuration:
                         help=f'Number of sample photos to score in scan dry-run mode (default: '
                              f'{DEFAULT_DRY_RUN_COUNT}, requires --dry-run; does not limit sidecar-import preview)')
     scan_group.add_argument('--resume', action='store_true',
-                        help='Resume the last interrupted/failed scan run (reuses its directories; '
-                             'with --force, skips files already re-scored since that run started)')
+                        help='Resume an interrupted/failed scan run (without paths, use the latest run '
+                             'with reusable directories; with --force, skip files already re-scored since '
+                             'that run started)')
     from processing.scan_retry import retry_scope
     scan_group.add_argument('--retry-failed', nargs='?', const='last', type=retry_scope, metavar='last|all|RUN_ID',
                         help='Re-process failed files from the last run, all runs, or an exact run ID; '

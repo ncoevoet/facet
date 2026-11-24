@@ -97,8 +97,8 @@ def run_watch_loop(directories, db_path, config_path=None, debounce_seconds=30,
     """Re-scan whenever directory contents settle, until Ctrl+C or a give-up.
 
     Returns True when the user stopped watching (Ctrl+C) and False when
-    MAX_CONSECUTIVE_FAILURES consecutive scans failed, so the caller can exit
-    non-zero on the give-up.
+    MAX_CONSECUTIVE_FAILURES consecutive scans failed or no directory watch
+    remains live, so the caller can exit non-zero on the give-up.
 
     Args:
         directories: Directories to watch (recursive)
@@ -135,21 +135,38 @@ def run_watch_loop(directories, db_path, config_path=None, debounce_seconds=30,
             if not event.is_directory:
                 pending.add(event.src_path)
 
-    def _start_observer(observer_cls):
-        observer = observer_cls()
-        for directory in directories:
-            observer.schedule(_Handler(), directory, recursive=True)
-        observer.start()
-        return observer
+    # Start the dispatcher empty. Scheduling on a running dispatcher starts
+    # just that root's emitter, so a missing root cannot discard healthy watches.
+    backends = {}
+    active_watches = {}
 
-    try:
-        observer = _start_observer(Observer)
-        logger.info("Watching %d directories (inotify)", len(directories))
-    except OSError as e:
-        # inotify limits or network mounts (NAS) - fall back to polling
-        logger.warning("Native observer failed (%s), falling back to polling", e)
-        observer = _start_observer(PollingObserver)
-        logger.info("Watching %d directories (polling)", len(directories))
+    def _watch_root(observer_cls, directory: str):
+        if observer_cls not in backends:
+            try:
+                observer = observer_cls()
+                observer.start()
+            except OSError as exc:
+                backends[observer_cls] = exc
+            else:
+                backends[observer_cls] = observer
+        observer = backends[observer_cls]
+        if isinstance(observer, OSError):
+            raise observer
+        watch = observer.schedule(_Handler(), directory, recursive=True)
+        # Keep the emitter itself. The dispatch thread can outlive every emitter
+        # and a path can reappear without resurrecting the old watch.
+        emitter = next(e for e in observer.emitters if e.watch == watch)
+        return observer, emitter
+
+    def _has_live_watches() -> bool:
+        for directory, (observer, emitter) in list(active_watches.items()):
+            if not observer.is_alive() or not emitter.is_alive():
+                del active_watches[directory]
+                logger.warning("Lost watch for %s; restart watch mode to monitor it again.", directory)
+        if active_watches:
+            return True
+        logger.error("Stopping watch mode: no live directory watches remain.")
+        return False
 
     cmd = _build_scan_command(directories, db_path, config_path, extra_scan_args)
     initial_cmd = cmd + list(initial_scan_args or ())
@@ -185,6 +202,18 @@ def run_watch_loop(directories, db_path, config_path=None, debounce_seconds=30,
     gave_up = False
     initial_retry_at: float | None = None
     try:
+        for directory in dict.fromkeys(directories):
+            try:
+                active_watches[directory] = _watch_root(Observer, directory)
+            except OSError as exc:
+                logger.warning("Native observer failed for %s (%s), falling back to polling", directory, exc)
+                try:
+                    active_watches[directory] = _watch_root(PollingObserver, directory)
+                except OSError as poll_exc:
+                    logger.error("Cannot watch %s: %s", directory, poll_exc)
+        if not _has_live_watches():
+            return False
+        logger.info("Watching %d of %d directories", len(active_watches), len(set(directories)))
         if initial_scan:
             # A failing initial scan counts as the streak's first failure, so a
             # broken install cannot watch forever while every scan crashes.
@@ -197,6 +226,9 @@ def run_watch_loop(directories, db_path, config_path=None, debounce_seconds=30,
                     "(Ctrl+C to stop)", debounce_seconds)
         while True:
             time.sleep(1)
+            if not _has_live_watches():
+                gave_up = True
+                break
             if initial_retry_at is not None:
                 if time.monotonic() < initial_retry_at:
                     continue
@@ -238,6 +270,9 @@ def run_watch_loop(directories, db_path, config_path=None, debounce_seconds=30,
     except KeyboardInterrupt:
         logger.info("Watch mode stopped.")
     finally:
-        observer.stop()
-        observer.join(timeout=5)
+        observers = [o for o in backends.values() if not isinstance(o, OSError)]
+        for observer in observers:
+            observer.stop()
+        for observer in observers:
+            observer.join(timeout=5)
     return not gave_up

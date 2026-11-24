@@ -318,6 +318,7 @@ export class HistogramComponent {
   // callbacks cannot replace the current photo's recovered curves.
   private generation = 0;
   private storedSubscription: Subscription | null = null;
+  private pendingSample: { url: string; token: number } | null = null;
 
   constructor() {
     this.destroyRef.onDestroy(() => { this.destroyed = true; });
@@ -432,16 +433,26 @@ export class HistogramComponent {
   }
 
   private sample(url: string, token: number): void {
+    // All channel modes can use the same thumbnail pixels. A switch while
+    // they are loading must not race another Image for this generation.
+    if (this.pendingSample?.url === url && this.pendingSample.token === token) return;
+    const attempt = { url, token };
+    this.pendingSample = attempt;
+    const finish = (): boolean => {
+      if (this.destroyed || token !== this.generation || this.pendingSample !== attempt) return false;
+      this.pendingSample = null;
+      return true;
+    };
     this.lastSampleUrl = url;
     this.sampleFailed.set(false);
     const img = new Image();
     img.decoding = 'async';
     img.onerror = () => {
-      if (this.destroyed || token !== this.generation) return;
+      if (!finish()) return;
       this.sampleFailed.set(true);
     };
     img.onload = () => {
-      if (this.destroyed || token !== this.generation) return;
+      if (!finish()) return;
       try {
         const naturalWidth = img.naturalWidth || SAMPLE_MAX_EDGE;
         const scale = Math.min(1, SAMPLE_MAX_EDGE / naturalWidth);

@@ -45,6 +45,15 @@ interface MapResponse {
   photos?: MapPhoto[];
 }
 
+/** Preserve both +180 and -180 GPS encodings at an inclusive viewport edge. */
+function requestLongitude(lng: number, seam: 180 | -180): number {
+  const wrapped = lng % 360;
+  if (Math.abs(wrapped) === 180) return seam;
+  if (wrapped < -180) return wrapped + 360;
+  if (wrapped > 180) return wrapped - 360;
+  return wrapped;
+}
+
 
 @Component({
   selector: 'app-map',
@@ -328,12 +337,22 @@ export class MapComponent implements OnInit, OnDestroy {
 
     const bounds = this.map.getBounds();
     const zoom = this.map.getZoom();
+    const { lat: south, lng: west } = bounds.getSouthWest();
+    const { lat: north, lng: east } = bounds.getNorthEast();
+    // Leaflet's viewport can span several copies of the world, but stored GPS
+    // coordinates are canonical. Only a sub-world view should wrap into a
+    // west > east interval (the API's antimeridian convention).
+    const width = east - west;
+    const coversWorld = width >= 360;
     const boundsStr = [
-      bounds.getSouthWest().lat,
-      bounds.getSouthWest().lng,
-      bounds.getNorthEast().lat,
-      bounds.getNorthEast().lng,
+      south,
+      coversWorld ? -180 : requestLongitude(west, 180),
+      north,
+      coversWorld ? 180 : requestLongitude(east, -180),
     ].join(',');
+    // Leaflet does not wrap marker coordinates when projecting them to pixels.
+    const centerLng = west + width / 2;
+    const visibleLongitude = (lng: number) => lng + 360 * Math.round((centerLng - lng) / 360);
 
     this.loading.set(true);
 
@@ -357,7 +376,7 @@ export class MapComponent implements OnInit, OnDestroy {
       if (data.clusters) {
         for (const cluster of data.clusters) {
           const radius = Math.min(40, Math.max(14, 10 + Math.log2(cluster.count) * 5));
-          const marker = L.circleMarker([cluster.lat, cluster.lng], {
+          const marker = L.circleMarker([cluster.lat, visibleLongitude(cluster.lng)], {
             radius,
             fillColor: '#3b82f6',
             color: '#1d4ed8',
@@ -391,7 +410,7 @@ export class MapComponent implements OnInit, OnDestroy {
 
       if (data.photos) {
         for (const photo of data.photos) {
-          const marker = L.marker([photo.lat, photo.lng]);
+          const marker = L.marker([photo.lat, visibleLongitude(photo.lng)]);
 
           const thumbUrl = this.escapeHtml(this.api.thumbnailUrl(photo.path, 160, photo.preview_revision));
           const score = photo.aggregate != null ? photo.aggregate.toFixed(1) : '--';

@@ -603,7 +603,7 @@ Beim Speichern, Bearbeiten oder Entfernen eines manuellen Gesichts werden die Ge
 
 Die veraltete Einstellung `viewer.performance.face_cache_size` wird ignoriert und kann entfernt werden.
 
-**Objekte.** Derselbe Editor kann stattdessen ein Objekt markieren: **Objekt** wählen, das Rechteck ziehen, eine Bezeichnung eingeben (zum Beispiel „Geburtstagstorte“) und speichern. Objekte erscheinen als blaue, beschriftete Rechtecke auf dem Foto, die Galeriesuche findet sie über die Bezeichnung, und Assistenten können sie lesen (`GET /api/photo/objects` oder das Feld `objects` des Tools `get_photo`), um zu wissen, welcher Bereich gemeint ist. Markierungen zeichnen immer Sie selbst, sie werden nie automatisch erkannt: Sie zeigen einem Assistenten, wo er handeln soll, zum Beispiel ein Rechteck mit der Bezeichnung „entfernen“ um eine von drei Flaschen auf einem Foto. Ein Objekt ist nie ein Gesicht: Es berührt weder Erkennung, Clustering, Personen noch Gesichtswertungen.
+**Objekte.** Derselbe Editor kann stattdessen ein Objekt markieren: **Objekt** wählen, das Rechteck ziehen, eine Bezeichnung eingeben (zum Beispiel „Geburtstagstorte“) und speichern. Objekte erscheinen als blaue, beschriftete Rechtecke auf dem Foto, die Galeriesuche findet sie über die Bezeichnung, und Assistenten können sie lesen (`GET /api/photo/objects` oder das Feld `objects` des Tools `get_photo`), um zu wissen, welcher Bereich gemeint ist. Markierungen zeichnen immer Sie selbst, sie werden nie automatisch erkannt: Sie zeigen einem Assistenten, wo er handeln soll, zum Beispiel ein Rechteck mit der Bezeichnung „entfernen“ um eine von drei Flaschen auf einem Foto. Ein Objekt ist nie ein Gesicht: Es berührt weder Erkennung, Clustering, Personen noch Gesichtswertungen. Lassen sich die Einblendungen für Gesichter und Objekte nicht laden, hat jede eine eigene beschriftete Schaltfläche auf dem Foto. Laden Sie eine Einblendung erneut, bleibt die andere unverändert. Sind die Gesichtsrahmen auf **Aus** gestellt, wird die Schaltfläche für Gesichter ausgeblendet.
 
 ## Scan auslösen
 
@@ -672,7 +672,7 @@ Ein Album kann einen Bewertungskontext tragen, der unabhängig von der globalen 
 - Fotos, die später zu einem manuellen Album hinzukommen, erben den Kontext. Neue Treffer eines intelligenten Albums nicht; legen Sie den Kontext erneut fest.
 - **Kontext löschen** (nicht dasselbe wie die Wahl von `default`) entfernt den Stempel. Ein Foto, das noch in einem anderen Album mit Kontext liegt, erhält stattdessen diesen Kontext.
 - Facet kann einen Kontext anhand des vorherrschenden narrativen Moments des Albums vorschlagen (über `suggest_from_moments` jedes Kontexts). Es schreibt nichts, bis Sie bestätigen.
-- Führen Sie eine Neuberechnung aus (`POST /api/scan/recompute`), damit der neue Kontext gespeicherte Kategorien ändert.
+- Führen Sie eine Neuberechnung aus (`POST /api/scan/recompute`), damit der neue Kontext gespeicherte Kategorien ändert. Beim Schließen des Dialogs werden die Fortschrittsabfragen beendet, nicht die Neuberechnung auf dem Server.
 
 Endpunkte und Antwortzähler: [API.md](../API.md#albums).
 
@@ -690,7 +690,7 @@ Siehe [Konfiguration des Portfolio-Exports](CONFIGURATION.md#portfolio-export). 
 
 ### Fotofreigabe
 
-Geben Sie Alben über tokenisierte Links frei. Das Ansehen eines freigegebenen Albums erfordert keine Anmeldung.
+Geben Sie Alben über tokenisierte Links frei. Das Ansehen eines freigegebenen Albums erfordert keine Anmeldung. Wenn der Browser das Kopieren verweigert, meldet der Dialog den Fehler und zeigt den Link weiterhin zum manuellen Kopieren an.
 
 | Aktion | Vorgehen |
 |--------|--------|
@@ -875,7 +875,7 @@ Klicken Sie auf eine Kapselkarte, um eine Diashow zu starten:
 
 ### Aktualität
 
-Kapseln rotieren nach einem Zeitplan (Standard: 24 Stunden). **Neu erzeugen** in der Kopfzeile aktualisiert sie sofort.
+Kapseln rotieren nach einem Zeitplan (Standard: 24 Stunden). **Neu erzeugen** in der Kopfzeile aktualisiert sie sofort. Öffnen Sie eine Kapsel erneut, um die aktualisierte Fotoauswahl abzuspielen.
 
 ### Umgekehrte Geocodierung
 
@@ -1105,6 +1105,7 @@ Eine **schreibgeschützte** Ansicht der Bibliothek als chronologische Szenen, in
 
 - Eine neue Szene beginnt, wenn mehr als `scenes.gap_minutes` zwischen Aufnahmen liegen (bei spärlichen Shootings erweitert). Sehr lange Abschnitte werden geteilt.
 - Öffnen Sie **Szenen** in der Hauptnavigation für die ganze Bibliothek oder die Aktion **Szenen dieses Albums anzeigen** im Albumraster; eine Auswahl wechselt zwischen Alben. Der Navigationseintrag folgt `viewer.features.show_scenes`.
+- Die Browser-Schaltflächen „Zurück“ und „Vor“ stellen das ausgewählte Album wieder her. Kann die erste Seite nicht geladen werden, laden Sie sie mit **Erneut versuchen** noch einmal, ohne das Album zu wechseln.
 - Jede Szene hat eine nur für Edition verfügbare Schaltfläche **Diese Szene aussortieren**, die [Auswahl](#auswahl) für diese Szene öffnet (`/culling?group_by=scene&album=&from=&to=`). Sind alle Gruppen der Szene bestätigt, wechselt die Auswahl zur nächsten Szene dieser Liste und nennt sie; nach der letzten kehrt sie hierher zurück. Schlägt eine Bestätigung fehl, bleibt sie auf der Szene.
 - Sind narrative Momente berechnet, trägt jede Szene den Titel ihres wichtigsten Moments, und `scenes.split_on_moment_change` kann einen Abschnitt teilen, wo der Moment wechselt.
 - Szenen kleiner als `scenes.min_size` werden ausgelassen; es werden höchstens `scenes.max_photos` Fotos geladen.
@@ -1194,7 +1195,7 @@ Kategorien werden in aufsteigender `priority`-Reihenfolge geprüft; die erste Ü
 - **Globale Priorität** — die Basis-Auswertungsreihenfolge umordnen.
 - **Bewertungskontexte** — Voreinstellungen (`default`, `action_stage`, `party_event`, `portrait_session`, `wildlife`, `landscape`, `motorsport`), die einige Kategorien vorziehen und andere ausschließen, ohne die globale Reihenfolge zu ändern. Bearbeiten Sie jede Voreinstellung außer `default` im Tab **Bewertungskontext**: Ziehen Sie die vorgezogenen Kategorien (oder verschieben Sie sie nach oben/unten), schalten Sie Ausschlüsse um, speichern Sie. Eine in beiden aufgeführte Kategorie gilt als ausgeschlossen. `label_key` und `suggest_from_moments` sind hier nicht bearbeitbar. Weisen Sie einen Kontext pro Album (siehe [Bewertungskontext](#bewertungskontext)) oder pro Foto (unten) zu.
 
-Keines von beiden bewertet Fotos von selbst neu. Führen Sie danach eine Neuberechnung aus (`POST /api/scan/recompute`) und beobachten Sie `GET /api/scan/recompute_status`. Ein bereits laufender Scan oder eine Neuberechnung aus einem Terminal blockiert einen neuen aus dem Viewer. Bei aktivem `normalization.per_category` konvergiert eine Neuberechnung womöglich nicht vollständig — siehe [Normalisierung](CONFIGURATION.md#normalization) und [Die globale Priorität umordnen](CONFIGURATION.md#die-globale-priorität-neu-ordnen).
+Keines von beiden bewertet Fotos von selbst neu. Führen Sie danach eine Neuberechnung aus (`POST /api/scan/recompute`) und beobachten Sie `GET /api/scan/recompute_status`. Beim Verlassen der Ansicht werden die Fortschrittsabfragen beendet, nicht die Neuberechnung auf dem Server. Ein bereits laufender Scan oder eine Neuberechnung aus einem Terminal blockiert einen neuen aus dem Viewer. Bei aktivem `normalization.per_category` konvergiert eine Neuberechnung womöglich nicht vollständig — siehe [Normalisierung](CONFIGURATION.md#normalization) und [Die globale Priorität umordnen](CONFIGURATION.md#die-globale-priorität-neu-ordnen).
 
 **Kategoriekollisionen** (`GET /api/stats/categories/overlap`) zeigt, welche Kategorie höherer Priorität die Fotos einer Kategorie an sich zieht. Pro Kategorie listet es **Zugewiesen**, **Passt zu Filtern** (bei alleiniger Auswertung) und **Von höherer Priorität erfasst** (`matched - assigned`, mindestens 0). **Häufigste kollidierende Paare** ordnet Kategorien nach gemeinsamen Fotos. Der Auffangwert `default` bleibt außen vor, da er alles trifft.
 

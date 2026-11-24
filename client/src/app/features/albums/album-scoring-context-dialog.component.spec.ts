@@ -1,5 +1,5 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
-import { Observable, of, throwError } from 'rxjs';
+import { Observable, Subject, of, throwError } from 'rxjs';
 import { HttpErrorResponse } from '@angular/common/http';
 import { MAT_DIALOG_DATA, MatDialogRef } from '@angular/material/dialog';
 import { MatSnackBar } from '@angular/material/snack-bar';
@@ -269,6 +269,90 @@ describe('AlbumScoringContextDialogComponent', () => {
     expect(component.phase()).toBe('recompute_done');
   });
 
+  it('does not begin polling if the recompute POST finishes after destruction', async () => {
+    build();
+    await component.ngOnInit();
+    await component.save();
+    vi.useFakeTimers();
+    try {
+      const ack = new Subject<{ success: boolean }>();
+      post.mockReturnValue(ack);
+      get.mockClear();
+
+      const start = component.recompute();
+      expect(post).toHaveBeenCalledExactlyOnceWith('/scan/recompute', { confirm: true });
+      fixture.destroy();
+      expect(ack.observed).toBe(true); // Don't cancel the server job's start request.
+      ack.next({ success: true });
+      await start;
+      await vi.advanceTimersByTimeAsync(4000);
+
+      expect(get).not.toHaveBeenCalledWith('/scan/recompute_status');
+    } finally {
+      vi.clearAllTimers();
+      vi.useRealTimers();
+    }
+  });
+
+  it.each(['responds', 'times out'] as const)('skips polling ticks until a recompute status read %s', async outcome => {
+    build();
+    await component.ngOnInit();
+    await component.save();
+    vi.useFakeTimers();
+    try {
+      const first = new Subject<unknown>();
+      const terminal = { running: false, kind: 'recompute', progress: null, exit_code: 0 };
+      get.mockClear().mockReturnValueOnce(first).mockReturnValue(of(terminal));
+
+      await component.recompute();
+      await vi.advanceTimersByTimeAsync(4000);
+      expect(get).toHaveBeenCalledExactlyOnceWith('/scan/recompute_status');
+
+      if (outcome === 'responds') {
+        first.next({ ...terminal, running: true, exit_code: null });
+        await vi.advanceTimersByTimeAsync(2000);
+      } else {
+        // The hung read must release its slot so the next poll can recover.
+        await vi.advanceTimersByTimeAsync(13_000);
+        expect(first.observed).toBe(false);
+      }
+      expect(get).toHaveBeenCalledTimes(2);
+      expect(component.phase()).toBe('recompute_done');
+      await vi.advanceTimersByTimeAsync(4000);
+      expect(get).toHaveBeenCalledTimes(2);
+    } finally {
+      fixture.destroy();
+      vi.clearAllTimers();
+      vi.useRealTimers();
+    }
+  });
+
+  it.each(['before', 'after'] as const)('ignores a status received %s the view is destroyed in the same turn', async received => {
+    build();
+    await component.ngOnInit();
+    await component.save();
+    vi.useFakeTimers();
+    try {
+      const pending = new Subject<unknown>();
+      get.mockClear().mockReturnValue(pending);
+      await component.recompute();
+      expect(pending.observed).toBe(true);
+
+      const terminal = { running: false, kind: 'recompute', progress: null, exit_code: 0 };
+      if (received === 'before') pending.next(terminal);
+      fixture.destroy();
+      expect(pending.observed).toBe(false);
+      if (received === 'after') pending.next(terminal);
+      await vi.advanceTimersByTimeAsync(4000);
+
+      expect(component.phase()).toBe('recomputing');
+      expect(get).toHaveBeenCalledExactlyOnceWith('/scan/recompute_status');
+    } finally {
+      vi.clearAllTimers();
+      vi.useRealTimers();
+    }
+  });
+
   it('a single failed poll keeps the recompute running; recovery lands recompute_done', async () => {
     // The recompute POST succeeds; the status polls then fail twice and
     // recover. One transient failure must not declare a minutes-long
@@ -284,17 +368,19 @@ describe('AlbumScoringContextDialogComponent', () => {
     await component.ngOnInit();
     await component.save();
 
-    const poll = () => (component as unknown as { pollRecomputeStatus(): Promise<void> }).pollRecomputeStatus();
-    const failures = () => (component as unknown as { pollFailures: number }).pollFailures;
-    await component.recompute();
-    console.log('DBG-A failures=', failures(), 'phase=', component.phase());
-    await poll();  // failure 2: still holding on (internal poll was failure 1)
-    console.log('DBG-B failures=', failures(), 'phase=', component.phase());
-    expect(component.phase()).toBe('recomputing');
+    vi.useFakeTimers();
+    try {
+      get.mockClear();
+      await component.recompute();
+      await vi.advanceTimersByTimeAsync(2000);
+      expect(get).toHaveBeenCalledTimes(2);
+      expect(component.phase()).toBe('recomputing');
 
-    failStatusPolls = false;
-    await poll();  // recovery: done
-    expect(component.phase()).toBe('recompute_done');
+      failStatusPolls = false;
+      await vi.advanceTimersByTimeAsync(2000);
+      expect(get).toHaveBeenCalledTimes(3);
+      expect(component.phase()).toBe('recompute_done');
+    } finally { vi.useRealTimers(); }
   });
 
   it('three consecutive poll failures declare the recompute failed', async () => {
@@ -306,15 +392,16 @@ describe('AlbumScoringContextDialogComponent', () => {
     await component.ngOnInit();
     await component.save();
 
-    const poll = () => (component as unknown as { pollRecomputeStatus(): Promise<void> }).pollRecomputeStatus();
-    const stop = () => (component as unknown as { stopPolling(): void }).stopPolling();
-    await component.recompute();
-    stop();  // detach the real interval; drive the counter deterministically
-    await poll();
-    await poll();
-    await poll();
-
-    expect(component.phase()).toBe('recompute_error');
+    vi.useFakeTimers();
+    try {
+      get.mockClear();
+      await component.recompute();
+      await vi.advanceTimersByTimeAsync(4000);
+      expect(get).toHaveBeenCalledTimes(3);
+      expect(component.phase()).toBe('recompute_error');
+      await vi.advanceTimersByTimeAsync(4000);
+      expect(get).toHaveBeenCalledTimes(3);
+    } finally { vi.useRealTimers(); }
   });
 
   it('recompute() surfaces a busy error on 409 without leaving the saved phase', async () => {

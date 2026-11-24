@@ -12,6 +12,7 @@ import { ApiService } from '../../core/services/api.service';
 import { I18nService } from '../../core/services/i18n.service';
 import { AlbumService, AlbumScoringContextResult, AlbumSuggestedContext } from '../../core/services/album.service';
 import { TranslatePipe } from '../../shared/pipes/translate.pipe';
+import { RecomputePoller } from '../../shared/utils/recompute-poller';
 import { ScoringContextLabelPipe, resolveScoringContextLabel } from '../../shared/pipes/scoring-context-label.pipe';
 
 export interface AlbumScoringContextDialogData {
@@ -196,12 +197,15 @@ export class AlbumScoringContextDialogComponent implements OnInit {
     return Math.round(((p.current ?? 0) / p.total) * 100);
   });
 
-  private pollTimer: ReturnType<typeof setInterval> | null = null;
-  private pollFailures = 0;
-
-  constructor() {
-    this.destroyRef.onDestroy(() => this.stopPolling());
-  }
+  private readonly recomputePoller = new RecomputePoller<RecomputeStatusResponse>(this.api, this.destroyRef, {
+    intervalMs: 2000,
+    maxFailures: 3,
+    onStatus: status => {
+      this.recomputeProgress.set(status.progress);
+      if (!status.running) this.phase.set(status.exit_code === 0 ? 'recompute_done' : 'recompute_error');
+    },
+    onGiveUp: () => this.phase.set('recompute_error'),
+  });
 
   async ngOnInit(): Promise<void> {
     this.loading.set(true);
@@ -271,45 +275,20 @@ export class AlbumScoringContextDialogComponent implements OnInit {
   }
 
   protected async recompute(): Promise<void> {
-    if (this.phase() !== 'saved') return;
+    if (this.destroyRef.destroyed || this.phase() !== 'saved') return;
     this.phase.set('recomputing');
     this.recomputeError.set(null);
     try {
       await firstValueFrom(this.api.post('/scan/recompute', { confirm: true }));
     } catch (err: unknown) {
+      if (this.destroyRef.destroyed) return;
       this.phase.set('saved');
       this.recomputeError.set(err instanceof HttpErrorResponse && err.status === 409 ? 'busy' : 'failed');
       return;
     }
-    this.pollFailures = 0;
-    this.pollTimer = setInterval(() => this.pollRecomputeStatus(), 2000);
-    this.pollRecomputeStatus();
-  }
-
-  private async pollRecomputeStatus(): Promise<void> {
-    try {
-      const status = await firstValueFrom(this.api.get<RecomputeStatusResponse>('/scan/recompute_status'));
-      // A success re-arms the failure counter: one transient poll failure must
-      // not declare a minutes-long recompute failed; only three in a row do.
-      this.pollFailures = 0;
-      this.recomputeProgress.set(status.progress);
-      if (!status.running) {
-        this.stopPolling();
-        this.phase.set(status.exit_code === 0 ? 'recompute_done' : 'recompute_error');
-      }
-    } catch {
-      this.pollFailures++;
-      if (this.pollFailures < 3) return;
-      this.stopPolling();
-      this.phase.set('recompute_error');
-    }
-  }
-
-  private stopPolling(): void {
-    if (this.pollTimer !== null) {
-      clearInterval(this.pollTimer);
-      this.pollTimer = null;
-    }
+    // Closing this view does not cancel the server job's start request.
+    if (this.destroyRef.destroyed) return;
+    this.recomputePoller.start();
   }
 
   protected close(): void {

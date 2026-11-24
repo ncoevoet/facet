@@ -358,8 +358,8 @@ def _validate_viewer_copy(conn, source_db):
     _check_viewer_foreign_keys(conn, (source_db,))
 
 
-def _rotate_backups(db_path, base_dir, keep):
-    """Delete the oldest backup snapshots, keeping the newest `keep`.
+def _backup_snapshots(db_path, base_dir):
+    """List existing backup snapshots from oldest to newest.
 
     Covers both the current `.backup-<ts>` (dash) and legacy `.backup.<ts>`
     (dot) naming, sorted by mtime so the two timestamp schemes still prune by
@@ -374,11 +374,17 @@ def _rotate_backups(db_path, base_dir, keep):
                 snapshots.append((os.path.getmtime(path), path))
             except FileNotFoundError:
                 pass  # Another completed backup may be rotating concurrently.
-    backups = [path for _, path in sorted(snapshots)]
-    excess = backups[:-keep] if keep > 0 else backups
+    return [path for _, path in sorted(snapshots)]
+
+
+def _rotate_backups(previous, keep):
+    """Remove the oldest entries from the list captured before publication."""
+    excess = previous[:-keep] if keep > 0 else previous
     for old in excess:
         try:
             os.remove(old)
+        except FileNotFoundError:
+            pass  # Another completed backup already removed this snapshot.
         except OSError as ex:
             logger.warning("Could not remove old backup %s: %s", old, ex)
 
@@ -387,12 +393,13 @@ def backup_database(db_path='photo_scores_pro.db', keep=3, dest_dir=None, verbos
     """Write a timestamped, WAL-safe snapshot of the DB before a destructive op.
 
     Uses sqlite3's online backup API, which handles the -wal/-shm sidecars
-    correctly (a naive file copy would not). Old snapshots are rotated, keeping
-    only the newest `keep`.
+    correctly (a naive file copy would not). The fresh snapshot takes one
+    retention slot; older snapshots are rotated by modification time. Overlapping
+    publications can temporarily retain extra snapshots until the next backup.
 
     Args:
         db_path: Path to the source SQLite database.
-        keep: Number of most-recent backups to retain (older ones deleted).
+        keep: Retention target including the snapshot just written.
         dest_dir: Directory for the backup; defaults to the DB's own directory so
             the snapshot lands on the same volume the user already sized for the DB.
         verbose: If True, log the backup path and size.
@@ -432,14 +439,18 @@ def backup_database(db_path='photo_scores_pro.db', keep=3, dest_dir=None, verbos
             # The reserved random suffix prevents same-second collisions; link
             # publishes without ever overwriting an existing completed backup.
             backup_path = backup_base + '-' + Path(staging_path).parent.name.rsplit('-', 1)[-1]
+            # Capture candidates before publishing so this snapshot and
+            # any backups not yet published stay out of this rotation.
+            previous = _backup_snapshots(db_path, base_dir)
+            backup_size = os.path.getsize(staging_path) if verbose else 0
             _publish_new_database(staging_path, backup_path)
     finally:
         src.close()
 
-    _rotate_backups(db_path, base_dir, keep)
+    _rotate_backups(previous, keep - 1)
 
     if verbose:
-        logger.info("Backed up DB to %s (%.1f GB)", backup_path, os.path.getsize(backup_path) / 1e9)
+        logger.info("Backed up DB to %s (%.1f GB)", backup_path, backup_size / 1e9)
     return backup_path
 
 

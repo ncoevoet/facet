@@ -1,4 +1,4 @@
-import { Component, inject, signal, computed, OnInit, ChangeDetectionStrategy } from '@angular/core';
+import { Component, inject, signal, computed, OnInit, DestroyRef, ChangeDetectionStrategy } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { HttpErrorResponse } from '@angular/common/http';
 import { MatButtonModule } from '@angular/material/button';
@@ -330,6 +330,7 @@ export class FindMoreFacesDialogComponent implements OnInit {
   private readonly i18n = inject(I18nService);
   private readonly dialog = inject(MatDialog);
   private readonly faceBoxes = inject(PersonFaceBoxesService);
+  private readonly destroyRef = inject(DestroyRef);
   readonly data: FindMoreFacesDialogData = inject(MAT_DIALOG_DATA);
   readonly dialogRef = inject(MatDialogRef<FindMoreFacesDialogComponent, FindMoreFacesResult>);
 
@@ -461,12 +462,11 @@ export class FindMoreFacesDialogComponent implements OnInit {
     const token = ++this.loadToken;
     this.loading.set(true);
     this.error.set(null);
+    // A previous search's result rows and metadata do not describe the new criteria.
+    this.clearResults();
     try {
       for (;;) {
-        if (this.fallback() === 'year' && !this.year()) {
-          this.clearResults();
-          return;
-        }
+        if (this.fallback() === 'year' && !this.year()) return;
         try {
           const res = await firstValueFrom(
             this.api.get<PossibleFacesResponse>(`/person/${this.data.personId}/possible_faces`, this.params()));
@@ -480,7 +480,6 @@ export class FindMoreFacesDialogComponent implements OnInit {
         } catch (err) {
           if (token !== this.loadToken) return;
           if (!tooManyFaces(err)) {
-            this.clearResults();
             this.error.set(this.errorMessage(err));
             return;
           }
@@ -493,7 +492,6 @@ export class FindMoreFacesDialogComponent implements OnInit {
             void this.loadYears();
             continue;
           }
-          this.clearResults();
           this.error.set(this.i18n.t(I18N.persons.find_more_too_many_unassigned));
           return;
         }
@@ -506,6 +504,10 @@ export class FindMoreFacesDialogComponent implements OnInit {
   private clearResults(): void {
     this.buffer.set([]);
     this.selectedIds.set(new Set());
+    this.counts.set(null);
+    this.bestSimilarity.set(null);
+    this.similarGroups.set([]);
+    this.anchor = null;
   }
 
   /** The library's years, newest first, for the narrowed search's picker. */
@@ -643,7 +645,10 @@ export class FindMoreFacesDialogComponent implements OnInit {
 
   /** Fold a whole look-alike group into this person; a named one is confirmed first. */
   async mergeGroup(group: SimilarGroup): Promise<void> {
-    if (this.busy()) return;
+    const token = this.loadToken;
+    const canMerge = () => !this.destroyRef.destroyed && token === this.loadToken
+      && !this.loading() && !this.busy() && this.groups().some(g => g.person_id === group.person_id);
+    if (!canMerge()) return;
     const name = group.name ?? '';
     if (!isUnnamedPerson(name)) {
       const ref = this.dialog.open(ConfirmDialogComponent, {
@@ -654,7 +659,7 @@ export class FindMoreFacesDialogComponent implements OnInit {
           confirmLabel: this.i18n.t(I18N.persons.find_more_merge_all),
         },
       });
-      if (!(await firstValueFrom(ref.afterClosed()))) return;
+      if (!(await firstValueFrom(ref.afterClosed())) || !canMerge()) return;
     }
     this.busy.set(true);
     this.error.set(null);

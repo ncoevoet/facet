@@ -208,24 +208,44 @@ class ScanJobLifecycle:
         return self.run.finish_job(status)
 
 
-def get_last_resumable_run(db_path, stale_seconds=120):
+def recorded_scan_directories(args_json):
+    """Read a complete list of reusable paths from a saved directory scan."""
+    try:
+        args = json.loads(args_json)
+    except (TypeError, ValueError):
+        return []
+    if not isinstance(args, dict) or 'retry_of' in args:
+        return []
+    paths = args.get('directories')
+    if not isinstance(paths, list) or not all(
+        isinstance(path, str) and path and '\0' not in path for path in paths
+    ):
+        return []
+    return paths
+
+
+def get_last_resumable_run(db_path, stale_seconds=120, *, require_directories=False):
     """Return the most recent resumable run as a dict, or None.
 
     Resumable = an interrupted/failed run (clean exit recorded a status), OR a
     hard-crashed run still marked 'running' whose heartbeat has gone stale
     (SIGKILL/OOM/power-loss never reach finish()). COALESCE falls back to
     started_at for runs that died before their first heartbeat write.
+    With no explicit paths, resume can only use records with reusable paths.
     """
     with get_connection(db_path) as conn:
-        row = conn.execute(
+        rows = conn.execute(
             "SELECT id, started_at, mode, args_json, total_files, processed_files, heartbeat_at, status "
             "FROM scan_runs WHERE status IN ('interrupted', 'failed') "
             "OR (status = 'running' AND finished_at IS NULL "
             "AND COALESCE(heartbeat_at, started_at) < datetime('now', ?)) "
-            "ORDER BY id DESC LIMIT 1",
+            "ORDER BY id DESC",
             (f'-{int(stale_seconds)} seconds',),
-        ).fetchone()
-        return dict(row) if row else None
+        )
+        for row in rows:
+            if not require_directories or recorded_scan_directories(row['args_json']):
+                return dict(row)
+        return None
 
 
 def scan_in_progress(db_path, stale_seconds=120):

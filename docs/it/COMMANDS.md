@@ -33,7 +33,11 @@
 
 **`--resume`** recupera anche una scansione terminata da un crash, da memoria esaurita o da un'interruzione di corrente: un'esecuzione ancora contrassegnata come `running` il cui heartbeat è più vecchio di `processing.scan_stale_seconds` (predefinito 120). Riutilizza le directory di quell'esecuzione. Con `--force`, salta i file già rivalutati dall'inizio dell'esecuzione. Rifiuta di partire se un'altra scansione sembra attiva.
 
+Senza percorsi espliciti, `--resume` ignora le esecuzioni senza directory di scansione riutilizzabili, inclusi i tentativi basati su elenchi di lavoro. Se non resta alcuna scansione di directory da riprendere, specifica le directory oppure usa `--retry-failed` per riprovare sui singoli file.
+
 **Codici di uscita per i supervisori.** `0` significa che la scansione è stata eseguita (o non ha trovato nulla di nuovo); `4` che aveva foto da elaborare e non ne ha salvata nessuna; `5` che non ha mai visto la libreria — ogni radice di scansione è assente o illeggibile (un mount di rete morto), così una scansione pianificata fallisce in modo evidente invece di riportare «nessun nuovo file»; `1` copre anche il crash del thread di scoring a metà passata — le foto che non ha raggiunto sono registrate come fallimenti di scansione; `--retry-failed` le completa; `75` che il blocco della libreria è tenuto da un altro lavoro. `--watch` non considera `4` né un successo né un errore, e ogni altro codice di uscita diverso da zero tranne `75` conta per il limite di errori consecutivi oltre il quale rinuncia. Una scansione avviata da modifiche che supera il generoso limite di 6 ore viene terminata e conta come un fallimento, così un sottoprocesso bloccato non può impedire alla sorveglianza di rinunciare; la scansione iniziale ne è esente, perché una prima sorveglianza su una libreria grande (o un `--force` iniziale) dura legittimamente di più. `--watch` inoltra `--force-since`, `--single-pass` e `--pass` a ogni scansione che avvia, e `--force` solo alla scansione iniziale (forzare ogni scansione attivata da una modifica rivaluterebbe ogni volta l'intera libreria); le liste di lavoro una tantum `--retry-failed` e `--retry-plan` sono rifiutate con `--watch`, che richiede inoltre almeno un percorso da osservare. Gli errori di risoluzione dei percorsi o di permesso rendono indisponibile solo la radice interessata. Se la scansione iniziale di sorveglianza trova il blocco occupato, riprova dopo l’intervallo di debounce senza attendere eventi sui file e mantiene le opzioni iniziali, incluso `--force`; le scansioni successive attivate dagli eventi restano incrementali.
+
+La modalità di sorveglianza prova prima il monitoraggio nativo per ogni radice e, se necessario, passa a controlli periodici per quella radice. Viene indicato il percorso di ogni radice che non si riesce a monitorare all’avvio o il cui monitoraggio si interrompe in seguito. Le altre radici restano attive. Se non ne resta nessuna, la sorveglianza termina con il codice `1`, anche se non è partita alcuna scansione. Riavvia la sorveglianza per includere le radici tornate disponibili.
 
 ### Registrazione delle scansioni
 
@@ -103,6 +107,8 @@ Su una GPU CUDA, appena un chunk è decodificato, lo stesso worker di decodifica
 | `python facet.py --export-sidecars --user alice` | Modalità multiutente: esporta valutazioni e Conserva/Rifiuta di Alice, per le foto che può vedere |
 | `python facet.py --export-sidecars --embed-originals` | Scrive i metadati anche **dentro** gli originali JPEG/HEIC/TIFF/PNG/DNG |
 | `python facet.py --export-sidecars --score-to-stars` | Imposta `xmp:Rating` dal punteggio per le foto che non hai valutato |
+
+Se un sidecar XMP selezionato scompare o cambia durante la lettura, l’importazione salta quella foto e prosegue. Ripeti l’importazione quando il sidecar è stabile.
 
 **Dry run.** Su `12gb`/`16gb`/`24gb` la colonna estetica mostra `n/a`, perché TOPIQ viene eseguito solo in una scansione reale (la modalità commerciale mostra il punteggio Q-ReAlign). L'aggregato la conta come un 5,0 neutro.
 
@@ -524,7 +530,7 @@ Sia le riparazioni interattive sia `--auto-fix` prendono il blocco della libreri
 
 **`python database.py`** costruisce anche gli indici mancanti della galleria (vedi [VIEWER.md](VIEWER.md#indici-della-galleria-e-cache-dei-conteggi)). Su una libreria grande, eseguilo una volta prima di avviare il visualizzatore; può richiedere circa un minuto. Altrimenti il visualizzatore li costruisce in background e nel frattempo rifiuta i salvataggi.
 
-**`--backup`** pubblica uno snapshot completato con un nome univoco con data e ora prima di ruotare i vecchi snapshot. Le esecuzioni nello stesso secondo mantengono snapshot separati; una copia fallita lascia intatti i backup precedenti. Il filesystem di destinazione deve supportare gli hard link.
+**`--backup`** pubblica uno snapshot completato con un nome univoco con data e ora prima di ruotare i vecchi snapshot. Le esecuzioni nello stesso secondo mantengono snapshot separati; una copia fallita lascia intatti i backup precedenti. Il filesystem di destinazione deve supportare gli hard link. Il nuovo snapshot conta sempre tra le copie conservate. Scritture sovrapposte possono lasciare copie in più temporaneamente, fino al prossimo backup.
 
 **`--export-viewer-db`** mantiene le modifiche della destinazione e i luoghi privati durante la sincronizzazione incrementale. Le esportazioni complete omettono i luoghi salvati/recenti della sorgente. Vedi [completamento e nuovo tentativo dell'esportazione](DEPLOYMENT.md#esporta-il-database-leggero) per pubblicazione, aggiornamenti dello schema e ripristino dopo un errore.
 

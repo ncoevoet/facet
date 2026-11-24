@@ -13,7 +13,7 @@ import { I18N } from '../../core/i18n/keys';
 
 describe('CapsulesComponent', () => {
   let component: CapsulesComponent;
-  let mockApi: { get: Mock };
+  let mockApi: { get: Mock; post: Mock };
   let mockAuth: { isEdition: Mock; isAuthenticated: Mock };
   let mockI18n: { t: Mock };
   let mockSnackBar: { open: Mock };
@@ -32,7 +32,7 @@ describe('CapsulesComponent', () => {
   };
 
   beforeEach(() => {
-    mockApi = { get: vi.fn(() => of(mockCapsulesResponse)) };
+    mockApi = { get: vi.fn(() => of(mockCapsulesResponse)), post: vi.fn(() => of({ album_id: 1, name: 'Golden' })) };
     mockAuth = { isEdition: vi.fn(() => true), isAuthenticated: vi.fn(() => true) };
     mockI18n = { t: vi.fn((key: string) => key) };
     mockSnackBar = { open: vi.fn() };
@@ -140,7 +140,7 @@ describe('CapsulesComponent', () => {
     });
   });
 
-  describe('date range reloads', () => {
+  describe('grid and playback refresh', () => {
     const mount = async (from: string) => {
       TestBed.resetTestingModule();
       TestBed.configureTestingModule({
@@ -176,6 +176,79 @@ describe('CapsulesComponent', () => {
       fixture.detectChanges();
       await fixture.whenStable();
       expect(mockApi.get).toHaveBeenCalledTimes(1);
+    });
+
+    it('regenerating a capsule with the same ID fetches its new photos and resets resume', async () => {
+      const fixture = await mount('');
+      const capsule = mockCapsulesResponse.capsules[0];
+      mockApi.get.mockReturnValueOnce(of({ photos: [{ path: '/old.jpg' }] }));
+      await internals().playCapsule(capsule);
+      internals().onSlideIndexChanged(4);
+      internals().closeSlideshow();
+
+      TestBed.inject(CapsuleFiltersService).regenerate.update(value => value + 1);
+      fixture.detectChanges();
+      await fixture.whenStable();
+
+      expect(mockApi.get).toHaveBeenLastCalledWith('/capsules', expect.objectContaining({
+        page: 1, refresh: true,
+      }));
+      mockApi.get.mockReturnValueOnce(of({ photos: [{ path: '/new.jpg' }] }));
+      await internals().playCapsule(capsule);
+      expect(mockApi.get).toHaveBeenLastCalledWith('/capsules/c1/photos', expect.anything());
+      expect(internals().slideshowPhotos()[0].path).toBe('/new.jpg');
+      expect(internals().slideshowStartIndex()).toBe(0);
+    });
+
+    it.each(['success', 'failure'])('old photo %s cannot affect regenerated capsules', async outcome => {
+      const fixture = await mount('');
+      const capsule = mockCapsulesResponse.capsules[0];
+      const pending = new Subject<{ photos: { path: string }[] }>();
+      mockApi.get.mockReturnValueOnce(pending);
+      const playing = internals().playCapsule(capsule);
+      TestBed.inject(CapsuleFiltersService).regenerate.update(value => value + 1);
+      fixture.detectChanges();
+      await fixture.whenStable();
+
+      if (outcome === 'success') pending.next({ photos: [{ path: '/old.jpg' }] });
+      else pending.error(new Error('stale read failed'));
+      await playing;
+      expect(internals().slideshowActive()).toBe(false);
+      expect(internals().slideshowPhotos()).toEqual([]);
+      expect(internals().capsuleShuffledPhotos.size).toBe(0);
+      expect(mockSnackBar.open).not.toHaveBeenCalled();
+    });
+
+    it.each(['Enter', ' '])('save album key %j does not start capsule playback', async key => {
+      const fixture = await mount('');
+      const root: HTMLElement = fixture.nativeElement;
+      const save = root.querySelector<HTMLButtonElement>('div[role="button"] button')!;
+      expect(save).not.toBeNull();
+      save.focus();
+      const event = new KeyboardEvent('keydown', { key, bubbles: true, cancelable: true });
+      save.dispatchEvent(event);
+      expect(event.defaultPrevented).toBe(false);
+
+      // jsdom does not synthesize the native button click from a keyboard event.
+      save.click();
+      await fixture.whenStable();
+      expect(mockApi.post).toHaveBeenCalledOnce();
+      expect(mockApi.post).toHaveBeenCalledWith('/capsules/c1/save-album');
+      expect(mockApi.get).toHaveBeenCalledTimes(1);
+      expect(internals().slideshowActive()).toBe(false);
+    });
+
+    it.each(['Enter', ' '])('capsule card key %j still starts playback', async key => {
+      const fixture = await mount('');
+      const root: HTMLElement = fixture.nativeElement;
+      const card = root.querySelector<HTMLElement>('div[role="button"]')!;
+      expect(card).not.toBeNull();
+      mockApi.get.mockReturnValueOnce(of({ photos: [{ path: '/new.jpg' }] }));
+      card.dispatchEvent(new KeyboardEvent('keydown', { key, bubbles: true, cancelable: true }));
+      await fixture.whenStable();
+      expect(mockApi.get).toHaveBeenLastCalledWith('/capsules/c1/photos', expect.anything());
+      expect(internals().slideshowPhotos()[0].path).toBe('/new.jpg');
+      expect(mockApi.post).not.toHaveBeenCalled();
     });
 
     it('clearing the last date reloads page one and clears shuffle/resume caches', async () => {

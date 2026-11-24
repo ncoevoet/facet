@@ -8,10 +8,12 @@ policy. Pure stdlib XML — no exiftool needed.
 import os
 import sqlite3
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 
 from db.schema import init_database
+from processing import xmp_import
 from processing.xmp_import import import_sidecars, parse_sidecar
 
 _HEADER = (
@@ -158,6 +160,115 @@ class TestImportSidecars:
         import_sidecars(conn)
         row = conn.execute("SELECT * FROM photos WHERE path = ?", (img,)).fetchone()
         assert row["star_rating"] == 2  # sidecar wins (newer)
+
+    @pytest.mark.parametrize("dry_run", [True, False])
+    def test_unchanged_packet_accepts_different_path_and_handle_ctime(self, tmp_path, monkeypatch, dry_run):
+        image = str(tmp_path / "p.jpg")
+        target = _write(tmp_path, "p.jpg.xmp", _attr_xmp(rating=4))
+        stamp = 1704067200
+        os.utime(target, (stamp, stamp))
+        conn = _make_db(tmp_path)
+        _add(conn, image)
+        conn.commit()
+
+        stat = os.stat
+
+        def stat_with_birthtime(path, *args, **kwargs):
+            info = stat(path, *args, **kwargs)
+            if path == target:
+                # Python 3.12/Windows path stat returns creation time as ctime,
+                # while fstat returns the actual metadata change time.
+                return SimpleNamespace(
+                    st_dev=info.st_dev, st_ino=info.st_ino, st_size=info.st_size,
+                    st_mtime=info.st_mtime, st_mtime_ns=info.st_mtime_ns,
+                    st_ctime_ns=info.st_ctime_ns - 10_000_000_000,
+                )
+            return info
+
+        monkeypatch.setattr(xmp_import, "_WINDOWS", True, raising=False)
+        monkeypatch.setattr(xmp_import.os, "stat", stat_with_birthtime)
+        result = import_sidecars(conn, dry_run=dry_run)
+
+        assert (result["updated"], result["skipped"]) == (1, 0)
+        assert result["entries"][0]["source"]["clock"] == "file_mtime"
+        assert result["entries"][0]["source"]["effective_at"] == "2024-01-01T00:00:00+00:00"
+        assert conn.execute("SELECT star_rating FROM photos WHERE path = ?", (image,)).fetchone()[0] == (
+            0 if dry_run else 4
+        )
+        conn.close()
+
+    @pytest.mark.parametrize("dry_run", [True, False])
+    def test_replaced_packet_does_not_pair_old_contents_with_new_mtime(self, tmp_path, monkeypatch, dry_run):
+        image = str(tmp_path / "p.jpg")
+        target = Path(_write(tmp_path, "p.jpg.xmp", _attr_xmp(rating=1, subjects=["old-tag"])))
+        replacement = Path(_write(tmp_path, "pending.xmp", _attr_xmp(rating=5)))
+        old_time, new_time = 1262304000, 1704067200  # 2010 and 2024 UTC
+        os.utime(target, (old_time, old_time))
+        os.utime(replacement, (new_time, new_time))
+
+        conn = _make_db(tmp_path)
+        _add(conn, image)
+        conn.execute("UPDATE photos SET star_rating = 3 WHERE path = ?", (image,))
+        conn.execute("UPDATE photo_metadata_edits SET changed_at = '2020-01-01T00:00:00Z' WHERE photo_path = ?",
+                     (image,))
+        conn.commit()
+
+        parse_xml = xmp_import.ET.fromstring
+
+        def replace_after_read(data):
+            root = parse_xml(data)
+            if b'xmp:Rating="1"' in data:
+                replacement.replace(target)
+            return root
+
+        monkeypatch.setattr(xmp_import.ET, "fromstring", replace_after_read)
+        result = import_sidecars(conn, dry_run=dry_run)
+
+        assert (result["updated"], result["skipped"]) == (0, 1)
+        assert result["entries"][0]["diagnostics"] == [{"reason": "sidecar_changed_during_read"}]
+        assert conn.execute("SELECT star_rating FROM photos WHERE path = ?", (image,)).fetchone()[0] == 3
+        assert conn.execute("SELECT COUNT(*) FROM photo_manual_tags").fetchone()[0] == 0
+        # Replanning against the now stable replacement correctly uses its new rating/time.
+        result = import_sidecars(conn, dry_run=dry_run)
+        assert (result["updated"], result["skipped"]) == (1, 0)
+        assert result["entries"][0]["source"]["clock"] == "file_mtime"
+        assert result["entries"][0]["source"]["effective_at"] == "2024-01-01T00:00:00+00:00"
+        assert conn.execute("SELECT star_rating FROM photos WHERE path = ?", (image,)).fetchone()[0] == (
+            3 if dry_run else 5
+        )
+        conn.close()
+
+    @pytest.mark.parametrize("dry_run", [True, False])
+    def test_disappearing_packet_skips_only_that_photo(self, tmp_path, monkeypatch, dry_run):
+        conn = _make_db(tmp_path)
+        good, gone = (str(tmp_path / name) for name in ("good.jpg", "gone.jpg"))
+        _add(conn, good)
+        _add(conn, gone)
+        conn.commit()
+        _write(tmp_path, "good.jpg.xmp", _attr_xmp(rating=4))
+        target = Path(_write(tmp_path, "gone.jpg.xmp", _attr_xmp(rating=2, subjects=["keep-out"])))
+
+        parse_xml = xmp_import.ET.fromstring
+
+        def unlink_after_read(data):
+            root = parse_xml(data)
+            if b'xmp:Rating="2"' in data:
+                target.unlink()
+            return root
+
+        monkeypatch.setattr(xmp_import.ET, "fromstring", unlink_after_read)
+        result = import_sidecars(conn, dry_run=dry_run)
+
+        assert (result["updated"], result["skipped"]) == (1, 1)
+        entries = {entry["path"]: entry for entry in result["entries"]}
+        assert entries[gone]["diagnostics"] == [{"reason": "sidecar_inspection_failed"}]
+        assert entries[good]["changes"]["star_rating"]["after"] == 4
+        assert conn.execute("SELECT star_rating FROM photos WHERE path = ?", (good,)).fetchone()[0] == (
+            0 if dry_run else 4
+        )
+        assert conn.execute("SELECT star_rating FROM photos WHERE path = ?", (gone,)).fetchone()[0] == 0
+        assert conn.execute("SELECT COUNT(*) FROM photo_manual_tags").fetchone()[0] == 0
+        conn.close()
 
     def test_root_filter(self, tmp_path):
         sub = tmp_path / "sub"

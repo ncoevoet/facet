@@ -85,6 +85,7 @@ from processing.xmp_keywords import keyword_key, parse_keyword_state
 from utils.image_loading import WATCHABLE_IMAGE_EXTENSIONS
 
 logger = logging.getLogger(__name__)
+_WINDOWS = os.name == "nt"
 
 # Field groups an import may select; the CLI validates against the same tuple.
 SIDECAR_FIELDS = ('review', 'gps', 'keywords')
@@ -131,15 +132,13 @@ def _to_epoch(dt) -> float | None:
     return dt.timestamp()
 
 
-def _parse_xmp(path: str):
-    """Parse an XMP file, rejecting any ``DOCTYPE`` declaration.
+def _parse_xmp(data: bytes):
+    """Parse XMP bytes, rejecting any ``DOCTYPE`` declaration.
 
     A standard XMP packet never declares a DTD, so refusing one closes the
     entity-expansion ("billion laughs") DoS class without adding a third-party
     parser. Returns the root element.
     """
-    with open(path, "rb") as handle:
-        data = handle.read()
     if b"<!DOCTYPE" in data.upper():
         raise ET.ParseError("DOCTYPE declarations are not allowed in XMP sidecars")
     return ET.fromstring(data)
@@ -186,10 +185,15 @@ def parse_sidecar(path: str):
     rejected, Yellow → favorite), ``dc:subject`` → tags, and ``xmp:MetadataDate``.
     """
     try:
-        root = _parse_xmp(path)
+        with open(path, "rb") as handle:
+            data = handle.read()
+        return _parse_sidecar_data(data)
     except (ET.ParseError, OSError):
         return None
 
+
+def _parse_sidecar_data(data: bytes) -> dict:
+    root = _parse_xmp(data)
     rating_raw = _find_scalar(root, f"{{{NS_XMP}}}Rating")
     label = _find_scalar(root, f"{{{NS_XMP}}}Label")
     metadata_date = _find_scalar(root, f"{{{NS_XMP}}}MetadataDate")
@@ -234,6 +238,36 @@ def parse_sidecar(path: str):
         "has_rating": rating_raw is not None or label is not None,
         "invalid_rating": invalid_rating,
     }
+
+
+class _SidecarChanged(Exception):
+    """The selected file no longer describes the packet that was read."""
+
+
+def _sidecar_identity(info: os.stat_result) -> tuple[int, int, int, int, int]:
+    return info.st_dev, info.st_ino, info.st_size, info.st_mtime_ns, info.st_ctime_ns
+
+
+def _read_sidecar_snapshot(path: str) -> tuple[dict, float]:
+    """Pair packet bytes with their own mtime and reject a detected change."""
+    with open(path, "rb") as handle:
+        opened = os.fstat(handle.fileno())
+        data = handle.read()
+    parsed = _parse_sidecar_data(data)
+    # Read the fallback timestamp only from the opened file, not from the
+    # name, which an editor/sync client may have replaced in the meantime.
+    # Also reject an observable move or in-place edit before planning this row.
+    if _WINDOWS:
+        # Windows' path stat can expose creation time as st_ctime_ns while
+        # fstat exposes metadata change time. Compare like with like without
+        # reading the replacement's content or using its clock.
+        with open(path, "rb") as handle:
+            current = os.fstat(handle.fileno())
+    else:
+        current = os.stat(path)
+    if _sidecar_identity(current) != _sidecar_identity(opened):
+        raise _SidecarChanged
+    return parsed, opened.st_mtime
 
 
 def _person_names(conn, path: str) -> set[str]:
@@ -550,11 +584,18 @@ def _import_sidecars(conn, root, *, user_id, overwrite_manual_gps, dry_run, fiel
         elif reason == "basename_ignored":
             basename_ignored += 1
         diagnostics = [{"reason": reason}] if reason in ("full_ignored", "basename_ignored") else []
-        parsed = parse_sidecar(sidecar)
-        if parsed is None:
-            logger.warning("Skipping %s: cannot parse sidecar %s", row["path"], sidecar)
+        try:
+            parsed, packet_mtime = _read_sidecar_snapshot(sidecar)
+        except (ET.ParseError, OSError, _SidecarChanged) as ex:
+            if isinstance(ex, _SidecarChanged):
+                diagnostic = "sidecar_changed_during_read"
+            elif isinstance(ex, OSError):
+                diagnostic = "sidecar_inspection_failed"
+            else:
+                diagnostic = "unparseable_sidecar"
+            logger.warning("Skipping %s: %s (%s)", row["path"], sidecar, diagnostic)
             skipped += 1
-            diagnostics.append({"reason": "unparseable_sidecar"})
+            diagnostics.append({"reason": diagnostic})
             _plan_entry(entries, row["path"], sidecar, {}, diagnostics)
             continue
 
@@ -614,7 +655,7 @@ def _import_sidecars(conn, root, *, user_id, overwrite_manual_gps, dry_run, fiel
         untouched = not (star or favorite or rejected or kept)
 
         metadata_epoch = _to_epoch(parsed["metadata_date"])
-        sidecar_epoch = os.path.getmtime(sidecar) if metadata_epoch is None else metadata_epoch
+        sidecar_epoch = packet_mtime if metadata_epoch is None else metadata_epoch
         photo_epoch = _to_epoch(_parse_date(row["scanned_at"]))
         clock_scope = user_id if per_user else ''
         clocks = review_edit_state(conn, row['path'], clock_scope,

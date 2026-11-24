@@ -319,6 +319,25 @@ class TestHardCrashResume:
         resumable = get_last_resumable_run(scan_db, stale_seconds=120)
         assert resumable is not None and resumable['id'] == rid
 
+    @pytest.mark.parametrize('bad_metadata', [
+        '{"directories":[]}',
+        '{"directories":"/not-a-list"}',
+        '{"directories":["/valid",null]}',
+        '{"directories":["/captured-retry"],"retry_of":1}',
+        'not-json',
+    ])
+    def test_bare_resume_skips_unusable_metadata_and_fresh_running_rows(
+        self, scan_db, bad_metadata,
+    ):
+        stale_id = self._insert_run(scan_db, status='running', heartbeat_offset=-300)
+        self._insert_run(scan_db, status='running', heartbeat_offset=-1)
+        retry_id = self._insert_run(scan_db, status='failed', finished=True)
+        with sqlite3.connect(scan_db) as conn:
+            conn.execute("UPDATE scan_runs SET args_json=? WHERE id=?", (bad_metadata, retry_id))
+        assert get_last_resumable_run(scan_db)['id'] == retry_id
+        assert get_last_resumable_run(scan_db, require_directories=True)['id'] == stale_id
+        assert scan_in_progress(scan_db)
+
     def test_heartbeat_written_on_progress(self, scan_db):
         run = ScanRun.start(scan_db, 'multi-pass', {}, 5)
         run.update_progress(3)

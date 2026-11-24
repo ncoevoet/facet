@@ -207,6 +207,51 @@ describe('FindMoreFacesDialogComponent', () => {
       { person_id: 41, name: 'Carla', face_count: 30, similarity: 0.66 },
     ];
 
+    it('removes old group actions during a stricter read and after it fails', async () => {
+      search.mockReturnValueOnce(of(answer([face(1, 0.8)], { similar_groups: GROUPS })));
+      await render();
+      expect(q('[data-group="40"] button')).not.toBeNull();
+      const request = new Subject<PossibleFacesResponse>();
+      search.mockReturnValueOnce(request);
+      component.setStrictness('strict');
+      fixture.detectChanges();
+      expect(component.loading()).toBe(true);
+      expect(q('[data-group="40"] button')).toBeNull();
+      await component.mergeGroup(GROUPS[0]);
+      expect(mockApi.post).not.toHaveBeenCalled();
+
+      request.error(new Error('offline'));
+      await settle();
+      expect(component.error()).not.toBeNull();
+      expect(q('[data-group="40"] button')).toBeNull();
+      expect(component.counts()).toBeNull();
+      expect(component.bestSimilarity()).toBeNull();
+      await component.mergeGroup(GROUPS[0]);
+      expect(mockApi.post).not.toHaveBeenCalled();
+
+      search.mockReturnValueOnce(of(answer([face(3, 0.94)], { similar_groups: GROUPS })));
+      component.setStrictness('loose');
+      await settle();
+      expect(q<HTMLButtonElement>('[data-group="40"] button')?.disabled).toBe(false);
+    });
+
+    it('does not merge after confirming a group from an older result', async () => {
+      search.mockReturnValue(of(answer([face(1, 0.8)], { similar_groups: GROUPS })));
+      await render();
+      component.toggleOwner('named');
+      const confirmation = new Subject<boolean>();
+      mockDialog.open.mockReturnValue({ afterClosed: () => confirmation });
+      const pending = component.mergeGroup(GROUPS[1]);
+      expect(mockDialog.open).toHaveBeenCalledOnce();
+      // The refreshed result may still contain the same group ID, but it was not the one confirmed.
+      component.setStrictness('strict');
+      await settle();
+      expect(q('[data-group="41"] button')).not.toBeNull();
+      confirmation.next(true);
+      await pending;
+      expect(mockApi.post).not.toHaveBeenCalled();
+    });
+
     it('lists the unnamed groups, and the named ones only with the Named chip', async () => {
       search.mockReturnValue(of(answer([face(1, 0.8)], { similar_groups: GROUPS })));
       await render();
@@ -239,6 +284,7 @@ describe('FindMoreFacesDialogComponent', () => {
     it('a named group is confirmed first, and a declined confirm merges nothing', async () => {
       search.mockReturnValue(of(answer([face(1, 0.8)], { similar_groups: GROUPS })));
       await render();
+      component.toggleOwner('named');
       mockDialog.open.mockReturnValue({ afterClosed: () => of(false) });
       await component.mergeGroup(GROUPS[1]);
       expect(mockDialog.open).toHaveBeenCalledWith(ConfirmDialogComponent, expect.anything());
@@ -412,11 +458,14 @@ describe('FindMoreFacesDialogComponent', () => {
     });
 
     it('clears a failed merge\'s error when the next merge succeeds', async () => {
+      const group: SimilarGroup = { person_id: 55, name: null, face_count: 3, similarity: 0.6 };
+      search.mockReturnValue(of(answer([face(1, 0.8)], { similar_groups: [group] })));
       await render();
-      const group = { person_id: 55, name: null, face_count: 3, similarity: 0.6 } as SimilarGroup;
       mockApi.post.mockReturnValueOnce(throwError(() => new Error('boom')));
       await component.mergeGroup(group);
       expect(component.error()).toBe('persons.find_more_merge_error');
+      fixture.detectChanges();
+      expect(q<HTMLButtonElement>('[data-group="55"] button')?.disabled).toBe(false);
       await component.mergeGroup(group);
       expect(component.error()).toBeNull();
     });

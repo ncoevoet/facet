@@ -489,46 +489,51 @@ def test_control_character_keyword_beside_a_boolean_survives_embedding(tmp_path,
 @pytest.mark.parametrize('xml', ['not xml', '<empty/>', exact_keyword_xml('Keywords', ['True']),
                                  exact_keyword_xml('Subject', ['True'], error=True)])
 def test_failed_exact_boolean_read_refuses_before_writing(tmp_path, monkeypatch, xml):
-    import subprocess
     from processing import xmp_export as xe
     sidecar = tmp_path / 'photo.jpg.xmp'
     before = build_xmp(XmpRating(tags=['True'])).encode('utf-8')
     sidecar.write_bytes(before)
     monkeypatch.setattr(xe, '_resolve_exiftool', lambda: 'mock-exiftool')
-    subject_reads = []
+    reads = []
     def run(args, **kwargs):
         assert '-overwrite_original' not in args
-        if _reads_keywords(args, 'Subject') == 'xml':
-            subject_reads.append(args)
+        read = _reads_keywords(args, 'Subject')
+        assert '-XMP-dc:Subject' in args
+        if read == 'json':
+            assert '-json' in args and '-XMP-mwg-rs:RegionInfo' in args
+        reads.append(read)
+        if read == 'xml':
             return subprocess.CompletedProcess(args, 0, stdout=xml)
         return subprocess.CompletedProcess(args, 0, stdout='[{"Subject":true}]')
-    exiftool_fake.install(monkeypatch, run)
+    # These tests target a failed exact-keyword read after a successful
+    # preflight, not the timing of ExifTool's stay-open reader threads.
+    monkeypatch.setattr(xe, 'run_exiftool_process', run)
     with pytest.raises(RuntimeError, match='Cannot read existing keywords'):
         xe._run_exiftool(str(sidecar), XmpRating(tags=['own']), timeout=1)
-    assert subject_reads
+    assert reads == ['json', 'xml']
     assert sidecar.read_bytes() == before
 
 
 @pytest.mark.parametrize('failure', [OSError('read failed'), subprocess.TimeoutExpired('exiftool', 1)])
 def test_exact_boolean_read_io_failure_refuses_before_writing(tmp_path, monkeypatch, failure):
-    import subprocess
     from processing import xmp_export as xe
     sidecar = tmp_path / 'photo.jpg.xmp'
     before = build_xmp(XmpRating(tags=['True'])).encode('utf-8')
     sidecar.write_bytes(before)
     monkeypatch.setattr(xe, '_resolve_exiftool', lambda: 'mock-exiftool')
-    subject_reads = []
+    reads = []
     def run(args, **kwargs):
         assert '-overwrite_original' not in args
-        if _reads_keywords(args, 'Subject') == 'xml':
-            subject_reads.append(args)
+        read = _reads_keywords(args, 'Subject')
+        assert '-XMP-dc:Subject' in args
+        if read == 'json':
+            assert '-json' in args and '-XMP-mwg-rs:RegionInfo' in args
+        reads.append(read)
+        if read == 'xml':
             raise failure
         return subprocess.CompletedProcess(args, 0, stdout='[{"Subject":true}]')
-    exiftool_fake.install(monkeypatch, run)
-    # One budget covers every read, so the combined state read that precedes
-    # the injected failure must fit in it too: 0.05 s did not on a slow Windows
-    # runner, which then refused at that read ("Cannot read face metadata").
+    monkeypatch.setattr(xe, 'run_exiftool_process', run)
     with pytest.raises(RuntimeError, match='Cannot read existing keywords'):
         xe._run_exiftool(str(sidecar), XmpRating(tags=['own']), timeout=1)
-    assert subject_reads
+    assert reads == ['json', 'xml']
     assert sidecar.read_bytes() == before

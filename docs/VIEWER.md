@@ -604,7 +604,7 @@ Saving, editing or removing a manual face updates the photo’s face boxes and p
 
 The legacy `viewer.performance.face_cache_size` setting is ignored and can be removed.
 
-**Objects.** The same editor can mark an object instead: choose **Object**, draw the box, type a label (for example "birthday cake") and save. Objects show as blue labelled boxes on the photo, the gallery search finds them by label, and assistants can read them (`GET /api/photo/objects`, or the `objects` field of the `get_photo` tool) to know which region is meant. Marks are always drawn by you, never detected automatically: they tell an assistant where to act, for example a box labelled "remove" on one of three bottles in a shot. An object is never a face: it does not touch detection, clustering, people or face scores.
+**Objects.** The same editor can mark an object instead: choose **Object**, draw the box, type a label (for example "birthday cake") and save. Objects show as blue labelled boxes on the photo, the gallery search finds them by label, and assistants can read them (`GET /api/photo/objects`, or the `objects` field of the `get_photo` tool) to know which region is meant. Marks are always drawn by you, never detected automatically: they tell an assistant where to act, for example a box labelled "remove" on one of three bottles in a shot. An object is never a face: it does not touch detection, clustering, people or face scores. If the face and object overlays fail to load, each has its own labeled retry button on the photo. Retrying one does not reload the other; the face retry is hidden when face boxes are **Off**.
 
 ## Scan Trigger
 
@@ -673,7 +673,7 @@ An album can carry a scoring context that decides which category wins for its ph
 - Photos added to a manual album later inherit the context. New matches of a smart album do not; set the context again.
 - **Clear context** (not the same as choosing `default`) removes the stamp. A photo still in another album with a context gets that context instead.
 - Facet can suggest a context from the album's dominant narrative moment (via each context's `suggest_from_moments`). It writes nothing until you confirm.
-- Run a recompute (`POST /api/scan/recompute`) for the new context to change stored categories.
+- Run a recompute (`POST /api/scan/recompute`) for the new context to change stored categories. Closing the dialog stops its progress checks, not the recompute running on the server.
 
 Endpoints and response counts: [API.md](API.md#albums).
 
@@ -691,7 +691,7 @@ See [Portfolio Export configuration](CONFIGURATION.md#portfolio-export). Endpoin
 
 ### Photo Sharing
 
-Share albums through tokenized links. Viewing a shared album needs no login.
+Share albums through tokenized links. Viewing a shared album needs no login. If the browser refuses to copy a link, the dialog reports the failure and leaves the link visible for manual copying.
 
 | Action | How To |
 |--------|--------|
@@ -876,7 +876,7 @@ Click a capsule card to start a slideshow:
 
 ### Freshness
 
-Capsules rotate on a schedule (default: 24 hours). **Regenerate** in the header refreshes them now.
+Capsules rotate on a schedule (default: 24 hours). **Regenerate** in the header refreshes them now. Open a capsule again to play its refreshed photos.
 
 ### Reverse Geocoding
 
@@ -1106,6 +1106,7 @@ A **read-only** view of the library as chronological scenes, in story order with
 
 - A new scene starts when more than `scenes.gap_minutes` pass between shots (widened on sparse shoots). Very long runs are split.
 - Open **Scenes** in the main nav for the whole library, or an album's **Display scenes of this album** action in the Albums grid; a picker switches albums. The nav item follows `viewer.features.show_scenes`.
+- Browser Back and Forward restore the selected album. If the first page fails to load, use **Retry** to fetch it again without changing albums.
 - Each scene has an edition-only **Cull this scene** button that opens [Culling](#culling) on that scene (`/culling?group_by=scene&album=&from=&to=`). Once every group of the scene is confirmed, Culling moves on to the next scene in this list and names it; after the last one it returns here. A failed confirm stays on the scene.
 - With narrative moments computed, each scene is titled by its main moment, and `scenes.split_on_moment_change` can split a run where the moment changes.
 - Scenes smaller than `scenes.min_size` are omitted; at most `scenes.max_photos` photos load.
@@ -1195,7 +1196,7 @@ Categories are checked in ascending `priority` order; the first match wins. See 
 - **Global priority** — reorder the base evaluation order.
 - **Scoring contexts** — presets (`default`, `action_stage`, `party_event`, `portrait_session`, `wildlife`, `landscape`, `motorsport`) that promote some categories and exclude others, without changing the global order. Edit any non-`default` preset in the **Scoring Context** tab: drag (or move up/down) the promoted categories, toggle exclusions, save. A category listed in both wins as excluded. `label_key` and `suggest_from_moments` are not editable here. Assign a context per album (see [Scoring Context](#scoring-context)) or per photo (below).
 
-Neither rescores photos by itself. Afterwards, run a recompute (`POST /api/scan/recompute`) and watch `GET /api/scan/recompute_status`. A scan or recompute already running from a terminal blocks a new one from the viewer. With `normalization.per_category` on, one recompute may not fully converge — see [Normalization](CONFIGURATION.md#normalization) and [Reordering the global priority](CONFIGURATION.md#reordering-the-global-priority).
+Neither rescores photos by itself. Afterwards, run a recompute (`POST /api/scan/recompute`) and watch `GET /api/scan/recompute_status`. Leaving the view stops its progress checks, not the recompute running on the server. A scan or recompute already running from a terminal blocks a new one from the viewer. With `normalization.per_category` on, one recompute may not fully converge — see [Normalization](CONFIGURATION.md#normalization) and [Reordering the global priority](CONFIGURATION.md#reordering-the-global-priority).
 
 **Category collisions** (`GET /api/stats/categories/overlap`) shows which higher-priority category is capturing a category's photos. Per category it lists **Assigned**, **Matches filters** (if evaluated alone) and **Captured by higher priority** (`matched - assigned`, floored at 0). **Top colliding pairs** ranks categories by shared photos. The `default` catch-all is left out, since it matches everything.
 

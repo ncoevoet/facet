@@ -602,7 +602,7 @@ Enregistrer, modifier ou supprimer un visage manuel actualise les cadres et les 
 
 L'ancien réglage `viewer.performance.face_cache_size` est ignoré et peut être retiré.
 
-**Objets.** Le même éditeur peut marquer un objet à la place : choisissez **Objet**, tracez le rectangle, saisissez un libellé (par exemple « gâteau d'anniversaire ») et enregistrez. Les objets s'affichent en rectangles bleus légendés sur la photo, la recherche de la galerie les trouve par leur libellé, et les assistants peuvent les lire (`GET /api/photo/objects`, ou le champ `objects` de l'outil `get_photo`) pour savoir quelle zone est visée. Les marques sont toujours tracées par vous, jamais détectées automatiquement : elles indiquent à un assistant où agir, par exemple un rectangle libellé « supprimer » sur l'une des trois bouteilles d'une photo. Un objet n'est jamais un visage : il ne touche ni la détection, ni le regroupement, ni les personnes, ni les scores de visage.
+**Objets.** Le même éditeur peut marquer un objet à la place : choisissez **Objet**, tracez le rectangle, saisissez un libellé (par exemple « gâteau d'anniversaire ») et enregistrez. Les objets s'affichent en rectangles bleus légendés sur la photo, la recherche de la galerie les trouve par leur libellé, et les assistants peuvent les lire (`GET /api/photo/objects`, ou le champ `objects` de l'outil `get_photo`) pour savoir quelle zone est visée. Les marques sont toujours tracées par vous, jamais détectées automatiquement : elles indiquent à un assistant où agir, par exemple un rectangle libellé « supprimer » sur l'une des trois bouteilles d'une photo. Un objet n'est jamais un visage : il ne touche ni la détection, ni le regroupement, ni les personnes, ni les scores de visage. Si les calques de visages et d’objets ne se chargent pas, chacun a sur la photo son propre bouton de relance, avec un libellé distinct. Réessayer l’un ne recharge pas l’autre. Le bouton de nouvel essai des visages est masqué lorsque les cadres de visages sont désactivés.
 
 ## Déclenchement d'un scan
 
@@ -671,7 +671,7 @@ Un album peut porter un contexte de notation qui décide quelle catégorie l'emp
 - Les photos ajoutées plus tard à un album manuel héritent du contexte. Les nouvelles correspondances d'un album intelligent non ; redéfinissez le contexte.
 - **Effacer le contexte** (différent de choisir `default`) retire l'empreinte. Une photo encore dans un autre album ayant un contexte reçoit ce contexte à la place.
 - Facet peut suggérer un contexte à partir du moment narratif dominant de l'album (via le `suggest_from_moments` de chaque contexte). Il n'écrit rien tant que vous ne confirmez pas.
-- Lancez un recalcul (`POST /api/scan/recompute`) pour que le nouveau contexte change les catégories stockées.
+- Lancez un recalcul (`POST /api/scan/recompute`) pour que le nouveau contexte change les catégories stockées. Fermer la boîte de dialogue arrête ses vérifications de progression, pas le recalcul en cours sur le serveur.
 
 Points d'accès et compteurs de réponse : [API.md](../API.md#albums).
 
@@ -689,7 +689,7 @@ Voir [Configuration de l'export de portfolio](CONFIGURATION.md#export-de-portfol
 
 ### Partage de photos
 
-Partagez des albums par liens à jeton. Voir un album partagé ne demande aucune connexion.
+Partagez des albums par liens à jeton. Voir un album partagé ne demande aucune connexion. Si le navigateur refuse de copier le lien, la boîte de dialogue signale l’échec et laisse le lien visible pour le copier manuellement.
 
 | Action | Comment |
 |--------|--------|
@@ -874,7 +874,7 @@ Cliquez sur une carte de capsule pour lancer un diaporama :
 
 ### Fraîcheur
 
-Les capsules tournent selon un calendrier (par défaut : 24 heures). **Régénérer** dans l'en-tête les rafraîchit tout de suite.
+Les capsules tournent selon un calendrier (par défaut : 24 heures). **Régénérer** dans l'en-tête les rafraîchit tout de suite. Rouvrez une capsule pour lancer le diaporama avec sa sélection de photos actualisée.
 
 ### Géocodage inverse
 
@@ -1104,6 +1104,7 @@ Une vue en **lecture seule** de la bibliothèque sous forme de scènes chronolog
 
 - Une nouvelle scène commence quand plus de `scenes.gap_minutes` s'écoulent entre deux prises (élargi sur les prises clairsemées). Les séquences très longues sont scindées.
 - Ouvrez **Scènes** dans la navigation principale pour toute la bibliothèque, ou l'action **Afficher les scènes de cet album** d'un album dans la grille des Albums ; un sélecteur change d'album. L'entrée de navigation suit `viewer.features.show_scenes`.
+- Les boutons Précédent et Suivant du navigateur restaurent l’album sélectionné. Si la première page ne se charge pas, utilisez **Réessayer** pour la recharger sans changer d’album.
 - Chaque scène a un bouton **Trier cette scène** réservé à l'édition, qui ouvre le [Tri sélectif](#tri-sélectif) sur cette scène (`/culling?group_by=scene&album=&from=&to=`). Une fois tous les groupes de la scène confirmés, le Tri sélectif passe à la scène suivante de cette liste et l'indique ; après la dernière, il revient ici. Une confirmation qui échoue reste sur la scène.
 - Quand les moments narratifs sont calculés, chaque scène est titrée d'après son moment principal, et `scenes.split_on_moment_change` peut scinder une séquence là où le moment change.
 - Les scènes plus petites que `scenes.min_size` sont omises ; au plus `scenes.max_photos` photos se chargent.
@@ -1193,7 +1194,7 @@ Les catégories sont examinées par ordre de `priority` croissante ; la premiè
 - **Priorité globale** — réordonnez l'ordre d'évaluation de base.
 - **Contextes de notation** — préréglages (`default`, `action_stage`, `party_event`, `portrait_session`, `wildlife`, `landscape`, `motorsport`) qui promeuvent certaines catégories et en excluent d'autres, sans changer l'ordre global. Modifiez tout préréglage autre que `default` dans l'onglet **Contexte de notation** : glissez (ou montez/descendez) les catégories promues, basculez les exclusions, enregistrez. Une catégorie listée dans les deux l'emporte comme exclue. `label_key` et `suggest_from_moments` ne sont pas modifiables ici. Assignez un contexte par album (voir [Contexte de notation](#contexte-de-notation)) ou par photo (ci-dessous).
 
-Aucun des deux ne recalcule les scores par lui-même. Ensuite, lancez un recalcul (`POST /api/scan/recompute`) et surveillez `GET /api/scan/recompute_status`. Un scan ou un recalcul déjà en cours depuis un terminal bloque un nouveau lancement depuis la visionneuse. Avec `normalization.per_category` activé, un recalcul peut ne pas converger complètement — voir [Normalisation](CONFIGURATION.md#normalisation) et [Réordonner la priorité globale](CONFIGURATION.md#réorganiser-la-priorité-globale).
+Aucun des deux ne recalcule les scores par lui-même. Ensuite, lancez un recalcul (`POST /api/scan/recompute`) et surveillez `GET /api/scan/recompute_status`. Quitter la vue arrête ses vérifications de progression, pas le recalcul en cours sur le serveur. Un scan ou un recalcul déjà en cours depuis un terminal bloque un nouveau lancement depuis la visionneuse. Avec `normalization.per_category` activé, un recalcul peut ne pas converger complètement — voir [Normalisation](CONFIGURATION.md#normalisation) et [Réordonner la priorité globale](CONFIGURATION.md#réorganiser-la-priorité-globale).
 
 **Collisions de catégories** (`GET /api/stats/categories/overlap`) montre quelle catégorie de priorité supérieure capte les photos d'une catégorie. Par catégorie, il liste **Assignées**, **Correspond aux filtres** (si évaluée seule) et **Captées par une priorité supérieure** (`matched - assigned`, plancher à 0). **Principales paires en collision** classe les catégories par photos partagées. Le fourre-tout `default` est exclu, puisqu'il correspond à tout.
 

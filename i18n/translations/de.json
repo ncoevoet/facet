@@ -3314,6 +3314,8 @@
     "load_failed": "Kartenfotos konnten nicht geladen werden. Schwenken oder zoomen zum Wiederholen."
   },
   "photo_detail": {
+    "retry_face_boxes": "Gesichtsrahmen erneut laden",
+    "retry_object_boxes": "Objektrahmen erneut laden",
     "copy_image": "Bild kopieren",
     "copy_image_done": "Bild kopiert",
     "copy_image_failed": "Bild konnte nicht kopiert werden. Versuche stattdessen Herunterladen.",

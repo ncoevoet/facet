@@ -650,6 +650,88 @@ describe('ComparisonPriorityTabComponent', () => {
       expect(component.stale()).toBe(false);
     });
 
+    it('does not begin polling if the recompute POST finishes after destruction', async () => {
+      const view = TestBed.createComponent(ComparisonPriorityTabComponent);
+      const tab = view.componentInstance;
+      vi.useFakeTimers();
+      try {
+        const ack = new Subject<{ success: boolean }>();
+        mockApi.post.mockReturnValue(ack);
+        mockApi.get.mockClear();
+
+        const start = tab.startRecompute();
+        expect(mockApi.post).toHaveBeenCalledExactlyOnceWith('/scan/recompute', { confirm: true });
+        view.destroy();
+        expect(ack.observed).toBe(true); // Don't cancel the server job's start request.
+        ack.next({ success: true });
+        await start;
+        await vi.advanceTimersByTimeAsync(3000);
+
+        expect(mockApi.get).not.toHaveBeenCalledWith('/scan/recompute_status');
+      } finally {
+        vi.clearAllTimers();
+        vi.useRealTimers();
+      }
+    });
+
+    it.each(['responds', 'times out'] as const)('skips polling ticks until a recompute status read %s', async outcome => {
+      const view = TestBed.createComponent(ComparisonPriorityTabComponent);
+      const tab = view.componentInstance;
+      vi.useFakeTimers();
+      try {
+        const first = new Subject<unknown>();
+        const terminal = { running: false, kind: 'recompute', progress: null, exit_code: 0 };
+        mockApi.get.mockClear().mockReturnValueOnce(first).mockReturnValue(of(terminal));
+
+        await tab.startRecompute();
+        await vi.advanceTimersByTimeAsync(3000);
+        expect(mockApi.get).toHaveBeenCalledExactlyOnceWith('/scan/recompute_status');
+
+        if (outcome === 'responds') {
+          first.next({ ...terminal, running: true, exit_code: null });
+          await vi.advanceTimersByTimeAsync(1500);
+        } else {
+          // The hung read must release its slot so the next poll can recover.
+          await vi.advanceTimersByTimeAsync(14_000);
+          expect(first.observed).toBe(false);
+        }
+        expect(mockApi.get).toHaveBeenCalledTimes(2);
+        expect(tab.recomputing()).toBe(false);
+        await vi.advanceTimersByTimeAsync(3000);
+        expect(mockApi.get).toHaveBeenCalledTimes(2);
+      } finally {
+        view.destroy();
+        vi.clearAllTimers();
+        vi.useRealTimers();
+      }
+    });
+
+    it.each(['before', 'after'] as const)('ignores a status received %s the view is destroyed in the same turn', async received => {
+      const view = TestBed.createComponent(ComparisonPriorityTabComponent);
+      const tab = view.componentInstance;
+      vi.useFakeTimers();
+      try {
+        const pending = new Subject<unknown>();
+        mockApi.get.mockClear().mockReturnValue(pending);
+        await tab.startRecompute();
+        expect(pending.observed).toBe(true);
+
+        const terminal = { running: false, kind: 'recompute', progress: null, exit_code: 0 };
+        if (received === 'before') pending.next(terminal);
+        view.destroy();
+        expect(pending.observed).toBe(false);
+        if (received === 'after') pending.next(terminal);
+        await vi.advanceTimersByTimeAsync(3000);
+
+        expect(mockSnackBar.open).not.toHaveBeenCalled();
+        expect(tab.recomputeStatus()).toBeNull();
+        expect(mockApi.get).toHaveBeenCalledExactlyOnceWith('/scan/recompute_status');
+      } finally {
+        vi.clearAllTimers();
+        vi.useRealTimers();
+      }
+    });
+
     it('sets a conflict message on 409', async () => {
       mockApi.post.mockReturnValue(throwError(() => new HttpErrorResponse({ status: 409 })));
 
@@ -669,7 +751,7 @@ describe('ComparisonPriorityTabComponent', () => {
 
     // Defect 1: a subprocess that exits non-zero must NOT be reported as a successful
     // recompute — the stale banner has to stay up (the scores really are stale) and an
-    // error must surface, mirroring AlbumScoringContextDialogComponent.pollRecomputeStatus.
+    // error must surface, as in the album scoring context dialog.
     it('keeps the stale banner and surfaces an error when the job exits non-zero', async () => {
       component.stale.set(true);
       mockApi.post.mockReturnValue(of({ success: true }));

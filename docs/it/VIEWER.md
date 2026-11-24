@@ -602,7 +602,7 @@ Salvare, modificare o rimuovere un volto manuale aggiorna i riquadri e le person
 
 L'impostazione legacy `viewer.performance.face_cache_size` viene ignorata e si può rimuovere.
 
-**Oggetti.** Lo stesso editor può segnare invece un oggetto: scegli **Oggetto**, disegna il rettangolo, scrivi un'etichetta (per esempio «torta di compleanno») e salva. Gli oggetti appaiono come rettangoli blu con etichetta sulla foto, la ricerca della galleria li trova per etichetta e gli assistenti possono leggerli (`GET /api/photo/objects`, o il campo `objects` dello strumento `get_photo`) per sapere quale zona si intende. I segni li disegni sempre tu, non vengono mai rilevati automaticamente: indicano a un assistente dove intervenire, per esempio un rettangolo con l'etichetta «rimuovi» su una di tre bottiglie in una foto. Un oggetto non è mai un volto: non tocca rilevamento, raggruppamento, persone né punteggi dei volti.
+**Oggetti.** Lo stesso editor può segnare invece un oggetto: scegli **Oggetto**, disegna il rettangolo, scrivi un'etichetta (per esempio «torta di compleanno») e salva. Gli oggetti appaiono come rettangoli blu con etichetta sulla foto, la ricerca della galleria li trova per etichetta e gli assistenti possono leggerli (`GET /api/photo/objects`, o il campo `objects` dello strumento `get_photo`) per sapere quale zona si intende. I segni li disegni sempre tu, non vengono mai rilevati automaticamente: indicano a un assistente dove intervenire, per esempio un rettangolo con l'etichetta «rimuovi» su una di tre bottiglie in una foto. Un oggetto non è mai un volto: non tocca rilevamento, raggruppamento, persone né punteggi dei volti. Se non si caricano i riquadri dei volti e degli oggetti, ciascun livello ha un proprio pulsante con etichetta sulla foto per riprovare. Riprovare su un livello non ricarica l’altro. Il pulsante per i volti non compare quando i riquadri dei volti sono disattivati.
 
 ## Avvio scansione
 
@@ -671,7 +671,7 @@ Un album può portare un contesto di punteggio che decide quale categoria vince 
 - Le foto aggiunte in seguito a un album manuale ereditano il contesto. Le nuove corrispondenze di un album intelligente no; imposta di nuovo il contesto.
 - **Rimuovi contesto** (non è lo stesso che scegliere `default`) rimuove l'applicazione. Una foto ancora in un altro album con un contesto riceve invece quel contesto.
 - Facet può suggerire un contesto dal momento narrativo dominante dell'album (tramite `suggest_from_moments` di ogni contesto). Non scrive nulla finché non confermi.
-- Esegui un ricalcolo (`POST /api/scan/recompute`) perché il nuovo contesto cambi le categorie memorizzate.
+- Esegui un ricalcolo (`POST /api/scan/recompute`) perché il nuovo contesto cambi le categorie memorizzate. Chiudere la finestra di dialogo interrompe i controlli di avanzamento, non il ricalcolo in corso sul server.
 
 Endpoint e conteggi delle risposte: [API.md](../API.md#albums).
 
@@ -689,7 +689,7 @@ Vedi [Configurazione dell'esportazione portfolio](CONFIGURATION.md#esportazione-
 
 ### Condivisione foto
 
-Condividi gli album tramite link con token. Visualizzare un album condiviso non richiede il login.
+Condividi gli album tramite link con token. Visualizzare un album condiviso non richiede il login. Se il browser non consente di copiare il link, la finestra di dialogo segnala il problema e lascia il link visibile per copiarlo manualmente.
 
 | Azione | Come |
 |--------|--------|
@@ -874,7 +874,7 @@ Clicca una scheda di capsula per avviare una presentazione:
 
 ### Aggiornamento
 
-Le capsule ruotano secondo una pianificazione (predefinito: 24 ore). **Rigenera** nell'intestazione le aggiorna subito.
+Le capsule ruotano secondo una pianificazione (predefinito: 24 ore). **Rigenera** nell'intestazione le aggiorna subito. Riapri una capsula per riprodurre la selezione aggiornata di foto.
 
 ### Geocodifica inversa
 
@@ -1104,6 +1104,7 @@ Una vista in **sola lettura** della libreria come scene cronologiche, in ordine 
 
 - Una nuova scena inizia quando passano più di `scenes.gap_minutes` tra gli scatti (ampliato sugli shooting rarefatti). Le sequenze molto lunghe vengono divise.
 - Apri **Scene** nella navigazione principale per l'intera libreria, o l'azione **Mostra le scene di questo album** di un album nella griglia Album; un selettore cambia album. La voce di navigazione segue `viewer.features.show_scenes`.
+- I pulsanti Indietro e Avanti del browser ripristinano l’album selezionato. Se la prima pagina non si carica, usa **Riprova** per ricaricarla senza cambiare album.
 - Ogni scena ha un pulsante **Seleziona questa scena** solo per la modifica che apre [Selezione](#selezione) su quella scena (`/culling?group_by=scene&album=&from=&to=`). Confermati tutti i gruppi della scena, la Selezione passa alla scena successiva di questo elenco e la indica; dopo l'ultima torna qui. Una conferma non riuscita resta sulla scena.
 - Con i momenti narrativi calcolati, ogni scena ha come titolo il suo momento principale, e `scenes.split_on_moment_change` può dividere una sequenza dove il momento cambia.
 - Le scene più piccole di `scenes.min_size` vengono omesse; si caricano al massimo `scenes.max_photos` foto.
@@ -1193,7 +1194,7 @@ Le categorie vengono controllate in ordine crescente di `priority`; vince la pri
 - **Priorità globale** — riordina l'ordine di valutazione di base.
 - **Contesti di punteggio** — preset (`default`, `action_stage`, `party_event`, `portrait_session`, `wildlife`, `landscape`, `motorsport`) che promuovono alcune categorie ed escludono altre, senza cambiare l'ordine globale. Modifica qualsiasi preset non `default` nella scheda **Contesto di punteggio**: trascina (o sposta su/giù) le categorie promosse, attiva le esclusioni, salva. Una categoria elencata in entrambi vince come esclusa. `label_key` e `suggest_from_moments` non sono modificabili qui. Assegna un contesto per album (vedi [Contesto di punteggio](#contesto-di-punteggio)) o per foto (sotto).
 
-Nessuno dei due rivaluta le foto da solo. Poi esegui un ricalcolo (`POST /api/scan/recompute`) e osserva `GET /api/scan/recompute_status`. Una scansione o un ricalcolo già in corso da un terminale impedisce di avviarne uno nuovo dalla galleria. Con `normalization.per_category` attivo, un ricalcolo può non convergere del tutto — vedi [Normalizzazione](CONFIGURATION.md#normalization) e [Riordinare la priorità globale](CONFIGURATION.md#riordinare-la-priorità-globale).
+Nessuno dei due rivaluta le foto da solo. Poi esegui un ricalcolo (`POST /api/scan/recompute`) e osserva `GET /api/scan/recompute_status`. Uscire dalla vista interrompe i controlli di avanzamento, non il ricalcolo in corso sul server. Una scansione o un ricalcolo già in corso da un terminale impedisce di avviarne uno nuovo dalla galleria. Con `normalization.per_category` attivo, un ricalcolo può non convergere del tutto — vedi [Normalizzazione](CONFIGURATION.md#normalization) e [Riordinare la priorità globale](CONFIGURATION.md#riordinare-la-priorità-globale).
 
 **Collisioni tra categorie** (`GET /api/stats/categories/overlap`) mostra quale categoria a priorità più alta cattura le foto di una categoria. Per categoria elenca **Assegnate**, **Corrispondenze filtri** (se valutata da sola) e **Catturate da priorità superiore** (`matched - assigned`, con minimo 0). **Coppie con più collisioni** ordina le categorie per foto condivise. Il catch-all `default` è escluso, perché corrisponde a tutto.
 

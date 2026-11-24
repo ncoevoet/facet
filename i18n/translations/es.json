@@ -3314,6 +3314,8 @@
     "load_failed": "No se pudieron cargar las fotos del mapa. Desplázate o haz zoom para reintentar."
   },
   "photo_detail": {
+    "retry_face_boxes": "Volver a cargar los recuadros de rostros",
+    "retry_object_boxes": "Volver a cargar los recuadros de objetos",
     "copy_image": "Copiar imagen",
     "copy_image_done": "Imagen copiada",
     "copy_image_failed": "No se pudo copiar la imagen. Prueba a descargarla.",

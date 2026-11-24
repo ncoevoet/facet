@@ -353,7 +353,7 @@ function inDetectedSet(photo: Photo): boolean {
                 (pointerdown)="$event.stopPropagation()" (dblclick)="$event.stopPropagation()" (click)="stepCollectionPhoto(1); $event.stopPropagation()"><mat-icon aria-hidden="true">chevron_right</mat-icon></button>
             </div>
           }
-          <app-photo-face-layer
+          <app-photo-face-layer #faceOverlay
             [path]="p.path"
             [imageWidth]="p.image_width"
             [imageHeight]="p.image_height"
@@ -363,12 +363,30 @@ function inDetectedSet(photo: Photo): boolean {
             [focusPersonIds]="focusPersonIds()"
             (changed)="refreshPeople(p.path)" />
           <app-person-face-menu [path]="p.path" [canEdit]="auth.isEdition()" (changed)="onPersonMenuChanged(p.path)" />
-          <app-photo-object-layer
+          <app-photo-object-layer #objectOverlay
             [path]="p.path"
             [imageWidth]="p.image_width"
             [imageHeight]="p.image_height"
             [transform]="zoom.transform()"
             [revision]="objectsRevision()" />
+          @if (faceOverlay.canRetry() || objectOverlay.canRetry()) {
+            <div class="pointer-events-none absolute inset-x-2 top-2 z-10 flex flex-col items-center gap-1">
+              @for (option of [
+                { layer: faceOverlay, label: I18N.photo_detail.retry_face_boxes },
+                { layer: objectOverlay, label: I18N.photo_detail.retry_object_boxes },
+              ]; track option.label) {
+                @if (option.layer.canRetry()) {
+                  <div role="alert">
+                    <button type="button"
+                      class="pointer-events-auto min-h-6 rounded-full bg-[var(--mat-sys-error-container)] px-3 py-1 text-center text-xs text-[var(--mat-sys-on-error-container)] underline"
+                      (pointerdown)="$event.stopPropagation()" (dblclick)="$event.stopPropagation()" (click)="option.layer.retry()">
+                      {{ option.label | translate }}
+                    </button>
+                  </div>
+                }
+              }
+            </div>
+          }
         </div>
           <div data-image-readout class="flex shrink-0 items-center gap-1 border-t border-[var(--facet-image-rule)] bg-[var(--facet-image-chrome)] px-4 py-1 text-[var(--facet-image-ink)] cursor-auto" role="presentation" (pointerdown)="$event.stopPropagation()" (dblclick)="$event.stopPropagation()">
             <app-rendition-readout class="flex-1" [state]="displayedRendition()" [pending]="sourceRendition().phase === 'loading'" [attemptFailed]="sourceRendition().phase === 'failed'" [failureLabel]="I18N.photo_detail.rendition.source_failed" [scale]="zoom.scale()" [minimumScale]="1" [maximumScale]="zoom.maximumScale" (zoomStep)="zoom.zoomStep($event)" (fit)="zoom.reset()" (retry)="retryFullImage()" />
@@ -1624,8 +1642,9 @@ export class PhotoDetailComponent extends PhotoDetailBase implements OnInit {
   }
 
   protected async onPersonMenuChanged(path: string): Promise<void> {
-    if (!this.destroyRef.destroyed && this.photo()?.path === path) {
-      await this.faceLayer()?.load(path);
+    const faceLayer = this.faceLayer();
+    if (!this.destroyRef.destroyed && this.photo()?.path === path && faceLayer?.path() === path) {
+      await faceLayer.retry();
     }
     await this.refreshPeople(path);
   }

@@ -603,7 +603,7 @@ Al guardar, editar o eliminar un rostro manual, los recuadros y las personas de 
 
 El ajuste heredado `viewer.performance.face_cache_size` se ignora y se puede quitar.
 
-**Objetos.** El mismo editor puede marcar un objeto en su lugar: elija **Objeto**, dibuje el rectángulo, escriba una etiqueta (por ejemplo «tarta de cumpleaños») y guarde. Los objetos se muestran como rectángulos azules con etiqueta sobre la foto, la búsqueda de la galería los encuentra por su etiqueta y los asistentes pueden leerlos (`GET /api/photo/objects`, o el campo `objects` de la herramienta `get_photo`) para saber a qué zona se refiere. Las marcas siempre las dibuja usted, nunca se detectan automáticamente: indican a un asistente dónde actuar, por ejemplo un rectángulo con la etiqueta «quitar» sobre una de tres botellas de una foto. Un objeto nunca es una cara: no afecta a la detección, al agrupamiento, a las personas ni a las puntuaciones de cara.
+**Objetos.** El mismo editor puede marcar un objeto en su lugar: elija **Objeto**, dibuje el rectángulo, escriba una etiqueta (por ejemplo «tarta de cumpleaños») y guarde. Los objetos se muestran como rectángulos azules con etiqueta sobre la foto, la búsqueda de la galería los encuentra por su etiqueta y los asistentes pueden leerlos (`GET /api/photo/objects`, o el campo `objects` de la herramienta `get_photo`) para saber a qué zona se refiere. Las marcas siempre las dibuja usted, nunca se detectan automáticamente: indican a un asistente dónde actuar, por ejemplo un rectángulo con la etiqueta «quitar» sobre una de tres botellas de una foto. Un objeto nunca es una cara: no afecta a la detección, al agrupamiento, a las personas ni a las puntuaciones de cara. Si las capas de caras y objetos no se cargan, cada una tiene su propio botón de reintento etiquetado sobre la foto. Reintentar una no vuelve a cargar la otra. El botón de caras se oculta cuando los recuadros de cara están desactivados.
 
 ## Activador de escaneo
 
@@ -672,7 +672,7 @@ Un álbum puede llevar un contexto de puntuación que decide qué categoría gan
 - Las fotos añadidas más tarde a un álbum manual heredan el contexto. Las nuevas coincidencias de un álbum inteligente no; vuelve a definir el contexto.
 - **Borrar contexto** (no es lo mismo que elegir `default`) quita la marca. Una foto que sigue en otro álbum con contexto recibe ese contexto.
 - Facet puede sugerir un contexto a partir del momento narrativo dominante del álbum (mediante el `suggest_from_moments` de cada contexto). No escribe nada hasta que confirmes.
-- Ejecuta un recálculo (`POST /api/scan/recompute`) para que el nuevo contexto cambie las categorías almacenadas.
+- Ejecuta un recálculo (`POST /api/scan/recompute`) para que el nuevo contexto cambie las categorías almacenadas. Cerrar el diálogo detiene sus consultas de progreso, no el recálculo que se está ejecutando en el servidor.
 
 Endpoints y recuentos de respuesta: [API.md](../API.md#albums).
 
@@ -690,7 +690,7 @@ Ver [configuración de Exportación de portafolio](CONFIGURATION.md#exportación
 
 ### Compartir fotos
 
-Comparte álbumes mediante enlaces con token. Ver un álbum compartido no requiere iniciar sesión.
+Comparte álbumes mediante enlaces con token. Ver un álbum compartido no requiere iniciar sesión. Si el navegador no permite copiar el enlace, el diálogo avisa del fallo y deja el enlace visible para copiarlo a mano.
 
 | Acción | Cómo |
 |--------|------|
@@ -875,7 +875,7 @@ Haz clic en la tarjeta de una cápsula para iniciar una presentación:
 
 ### Frescura
 
-Las cápsulas rotan según un horario (por defecto: 24 horas). **Regenerar** en la cabecera las actualiza ahora.
+Las cápsulas rotan según un horario (por defecto: 24 horas). **Regenerar** en la cabecera las actualiza ahora. Vuelve a abrir una cápsula para reproducir su selección de fotos actualizada.
 
 ### Geocodificación inversa
 
@@ -1105,6 +1105,7 @@ Una vista de **solo lectura** de la biblioteca como escenas cronológicas, en or
 
 - Una escena nueva empieza cuando pasan más de `scenes.gap_minutes` entre tomas (ampliado en sesiones espaciadas). Los tramos muy largos se dividen.
 - Abre **Escenas** en la navegación principal para toda la biblioteca, o la acción **Mostrar escenas de este álbum** de la cuadrícula de Álbumes; un selector cambia de álbum. El elemento de navegación depende de `viewer.features.show_scenes`.
+- Los botones Atrás y Adelante del navegador restauran el álbum seleccionado. Si la primera página no se carga, pulsa **Reintentar** para volver a cargarla sin cambiar de álbum.
 - Cada escena tiene un botón **Descartar esta escena**, solo de edición, que abre el [Descarte](#descarte) en esa escena (`/culling?group_by=scene&album=&from=&to=`). Cuando se confirman todos los grupos de la escena, el Descarte pasa a la siguiente escena de esta lista y la indica; tras la última, vuelve aquí. Una confirmación fallida se queda en la escena.
 - Con los momentos narrativos calculados, cada escena se titula con su momento principal, y `scenes.split_on_moment_change` puede dividir un tramo donde cambia el momento.
 - Las escenas menores que `scenes.min_size` se omiten; se cargan como máximo `scenes.max_photos` fotos.
@@ -1194,7 +1195,7 @@ Las categorías se comprueban en orden ascendente de `priority`; gana la primera
 - **Prioridad global**: reordena el orden de evaluación base.
 - **Contextos de puntuación**: preajustes (`default`, `action_stage`, `party_event`, `portrait_session`, `wildlife`, `landscape`, `motorsport`) que promueven algunas categorías y excluyen otras, sin cambiar el orden global. Edita cualquier preajuste que no sea `default` en la pestaña **Contexto de puntuación**: arrastra (o sube/baja) las categorías promovidas, alterna las exclusiones, guarda. Una categoría listada en ambas gana como excluida. `label_key` y `suggest_from_moments` no se pueden editar aquí. Asigna un contexto por álbum (ver [Contexto de puntuación](#contexto-de-puntuación)) o por foto (más abajo).
 
-Ninguna de las dos repuntúa fotos por sí sola. Después, ejecuta un recálculo (`POST /api/scan/recompute`) y vigila `GET /api/scan/recompute_status`. Un escaneo o recálculo que ya se ejecute desde una terminal impide iniciar otro desde el visor. Con `normalization.per_category` activado, un recálculo puede no converger del todo: ver [Normalización](CONFIGURATION.md#normalización) y [Reordenar la prioridad global](CONFIGURATION.md#reordenar-la-prioridad-global).
+Ninguna de las dos repuntúa fotos por sí sola. Después, ejecuta un recálculo (`POST /api/scan/recompute`) y vigila `GET /api/scan/recompute_status`. Salir de la vista detiene sus consultas de progreso, no el recálculo que se está ejecutando en el servidor. Un escaneo o recálculo que ya se ejecute desde una terminal impide iniciar otro desde el visor. Con `normalization.per_category` activado, un recálculo puede no converger del todo: ver [Normalización](CONFIGURATION.md#normalización) y [Reordenar la prioridad global](CONFIGURATION.md#reordenar-la-prioridad-global).
 
 **Colisiones de categoría** (`GET /api/stats/categories/overlap`) muestra qué categoría de mayor prioridad está capturando las fotos de una categoría. Por categoría lista **Asignadas**, **Coinciden con los filtros** (si se evaluara sola) y **Capturadas por una de mayor prioridad** (`matched - assigned`, con mínimo 0). **Pares con más colisiones** clasifica las categorías por fotos compartidas. La categoría comodín `default` se deja fuera, ya que coincide con todo.
 
