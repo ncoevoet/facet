@@ -6,6 +6,7 @@ All notable changes to Facet are documented in this file.
 
 ### Fixed
 
+- **Map markers stay visible across the international date line.** Photo and cluster markers use the visible copy of the map when you pan across the boundary.
 - **Watch mode reports lost roots and keeps monitoring healthy ones.** Missing or unreadable roots no longer prevent other watches from starting. If the last watch stops, the command exits non-zero even when no scan is queued. Bare `--resume` skips failed worklist runs that cannot supply directories for a directory scan.
 - **XMP imports and database backups stay consistent when files change.** The import uses one file snapshot for a sidecar's content and fallback timestamp, skipping sidecars that change during reads. Backup rotation protects the snapshot just published even if older files have newer modification times.
 - **Album covers, directory errors and recompute progress track current state.** Removing a manual album's cover selects a remaining member or clears an empty album's cover. Folders can retry failed reads without showing the previous directory, face matching cannot merge obsolete suggestions, and closed views stop polling recomputes without canceling the underlying job.

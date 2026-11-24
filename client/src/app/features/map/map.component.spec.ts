@@ -349,6 +349,63 @@ describe('MapComponent', () => {
       });
     });
 
+    it.each([
+      [170, 190, 175, -175, 175, 185, '40,170,55,-170'],
+      [-190, -170, 175, -175, -185, -175, '40,170,55,-170'],
+      [350, 370, -5, 5, 355, 365, '40,-10,55,10'],
+      [100, 460, -175, 175, 185, 175, '40,-180,55,180'],
+      [-250, 250, -175, 175, -175, 175, '40,-180,55,180'],
+      [180, 200, 180, -180, 180, 180, '40,180,55,-160'],
+      [170, 180, 180, -180, 180, 180, '40,170,55,-180'],
+      [179.99999999999997, 190, 180, -180, 180, 180, '40,179.99999999999997,55,-170'],
+      [170, 179.99999999999997, 175, 174, 175, 174, '40,170,55,179.99999999999997'],
+    ])('requests canonical bounds and draws in the visible world (%s to %s)', async (
+      west, east, clusterLng, photoLng, displayedClusterLng, displayedPhotoLng, expectedBounds,
+    ) => {
+      mockMap.getBounds.mockReturnValueOnce({
+        getSouthWest: () => ({ lat: 40, lng: west }),
+        getNorthEast: () => ({ lat: 55, lng: east }),
+      });
+      mockApi.get.mockReturnValue(of({
+        clusters: [{ lat: 48, lng: clusterLng, count: 2 }],
+        photos: [{ path: '/img.jpg', lat: 50, lng: photoLng, aggregate: 7.5, filename: 'img.jpg' }],
+      }));
+
+      await component.loadMarkers();
+
+      expect.soft(mockApi.get).toHaveBeenCalledWith('/photos/map', expect.objectContaining({ bounds: expectedBounds }));
+      expect.soft(leafletMock.circleMarker).toHaveBeenCalledWith([48, displayedClusterLng], expect.any(Object));
+      expect.soft(leafletMock.marker).toHaveBeenCalledWith([50, displayedPhotoLng]);
+    });
+
+    it('draws both date-line sides inside the same real Leaflet viewport', async () => {
+      const leaflet = await vi.importActual<typeof import('leaflet')>('leaflet');
+      const container = document.createElement('div');
+      Object.defineProperties(container, { clientWidth: { value: 512 }, clientHeight: { value: 300 } });
+      document.body.append(container);
+      const realMap = leaflet.map(container, { zoomAnimation: false, fadeAnimation: false }).setView([0, 180], 5);
+      component.map = realMap;
+      mockApi.get.mockReturnValue(of({
+        clusters: [{ lat: 0, lng: 175, count: 2 }],
+        photos: [{ path: '/img.jpg', lat: 0, lng: -175, aggregate: 7.5, filename: 'img.jpg' }],
+      }));
+      try {
+        await component.loadMarkers();
+        const [, request] = mockApi.get.mock.calls[0];
+        const [, west, , east] = request.bounds.split(',').map(Number);
+        expect.soft(west).toBeCloseTo(168.75);
+        expect.soft(east).toBeCloseTo(-168.75);
+        const clusterPoint = realMap.latLngToContainerPoint((leafletMock.circleMarker as Mock).mock.calls[0][0]);
+        const photoPoint = realMap.latLngToContainerPoint((leafletMock.marker as Mock).mock.calls[0][0]);
+        expect.soft(clusterPoint.x).toBe(142);
+        expect.soft(photoPoint.x).toBe(370);
+      } finally {
+        component.map = mockMap;
+        realMap.remove();
+        container.remove();
+      }
+    });
+
     it('should set loading to false after completion', async () => {
       mockApi.get.mockReturnValue(of({ clusters: [], photos: [] }));
       await component.loadMarkers();
