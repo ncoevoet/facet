@@ -124,7 +124,7 @@ All endpoints here use the [batch target contract](#conventions).
 | `DELETE /api/albums/{id}` | Delete album |
 | `GET /api/albums/{id}/photos` | List photos in album (paginated) |
 | `POST /api/albums/{id}/photos` | Add photos to album |
-| `DELETE /api/albums/{id}/photos` | Remove photos from album |
+| `DELETE /api/albums/{id}/photos` | Remove photos from a manual album. If the removed photos include its cover, use the first remaining member as the cover, or clear it when the album is empty. No-op on smart albums |
 | `PUT /api/albums/{id}/scoring_context` | `[Edition]` Set the album's scoring context and apply it to matching members now, skipping manual overrides (smart albums resolve `smart_filter_json` live). Returns `{updated, conflicts, manual_skipped}` |
 | `DELETE /api/albums/{id}/scoring_context` | `[Edition]` Clear the album's scoring context from the members it set. Returns `{ok, cleared}` |
 | `GET /api/albums/{id}/suggested_context` | Suggest a scoring context from the album's dominant `narrative_moment` (writes nothing) |

@@ -673,7 +673,7 @@ An album can carry a scoring context that decides which category wins for its ph
 - Photos added to a manual album later inherit the context. New matches of a smart album do not; set the context again.
 - **Clear context** (not the same as choosing `default`) removes the stamp. A photo still in another album with a context gets that context instead.
 - Facet can suggest a context from the album's dominant narrative moment (via each context's `suggest_from_moments`). It writes nothing until you confirm.
-- Run a recompute (`POST /api/scan/recompute`) for the new context to change stored categories.
+- Run a recompute (`POST /api/scan/recompute`) for the new context to change stored categories. Closing the dialog stops its progress checks, not the recompute running on the server.
 
 Endpoints and response counts: [API.md](API.md#albums).
 
@@ -1195,7 +1195,7 @@ Categories are checked in ascending `priority` order; the first match wins. See 
 - **Global priority** — reorder the base evaluation order.
 - **Scoring contexts** — presets (`default`, `action_stage`, `party_event`, `portrait_session`, `wildlife`, `landscape`, `motorsport`) that promote some categories and exclude others, without changing the global order. Edit any non-`default` preset in the **Scoring Context** tab: drag (or move up/down) the promoted categories, toggle exclusions, save. A category listed in both wins as excluded. `label_key` and `suggest_from_moments` are not editable here. Assign a context per album (see [Scoring Context](#scoring-context)) or per photo (below).
 
-Neither rescores photos by itself. Afterwards, run a recompute (`POST /api/scan/recompute`) and watch `GET /api/scan/recompute_status`. A scan or recompute already running from a terminal blocks a new one from the viewer. With `normalization.per_category` on, one recompute may not fully converge — see [Normalization](CONFIGURATION.md#normalization) and [Reordering the global priority](CONFIGURATION.md#reordering-the-global-priority).
+Neither rescores photos by itself. Afterwards, run a recompute (`POST /api/scan/recompute`) and watch `GET /api/scan/recompute_status`. Leaving the view stops its progress checks, not the recompute running on the server. A scan or recompute already running from a terminal blocks a new one from the viewer. With `normalization.per_category` on, one recompute may not fully converge — see [Normalization](CONFIGURATION.md#normalization) and [Reordering the global priority](CONFIGURATION.md#reordering-the-global-priority).
 
 **Category collisions** (`GET /api/stats/categories/overlap`) shows which higher-priority category is capturing a category's photos. Per category it lists **Assigned**, **Matches filters** (if evaluated alone) and **Captured by higher priority** (`matched - assigned`, floored at 0). **Top colliding pairs** ranks categories by shared photos. The `default` catch-all is left out, since it matches everything.
 

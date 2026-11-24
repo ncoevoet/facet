@@ -996,6 +996,10 @@ def remove_photos_from_album(
     context instead of being left unscored (see
     ``_clear_album_context_overrides``).
 
+    Removing the stored cover of a manual album promotes its first remaining
+    member, or clears the cover when the album is empty. An explicit cover
+    outside the album is not affected by a request to remove a non-member.
+
     A no-op for smart albums: ``album_photos`` carries no rows for them (their
     membership is resolved live from ``smart_filter_json``), so there is
     nothing to remove — and the removed photos would typically still be
@@ -1011,12 +1015,26 @@ def remove_photos_from_album(
             return {'ok': True, 'photo_count': 0}
 
         placeholders = ','.join(['?'] * len(body.photo_paths))
+        # Test membership before deletion, within the same write transaction.
+        removed_cover = conn.execute(
+            "UPDATE albums SET cover_photo_path = NULL WHERE id = ? "
+            "AND cover_photo_path IN (SELECT photo_path FROM album_photos "
+            f"WHERE album_id = albums.id AND photo_path IN ({placeholders}))",
+            [album_id] + body.photo_paths,
+        ).rowcount > 0
         conn.execute(
             f"DELETE FROM album_photos WHERE album_id = ? AND photo_path IN ({placeholders})",
             [album_id] + body.photo_paths
         )
         _clear_album_context_overrides(conn, album_id, paths=body.photo_paths)
-        conn.execute("UPDATE albums SET updated_at = datetime('now') WHERE id = ?", (album_id,))
+        conn.execute(
+            """UPDATE albums SET updated_at = datetime('now'),
+               cover_photo_path = CASE WHEN ? THEN (
+                   SELECT photo_path FROM album_photos WHERE album_id = albums.id
+                   ORDER BY position, photo_path LIMIT 1
+               ) ELSE cover_photo_path END WHERE id = ?""",
+            (removed_cover, album_id),
+        )
         conn.commit()
 
         row = conn.execute(

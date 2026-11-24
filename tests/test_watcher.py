@@ -38,15 +38,24 @@ FACET_SCRIPT = os.path.join(
 class _FakeObserver:
     def __init__(self):
         self.scheduled = []
+        self.emitters = []
         self.start_calls = 0
         self.stop_calls = 0
         self.join_timeout = None
 
     def schedule(self, handler, directory, recursive=True):
         self.scheduled.append((handler, directory, recursive))
+        watch = object()
+        emitter = SimpleNamespace(watch=watch, alive=True)
+        emitter.is_alive = lambda: emitter.alive
+        self.emitters.append(emitter)
+        return watch
 
     def start(self):
         self.start_calls += 1
+
+    def is_alive(self):
+        return self.start_calls > 0 and self.stop_calls == 0
 
     def stop(self):
         self.stop_calls += 1
@@ -315,6 +324,95 @@ class TestRunWatchLoopObserverSelection:
         assert native.stop_calls == 0
         assert polling.start_calls == 1
         assert polling.stop_calls == 1
+
+
+    def test_bad_root_does_not_discard_other_native_or_polling_watches(self, monkeypatch, tmp_path, caplog):
+        healthy = str(tmp_path / "native")
+        polling_only = str(tmp_path / "poll")
+        missing = str(tmp_path / "missing")
+        calls = []
+
+        class SelectiveObserver(_FakeObserver):
+            def __init__(self, failed):
+                super().__init__()
+                self.failed = failed
+
+            def schedule(self, handler, directory, recursive=True):
+                if directory in self.failed:
+                    raise self.failed[directory]
+                return super().schedule(handler, directory, recursive)
+
+        native = SelectiveObserver({missing: FileNotFoundError(missing), polling_only: PermissionError(polling_only)})
+        polling = SelectiveObserver({missing: FileNotFoundError(missing)})
+        monkeypatch.setattr(watchdog.observers, "Observer", lambda: native)
+        monkeypatch.setattr(watchdog.observers.polling, "PollingObserver", lambda: polling)
+        monkeypatch.setattr(watcher.subprocess, "run", lambda *a, **kw: calls.append(a) or SimpleNamespace(returncode=0))
+        ticks = iter((healthy, polling_only))
+
+        def send_change(_seconds):
+            target = next(ticks, None)
+            if target is None:
+                raise KeyboardInterrupt
+            for handler, directory, _ in native.scheduled + polling.scheduled:
+                if directory == target:
+                    handler.on_created(SimpleNamespace(is_directory=False, src_path=os.path.join(target, 'new.jpg')))
+
+        monkeypatch.setattr(watcher.time, "sleep", send_change)
+        assert watcher.run_watch_loop([healthy, missing, polling_only], str(tmp_path / "photos.db"),
+                                      initial_scan=False, debounce_seconds=0)
+        assert [item[1] for item in native.scheduled] == [healthy]
+        assert [item[1] for item in polling.scheduled] == [polling_only]
+        assert len(calls) == 2
+        assert "Cannot watch" in caplog.text and missing in caplog.text
+        assert native.stop_calls == polling.stop_calls == 1
+
+    def test_returns_fault_when_no_root_can_be_watched(self, monkeypatch, tmp_path, caplog):
+        class MissingRootObserver(_FakeObserver):
+            def schedule(self, handler, directory, recursive=True):
+                raise FileNotFoundError(directory)
+
+        monkeypatch.setattr(watchdog.observers, "Observer", MissingRootObserver)
+        monkeypatch.setattr(watchdog.observers.polling, "PollingObserver", MissingRootObserver)
+        monkeypatch.setattr(watcher.subprocess, "run", lambda *a, **kw: pytest.fail("scanned without a live watch"))
+        monkeypatch.setattr(watcher.time, "sleep", lambda _: pytest.fail("entered loop without a live watch"))
+        assert not watcher.run_watch_loop([str(tmp_path / "missing")], str(tmp_path / "photos.db"))
+        assert "no live directory watches" in caplog.text
+
+    def test_lost_emitter_keeps_other_roots_until_all_are_lost(self, monkeypatch, tmp_path, caplog):
+        db_path = str(tmp_path / "photos.db")
+        first = tmp_path / "library-a"
+        second = tmp_path / "library-b"
+        first.mkdir()
+        second.mkdir()
+        native = _FakeObserver()
+        monkeypatch.setattr(watchdog.observers, "Observer", lambda: native)
+        calls = []
+        monkeypatch.setattr(watcher.subprocess, "run", lambda *a, **kw: calls.append(a) or SimpleNamespace(returncode=0))
+        ticks = iter(range(3))
+
+        def lose_roots(_seconds):
+            tick = next(ticks, None)
+            if tick == 0:
+                # The dispatch thread still runs, and the path has even reappeared.
+                first.rmdir()
+                native.emitters[0].alive = False
+                first.mkdir()
+            elif tick == 1:
+                handler, _, _ = native.scheduled[1]
+                handler.on_created(SimpleNamespace(is_directory=False, src_path=str(second / "new.jpg")))
+            elif tick == 2:
+                native.emitters[1].alive = False
+            else:
+                pytest.fail("kept watching with all emitters dead")
+
+        monkeypatch.setattr(watcher.time, "sleep", lose_roots)
+        assert not watcher.run_watch_loop([str(first), str(second)], db_path, initial_scan=False, debounce_seconds=0)
+        assert len(calls) == 1
+        lost = [r.message for r in caplog.records if "Lost watch" in r.message]
+        assert len(lost) == 2
+        assert str(first) in lost[0]
+        assert str(second) in lost[1]
+        assert native.stop_calls == 1
 
 
 class TestRunWatchLoopInitialScan:

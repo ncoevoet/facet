@@ -1,5 +1,6 @@
 """Exact retry scope and refusal before scanner/model/database initialization."""
 
+import json
 import os
 from contextlib import contextmanager
 from pathlib import Path
@@ -89,6 +90,48 @@ def test_numeric_retry_scope_does_not_select_newer_run(failed_run, scanner_spies
     assert scanner_spies['paths'] == [str(first)]
     with sqlite3.connect(db) as conn:
         assert conn.execute('SELECT path FROM scan_failures').fetchall() == [(str(second),)]
+
+
+@pytest.mark.parametrize('explicit_paths', [False, True])
+def test_resume_after_rootless_retry(failed_run, monkeypatch, caplog, explicit_paths):
+    db, first, _ = failed_run
+    with sqlite3.connect(db) as conn:
+        conn.execute(
+            "UPDATE scan_runs SET status='interrupted', args_json=? WHERE id=1",
+            (json.dumps({'directories': [str(first.parent)]}),),
+        )
+        conn.execute(
+            "UPDATE scan_runs SET status='failed', args_json=? WHERE id=2",
+            (json.dumps({'directories': [], 'retry_of': 1, 'skip_library_passes': True}),),
+        )
+    args = [str(first)] if explicit_paths else []
+    monkeypatch.setattr(sys, 'argv', ['facet.py', *args, '--resume', '--force', '--db', db])
+    selected = []
+
+    def run_scan(args, resumed_run):
+        assert facet.library_job_holder(db) is not None
+        selected.append((list(map(str, args.photo_paths)), resumed_run['id']))
+        assert args.retry_failed is None and args.retry_plan is None
+        return True
+
+    monkeypatch.setattr(facet, '_run_scan', run_scan)
+    facet.main()
+    assert selected == ([([str(first)], 2)] if explicit_paths else [([str(first.parent)], 1)])
+    if not explicit_paths:
+        assert 'Resuming scan run #1' in caplog.text
+
+
+def test_bare_resume_with_only_rootless_history_explains_worklist(failed_run, monkeypatch, caplog):
+    db, _, _ = failed_run
+    with sqlite3.connect(db) as conn:
+        conn.execute("UPDATE scan_runs SET status='failed', args_json='{\"directories\":[]}' WHERE id=2")
+    monkeypatch.setattr(sys, 'argv', ['facet.py', '--resume', '--db', db])
+    with pytest.raises(SystemExit) as error:
+        facet.main()
+    assert error.value.code == 1
+    assert 'recorded photo paths' in caplog.text
+    assert '--retry-failed' in caplog.text
+    assert 'photo_paths is required' not in caplog.text
 
 
 def test_manifest_scores_only_captured_files_without_library_tail(failed_run, scanner_spies, monkeypatch):

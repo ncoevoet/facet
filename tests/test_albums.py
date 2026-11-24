@@ -806,6 +806,48 @@ class TestRemovePhotosFromAlbumClearsScoringOverrides:
         assert overrides["/b.jpg"]["scoring_context"] == "motorsport"
 
 
+class TestRemovePhotosFromAlbumCover:
+    def test_removed_cover_is_replaced_cleared_and_can_be_set_again(self, client, seed_photos_prefix):
+        prefix = "/album-cover-removal/"
+        a, b, c = [prefix + name for name in ("a.jpg", "b.jpg", "c.jpg")]
+        seed_photos_prefix(prefix, [{"path": p} for p in (a, b, c)])
+        album = client.post("/api/albums", json={"name": "Cover after removal"}).json()
+        album_id = album["id"]
+        members = f"/api/albums/{album_id}/photos"
+
+        def assert_listing(count, cover):
+            listing = client.get("/api/albums", params={"search": album["name"]}).json()["albums"]
+            row = next(row for row in listing if row["id"] == album_id)
+            assert row["photo_count"] == count
+            assert row["first_photo_path"] == row["cover_photo_path"] == cover
+
+        try:
+            assert client.post(members, json={"photo_paths": [a, b]}).json()["added"] == 2
+            assert_listing(2, a)
+            assert client.request("DELETE", members, json={"photo_paths": [a]}).json()["photo_count"] == 1
+            assert_listing(1, b)
+            assert client.request("DELETE", members, json={"photo_paths": [b]}).json()["photo_count"] == 0
+            assert_listing(0, None)
+            assert client.post(members, json={"photo_paths": [c]}).json()["added"] == 1
+            assert_listing(1, c)
+        finally:
+            client.delete(f"/api/albums/{album_id}")
+
+    def test_request_to_remove_nonmember_does_not_clear_explicit_outside_cover(self, client, seed_photos_prefix):
+        prefix = "/explicit-album-cover/"
+        member, cover = [prefix + name for name in ("member.jpg", "cover.jpg")]
+        seed_photos_prefix(prefix, [{"path": p} for p in (member, cover)])
+        album = client.post("/api/albums", json={"name": "Explicit cover"}).json()
+        url = f"/api/albums/{album['id']}"
+        try:
+            assert client.post(f"{url}/photos", json={"photo_paths": [member]}).json()["added"] == 1
+            assert client.put(url, json={"cover_photo_path": cover}).json()["cover_photo_path"] == cover
+            assert client.request("DELETE", f"{url}/photos", json={"photo_paths": [cover]}).json()["photo_count"] == 1
+            assert client.get(url).json()["cover_photo_path"] == cover
+        finally:
+            client.delete(url)
+
+
 class TestAlbumSuggestedContext:
     """Tests for GET /api/albums/{id}/suggested_context.
 

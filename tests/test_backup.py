@@ -105,6 +105,32 @@ class TestBackupDatabase:
         backups = glob.glob(str(db) + ".backup-*")
         assert backups == [kept]
 
+    @pytest.mark.parametrize("keep", [1, 2])
+    def test_rotation_reserves_room_for_the_snapshot_just_published(self, tmp_path, keep):
+        db = tmp_path / "library.db"
+        _make_db(db, 2)
+        older_path = Path(backup_database(str(db), keep=3, verbose=False))
+        with sqlite3.connect(db) as conn:
+            conn.execute("INSERT INTO t(v) VALUES('newer')")
+        newer_path = Path(backup_database(str(db), keep=3, verbose=False))
+        with sqlite3.connect(db) as conn:
+            conn.execute("INSERT INTO t(v) VALUES('current')")
+        # Copies/restores or clock adjustments can make either old file look
+        # newer than the newly published SQLite snapshot.
+        future = int(time.time()) + 7 * 86400
+        os.utime(older_path, (future, future))
+        os.utime(newer_path, (future + 10, future + 10))
+
+        fresh = Path(backup_database(str(db), keep=keep, verbose=True))
+
+        assert set(tmp_path.glob("library.db.backup-*")) == (
+            {fresh} if keep == 1 else {fresh, newer_path}
+        )
+        with sqlite3.connect(fresh) as conn:
+            assert conn.execute("SELECT v FROM t ORDER BY id").fetchall() == [
+                ("row0",), ("row1",), ("newer",), ("current",),
+            ]
+
     def test_missing_db_raises(self, tmp_path):
         with pytest.raises(FileNotFoundError):
             backup_database(str(tmp_path / "nope.db"), verbose=False)
@@ -187,13 +213,40 @@ class TestBackupDatabase:
                 assert conn.execute('SELECT COUNT(*) FROM t').fetchone() == (3,)
                 assert conn.execute('PRAGMA integrity_check').fetchone() == ('ok',)
 
+    def test_overlapping_keep_one_backups_do_not_rotate_each_other_away(self, tmp_path, monkeypatch):
+        from db.maintenance import _publish_new_database
+
+        db = tmp_path / "library.db"
+        _make_db(db, 2)
+        previous = backup_database(str(db), keep=1, verbose=False)
+        before_publication = Barrier(2)
+
+        def publish_together(source, destination):
+            # Both calls have completed their copies and listed their prior
+            # snapshots before either output is published.
+            before_publication.wait(timeout=5)
+            _publish_new_database(source, destination)
+
+        with monkeypatch.context() as patch, ThreadPoolExecutor(max_workers=2) as executor:
+            patch.setattr("db.maintenance._publish_new_database", publish_together)
+            jobs = [executor.submit(backup_database, str(db), keep=1, verbose=False) for _ in range(2)]
+            paths = {Path(job.result(timeout=10)) for job in jobs}
+        assert len(paths) == 2 and not Path(previous).exists()
+        assert set(tmp_path.glob("library.db.backup-*")) == paths
+        for path in paths:
+            with sqlite3.connect(path) as conn:
+                assert conn.execute("SELECT COUNT(*) FROM t").fetchone() == (2,)
+
+        fresh = Path(backup_database(str(db), keep=1, verbose=False))
+        assert set(tmp_path.glob("library.db.backup-*")) == {fresh}
+
     @pytest.mark.parametrize(('name', 'other'), [('library[1].db', 'library1.db'),
                                                ('library*.db', 'library2.db'),
                                                ('library?.db', 'library3.db')])
     def test_rotation_uses_literal_database_names(self, tmp_path, name, other):
         if os.name == 'nt' and any(char in name for char in '*?'):
             pytest.skip('Windows filenames cannot contain * or ?')
-        from db.maintenance import _rotate_backups
+        from db.maintenance import _backup_snapshots, _rotate_backups
         own = tmp_path / (name + '.backup-old')
         latest = tmp_path / (name + '.backup-new')
         unrelated = tmp_path / (other + '.backup-old')
@@ -202,13 +255,13 @@ class TestBackupDatabase:
         os.utime(unrelated, (1, 1))
         os.utime(own, (2, 2))
         os.utime(latest, (3, 3))
-        _rotate_backups(str(tmp_path / name), str(tmp_path), 1)
+        _rotate_backups(_backup_snapshots(str(tmp_path / name), str(tmp_path)), 1)
         assert not own.exists()
         assert latest.exists()
         assert unrelated.read_bytes() == b'completed snapshot'
 
     def test_rotation_uses_literal_parent_directory(self, tmp_path):
-        from db.maintenance import _rotate_backups
+        from db.maintenance import _backup_snapshots, _rotate_backups
         own_dir, other_dir = tmp_path / 'library[1]', tmp_path / 'library1'
         own_dir.mkdir()
         other_dir.mkdir()
@@ -220,7 +273,7 @@ class TestBackupDatabase:
         os.utime(unrelated, (1, 1))
         os.utime(own, (2, 2))
         os.utime(latest, (3, 3))
-        _rotate_backups(str(own_dir / 'photos.db'), str(own_dir), 1)
+        _rotate_backups(_backup_snapshots(str(own_dir / 'photos.db'), str(own_dir)), 1)
         assert not own.exists()
         assert latest.exists()
         assert unrelated.read_bytes() == b'completed snapshot'

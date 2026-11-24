@@ -1,5 +1,6 @@
 import { Component, DestroyRef, Pipe, PipeTransform, computed, inject, signal, ChangeDetectionStrategy } from '@angular/core';
 import { HttpErrorResponse } from '@angular/common/http';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { DragDropModule, CdkDragDrop, moveItemInArray } from '@angular/cdk/drag-drop';
 import { MatCardModule } from '@angular/material/card';
 import { MatButtonModule } from '@angular/material/button';
@@ -10,7 +11,7 @@ import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { MatProgressBarModule } from '@angular/material/progress-bar';
 import { MatTooltipModule } from '@angular/material/tooltip';
 import { MatSnackBar } from '@angular/material/snack-bar';
-import { firstValueFrom } from 'rxjs';
+import { firstValueFrom, timeout } from 'rxjs';
 import { ApiService } from '../../core/services/api.service';
 import { AuthService } from '../../core/services/auth.service';
 import { I18nService } from '../../core/services/i18n.service';
@@ -20,6 +21,7 @@ import { EtaDurationPipe, FilterValueFormatPipe } from './comparison.pipes';
 
 const DEFAULT_CATEGORY_NAME = 'default';
 const JOB_KIND_RECOMPUTE = 'recompute';
+const RECOMPUTE_STATUS_TIMEOUT_MS = 15_000;
 const MAX_OVERLAP_PAIRS = 8;
 
 interface CategoryPriorityEntry {
@@ -481,6 +483,7 @@ export class ComparisonPriorityTabComponent {
   readonly recomputeMessageKey = signal<string | null>(null);
   private recomputePollTimer: ReturnType<typeof setInterval> | null = null;
   private pollFailures = 0;
+  private pollInFlight = false;
 
   readonly isDefaultContext = computed(() => this.selectedContext() === DEFAULT_CATEGORY_NAME);
   readonly selectedContextEntry = computed(() =>
@@ -719,16 +722,19 @@ export class ComparisonPriorityTabComponent {
   }
 
   async startRecompute(): Promise<void> {
-    if (this.recomputing()) return;
+    if (this.destroyRef.destroyed || this.recomputing()) return;
     this.recomputing.set(true);
     this.recomputeMessageKey.set(null);
     this.recomputeStatus.set(null);
     this.pollFailures = 0;
     try {
       await firstValueFrom(this.api.post('/scan/recompute', { confirm: true }));
+      // Leaving this view does not cancel the server job's start request.
+      if (this.destroyRef.destroyed) return;
       void this.pollRecomputeStatus();
       this.recomputePollTimer = setInterval(() => void this.pollRecomputeStatus(), 1500);
     } catch (err) {
+      if (this.destroyRef.destroyed) return;
       this.recomputing.set(false);
       if (err instanceof HttpErrorResponse && err.status === 409) {
         this.recomputeMessageKey.set('comparison.context.recompute_conflict');
@@ -739,8 +745,12 @@ export class ComparisonPriorityTabComponent {
   }
 
   private async pollRecomputeStatus(): Promise<void> {
+    if (this.destroyRef.destroyed || this.pollInFlight) return;
+    this.pollInFlight = true;
     try {
-      const status = await firstValueFrom(this.api.get<RecomputeStatus>('/scan/recompute_status'));
+      const status = await firstValueFrom(this.api.get<RecomputeStatus>('/scan/recompute_status')
+        .pipe(timeout({ first: RECOMPUTE_STATUS_TIMEOUT_MS }), takeUntilDestroyed(this.destroyRef)));
+      if (this.destroyRef.destroyed) return;
       // A good poll re-arms the strike counter: the tolerance is for
       // consecutive failures only (same policy as the scoring-context dialog).
       this.pollFailures = 0;
@@ -763,6 +773,7 @@ export class ComparisonPriorityTabComponent {
         }
       }
     } catch {
+      if (this.destroyRef.destroyed) return;
       // One transient failure must not freeze the progress bar as unknown
       // while the recompute is still running server-side — a user pressing
       // start again would then hit the 409. Three consecutive failures mean
@@ -772,6 +783,8 @@ export class ComparisonPriorityTabComponent {
       this.stopRecomputePolling();
       this.recomputing.set(false);
       this.recomputeMessageKey.set('comparison.context.recompute_unknown');
+    } finally {
+      this.pollInFlight = false;
     }
   }
 

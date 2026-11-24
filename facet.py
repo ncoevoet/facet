@@ -4577,21 +4577,23 @@ def main():
         print(f"matched={result.matched} unmatched={result.unmatched} changed={result.changed}")
         exit()
 
-    # --resume reuses the directories recorded by the last interrupted run;
-    # --retry-failed needs no directories at all (worklist comes from the DB)
+    # Bare --resume needs a run with reusable directories; --retry-failed
+    # needs none at all because its worklist comes from the database.
     resumed_run = None
     if args.resume:
-        from processing.scan_state import get_last_resumable_run
+        from processing.scan_state import get_last_resumable_run, recorded_scan_directories
         stale_seconds = scan_stale_seconds(ScoringConfig(args.config, validate=False).config)
-        resumed_run = get_last_resumable_run(args.db, stale_seconds)
+        require_directories = not (args.photo_paths or args.retry_failed or args.retry_plan)
+        resumed_run = get_last_resumable_run(args.db, stale_seconds, require_directories=require_directories)
         if not args.photo_paths:
             if not resumed_run:
-                logger.error("No interrupted or failed scan run found to resume")
+                if require_directories:
+                    logger.error("No interrupted or failed scan run with recorded photo paths found to resume. "
+                                 "Supply paths explicitly, or use --retry-failed to retry individual failed files.")
+                else:
+                    logger.error("No interrupted or failed scan run found to resume")
                 exit(1)
-            try:
-                args.photo_paths = json.loads(resumed_run['args_json']).get('directories', [])
-            except (json.JSONDecodeError, TypeError):
-                args.photo_paths = []
+            args.photo_paths = recorded_scan_directories(resumed_run['args_json'])
             if resumed_run.get('status') == 'running':
                 logger.info("Resuming hard-crashed scan run #%d (last heartbeat %s)",
                             resumed_run['id'], resumed_run.get('heartbeat_at') or resumed_run['started_at'])

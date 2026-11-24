@@ -1,11 +1,13 @@
 import type { Mock } from 'vitest';
 import { TestBed } from '@angular/core/testing';
 import { signal } from '@angular/core';
+import { HttpContext } from '@angular/common/http';
 import { HeaderSlotService } from '../../core/services/header-slot.service';
 import { I18nService } from '../../core/services/i18n.service';
 import { ActivatedRoute, Router } from '@angular/router';
-import { Observable, Subject, of } from 'rxjs';
+import { Observable, Subject, of, throwError } from 'rxjs';
 import { ApiService } from '../../core/services/api.service';
+import { HANDLE_SERVER_ERROR_LOCALLY } from '../../core/utils/http-error-context';
 import { GalleryStore } from '../gallery/gallery.store';
 import { FoldersComponent, KEEP_CHAIN_STATE } from './folders.component';
 
@@ -74,7 +76,7 @@ describe('FoldersComponent', () => {
     it('should call /folders with current prefix and the view filter params', async () => {
       component.currentPrefix.set('Holidays/');
       await (component as any).loadFolders();
-      expect(mockApi.get).toHaveBeenCalledWith('/folders', { prefix: 'Holidays/', ...noneHidden });
+      expect(mockApi.get).toHaveBeenCalledWith('/folders', { prefix: 'Holidays/', ...noneHidden }, expect.any(HttpContext));
     });
 
     it('should populate folders signal', async () => {
@@ -140,13 +142,13 @@ describe('FoldersComponent', () => {
   describe('reactive refetch on hide-toggle change', () => {
     it('re-fetches /folders when GalleryStore.viewFilterParams changes', () => {
       TestBed.flushEffects();
-      expect(mockApi.get).toHaveBeenCalledWith('/folders', { prefix: '', ...noneHidden });
+      expect(mockApi.get).toHaveBeenCalledWith('/folders', { prefix: '', ...noneHidden }, expect.any(HttpContext));
       mockApi.get.mockClear();
 
       mockStore.viewFilterParams.set({ ...noneHidden, hide_blinks: '1' });
       TestBed.flushEffects();
 
-      expect(mockApi.get).toHaveBeenCalledWith('/folders', { prefix: '', ...noneHidden, hide_blinks: '1' });
+      expect(mockApi.get).toHaveBeenCalledWith('/folders', { prefix: '', ...noneHidden, hide_blinks: '1' }, expect.any(HttpContext));
     });
 
     it('re-fetches when the route prefix changes', () => {
@@ -156,7 +158,7 @@ describe('FoldersComponent', () => {
       component.currentPrefix.set('Holidays/');
       TestBed.flushEffects();
 
-      expect(mockApi.get).toHaveBeenCalledWith('/folders', { prefix: 'Holidays/', ...noneHidden });
+      expect(mockApi.get).toHaveBeenCalledWith('/folders', { prefix: 'Holidays/', ...noneHidden }, expect.any(HttpContext));
     });
   });
 
@@ -200,9 +202,9 @@ describe('FoldersComponent', () => {
   });
 
   describe('page shell', () => {
-    async function render() {
+    async function render(response: Observable<unknown> = of(foldersResponse)) {
       TestBed.resetTestingModule();
-      mockApi = { get: vi.fn(() => of(foldersResponse)) };
+      mockApi = { get: vi.fn(() => response) };
       mockRouter = { navigate: vi.fn(() => new Promise<boolean>(() => undefined)) };
       TestBed.configureTestingModule({
         providers: [
@@ -280,6 +282,63 @@ describe('FoldersComponent', () => {
       await Promise.resolve();
       await Promise.resolve();
       expect(cmp.loading()).toBe(false);
+    });
+
+    it('shows a retryable error for a failed initial read, not an empty library', async () => {
+      const fixture = await render(throwError(() => new Error('offline')));
+      const root: HTMLElement = fixture.nativeElement;
+      fixture.detectChanges();
+      expect(root.querySelector('[role="alert"]')?.textContent).toContain('errors.server_error');
+      expect(root.textContent).not.toContain('folders.empty');
+      mockApi.get.mockReturnValueOnce(of({ folders: [], has_direct_photos: false }));
+      root.querySelector<HTMLButtonElement>('[data-folders-retry]')!.click();
+      await fixture.whenStable();
+      fixture.detectChanges();
+      expect(root.querySelector('[role="alert"]')).toBeNull();
+      expect(root.textContent).toContain('folders.empty');
+      expect(mockApi.get).toHaveBeenCalledTimes(2);
+      expect(mockApi.get.mock.calls.every(([, , context]) =>
+        (context as HttpContext).get(HANDLE_SERVER_ERROR_LOCALLY))).toBe(true);
+    });
+
+    it('does not show old cards after navigation and a failed folder read', async () => {
+      const fixture = await render();
+      const cmp = fixture.componentInstance as any;
+      const root: HTMLElement = fixture.nativeElement;
+      fixture.detectChanges();
+      expect(root.textContent).toContain('Work');
+      const request = new Subject<unknown>();
+      mockApi.get.mockReturnValue(request);
+      cmp.currentPrefix.set('Holidays/');
+      fixture.detectChanges();
+      expect(cmp.loading()).toBe(true);
+      expect(root.textContent).not.toContain('Work');
+
+      request.error(new Error('offline'));
+      await fixture.whenStable();
+      fixture.detectChanges();
+      expect(root.querySelector('[role="alert"]')).not.toBeNull();
+      expect(root.textContent).not.toContain('Work');
+    });
+
+    it('ignores a late failure while a newer folder read is pending', async () => {
+      const first = new Subject<unknown>();
+      const second = new Subject<unknown>();
+      const fixture = await render();
+      const cmp = fixture.componentInstance as any;
+      mockApi.get.mockReturnValueOnce(first).mockReturnValueOnce(second);
+      const older = cmp.loadFolders();
+      cmp.currentPrefix.set('Holidays/');
+      const newer = cmp.loadFolders();
+      first.error(new Error('offline'));
+      await older;
+      expect(cmp.loading()).toBe(true);
+      expect(cmp.loadFailed()).toBe(false);
+      second.next(foldersResponse);
+      await newer;
+      expect(cmp.loading()).toBe(false);
+      expect(cmp.loadFailed()).toBe(false);
+      expect(cmp.folders()).toEqual(foldersResponse.folders);
     });
 
     it('ignores a late answer once a newer load has started', async () => {

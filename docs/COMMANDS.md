@@ -33,7 +33,11 @@
 
 **`--resume`** also recovers a scan killed by a crash, out-of-memory or power loss: a run still marked `running` whose heartbeat is older than `processing.scan_stale_seconds` (default 120). It reuses that run's directories. With `--force`, it skips files already re-scored since the run started. It refuses to start if another scan looks live.
 
+Without explicit paths, `--resume` skips runs without reusable scan directories, including worklist retries. If no resumable directory scan remains, supply the directories explicitly or use `--retry-failed` to retry individual files.
+
 **Exit codes for supervisors.** `0` means the scan ran (or found nothing new); `4` means it had photos to process and saved none of them; `5` means it never saw the library at all — every scan root is missing or unreadable (a dead network mount), so a scheduled scan fails loudly instead of reporting "no new files"; `1` also covers a mid-scan crash of the scoring worker — the photos it never reached are recorded as scan failures, so `--retry-failed` finishes them; `75` the library lock is held by another job. `--watch` treats `4` as neither success nor failure, and every other non-zero exit except `75` counts toward its consecutive-failure give-up. A change-triggered scan that outlives a generous 6-hour timeout is killed and counts as one failure, so a hung subprocess cannot stop the watcher from ever giving up; the initial scan is exempt, since a first watch over a large library (or an initial `--force`) legitimately runs longer. `--watch` forwards `--force-since`, `--single-pass` and `--pass` to every scan it spawns, and `--force` to its initial scan only (forcing every change-triggered scan would re-score the whole library each time); the one-shot worklists `--retry-failed` and `--retry-plan` are refused with `--watch`, which also needs at least one path to watch. Path resolution and permission errors mark only the affected root as unavailable. If the initial watch scan meets a busy library lock, it retries after the debounce interval without waiting for a file event and keeps its initial flags, including `--force`; later event-driven scans remain incremental.
+
+Watch mode attempts native monitoring first for each root and falls back to polling for that root. Roots that cannot be watched at startup or whose watcher later stops are reported by path. The remaining roots stay active; if none are left, watch mode exits with code `1`, even if no scan was triggered. Restart watch mode to pick up restored roots.
 
 ### Scan Bookkeeping
 
@@ -96,6 +100,8 @@ On a CUDA GPU, once a chunk is decoded the same decode worker starts on the firs
 | `python facet.py --import-sidecars --sidecar-naming full` | Read `<image.ext>.xmp` / `<image.ext>.facet.xmp` (default); newer file wins |
 | `python facet.py --import-sidecars --sidecar-naming basename` | Read `<image>.xmp` (extension removed); refuse shared basenames |
 | `python facet.py --import-sidecars --sidecar-naming auto` | Accept either naming; skip a photo that has both |
+
+If a selected XMP sidecar disappears or changes while it is being read, the import skips that photo and continues. Re-run the import when the sidecar is stable.
 | `python facet.py --import-sidecars --overwrite-manual-gps` | Replace manual GPS already set in Facet with the sidecar's |
 | `python facet.py --export-sidecars` | Write or merge `<image>.xmp` sidecars for all photos |
 | `python facet.py --export-sidecars /path --reconcile-keywords` | Also remove Facet-owned keywords no longer present (needs ExifTool) |
@@ -528,7 +534,7 @@ Backups treat `--db` as a literal filesystem path, including spaces, Unicode and
 
 **`python database.py`** also builds missing gallery indexes (see [VIEWER.md](VIEWER.md#gallery-indexes-and-the-count-cache)). On a large library, run it once before starting the viewer; it can take about a minute. Otherwise the viewer builds them in the background and refuses saves meanwhile.
 
-**`--backup`** publishes a completed snapshot under a unique timestamped name before rotating old snapshots. Runs in the same second keep separate snapshots; a failed copy leaves earlier backups intact. The destination filesystem must support hard links.
+**`--backup`** publishes a completed snapshot under a unique timestamped name before rotating old snapshots. Runs in the same second keep separate snapshots; a failed copy leaves earlier backups intact. The destination filesystem must support hard links. The new snapshot always counts as one of the retained copies; overlapping writes can temporarily leave extra copies until the next backup.
 
 **`--export-viewer-db`** keeps destination edits and private places during incremental sync. Full exports omit source saved/recent places. See [export completion and retry](DEPLOYMENT.md#export-lightweight-database) for publication, schema upgrades and recovery after an error.
 
