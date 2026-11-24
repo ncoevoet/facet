@@ -54,6 +54,15 @@ test('both failed photo overlays can be retried independently', async ({ page })
   const faces = canvas.getByRole('button', { name: 'Retry loading face boxes', exact: true });
   const objects = canvas.getByRole('button', { name: 'Retry loading object boxes', exact: true });
 
+  // Retry clears its error before the network request completes. Wait for the
+  // specific successful read, including requests forwarded by the service worker.
+  const retryResponse = (kind: 'faces' | 'objects') =>
+    page.context().waitForEvent('response', response => {
+      const url = new URL(response.url());
+      return response.status() === 200 && response.request().method() === 'GET'
+        && url.pathname === `/api/photo/${kind}` && url.searchParams.get('path') === path;
+    });
+
   await test.step('1. Both controls appear in separate rows when both reads fail', async () => {
     await page.goto(`/photo?path=${encodeURIComponent(path)}`);
     await expect(faces).toBeVisible();
@@ -65,14 +74,14 @@ test('both failed photo overlays can be retried independently', async ({ page })
   });
 
   await test.step('2. A real click retries faces while the object error stays visible', async () => {
-    await faces.click();
+    await Promise.all([retryResponse('faces'), faces.click()]);
     await expect(faces).toHaveCount(0);
     await expect(objects).toBeVisible();
     expect(attempts).toEqual({ faces: 2, objects: 1 });
   });
 
   await test.step('3. A real click retries objects without reloading faces', async () => {
-    await objects.click();
+    await Promise.all([retryResponse('objects'), objects.click()]);
     await expect(objects).toHaveCount(0);
     expect(attempts).toEqual({ faces: 2, objects: 2 });
   });
