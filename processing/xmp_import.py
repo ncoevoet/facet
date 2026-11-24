@@ -85,6 +85,7 @@ from processing.xmp_keywords import keyword_key, parse_keyword_state
 from utils.image_loading import WATCHABLE_IMAGE_EXTENSIONS
 
 logger = logging.getLogger(__name__)
+_WINDOWS = os.name == "nt"
 
 # Field groups an import may select; the CLI validates against the same tuple.
 SIDECAR_FIELDS = ('review', 'gps', 'keywords')
@@ -256,7 +257,15 @@ def _read_sidecar_snapshot(path: str) -> tuple[dict, float]:
     # Read the fallback timestamp only from the opened file, not from the
     # name, which an editor/sync client may have replaced in the meantime.
     # Also reject an observable move or in-place edit before planning this row.
-    if _sidecar_identity(os.stat(path)) != _sidecar_identity(opened):
+    if _WINDOWS:
+        # Windows' path stat can expose creation time as st_ctime_ns while
+        # fstat exposes metadata change time. Compare like with like without
+        # reading the replacement's content or using its clock.
+        with open(path, "rb") as handle:
+            current = os.fstat(handle.fileno())
+    else:
+        current = os.stat(path)
+    if _sidecar_identity(current) != _sidecar_identity(opened):
         raise _SidecarChanged
     return parsed, opened.st_mtime
 

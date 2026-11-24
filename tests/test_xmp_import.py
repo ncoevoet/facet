@@ -8,6 +8,7 @@ policy. Pure stdlib XML — no exiftool needed.
 import os
 import sqlite3
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 
@@ -159,6 +160,42 @@ class TestImportSidecars:
         import_sidecars(conn)
         row = conn.execute("SELECT * FROM photos WHERE path = ?", (img,)).fetchone()
         assert row["star_rating"] == 2  # sidecar wins (newer)
+
+    @pytest.mark.parametrize("dry_run", [True, False])
+    def test_unchanged_packet_accepts_different_path_and_handle_ctime(self, tmp_path, monkeypatch, dry_run):
+        image = str(tmp_path / "p.jpg")
+        target = _write(tmp_path, "p.jpg.xmp", _attr_xmp(rating=4))
+        stamp = 1704067200
+        os.utime(target, (stamp, stamp))
+        conn = _make_db(tmp_path)
+        _add(conn, image)
+        conn.commit()
+
+        stat = os.stat
+
+        def stat_with_birthtime(path, *args, **kwargs):
+            info = stat(path, *args, **kwargs)
+            if path == target:
+                # Python 3.12/Windows path stat returns creation time as ctime,
+                # while fstat returns the actual metadata change time.
+                return SimpleNamespace(
+                    st_dev=info.st_dev, st_ino=info.st_ino, st_size=info.st_size,
+                    st_mtime=info.st_mtime, st_mtime_ns=info.st_mtime_ns,
+                    st_ctime_ns=info.st_ctime_ns - 10_000_000_000,
+                )
+            return info
+
+        monkeypatch.setattr(xmp_import, "_WINDOWS", True, raising=False)
+        monkeypatch.setattr(xmp_import.os, "stat", stat_with_birthtime)
+        result = import_sidecars(conn, dry_run=dry_run)
+
+        assert (result["updated"], result["skipped"]) == (1, 0)
+        assert result["entries"][0]["source"]["clock"] == "file_mtime"
+        assert result["entries"][0]["source"]["effective_at"] == "2024-01-01T00:00:00+00:00"
+        assert conn.execute("SELECT star_rating FROM photos WHERE path = ?", (image,)).fetchone()[0] == (
+            0 if dry_run else 4
+        )
+        conn.close()
 
     @pytest.mark.parametrize("dry_run", [True, False])
     def test_replaced_packet_does_not_pair_old_contents_with_new_mtime(self, tmp_path, monkeypatch, dry_run):

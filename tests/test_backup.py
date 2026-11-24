@@ -234,7 +234,7 @@ class TestBackupDatabase:
         assert len(paths) == 2 and not Path(previous).exists()
         assert set(tmp_path.glob("library.db.backup-*")) == paths
         for path in paths:
-            with sqlite3.connect(path) as conn:
+            with closing(sqlite3.connect(path)) as conn:
                 assert conn.execute("SELECT COUNT(*) FROM t").fetchone() == (2,)
 
         fresh = Path(backup_database(str(db), keep=1, verbose=False))
