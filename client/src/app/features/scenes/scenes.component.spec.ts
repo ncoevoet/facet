@@ -243,7 +243,7 @@ describe('ScenesComponent first-page recovery', () => {
       await fixture.whenStable();
       fixture.detectChanges();
     };
-    return { host, render, queryParamMap };
+    return { host, render, queryParamMap, fixture };
   }
 
   it('keeps failure distinct from an empty album and retries the same first page once', async () => {
@@ -283,7 +283,7 @@ describe('ScenesComponent first-page recovery', () => {
     expect(host.textContent).toContain('scenes.empty');
   });
 
-  it('keeps server errors local while the interceptor still reports crashes', async () => {
+  it('keeps current server errors local and cancels a superseded retry without reporting a crash', async () => {
     const { host, render, queryParamMap } = setup();
     const http = TestBed.inject(HttpTestingController);
     const snack = TestBed.inject(MatSnackBar);
@@ -302,14 +302,24 @@ describe('ScenesComponent first-page recovery', () => {
     host.querySelector<HTMLButtonElement>('[data-scenes-retry]')!.click();
     const oldRetry = requestFor('42');
     queryParamMap.next(convertToParamMap({ album: '84' }));
+    expect(oldRetry.cancelled).toBe(true);
     requestFor('84').flush(response(true));
     await render();
-    oldRetry.flush(null, serverFailure);
-    acknowledgeCrashReport();
-    await render();
+    http.expectNone('/api/client-errors');
     expect(host.querySelector('[data-scenes-retry]')).toBeNull();
     expect(host.querySelectorAll('[data-scene-grid] mat-card')).toHaveLength(1);
     expect(snack.open).not.toHaveBeenCalled();
+    http.verify();
+  });
+
+  it('cancels the HTTP read when Scenes is destroyed', async () => {
+    const { render, fixture } = setup();
+    const http = TestBed.inject(HttpTestingController);
+    await render();
+    const pending = http.expectOne(req => req.url === '/api/scenes');
+    fixture.destroy();
+    expect(pending.cancelled).toBe(true);
+    http.expectNone('/api/client-errors');
     http.verify();
   });
 });

@@ -368,17 +368,19 @@ describe('AlbumScoringContextDialogComponent', () => {
     await component.ngOnInit();
     await component.save();
 
-    const poll = () => (component as unknown as { pollRecomputeStatus(): Promise<void> }).pollRecomputeStatus();
-    const failures = () => (component as unknown as { pollFailures: number }).pollFailures;
-    await component.recompute();
-    console.log('DBG-A failures=', failures(), 'phase=', component.phase());
-    await poll();  // failure 2: still holding on (internal poll was failure 1)
-    console.log('DBG-B failures=', failures(), 'phase=', component.phase());
-    expect(component.phase()).toBe('recomputing');
+    vi.useFakeTimers();
+    try {
+      get.mockClear();
+      await component.recompute();
+      await vi.advanceTimersByTimeAsync(2000);
+      expect(get).toHaveBeenCalledTimes(2);
+      expect(component.phase()).toBe('recomputing');
 
-    failStatusPolls = false;
-    await poll();  // recovery: done
-    expect(component.phase()).toBe('recompute_done');
+      failStatusPolls = false;
+      await vi.advanceTimersByTimeAsync(2000);
+      expect(get).toHaveBeenCalledTimes(3);
+      expect(component.phase()).toBe('recompute_done');
+    } finally { vi.useRealTimers(); }
   });
 
   it('three consecutive poll failures declare the recompute failed', async () => {
@@ -390,15 +392,16 @@ describe('AlbumScoringContextDialogComponent', () => {
     await component.ngOnInit();
     await component.save();
 
-    const poll = () => (component as unknown as { pollRecomputeStatus(): Promise<void> }).pollRecomputeStatus();
-    const stop = () => (component as unknown as { stopPolling(): void }).stopPolling();
-    await component.recompute();
-    stop();  // detach the real interval; drive the counter deterministically
-    await poll();
-    await poll();
-    await poll();
-
-    expect(component.phase()).toBe('recompute_error');
+    vi.useFakeTimers();
+    try {
+      get.mockClear();
+      await component.recompute();
+      await vi.advanceTimersByTimeAsync(4000);
+      expect(get).toHaveBeenCalledTimes(3);
+      expect(component.phase()).toBe('recompute_error');
+      await vi.advanceTimersByTimeAsync(4000);
+      expect(get).toHaveBeenCalledTimes(3);
+    } finally { vi.useRealTimers(); }
   });
 
   it('recompute() surfaces a busy error on 409 without leaving the saved phase', async () => {

@@ -98,17 +98,17 @@ describe('PhotoFaceLayerComponent', () => {
     expect(mockApi.get).toHaveBeenCalledWith('/photo/faces', { path: '/p/a.jpg' });
   });
 
-  it('renders a failed-read chip and retries until the face boxes recover', async () => {
+  it('offers a retry after each failed read and recovers the face boxes', async () => {
     await render();
     mockApi.get.mockReturnValue(throwError(() => new Error('network')));
-    await component.load();
+    await component.retry();
     fixture.detectChanges();
     expect(component.canRetry()).toBe(true);
     expect(fixture.nativeElement.querySelector('[data-face]')).toBeNull();
-    await component.load();
+    await component.retry();
     expect(component.canRetry()).toBe(true);
     mockApi.get.mockReturnValue(of({ faces: ROWS }));
-    await component.load();
+    await component.retry();
     fixture.detectChanges();
     expect(mockApi.get).toHaveBeenLastCalledWith('/photo/faces', { path: '/p/a.jpg' });
     expect(component.canRetry()).toBe(false);
@@ -118,7 +118,7 @@ describe('PhotoFaceLayerComponent', () => {
   it('does not offer a retry when face mode is off', async () => {
     await render();
     mockApi.get.mockReturnValue(throwError(() => new Error('network')));
-    await component.load();
+    await component.retry();
     fixture.componentRef.setInput('mode', 'off');
     fixture.detectChanges();
     expect(component.canRetry()).toBe(false);
@@ -131,8 +131,8 @@ describe('PhotoFaceLayerComponent', () => {
     await render();
     const pending = new Subject<{ faces: PhotoFaceRow[] }>();
     mockApi.get.mockReturnValueOnce(pending);
-    const oldLoad = component.load();
-    await component.load();
+    const oldLoad = component.retry();
+    await component.retry();
     pending.error(new Error('stale failure'));
     await oldLoad;
     fixture.detectChanges();
@@ -144,7 +144,7 @@ describe('PhotoFaceLayerComponent', () => {
     await render();
     const old = new Subject<{ faces: PhotoFaceRow[] }>();
     mockApi.get.mockReturnValueOnce(old);
-    const oldLoad = component.load();
+    const oldLoad = component.retry();
     const next = new Subject<{ faces: PhotoFaceRow[] }>();
     mockApi.get.mockReturnValueOnce(next);
     fixture.componentRef.setInput('path', '/p/b.jpg');
@@ -499,7 +499,7 @@ describe('PhotoFaceLayerComponent', () => {
     expect(component.faces().length).toBeGreaterThan(0);
     const pending = new Subject<{ faces: PhotoFaceRow[] }>();
     mockApi.get.mockReturnValue(pending);
-    const reread = component.load();
+    const reread = component.retry();
     expect(component.faces().length).toBeGreaterThan(0);
     pending.next({ faces: ROWS });
     pending.complete();

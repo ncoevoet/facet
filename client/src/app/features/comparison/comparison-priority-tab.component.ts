@@ -1,6 +1,5 @@
 import { Component, DestroyRef, Pipe, PipeTransform, computed, inject, signal, ChangeDetectionStrategy } from '@angular/core';
 import { HttpErrorResponse } from '@angular/common/http';
-import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { DragDropModule, CdkDragDrop, moveItemInArray } from '@angular/cdk/drag-drop';
 import { MatCardModule } from '@angular/material/card';
 import { MatButtonModule } from '@angular/material/button';
@@ -11,17 +10,17 @@ import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { MatProgressBarModule } from '@angular/material/progress-bar';
 import { MatTooltipModule } from '@angular/material/tooltip';
 import { MatSnackBar } from '@angular/material/snack-bar';
-import { firstValueFrom, timeout } from 'rxjs';
+import { firstValueFrom } from 'rxjs';
 import { ApiService } from '../../core/services/api.service';
 import { AuthService } from '../../core/services/auth.service';
 import { I18nService } from '../../core/services/i18n.service';
 import { TranslatePipe } from '../../shared/pipes/translate.pipe';
+import { RecomputePoller } from '../../shared/utils/recompute-poller';
 import { ScoringContextLabelPipe } from '../../shared/pipes/scoring-context-label.pipe';
 import { EtaDurationPipe, FilterValueFormatPipe } from './comparison.pipes';
 
 const DEFAULT_CATEGORY_NAME = 'default';
 const JOB_KIND_RECOMPUTE = 'recompute';
-const RECOMPUTE_STATUS_TIMEOUT_MS = 15_000;
 const MAX_OVERLAP_PAIRS = 8;
 
 interface CategoryPriorityEntry {
@@ -481,9 +480,15 @@ export class ComparisonPriorityTabComponent {
   readonly recomputing = signal(false);
   readonly recomputeStatus = signal<RecomputeStatus | null>(null);
   readonly recomputeMessageKey = signal<string | null>(null);
-  private recomputePollTimer: ReturnType<typeof setInterval> | null = null;
-  private pollFailures = 0;
-  private pollInFlight = false;
+  private readonly recomputePoller = new RecomputePoller<RecomputeStatus>(this.api, this.destroyRef, {
+    intervalMs: 1500,
+    maxFailures: 3,
+    onStatus: status => this.applyRecomputeStatus(status),
+    onGiveUp: () => {
+      this.recomputing.set(false);
+      this.recomputeMessageKey.set('comparison.context.recompute_unknown');
+    },
+  });
 
   readonly isDefaultContext = computed(() => this.selectedContext() === DEFAULT_CATEGORY_NAME);
   readonly selectedContextEntry = computed(() =>
@@ -557,7 +562,6 @@ export class ComparisonPriorityTabComponent {
   constructor() {
     void this.loadContexts();
     void this.loadCategories();
-    this.destroyRef.onDestroy(() => this.stopRecomputePolling());
   }
 
   /** Loads the overlap panel once; safe to call repeatedly (e.g. on every tab activation). */
@@ -726,13 +730,11 @@ export class ComparisonPriorityTabComponent {
     this.recomputing.set(true);
     this.recomputeMessageKey.set(null);
     this.recomputeStatus.set(null);
-    this.pollFailures = 0;
     try {
       await firstValueFrom(this.api.post('/scan/recompute', { confirm: true }));
       // Leaving this view does not cancel the server job's start request.
       if (this.destroyRef.destroyed) return;
-      void this.pollRecomputeStatus();
-      this.recomputePollTimer = setInterval(() => void this.pollRecomputeStatus(), 1500);
+      this.recomputePoller.start();
     } catch (err) {
       if (this.destroyRef.destroyed) return;
       this.recomputing.set(false);
@@ -744,54 +746,20 @@ export class ComparisonPriorityTabComponent {
     }
   }
 
-  private async pollRecomputeStatus(): Promise<void> {
-    if (this.destroyRef.destroyed || this.pollInFlight) return;
-    this.pollInFlight = true;
-    try {
-      const status = await firstValueFrom(this.api.get<RecomputeStatus>('/scan/recompute_status')
-        .pipe(timeout({ first: RECOMPUTE_STATUS_TIMEOUT_MS }), takeUntilDestroyed(this.destroyRef)));
-      if (this.destroyRef.destroyed) return;
-      // A good poll re-arms the strike counter: the tolerance is for
-      // consecutive failures only (same policy as the scoring-context dialog).
-      this.pollFailures = 0;
-      this.recomputeStatus.set(status);
-      if (!status.running) {
-        this.stopRecomputePolling();
-        this.recomputing.set(false);
-        // `_scan_state` is a per-PROCESS module global on a multi-worker
-        // deployment: a poll served by a worker that never saw the POST (or
-        // that is reporting on a concurrent scan, kind !== 'recompute')
-        // cannot be trusted as either success or failure -- report it as
-        // indeterminate rather than guessing.
-        if (status.kind !== JOB_KIND_RECOMPUTE || status.exit_code === null) {
-          this.recomputeMessageKey.set('comparison.context.recompute_unknown');
-        } else if (status.exit_code === 0) {
-          this.stale.set(false);
-          this.snackBar.open(this.i18n.t('comparison.context.recompute_done'), '', { duration: 4000 });
-        } else {
-          this.recomputeMessageKey.set('comparison.context.recompute_failed');
-        }
-      }
-    } catch {
-      if (this.destroyRef.destroyed) return;
-      // One transient failure must not freeze the progress bar as unknown
-      // while the recompute is still running server-side — a user pressing
-      // start again would then hit the 409. Three consecutive failures mean
-      // the polling is really broken: stop and report as indeterminate.
-      this.pollFailures++;
-      if (this.pollFailures < 3) return;
-      this.stopRecomputePolling();
-      this.recomputing.set(false);
-      this.recomputeMessageKey.set('comparison.context.recompute_unknown');
-    } finally {
-      this.pollInFlight = false;
-    }
-  }
+  private applyRecomputeStatus(status: RecomputeStatus): void {
+    this.recomputeStatus.set(status);
+    if (status.running) return;
 
-  private stopRecomputePolling(): void {
-    if (this.recomputePollTimer) {
-      clearInterval(this.recomputePollTimer);
-      this.recomputePollTimer = null;
+    this.recomputing.set(false);
+    // The status is per server process and may describe another kind of job,
+    // or come from a worker that never saw the POST. Report that as unknown.
+    if (status.kind !== JOB_KIND_RECOMPUTE || status.exit_code === null) {
+      this.recomputeMessageKey.set('comparison.context.recompute_unknown');
+    } else if (status.exit_code === 0) {
+      this.stale.set(false);
+      this.snackBar.open(this.i18n.t('comparison.context.recompute_done'), '', { duration: 4000 });
+    } else {
+      this.recomputeMessageKey.set('comparison.context.recompute_failed');
     }
   }
 }

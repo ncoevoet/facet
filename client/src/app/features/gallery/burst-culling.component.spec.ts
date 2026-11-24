@@ -163,9 +163,13 @@ describe('BurstCullingComponent', () => {
       const work = component['rerunDetection']();
       expect(redetect).toHaveBeenCalledOnce();
       (TestBed.inject(AuthService) as unknown as { isEdition: () => boolean }).isEdition = () => false;
-      response.next({}); response.complete(); await work;
-      expect(component['detectMessage']()).not.toBe('culling.panorama.rerun_running');
-      expect(component['detectPollTimer']).toBeNull();
+      vi.useFakeTimers();
+      try {
+        response.next({}); response.complete(); await work;
+        expect(component['detectMessage']()).not.toBe('culling.panorama.rerun_running');
+        await vi.advanceTimersByTimeAsync(6000);
+        expect(mockApi.get).not.toHaveBeenCalledWith('/scan/recompute_status');
+      } finally { vi.useRealTimers(); }
     });
   });
 
@@ -2677,26 +2681,6 @@ describe('BurstCullingComponent', () => {
         .clearCorrection(store.groups()[0]);
 
       expect(store.rerunNeeded()).toBe(0);
-    });
-
-    it('a successful re-run clears the applied-drop counter', async () => {
-      seed();
-      store.groups()[0].photos.forEach(p => {
-        (p as { sequence_override?: string; sequence_override_pending?: number })
-          .sequence_override = 'suppressed';
-        (p as { sequence_override_pending?: number }).sequence_override_pending = 0;
-      });
-      await (component as never as { clearCorrection: (g: unknown) => Promise<void> })
-        .clearCorrection(store.groups()[0]);
-      expect(store.rerunNeeded()).toBe(1);
-
-      mockApi.post.mockReturnValueOnce(of({}));
-      mockApi.get.mockReturnValueOnce(of({ running: false, kind: null, exit_code: 0 }));
-      await (component as never as { rerunDetection: () => Promise<void> }).rerunDetection();
-      await (component as never as { ['pollDetection']: () => Promise<void> })['pollDetection']();
-
-      expect(store.rerunNeeded()).toBe(0);
-      (component as never as { stopDetectionPolling: () => void }).stopDetectionPolling();
     });
 
     it('re-correcting a group after dropping its applied override counts it once', async () => {

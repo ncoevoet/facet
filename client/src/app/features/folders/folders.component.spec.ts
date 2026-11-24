@@ -321,7 +321,7 @@ describe('FoldersComponent', () => {
       expect(root.textContent).not.toContain('Work');
     });
 
-    it('ignores a late failure while a newer folder read is pending', async () => {
+    it('cancels an older prefix read without surfacing an error while the new one is pending', async () => {
       const first = new Subject<unknown>();
       const second = new Subject<unknown>();
       const fixture = await render();
@@ -330,6 +330,7 @@ describe('FoldersComponent', () => {
       const older = cmp.loadFolders();
       cmp.currentPrefix.set('Holidays/');
       const newer = cmp.loadFolders();
+      expect(first.observed).toBe(false);
       first.error(new Error('offline'));
       await older;
       expect(cmp.loading()).toBe(true);
@@ -356,6 +357,41 @@ describe('FoldersComponent', () => {
       await stale;
       expect(mockRouter.navigate).not.toHaveBeenCalled();
       expect(cmp.folders()).toEqual(foldersResponse.folders);
+    });
+
+    it.each(['prefix', 'filters'])('ignores a stale leaf before the %s effect starts a new read', async changed => {
+      const fixture = await render();
+      const cmp = fixture.componentInstance as any;
+      const lateLeaf = new Subject<unknown>();
+      cmp.currentPrefix.set('Holidays/');
+      mockApi.get.mockReturnValueOnce(lateLeaf);
+      const pending = cmp.loadFolders();
+
+      if (changed === 'prefix') cmp.currentPrefix.set('Work/');
+      else mockStore.viewFilterParams.set({ ...noneHidden, hide_blinks: '1' });
+      lateLeaf.next({ folders: [], has_direct_photos: true });
+      await pending;
+
+      expect(mockRouter.navigate).not.toHaveBeenCalled();
+    });
+
+    it('cancels a pending folder read after its effective filters change or the view closes', async () => {
+      const first = new Subject<unknown>();
+      const second = new Subject<unknown>();
+      const fixture = await render(first);
+      expect(first.observed).toBe(true);
+
+      mockApi.get.mockReturnValueOnce(second);
+      mockStore.viewFilterParams.set({ ...noneHidden, hide_blinks: '1' });
+      fixture.detectChanges();
+      expect(first.observed).toBe(false);
+      expect(second.observed).toBe(true);
+      expect(mockApi.get).toHaveBeenLastCalledWith('/folders', {
+        prefix: '', ...noneHidden, hide_blinks: '1',
+      }, expect.any(HttpContext));
+
+      fixture.destroy();
+      expect(second.observed).toBe(false);
     });
   });
 });

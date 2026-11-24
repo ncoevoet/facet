@@ -334,8 +334,9 @@ describe('PhotoDetailComponent', () => {
     });
     const view = renderDetail();
     const canvas = () => (view.nativeElement as HTMLElement).querySelector('[data-photo-canvas]')!;
-    const buttons = () => Array.from(canvas().querySelectorAll<HTMLButtonElement>('[role="alert"] > button'));
-    const labels = () => buttons().map(button => button.textContent.trim());
+    // These native buttons have no aria-label/labelledby override; their visible text is their accessible name.
+    const retryButton = (name: string) => Array.from(canvas().querySelectorAll('button'))
+      .find(button => button.textContent.trim() === name);
     const settle = async () => {
       view.detectChanges();
       await view.whenStable();
@@ -344,37 +345,42 @@ describe('PhotoDetailComponent', () => {
     try {
       view.componentInstance.photo.set(makePhoto({ path: samplePhoto.path, image_width: 1000, image_height: 500 }));
       await settle();
-      expect(labels()).toEqual([faceKey, objectKey]);
-      expect(buttons()[0].parentElement?.parentElement).toBe(buttons()[1].parentElement?.parentElement);
+      expect(retryButton(faceKey)).toBeDefined();
+      expect(retryButton(objectKey)).toBeDefined();
 
       mockApi.get.mockClear();
-      buttons()[0].click();
+      retryButton(faceKey)?.click();
       await settle();
       expect(mockApi.get).toHaveBeenCalledExactlyOnceWith('/photo/faces', { path: samplePhoto.path });
-      expect(labels()).toEqual([faceKey, objectKey]);
+      expect(retryButton(faceKey)).toBeDefined();
+      expect(retryButton(objectKey)).toBeDefined();
 
       const modeButton = (view.nativeElement as HTMLElement).querySelector<HTMLButtonElement>('[data-face-box-mode]')!;
       modeButton.click();
       await settle();
-      expect(labels()).toEqual([objectKey]);
+      expect(retryButton(faceKey)).toBeUndefined();
+      expect(retryButton(objectKey)).toBeDefined();
 
       objects = () => of({ objects: [{ id: 1, label: 'cake', box: [0.1, 0.2, 0.5, 0.6] }] });
       mockApi.get.mockClear();
-      buttons()[0].click();
+      retryButton(objectKey)?.click();
       await settle();
       expect(mockApi.get).toHaveBeenCalledExactlyOnceWith('/photo/objects', { path: samplePhoto.path });
-      expect(labels()).toEqual([]);
+      expect(retryButton(faceKey)).toBeUndefined();
+      expect(retryButton(objectKey)).toBeUndefined();
       expect(canvas().querySelector('app-photo-object-layer text')?.textContent).toBe('cake');
 
       modeButton.click();
       await settle();
-      expect(labels()).toEqual([faceKey]);
+      expect(retryButton(faceKey)).toBeDefined();
+      expect(retryButton(objectKey)).toBeUndefined();
       faces = () => of({ faces: [{ id: 1, face_index: 0, box: [0.2, 0.3, 0.5, 0.8] }] });
       mockApi.get.mockClear();
-      buttons()[0].click();
+      retryButton(faceKey)?.click();
       await settle();
       expect(mockApi.get).toHaveBeenCalledExactlyOnceWith('/photo/faces', { path: samplePhoto.path });
-      expect(labels()).toEqual([]);
+      expect(retryButton(faceKey)).toBeUndefined();
+      expect(retryButton(objectKey)).toBeUndefined();
       expect(canvas().querySelector('[data-face]')).not.toBeNull();
     } finally {
       if (previousMode === null) localStorage.removeItem(FACE_BOX_MODE_KEY);

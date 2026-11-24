@@ -371,23 +371,19 @@ function inDetectedSet(photo: Photo): boolean {
             [revision]="objectsRevision()" />
           @if (faceOverlay.canRetry() || objectOverlay.canRetry()) {
             <div class="pointer-events-none absolute inset-x-2 top-2 z-10 flex flex-col items-center gap-1">
-              @if (faceOverlay.canRetry()) {
-                <div role="alert">
-                  <button type="button"
-                    class="pointer-events-auto min-h-6 rounded-full bg-[var(--mat-sys-error-container)] px-3 py-1 text-center text-xs text-[var(--mat-sys-on-error-container)] underline"
-                    (pointerdown)="$event.stopPropagation()" (dblclick)="$event.stopPropagation()" (click)="faceOverlay.load()">
-                    {{ I18N.photo_detail.retry_face_boxes | translate }}
-                  </button>
-                </div>
-              }
-              @if (objectOverlay.canRetry()) {
-                <div role="alert">
-                  <button type="button"
-                    class="pointer-events-auto min-h-6 rounded-full bg-[var(--mat-sys-error-container)] px-3 py-1 text-center text-xs text-[var(--mat-sys-on-error-container)] underline"
-                    (pointerdown)="$event.stopPropagation()" (dblclick)="$event.stopPropagation()" (click)="objectOverlay.retry()">
-                    {{ I18N.photo_detail.retry_object_boxes | translate }}
-                  </button>
-                </div>
+              @for (option of [
+                { layer: faceOverlay, label: I18N.photo_detail.retry_face_boxes },
+                { layer: objectOverlay, label: I18N.photo_detail.retry_object_boxes },
+              ]; track option.label) {
+                @if (option.layer.canRetry()) {
+                  <div role="alert">
+                    <button type="button"
+                      class="pointer-events-auto min-h-6 rounded-full bg-[var(--mat-sys-error-container)] px-3 py-1 text-center text-xs text-[var(--mat-sys-on-error-container)] underline"
+                      (pointerdown)="$event.stopPropagation()" (dblclick)="$event.stopPropagation()" (click)="option.layer.retry()">
+                      {{ option.label | translate }}
+                    </button>
+                  </div>
+                }
               }
             </div>
           }
@@ -1646,8 +1642,9 @@ export class PhotoDetailComponent extends PhotoDetailBase implements OnInit {
   }
 
   protected async onPersonMenuChanged(path: string): Promise<void> {
-    if (!this.destroyRef.destroyed && this.photo()?.path === path) {
-      await this.faceLayer()?.load(path);
+    const faceLayer = this.faceLayer();
+    if (!this.destroyRef.destroyed && this.photo()?.path === path && faceLayer?.path() === path) {
+      await faceLayer.retry();
     }
     await this.refreshPeople(path);
   }

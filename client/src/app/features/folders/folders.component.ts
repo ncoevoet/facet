@@ -10,6 +10,7 @@ import { MatTooltipModule } from '@angular/material/tooltip';
 import { firstValueFrom } from 'rxjs';
 import { ApiService } from '../../core/services/api.service';
 import { HANDLE_SERVER_ERROR_LOCALLY } from '../../core/utils/http-error-context';
+import { LatestRequest } from '../../shared/utils/latest-request';
 import { HeaderSlotService } from '../../core/services/header-slot.service';
 import { PageHelpService } from '../../core/services/page-help.service';
 import { TranslatePipe } from '../../shared/pipes/translate.pipe';
@@ -129,6 +130,7 @@ export class FoldersComponent implements OnInit, OnDestroy {
   private readonly router = inject(Router);
   private readonly route = inject(ActivatedRoute);
   private readonly destroyRef = inject(DestroyRef);
+  private readonly loads = new LatestRequest(this.destroyRef);
   private readonly pageHelp = inject(PageHelpService);
   private readonly store = inject(GalleryStore);
   private readonly headerSlot = inject(HeaderSlotService);
@@ -170,17 +172,16 @@ export class FoldersComponent implements OnInit, OnDestroy {
     });
   }
 
-  private loadSeq = 0;
-
   protected retryLoad(): void {
     if (this.loadFailed() && !this.loading()) void this.loadFolders();
   }
 
   private async loadFolders(): Promise<void> {
-    const seq = ++this.loadSeq;
+    const req = this.loads.begin();
     const prefix = this.currentPrefix();
     const filters = this.store.viewFilterParams();
-    const current = () => !this.destroyRef.destroyed && seq === this.loadSeq
+    // Check the inputs too: their signals can change before the next effect runs.
+    const current = () => req.isCurrent()
       && this.currentPrefix() === prefix && this.store.viewFilterParams() === filters;
     this.loading.set(true);
     this.loadFailed.set(false);
@@ -190,10 +191,10 @@ export class FoldersComponent implements OnInit, OnDestroy {
     let redirected = false;
     try {
       const res = await firstValueFrom(
-        this.api.get<FoldersResponse>('/folders', {
+        req.bind(this.api.get<FoldersResponse>('/folders', {
           prefix,
           ...filters,
-        }, new HttpContext().set(HANDLE_SERVER_ERROR_LOCALLY, true)),
+        }, new HttpContext().set(HANDLE_SERVER_ERROR_LOCALLY, true))),
       );
       // A newer load owns the spinner and the list; a late answer must not redirect or overwrite it.
       if (!current()) return;

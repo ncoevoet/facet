@@ -14,6 +14,7 @@ import { MatSnackBar } from '@angular/material/snack-bar';
 import { firstValueFrom } from 'rxjs';
 import { ApiService } from '../../core/services/api.service';
 import { HANDLE_SERVER_ERROR_LOCALLY } from '../../core/utils/http-error-context';
+import { LatestRequest } from '../../shared/utils/latest-request';
 import { registerPageContext } from '../../core/agent/page-context.service';
 import { AlbumService, Album } from '../../core/services/album.service';
 import { AuthService } from '../../core/services/auth.service';
@@ -178,6 +179,7 @@ export class ScenesComponent implements OnInit {
   private readonly i18n = inject(I18nService);
   private readonly route = inject(ActivatedRoute);
   private readonly destroyRef = inject(DestroyRef);
+  private readonly loads = new LatestRequest(this.destroyRef);
   private readonly router = inject(Router);
   private readonly albumService = inject(AlbumService);
   protected readonly auth = inject(AuthService);
@@ -205,9 +207,6 @@ export class ScenesComponent implements OnInit {
 
   private page = 1;
   private readonly perPage = 20;
-  // Bumped on every load() so a slow in-flight request can't append its scenes
-  // after the scope changed (fast album switching / ngOnInit race).
-  private loadGeneration = 0;
 
   constructor() {
     registerPageContext('scenes', () => ({ album_id: this.albumId(), total: this.total() }));
@@ -251,24 +250,23 @@ export class ScenesComponent implements OnInit {
   }
 
   private async load(): Promise<void> {
-    const gen = ++this.loadGeneration;
+    const req = this.loads.begin();
     const page = this.page;
-    const current = () => !this.destroyRef.destroyed && gen === this.loadGeneration;
     this.loading.set(true);
     try {
       const params: Record<string, string | number> = { page: this.page, per_page: this.perPage };
       const album = this.albumId();
       if (album) params['album_id'] = album;
       const data = await firstValueFrom(
-        this.api.get<ScenesResponse>('/scenes', params, new HttpContext().set(HANDLE_SERVER_ERROR_LOCALLY, true)),
+        req.bind(this.api.get<ScenesResponse>('/scenes', params, new HttpContext().set(HANDLE_SERVER_ERROR_LOCALLY, true))),
       );
-      if (!current()) return;
+      if (!req.isCurrent()) return;
       this.firstPageLoadFailed.set(false);
       this.scenes.update(s => [...s, ...data.scenes]);
       this.total.set(data.total);
       this.hasMore.set(this.page < data.total_pages);
     } catch {
-      if (!current()) return;
+      if (!req.isCurrent()) return;
       // Give the page back: loadMore already incremented it, and a failed
       // append must be refetched, not skipped.
       if (page > 1) {
@@ -278,7 +276,7 @@ export class ScenesComponent implements OnInit {
         this.firstPageLoadFailed.set(true);
       }
     } finally {
-      if (current()) this.loading.set(false);
+      if (req.isCurrent()) this.loading.set(false);
     }
   }
 

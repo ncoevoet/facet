@@ -842,6 +842,59 @@ describe('Suggested stacks routed darkroom', () => {
       await settle(); expect(page['detecting']()).toBe(false);
       expect(page['detectMessage']()).toBe('culling.panorama.rerun_done');
       expect(cull.droppedApplied().size).toBe(0);
+      expect(cull.rerunNeeded()).toBe(0);
+    } finally { vi.useRealTimers(); }
+  });
+
+  it('waits for the first culling poll tick, keeps one read in flight, and stops at the first failed read', async () => {
+    page = await harness.navigateByUrl('/culling', BurstCullingComponent);
+    cull = harness.routeDebugElement!.injector.get(CullingStore);
+    flushCullFeed(); await settle();
+    cull.droppedApplied.set(new Set(['7_panorama']));
+    vi.useFakeTimers({ toFake: ['setInterval', 'clearInterval'] });
+    try {
+      const start = page['rerunDetection']();
+      http.expectOne('/api/scan/detect_panoramas').flush({});
+      await start;
+      http.expectNone('/api/scan/recompute_status');
+
+      await vi.advanceTimersByTimeAsync(2000);
+      const pending = http.expectOne('/api/scan/recompute_status');
+      await vi.advanceTimersByTimeAsync(4000);
+      http.expectNone('/api/scan/recompute_status');
+
+      pending.flush({ running: true, kind: 'detect_panoramas', exit_code: null });
+      await vi.advanceTimersByTimeAsync(2000);
+      http.expectOne('/api/scan/recompute_status').flush({}, { status: 500, statusText: 'failed' });
+      await settle();
+      expect(page['detecting']()).toBe(false);
+      expect(page['detectFailed']()).toBe(true);
+      expect(page['detectMessage']()).toBe('culling.panorama.rerun_failed');
+      expect(cull.droppedApplied().has('7_panorama')).toBe(true);
+      await vi.advanceTimersByTimeAsync(6000);
+      http.expectNone('/api/scan/recompute_status');
+    } finally { vi.useRealTimers(); }
+  });
+
+  it('cancels an in-flight redetection status read when the same route enters stacks', async () => {
+    page = await harness.navigateByUrl('/culling', BurstCullingComponent);
+    cull = harness.routeDebugElement!.injector.get(CullingStore);
+    flushCullFeed(); await settle();
+    vi.useFakeTimers({ toFake: ['setInterval', 'clearInterval'] });
+    try {
+      const start = page['rerunDetection']();
+      http.expectOne('/api/scan/detect_panoramas').flush({});
+      await start;
+      await vi.advanceTimersByTimeAsync(2000);
+      const pending = http.expectOne('/api/scan/recompute_status');
+
+      await TestBed.inject(Router).navigateByUrl(url());
+      batch(); await settle();
+      expect(harness.routeDebugElement!.componentInstance).toBe(page);
+      expect(pending.cancelled).toBe(true);
+      expect(page['detecting']()).toBe(false);
+      await vi.advanceTimersByTimeAsync(6000);
+      http.expectNone('/api/scan/recompute_status');
     } finally { vi.useRealTimers(); }
   });
 
@@ -854,7 +907,7 @@ describe('Suggested stacks routed darkroom', () => {
     await TestBed.inject(Router).navigateByUrl(url()); batch(); await settle();
     request.flush({}); await starting; await settle();
     expect(cull.mode()).toBe('stacks'); expect(page['detecting']()).toBe(false);
-    expect(page['detectPollTimer']).toBeNull(); expect(http.match('/api/scan/recompute_status')).toHaveLength(0);
+    http.expectNone('/api/scan/recompute_status');
   });
 
 });

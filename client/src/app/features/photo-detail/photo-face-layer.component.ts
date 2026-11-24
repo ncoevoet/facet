@@ -226,7 +226,11 @@ export class PhotoFaceLayerComponent {
 
   private shownPath = '';
 
-  async load(path: string = this.path()): Promise<void> {
+  retry(): Promise<void> {
+    return this.load(this.path());
+  }
+
+  private async load(path: string): Promise<void> {
     const token = ++this.generation;
     // A reread of the same photo (after an edit, or Retry) keeps the boxes
     // until it lands; only a new photo blanks the previous one's.
@@ -312,7 +316,7 @@ export class PhotoFaceLayerComponent {
   }
 
   protected async afterChange(): Promise<void> {
-    await this.load();
+    await this.load(this.path());
     this.changed.emit();
   }
 }

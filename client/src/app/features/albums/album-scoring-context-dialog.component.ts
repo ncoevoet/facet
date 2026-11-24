@@ -1,6 +1,5 @@
 import { ChangeDetectionStrategy, Component, DestroyRef, OnInit, computed, inject, signal } from '@angular/core';
 import { HttpErrorResponse } from '@angular/common/http';
-import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { MAT_DIALOG_DATA, MatDialogModule, MatDialogRef } from '@angular/material/dialog';
 import { MatButtonModule } from '@angular/material/button';
 import { MatFormFieldModule } from '@angular/material/form-field';
@@ -8,11 +7,12 @@ import { MatSelectModule } from '@angular/material/select';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { MatProgressBarModule } from '@angular/material/progress-bar';
 import { MatSnackBar } from '@angular/material/snack-bar';
-import { firstValueFrom, timeout } from 'rxjs';
+import { firstValueFrom } from 'rxjs';
 import { ApiService } from '../../core/services/api.service';
 import { I18nService } from '../../core/services/i18n.service';
 import { AlbumService, AlbumScoringContextResult, AlbumSuggestedContext } from '../../core/services/album.service';
 import { TranslatePipe } from '../../shared/pipes/translate.pipe';
+import { RecomputePoller } from '../../shared/utils/recompute-poller';
 import { ScoringContextLabelPipe, resolveScoringContextLabel } from '../../shared/pipes/scoring-context-label.pipe';
 
 export interface AlbumScoringContextDialogData {
@@ -43,7 +43,6 @@ interface RecomputeStatusResponse {
 type Phase = 'select' | 'saving' | 'saved' | 'recomputing' | 'recompute_done' | 'recompute_error';
 
 const DEFAULT_CONTEXT = 'default';
-const RECOMPUTE_STATUS_TIMEOUT_MS = 15_000;
 
 /**
  * Edition-only "Scoring context" dialog for an album: pick from the configured
@@ -198,13 +197,15 @@ export class AlbumScoringContextDialogComponent implements OnInit {
     return Math.round(((p.current ?? 0) / p.total) * 100);
   });
 
-  private pollTimer: ReturnType<typeof setInterval> | null = null;
-  private pollFailures = 0;
-  private pollInFlight = false;
-
-  constructor() {
-    this.destroyRef.onDestroy(() => this.stopPolling());
-  }
+  private readonly recomputePoller = new RecomputePoller<RecomputeStatusResponse>(this.api, this.destroyRef, {
+    intervalMs: 2000,
+    maxFailures: 3,
+    onStatus: status => {
+      this.recomputeProgress.set(status.progress);
+      if (!status.running) this.phase.set(status.exit_code === 0 ? 'recompute_done' : 'recompute_error');
+    },
+    onGiveUp: () => this.phase.set('recompute_error'),
+  });
 
   async ngOnInit(): Promise<void> {
     this.loading.set(true);
@@ -287,42 +288,7 @@ export class AlbumScoringContextDialogComponent implements OnInit {
     }
     // Closing this view does not cancel the server job's start request.
     if (this.destroyRef.destroyed) return;
-    this.pollFailures = 0;
-    this.pollTimer = setInterval(() => this.pollRecomputeStatus(), 2000);
-    this.pollRecomputeStatus();
-  }
-
-  private async pollRecomputeStatus(): Promise<void> {
-    if (this.destroyRef.destroyed || this.pollInFlight) return;
-    this.pollInFlight = true;
-    try {
-      const status = await firstValueFrom(this.api.get<RecomputeStatusResponse>('/scan/recompute_status')
-        .pipe(timeout({ first: RECOMPUTE_STATUS_TIMEOUT_MS }), takeUntilDestroyed(this.destroyRef)));
-      if (this.destroyRef.destroyed) return;
-      // A success re-arms the failure counter: one transient poll failure must
-      // not declare a minutes-long recompute failed; only three in a row do.
-      this.pollFailures = 0;
-      this.recomputeProgress.set(status.progress);
-      if (!status.running) {
-        this.stopPolling();
-        this.phase.set(status.exit_code === 0 ? 'recompute_done' : 'recompute_error');
-      }
-    } catch {
-      if (this.destroyRef.destroyed) return;
-      this.pollFailures++;
-      if (this.pollFailures < 3) return;
-      this.stopPolling();
-      this.phase.set('recompute_error');
-    } finally {
-      this.pollInFlight = false;
-    }
-  }
-
-  private stopPolling(): void {
-    if (this.pollTimer !== null) {
-      clearInterval(this.pollTimer);
-      this.pollTimer = null;
-    }
+    this.recomputePoller.start();
   }
 
   protected close(): void {

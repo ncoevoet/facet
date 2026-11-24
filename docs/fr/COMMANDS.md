@@ -33,7 +33,11 @@
 
 **`--resume`** récupère aussi une analyse tuée par un plantage, un manque de mémoire ou une coupure de courant : une exécution encore marquée `running` dont le heartbeat est plus ancien que `processing.scan_stale_seconds` (120 par défaut). Il réutilise les répertoires de cette exécution. Avec `--force`, il ignore les fichiers déjà re-notés depuis le démarrage de l'exécution. Il refuse de démarrer si une autre analyse semble active.
 
+Sans chemins explicites, `--resume` ignore les exécutions sans répertoires d’analyse réutilisables, dont les relances à partir de listes de travail. S’il ne reste aucune analyse de répertoires à reprendre, indiquez les répertoires explicitement ou utilisez `--retry-failed` pour retraiter des fichiers individuels.
+
 **Codes de sortie pour les superviseurs.** `0` signifie que l'analyse s'est exécutée (ou n'a rien trouvé de nouveau) ; `4` qu'elle avait des photos à traiter et n'en a enregistré aucune ; `5` qu'elle n'a jamais vu la bibliothèque — chaque racine d'analyse est absente ou illisible (un montage réseau mort), de sorte qu'une analyse planifiée échoue bruyamment au lieu de signaler « aucun nouveau fichier » ; `1` couvre aussi le crash du thread de scoring en cours de passe — les photos qu'il n'a pas atteintes sont enregistrées comme échecs de scan ; `--retry-failed` les termine ; `75` que le verrou de la bibliothèque est détenu par un autre travail. `--watch` ne traite `4` ni comme un succès ni comme un échec, et tout autre code de sortie non nul sauf `75` compte dans la limite d'échecs consécutifs au bout de laquelle il abandonne. Une analyse déclenchée par des modifications qui dépasse le généreux délai de 6 heures est interrompue et compte comme un échec, pour qu'un sous-processus bloqué ne puisse pas empêcher la surveillance d'abandonner ; l'analyse initiale en est exemptée, car une première surveillance d'une grande bibliothèque (ou un `--force` initial) dure légitimement plus longtemps. `--watch` transmet `--force-since`, `--single-pass` et `--pass` à chaque analyse qu'il lance, et `--force` à sa seule analyse initiale (forcer chaque analyse déclenchée par un changement re-noterait toute la bibliothèque à chaque fois) ; les listes de travail ponctuelles `--retry-failed` et `--retry-plan` sont refusées avec `--watch`, qui exige aussi au moins un chemin à surveiller. Une erreur de résolution de chemin ou de permission ne rend indisponible que la racine concernée. Si le scan initial en surveillance rencontre un verrou occupé, il réessaie après le délai de stabilisation, sans attendre un événement de fichier, en conservant ses options initiales, dont `--force` ; les scans suivants déclenchés par des événements restent incrémentaux.
+
+Le mode surveillance essaie d’abord la surveillance native pour chaque racine et se rabat, si nécessaire, sur des vérifications périodiques pour cette racine. Le chemin de chaque racine qui ne peut pas être surveillée au démarrage, ou dont la surveillance s’arrête ensuite, est signalé. Les autres racines restent surveillées. S’il n’en reste aucune, le mode surveillance se termine avec le code `1`, même si aucune analyse n’a été déclenchée. Redémarrez la surveillance pour prendre en compte les racines de nouveau disponibles.
 
 ### Suivi des analyses
 
@@ -103,6 +107,8 @@ Sur un GPU CUDA, dès qu'un chunk est décodé, le même worker de décodage com
 | `python facet.py --export-sidecars --user alice` | Mode multi-utilisateurs : exporte les notes et Keep/rejet d'Alice, pour les photos qu'elle voit |
 | `python facet.py --export-sidecars --embed-originals` | Écrit aussi les métadonnées **dans** les originaux JPEG/HEIC/TIFF/PNG/DNG |
 | `python facet.py --export-sidecars --score-to-stars` | Définit `xmp:Rating` à partir du score pour les photos que vous n'avez pas notées |
+
+Si un sidecar XMP sélectionné disparaît ou change pendant sa lecture, l’import ignore cette photo et continue. Relancez l’import quand le sidecar est stable.
 
 **Simulation.** Sur `12gb`/`16gb`/`24gb`, la colonne d'esthétique affiche `n/a`, car TOPIQ ne s'exécute que dans une vraie analyse (le mode commercial affiche le score Q-ReAlign). L'agrégat la compte comme un 5,0 neutre.
 
@@ -524,7 +530,7 @@ Les réparations interactives comme `--auto-fix` prennent le verrou de la biblio
 
 **`python database.py`** construit aussi les index manquants de la galerie (voir [VIEWER.md](VIEWER.md#index-de-la-galerie-et-cache-des-comptages)). Sur une grande bibliothèque, lancez-le une fois avant de démarrer la visionneuse ; cela peut prendre environ une minute. Sinon la visionneuse les construit en arrière-plan et refuse les enregistrements entre-temps.
 
-**`--backup`** publie un instantané terminé sous un nom horodaté unique avant de faire tourner les anciens instantanés. Deux exécutions dans la même seconde gardent des instantanés distincts ; une copie en échec laisse intactes les sauvegardes précédentes. Le système de fichiers de destination doit prendre en charge les liens physiques.
+**`--backup`** publie un instantané terminé sous un nom horodaté unique avant de faire tourner les anciens instantanés. Deux exécutions dans la même seconde gardent des instantanés distincts ; une copie en échec laisse intactes les sauvegardes précédentes. Le système de fichiers de destination doit prendre en charge les liens physiques. Le nouvel instantané compte toujours parmi les copies conservées. Des écritures qui se chevauchent peuvent laisser temporairement des copies supplémentaires jusqu’à la prochaine sauvegarde.
 
 **`--export-viewer-db`** conserve les modifications de la destination et les lieux privés lors d'une synchronisation incrémentale. Les exports complets omettent les lieux enregistrés/récents de la source. Voir [achèvement de l'export et nouvelle tentative](DEPLOYMENT.md#exporter-une-base-de-données-allégée) pour la publication, les mises à niveau de schéma et la reprise après une erreur.
 

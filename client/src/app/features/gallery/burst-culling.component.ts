@@ -1,4 +1,5 @@
 import { closeDetailsOnEscape } from '../../shared/utils/overlays';
+import { RecomputePoller } from '../../shared/utils/recompute-poller';
 import { DarkroomRenditions } from './darkroom-renditions';
 import { FilenamePipe } from '../../shared/pipes/filename.pipe';
 import { SEQUENCE_KINDS_KEPT_WHOLE, SEQUENCE_KIND_LABELS } from '../../shared/pipes/sequence-kind.pipe';
@@ -1783,7 +1784,31 @@ export class BurstCullingComponent implements OnDestroy {
   protected readonly detecting = signal(false);
   protected readonly detectMessage = signal('');
   protected readonly detectFailed = signal(false);
-  private detectPollTimer: ReturnType<typeof setInterval> | null = null;
+  private readonly detectionPoller = new RecomputePoller<{
+    running: boolean; kind: string | null; exit_code: number | null;
+  }>(this.api, this.destroyRef, {
+    intervalMs: 2000,
+    maxFailures: 1,
+    immediate: false,
+    captureCurrent: () => {
+      const current = this.pageSession();
+      return () => !this.stacksMode() && current();
+    },
+    onStatus: status => {
+      if (status.running) return;
+      this.stopDetectionPolling();
+      const failed = status.exit_code !== 0 && status.exit_code !== null;
+      this.detectFailed.set(failed);
+      this.detectMessage.set(failed ? I18N.culling.panorama.rerun_failed : I18N.culling.panorama.rerun_done);
+      // A completed run re-applied or dropped the corrections held by the feed.
+      if (!failed) this.cull.droppedApplied.set(new Set());
+    },
+    onGiveUp: () => {
+      this.stopDetectionPolling();
+      this.detectFailed.set(true);
+      this.detectMessage.set(I18N.culling.panorama.rerun_failed);
+    },
+  });
 
   /** Lightbox state — group being viewed, and current photo index inside it. */
   protected readonly lightboxGroupId = signal<string | null>(null);
@@ -3599,39 +3624,13 @@ export class BurstCullingComponent implements OnDestroy {
     }
     if (!current()) return;
     this.detectMessage.set(I18N.culling.panorama.rerun_running);
-    this.detectPollTimer = setInterval(() => void this.pollDetection(), 2000);
-  }
-
-  private async pollDetection(): Promise<void> {
-    const current = this.pageSession();
-    if (this.stacksMode() || !current()) return;
-    try {
-      const status = await firstValueFrom(
-        this.api.get<{ running: boolean; kind: string | null; exit_code: number | null }>(
-          '/scan/recompute_status'));
-      if (!current() || status.running) return;
-      this.stopDetectionPolling();
-      const failed = status.exit_code !== 0 && status.exit_code !== null;
-      this.detectFailed.set(failed);
-      this.detectMessage.set(failed ? I18N.culling.panorama.rerun_failed : I18N.culling.panorama.rerun_done);
-      // A completed run has re-applied or dropped every correction the feed
-      // held, so the applied-drops this session no longer need a re-run.
-      if (!failed) this.cull.droppedApplied.set(new Set());
-    } catch {
-      if (!current()) return;
-      this.stopDetectionPolling();
-      this.detectFailed.set(true);
-      this.detectMessage.set(I18N.culling.panorama.rerun_failed);
-    }
+    this.detectionPoller.start();
   }
 
   private stopDetectionPolling(): void {
     this.detectionGeneration++;
     this.detecting.set(false);
-    if (this.detectPollTimer !== null) {
-      clearInterval(this.detectPollTimer);
-      this.detectPollTimer = null;
-    }
+    this.detectionPoller.stop();
   }
 
   protected confirmAllRemaining(): Promise<void> {

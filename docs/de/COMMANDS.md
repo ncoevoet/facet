@@ -33,7 +33,11 @@
 
 **`--resume`** setzt auch einen Scan fort, der durch Absturz, Speichermangel oder Stromausfall beendet wurde: einen Lauf, der noch als `running` markiert ist und dessen Heartbeat älter als `processing.scan_stale_seconds` ist (Standard 120). Es verwendet die Verzeichnisse dieses Laufs erneut. Mit `--force` überspringt es Dateien, die seit dem Start des Laufs bereits neu bewertet wurden. Es verweigert den Start, wenn ein anderer Scan noch aktiv zu sein scheint.
 
+Ohne ausdrücklich angegebene Pfade überspringt `--resume` Läufe ohne wiederverwendbare Scan-Verzeichnisse, darunter Wiederholungen aus Arbeitslisten. Ist kein fortsetzbarer Verzeichnisscan übrig, geben Sie die Verzeichnisse ausdrücklich an oder verwenden Sie `--retry-failed`, um einzelne Dateien erneut zu verarbeiten.
+
 **Exit-Codes für Supervisoren.** `0` bedeutet, dass der Scan lief (oder nichts Neues fand); `4` bedeutet, dass er Fotos zu verarbeiten hatte und keines davon speicherte; `5` bedeutet, dass er die Bibliothek nie zu Gesicht bekam — jede Scan-Wurzel fehlt oder ist nicht lesbar (ein toter Netzwerk-Mount), sodass ein geplanter Scan laut fehlschlägt, statt „keine neuen Dateien“ zu melden; `1` deckt auch einen Absturz des Scoring-Workers mitten im Lauf ab — die nicht erreichten Fotos sind als Scan-Fehler erfasst; `--retry-failed` vollendet sie; `75` bedeutet, dass die Bibliothekssperre von einem anderen Auftrag gehalten wird. `--watch` behandelt `4` weder als Erfolg noch als Fehler, und jeder andere Exit-Code ungleich null außer `75` zählt für das Aufgeben nach aufeinanderfolgenden Fehlschlägen. Eine durch Dateiänderungen ausgelöste Analyse, die das großzügige 6-Stunden-Limit überschreitet, wird beendet und als ein Fehler gezählt, damit ein hängender Teilprozess den Watcher nicht am Aufgeben hindert; die initiale Analyse ist ausgenommen, da ein erster Watch-Lauf über eine große Bibliothek (oder ein initiales `--force`) legitim länger dauert. `--watch` reicht `--force-since`, `--single-pass` und `--pass` an jeden von ihm gestarteten Scan weiter, `--force` nur an den ersten Scan (jeden durch eine Änderung ausgelösten Scan zu erzwingen würde jedes Mal die ganze Bibliothek neu bewerten); die einmaligen Arbeitslisten `--retry-failed` und `--retry-plan` werden mit `--watch` abgelehnt, das außerdem mindestens einen zu überwachenden Pfad braucht. Fehler bei Pfadauflösung oder Berechtigungen markieren nur die betroffene Wurzel als nicht verfügbar. Trifft der erste Watch-Scan auf eine belegte Bibliothekssperre, wird er nach dem Debounce-Intervall ohne Dateiereignis und mit seinen ursprünglichen Optionen einschließlich `--force` wiederholt; spätere ereignisgesteuerte Scans bleiben inkrementell.
+
+Für jedes Stammverzeichnis versucht der Überwachungsmodus zuerst die native Überwachung und weicht für dieses Verzeichnis bei Bedarf auf regelmäßige Abfragen aus. Kann ein Stammverzeichnis beim Start nicht überwacht werden oder endet seine Überwachung später, wird der Pfad gemeldet. Die übrigen Stammverzeichnisse bleiben aktiv. Ist keines mehr aktiv, beendet sich der Überwachungsmodus mit Code `1`, auch wenn kein Scan ausgelöst wurde. Starten Sie den Modus neu, um wieder verfügbare Stammverzeichnisse zu erfassen.
 
 ### Scan-Buchhaltung
 
@@ -103,6 +107,8 @@ Auf einer CUDA-GPU beginnt der Decode-Worker, sobald ein Chunk dekodiert ist, mi
 | `python facet.py --export-sidecars --user alice` | Mehrbenutzermodus: Alices Bewertungen und Keep/Ablehnung exportieren, für Fotos, die sie sehen kann |
 | `python facet.py --export-sidecars --embed-originals` | Metadaten zusätzlich **in** JPEG/HEIC/TIFF/PNG/DNG-Originale schreiben |
 | `python facet.py --export-sidecars --score-to-stars` | `xmp:Rating` aus dem Score für Fotos setzen, die Sie nicht bewertet haben |
+
+Verschwindet oder ändert sich ein ausgewählter XMP-Sidecar während des Lesens, überspringt der Import dieses Foto und fährt fort. Wiederholen Sie den Import, sobald der Sidecar stabil ist.
 
 **Probelauf.** Bei `12gb`/`16gb`/`24gb` zeigt die Ästhetikspalte `n/a`, weil TOPIQ nur in einem echten Scan läuft (der kommerzielle Modus zeigt den Q-ReAlign-Wert). Der Gesamtwert zählt sie als neutrale 5.0.
 
@@ -524,7 +530,7 @@ Sowohl interaktive Reparaturen als auch `--auto-fix` nehmen die Bibliothekssperr
 
 **`python database.py`** baut außerdem fehlende Galerie-Indizes (siehe [VIEWER.md](VIEWER.md#galerie-indizes-und-zähler-cache)). Führen Sie es bei einer großen Bibliothek einmal vor dem Start des Viewers aus; es kann etwa eine Minute dauern. Sonst baut der Viewer sie im Hintergrund und lehnt währenddessen Speichern ab.
 
-**`--backup`** veröffentlicht einen fertigen Snapshot unter einem eindeutigen Zeitstempelnamen, bevor alte Snapshots rotiert werden. Läufe in derselben Sekunde behalten getrennte Snapshots; eine fehlgeschlagene Kopie lässt frühere Backups unberührt. Das Zieldateisystem muss Hardlinks unterstützen.
+**`--backup`** veröffentlicht einen fertigen Snapshot unter einem eindeutigen Zeitstempelnamen, bevor alte Snapshots rotiert werden. Läufe in derselben Sekunde behalten getrennte Snapshots; eine fehlgeschlagene Kopie lässt frühere Backups unberührt. Das Zieldateisystem muss Hardlinks unterstützen. Der neue Snapshot belegt immer einen der Aufbewahrungsplätze. Überlappende Schreibvorgänge können bis zum nächsten Backup vorübergehend zusätzliche Kopien hinterlassen.
 
 **`--export-viewer-db`** behält Änderungen und private Orte im Ziel bei der inkrementellen Synchronisierung. Vollständige Exporte lassen die gespeicherten/zuletzt verwendeten Orte der Quelle weg. Siehe [Exportabschluss und Wiederholung](DEPLOYMENT.md#leichtgewichtige-datenbank-exportieren) für Veröffentlichung, Schema-Upgrades und Wiederherstellung nach einem Fehler.
 

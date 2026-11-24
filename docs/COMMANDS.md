@@ -100,8 +100,6 @@ On a CUDA GPU, once a chunk is decoded the same decode worker starts on the firs
 | `python facet.py --import-sidecars --sidecar-naming full` | Read `<image.ext>.xmp` / `<image.ext>.facet.xmp` (default); newer file wins |
 | `python facet.py --import-sidecars --sidecar-naming basename` | Read `<image>.xmp` (extension removed); refuse shared basenames |
 | `python facet.py --import-sidecars --sidecar-naming auto` | Accept either naming; skip a photo that has both |
-
-If a selected XMP sidecar disappears or changes while it is being read, the import skips that photo and continues. Re-run the import when the sidecar is stable.
 | `python facet.py --import-sidecars --overwrite-manual-gps` | Replace manual GPS already set in Facet with the sidecar's |
 | `python facet.py --export-sidecars` | Write or merge `<image>.xmp` sidecars for all photos |
 | `python facet.py --export-sidecars /path --reconcile-keywords` | Also remove Facet-owned keywords no longer present (needs ExifTool) |
@@ -109,6 +107,8 @@ If a selected XMP sidecar disappears or changes while it is being read, the impo
 | `python facet.py --export-sidecars --user alice` | Multi-user mode: export Alice's ratings and Keep/Reject, for photos she can see |
 | `python facet.py --export-sidecars --embed-originals` | Also write metadata **into** JPEG/HEIC/TIFF/PNG/DNG originals |
 | `python facet.py --export-sidecars --score-to-stars` | Set `xmp:Rating` from the score for photos you have not rated |
+
+If a selected XMP sidecar disappears or changes while it is being read, the import skips that photo and continues. Re-run the import when the sidecar is stable.
 
 **Dry run.** On `12gb`/`16gb`/`24gb` the aesthetic column shows `n/a`, because TOPIQ runs only in a real scan (commercial mode shows the Q-ReAlign score). The aggregate counts it as a neutral 5.0.
 

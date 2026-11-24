@@ -751,7 +751,7 @@ describe('ComparisonPriorityTabComponent', () => {
 
     // Defect 1: a subprocess that exits non-zero must NOT be reported as a successful
     // recompute — the stale banner has to stay up (the scores really are stale) and an
-    // error must surface, mirroring AlbumScoringContextDialogComponent.pollRecomputeStatus.
+    // error must surface, as in the album scoring context dialog.
     it('keeps the stale banner and surfaces an error when the job exits non-zero', async () => {
       component.stale.set(true);
       mockApi.post.mockReturnValue(of({ success: true }));

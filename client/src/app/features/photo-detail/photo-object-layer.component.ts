@@ -43,8 +43,7 @@ export class PhotoObjectLayerComponent {
   /** Bump to re-read the objects after the editor changed them. */
   readonly revision = input(0);
   readonly objects = signal<PhotoObject[]>([]);
-  private readonly loadFailed = signal(false);
-  readonly canRetry = this.loadFailed.asReadonly();
+  readonly canRetry = signal(false);
   private generation = 0;
   private shownPath = '';
 
@@ -57,23 +56,23 @@ export class PhotoObjectLayerComponent {
     });
   }
 
-  retry(): void {
-    void this.load(this.path());
+  retry(): Promise<void> {
+    return this.load(this.path());
   }
 
   /** One objects read; the retry chip and the effect both land here. */
-  protected load(path: string): Promise<void> {
+  private load(path: string): Promise<void> {
     const token = ++this.generation;
     // A reread of the same photo (after an object edit, or Retry) keeps the
     // boxes until it lands; only a new photo blanks the previous one's.
     if (path !== this.shownPath) this.objects.set([]);
     this.shownPath = path;
-    this.loadFailed.set(false);
+    this.canRetry.set(false);
     return firstValueFrom(
       this.api.get<components['schemas']['PhotoObjectsResponse']>('/photo/objects', { path }))
       .then((res) => {
         if (!this.destroyRef.destroyed && token === this.generation && path === this.path()) {
-          this.loadFailed.set(false);
+          this.canRetry.set(false);
           this.objects.set(res?.objects ?? []);
         }
       })
@@ -82,7 +81,7 @@ export class PhotoObjectLayerComponent {
         // so instead of silently dropping every box they were shown.
         if (!this.destroyRef.destroyed && token === this.generation && path === this.path()) {
           this.objects.set([]);
-          this.loadFailed.set(true);
+          this.canRetry.set(true);
         }
       });
   }

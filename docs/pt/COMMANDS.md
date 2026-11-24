@@ -33,7 +33,11 @@
 
 **`--resume`** também recupera um escaneamento encerrado por uma queda, falta de memória ou falta de energia: uma execução ainda marcada como `running` cujo heartbeat é mais antigo que `processing.scan_stale_seconds` (padrão 120). Ele reutiliza os diretórios dessa execução. Com `--force`, ignora os arquivos já repontuados desde o início da execução. Recusa-se a iniciar se outro escaneamento parecer ativo.
 
+Sem caminhos explícitos, `--resume` ignora execuções sem diretórios de escaneamento reutilizáveis, inclusive as novas tentativas baseadas em listas de trabalho. Se não houver nenhum escaneamento de diretórios a retomar, informe os diretórios explicitamente ou use `--retry-failed` para tentar novamente arquivos individuais.
+
 **Códigos de saída para supervisores.** `0` significa que o escaneamento foi executado (ou não encontrou nada novo); `4` que havia fotos para processar e nenhuma foi salva; `5` que ele nunca chegou a ver a biblioteca — todas as raízes de escaneamento estão ausentes ou ilegíveis (uma montagem de rede inativa), de modo que um escaneamento agendado falha de forma visível em vez de relatar «nenhum arquivo novo»; `1` também cobre uma falha da thread de pontuação no meio da execução — as fotos que ela não alcançou ficam registradas como falhas de scan; `--retry-failed` as completa; `75` que o bloqueio da biblioteca está com outro trabalho. `--watch` não trata `4` nem como sucesso nem como falha, e qualquer outro código de saída diferente de zero exceto `75` conta para o limite de falhas consecutivas após o qual ele desiste. Um escaneamento disparado por alterações que exceda o generoso limite de 6 horas é encerrado e conta como uma falha, para que um subprocesso travado não impeça o vigia de desistir; o escaneamento inicial fica isento, pois uma primeira vigilância sobre uma biblioteca grande (ou um `--force` inicial) dura legitimamente mais. `--watch` repassa `--force-since`, `--single-pass` e `--pass` a cada escaneamento que inicia, e `--force` somente ao escaneamento inicial (forçar cada escaneamento disparado por uma mudança repontuaria toda a biblioteca a cada vez); as listas de trabalho pontuais `--retry-failed` e `--retry-plan` são recusadas com `--watch`, que também precisa de pelo menos um caminho para vigiar. Erros de resolução de caminhos ou permissões marcam apenas a raiz afetada como indisponível. Se o escaneamento inicial de vigilância encontrar o bloqueio ocupado, ele tenta novamente após o intervalo de estabilização, sem esperar um evento de arquivo e mantendo suas opções iniciais, inclusive `--force`; os escaneamentos posteriores por eventos continuam incrementais.
+
+O modo de vigilância tenta primeiro o monitoramento nativo de cada raiz. Se ele falhar, passa a verificar essa raiz periodicamente. O caminho de cada raiz que não pode ser monitorada na inicialização, ou cujo monitoramento é interrompido mais tarde, é informado. As demais raízes continuam ativas. Se nenhuma restar, a vigilância termina com o código `1`, mesmo que nenhum escaneamento tenha sido acionado. Reinicie a vigilância para voltar a incluir as raízes que se tornaram disponíveis.
 
 ### Registro de Escaneamento
 
@@ -103,6 +107,8 @@ Numa GPU CUDA, assim que um chunk é decodificado, o mesmo worker de decodifica�
 | `python facet.py --export-sidecars --user alice` | Modo multiusuário: exporta avaliações e Manter/Rejeitar da Alice, nas fotos que ela vê |
 | `python facet.py --export-sidecars --embed-originals` | Grava também metadados **dentro** dos originais JPEG/HEIC/TIFF/PNG/DNG |
 | `python facet.py --export-sidecars --score-to-stars` | Define `xmp:Rating` a partir da pontuação nas fotos que você não avaliou |
+
+Se um sidecar XMP selecionado desaparecer ou mudar durante a leitura, a importação ignora essa foto e continua. Execute a importação novamente quando o sidecar estiver estável.
 
 **Simulação (dry run).** Em `12gb`/`16gb`/`24gb` a coluna de estética mostra `n/a`, porque o TOPIQ roda apenas em um escaneamento real (o modo comercial mostra a pontuação Q-ReAlign). O agregado a conta como um 5.0 neutro.
 
@@ -524,7 +530,7 @@ Tanto os reparos interativos quanto o `--auto-fix` pegam o bloqueio da bibliotec
 
 **`python database.py`** também cria os índices da galeria que faltam (veja [VIEWER.md](VIEWER.md#índices-da-galeria-e-cache-de-contagem)). Em uma biblioteca grande, execute-o uma vez antes de iniciar o visualizador; pode levar cerca de um minuto. Caso contrário, o visualizador os cria em segundo plano e recusa gravações nesse meio-tempo.
 
-**`--backup`** publica um snapshot concluído com um nome único com data e hora antes de rotacionar os snapshots antigos. Execuções no mesmo segundo mantêm snapshots separados; uma cópia com falha deixa intactos os backups anteriores. O sistema de arquivos de destino deve oferecer suporte a hard links.
+**`--backup`** publica um snapshot concluído com um nome único com data e hora antes de rotacionar os snapshots antigos. Execuções no mesmo segundo mantêm snapshots separados; uma cópia com falha deixa intactos os backups anteriores. O sistema de arquivos de destino deve oferecer suporte a hard links. O novo snapshot sempre conta como uma das cópias retidas. Gravações sobrepostas podem deixar temporariamente cópias extras até o próximo backup.
 
 **`--export-viewer-db`** mantém as edições do destino e os locais privados durante a sincronização incremental. As exportações completas omitem os locais salvos/recentes da origem. Veja [conclusão da exportação e nova tentativa](DEPLOYMENT.md#exportando-um-banco-de-dados-leve) para publicação, atualizações de esquema e recuperação após um erro.
 
