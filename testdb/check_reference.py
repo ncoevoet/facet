@@ -9,9 +9,10 @@ Commands (all take ``--set-dir`` = the folder ``make_reference_set.py --out`` bu
     update     --profile P --set-dir DIR --db DB [--golden G] [--yes]
     tolerances --profile P --set-dir DIR --runs A.db B.db [C.db] [--holdout H.db] [--out T]
 
-Exit codes of ``check``: 0 pass, 1 past tolerance, 2 setup error (missing set files, manifest
-digest differs from the golden, DB not from the set, refused DB, failed scan pass). Without a
-tolerances file the check is report-only and never exits 1 (spec "Tolerances plan").
+Exit codes of ``check``: 0 pass, 1 past tolerance, 2 setup error (missing set files or lock,
+manifest digest differs from the golden or the lock, DB not from the set, refused DB, a failed or
+missing scan pass sidecar, a scan of another profile, no tolerances file without ``--report-only``,
+any unexpected exception). ``--report-only`` prints the report and never exits 1.
 
 Golden score columns are derived from ``db.schema.PHOTOS_COLUMNS``: every REAL column, plus
 ``image_width``/``image_height``/``face_count``, minus ``EXCLUDED_REAL``. BLOB columns are never
@@ -86,7 +87,14 @@ TEXT_COLUMNS = ("category", "tags", "caption", "composition_pattern", "subject_b
                 "junk_kind", "narrative_moment")
 SET_COLUMNS = ("sequence_kind", "sequence_group_id", "sequence_ev_offset", "is_sequence_lead",
                "burst_group_id", "is_burst_lead", "duplicate_group_id", "is_duplicate_lead")
-PHOTO_COLUMNS_READ = (("path", "face_count") + SCORE_COLUMNS + FLAG_COLUMNS + TEXT_COLUMNS + SET_COLUMNS)
+GPS_COLUMNS = ("gps_latitude", "gps_longitude")
+PHOTO_COLUMNS_READ = (("path", "face_count") + SCORE_COLUMNS + FLAG_COLUMNS + TEXT_COLUMNS + SET_COLUMNS
+                      + GPS_COLUMNS)
+# Exact-match attributes diffed per photo: composition_pattern, every recorded flag and GPS presence.
+# ``caption`` is VLM free text: it is recorded for the reader and never compared.
+ATTRIBUTES = ("composition_pattern",) + FLAG_COLUMNS + ("gps",)
+LOCK_NAME = "manifest.lock.json"
+NOT_EXERCISED = ("comp-xmp: xmp rating import is not exercised by the scan passes",)
 # Post passes, in order: (name, flag). Duplicates do not run at scan end, so they are explicit;
 # moments, junk and sequences are also run explicitly so each gets its own recorded exit code.
 POST_PASSES = (
@@ -213,7 +221,8 @@ def export_photos(db, set_dir, manifest):
     """The ``photos`` and ``sets`` blocks of a golden from a scan DB. NULL stays null.
 
     Raises SetupError for a photo outside the set; manifest photos the scan lacks are returned
-    in the third element.
+    in the third element, ids of ``scored: false`` manifest photos the scan scored anyway in the
+    fourth (a companion RAW the scanner no longer suppresses).
     """
     exact, folded = path_to_id(manifest)
     scored = {p["id"] for p in manifest["photos"] if p.get("scored") is not False}
@@ -222,7 +231,7 @@ def export_photos(db, set_dir, manifest):
     try:
         have = {row[1] for row in conn.execute("PRAGMA table_info(photos)")}
         cols = [c for c in PHOTO_COLUMNS_READ if c in have]
-        rows, foreign = {}, []
+        rows, foreign, unscored_rows = {}, [], []
         for row in conn.execute(f"SELECT {', '.join(cols)} FROM photos"):
             rel = relative_path(row["path"], set_dir)
             pid = None if rel is None else exact.get(rel) or folded.get(rel.casefold())
@@ -230,6 +239,8 @@ def export_photos(db, set_dir, manifest):
                 foreign.append(row["path"])
             elif pid in scored:
                 rows[pid] = row
+            else:
+                unscored_rows.append(pid)
         faces = {}
         if conn.execute("SELECT 1 FROM sqlite_master WHERE name = 'faces'").fetchone():
             for face in conn.execute(
@@ -249,7 +260,7 @@ def export_photos(db, set_dir, manifest):
         raise SetupError(f"{db} holds {len(foreign)} photo(s) not in the manifest, e.g. {foreign[0]}")
     missing = sorted(scored - set(rows))
     photos = {pid: _photo_record(row, faces.get(pid, [])) for pid, row in rows.items()}
-    return photos, _build_sets(rows), missing
+    return photos, _build_sets(rows), missing, sorted(unscored_rows)
 
 
 def _get(row, name):
@@ -264,6 +275,7 @@ def _photo_record(row, faces):
         "tags": None if tags is None else sorted({t.strip() for t in tags.split(",") if t.strip()}),
         "caption": _get(row, "caption"),
         "face_count": _get(row, "face_count"),
+        "gps": _get(row, "gps_latitude") is not None and _get(row, "gps_longitude") is not None,
         "faces": faces,
         "composition_pattern": _get(row, "composition_pattern"),
         "subject_bbox": _parse_bbox(_get(row, "subject_bbox")),
@@ -315,7 +327,7 @@ def attach_labels(photos, sets):
 
 
 def build_golden(db, set_dir, manifest, profile, environment):
-    photos, sets, missing = export_photos(db, set_dir, manifest)
+    photos, sets, missing, unscored_rows = export_photos(db, set_dir, manifest)
     if missing:
         raise SetupError(f"{len(missing)} scored manifest photo(s) are absent from {db}, e.g. {missing[0]}")
     attach_labels(photos, sets)
@@ -326,6 +338,7 @@ def build_golden(db, set_dir, manifest, profile, environment):
         "environment": environment,
         "photos": photos,
         "sets": sets,
+        "unscored_rows": unscored_rows,
     })
 
 
@@ -505,12 +518,31 @@ def run_scan(profile, set_dir, db, config_dir=None, runner=default_runner, facet
     return sum(1 for r in results if r["exit_code"] != 0)
 
 
-def failed_passes(db):
+def require_clean_scan(db, profile):
+    """SetupError unless ``db`` has a pass sidecar of ``profile`` showing every pass succeeded."""
     sidecar = passes_path(db)
     if not sidecar.exists():
-        return []
-    return [p["name"] + f" (exit {p['exit_code']})"
-            for p in json.loads(sidecar.read_text("utf8")).get("passes", []) if p["exit_code"] != 0]
+        raise SetupError(f"{sidecar} is missing: {db} was not produced by `check_reference.py scan`")
+    data = json.loads(sidecar.read_text("utf8"))
+    failed = [p["name"] + f" (exit {p['exit_code']})" for p in data.get("passes", []) if p["exit_code"] != 0]
+    if failed:
+        raise SetupError("scan incomplete, failed pass(es): " + ", ".join(failed))
+    if data.get("profile") != profile:
+        raise SetupError(f"{db} was scanned with profile {data.get('profile')!r}, not {profile!r}")
+
+
+def require_lock(set_dir, manifest):
+    """SetupError unless ``<set_dir>/manifest.lock.json`` was written for this manifest's file fields.
+
+    The lock holds ``file_level_digest``, the same quantity the golden pins, so it is compared on that.
+    """
+    path = Path(set_dir) / LOCK_NAME
+    if not path.is_file():
+        raise SetupError(f"{path} is missing: build the set with make_reference_set.py")
+    lock = json.loads(path.read_text("utf8"))
+    if lock.get("file_level_digest") != rc.file_level_digest(manifest):
+        raise SetupError(f"{path}: file_level_digest differs from the manifest's: the set was built "
+                         f"from another manifest; rebuild it")
 
 
 # --------------------------------------------------------------------------- statistics
@@ -675,7 +707,14 @@ def _photo_diff(before, after, golden_maps, current_maps):
         "jaccard": None if before["tags"] is None and after["tags"] is None
         else jaccard(before["tags"], after["tags"]),
         "assign": {kind: (golden_maps[kind] != current_maps[kind]) for kind in golden_maps},
+        "attrs": {name: _attribute(before, name) != _attribute(after, name) for name in ATTRIBUTES},
     }
+
+
+def _attribute(photo, name):
+    if name in FLAG_COLUMNS:
+        return photo["flags"].get(name)
+    return photo.get(name)
 
 
 def _norm_scale(golden):
@@ -700,6 +739,8 @@ def compare(golden, current, manifest, tolerances=None):
     """
     tol = Tolerances(tolerances) if tolerances is not None else None
     ids = sorted(set(golden["photos"]) & set(current["photos"]))
+    if not ids:
+        raise SetupError("0 photos compared: the golden and the scan share no photo")
     by_id = {p["id"]: p for p in manifest["photos"]}
     maps_then, maps_now = _member_map(golden), _member_map(current)
     diffs = {
@@ -716,11 +757,19 @@ def compare(golden, current, manifest, tolerances=None):
     def violate(case, metric, photo, value, limit):
         violations.append({"case": case, "metric": metric, "photo": photo, "value": value, "limit": limit})
 
+    # Coverage is judged without tolerances: both sides must hold the same photos.
+    for pid in sorted(set(golden["photos"]) - set(current["photos"])):
+        violate(OVERALL, "photo_not_in_scan", pid, None, None)
+    for pid in sorted(set(current["photos"]) - set(golden["photos"])):
+        violate(OVERALL, "photo_not_in_golden", pid, None, None)
+    for pid in current.get("unscored_rows") or ():
+        violate(OVERALL, "unscored_photo_scored", pid, None, None)
+
     cases = {}
     for case, members in sorted(case_members.items()):
         row = {"photos": len(members), "faces_lost_photos": 0, "category_flips": 0, "score_moved": 0,
                "worst_jaccard": None, "worst_face_iou": None, "worst_subject_iou": None,
-               "assignment_changes": {}}
+               "assignment_changes": {}, "attribute_changes": {}}
         for pid in members:
             d = diffs[pid]
             row["category_flips"] += d["flip"]
@@ -734,6 +783,9 @@ def compare(golden, current, manifest, tolerances=None):
             for kind, changed in d["assign"].items():
                 if changed:
                     row["assignment_changes"][kind] = row["assignment_changes"].get(kind, 0) + 1
+            for name, changed in d["attrs"].items():
+                if changed:
+                    row["attribute_changes"][name] = row["attribute_changes"].get(name, 0) + 1
             if tol is None:
                 continue
             for column, delta in d["scores"].items():
@@ -760,6 +812,11 @@ def compare(golden, current, manifest, tolerances=None):
             allowed = tol.get("assignment_changes_max", kind, default=tol.get("assignment_changes_max", "_default", default=0))
             if count > allowed:
                 violate(case, f"assignment:{kind}", None, count, allowed)
+        for name, count in row["attribute_changes"].items():
+            allowed = tol.get("attribute_changes_max", name,
+                              default=tol.get("attribute_changes_max", "_default", default=0))
+            if count > allowed:
+                violate(case, f"attribute:{name}", None, count, allowed)
     srcc = {}
     for column in SCORE_COLUMNS:
         pairs = [(golden["photos"][p]["scores"].get(column), current["photos"][p]["scores"].get(column)) for p in ids]
@@ -777,6 +834,7 @@ def compare(golden, current, manifest, tolerances=None):
         "photos": len(ids), "srcc": srcc, "cases": cases, "most_moved": most_moved,
         "labels": label_report, "violations": violations,
         "known_gaps": sorted(c for c, v in manifest["cases"].items() if v.get("known_gap")),
+        "not_exercised": list(NOT_EXERCISED),
         "report_only": tol is None,
     }
 
@@ -847,6 +905,8 @@ def render_report(report):
             parts.append(f"{row['score_moved']} score(s) moved")
         for kind, count in sorted(row["assignment_changes"].items()):
             parts.append(f"{count} {kind} change(s)")
+        for name, count in sorted(row["attribute_changes"].items()):
+            parts.append(f"{count} {name} change(s)")
         lines.append(f"  {case}: " + ("; ".join(parts) if parts else f"ok ({row['photos']} photos)"))
     lines += ["", f"== (3) top {TOP_N} most moved =="]
     lines += [f"  {m['photo']}: {m['normalised']} ({m['column']})" for m in report["most_moved"]] or ["  none"]
@@ -867,6 +927,7 @@ def render_report(report):
     lines += [f"  {kind}: {n} photo(s) changed" for _, kind, n in changes] or ["  none"]
     lines += ["", "== NOT CHECKED (a green run is not full coverage) =="]
     lines += [f"  {item}" for item in labels["not_checked"]]
+    lines += [f"  {item}" for item in report["not_exercised"]]
     lines += [f"  known gap case: {case}" for case in report["known_gaps"]]
     lines += ["", f"violations: {len(report['violations'])}"]
     for v in report["violations"][:50]:
@@ -881,6 +942,7 @@ def _load_inputs(args):
     manifest = rc.load_manifest(args.manifest)
     refuse_protected_db(args.db)
     assert_db_in_set(args.db, args.set_dir)
+    require_lock(args.set_dir, manifest)
     for photo in manifest["photos"]:
         if not (photo_root(args.set_dir) / photo["path"]).exists():
             raise SetupError(f"set file missing: {photo['path']}")
@@ -907,14 +969,13 @@ def _load_golden(path, manifest, profile):
 
 
 def _current(args, manifest):
-    failed = failed_passes(args.db)
-    if failed:
-        raise SetupError("scan incomplete, failed pass(es): " + ", ".join(failed))
+    require_clean_scan(args.db, args.profile)
     return build_golden(args.db, args.set_dir, manifest, args.profile, {})
 
 
 def cmd_record(args):
     manifest = _load_inputs(args)
+    require_clean_scan(args.db, args.profile)
     current = build_golden(args.db, args.set_dir, manifest, args.profile,
                            collect_environment(args.profile, args.db, _scan_config(args)))
     write_json(args.out, current)
@@ -938,13 +999,14 @@ def cmd_check(args):
         if tolerances.get("profile") != args.profile:
             raise SetupError(
                 f"tolerances {path} are for profile {tolerances.get('profile')!r}, not {args.profile!r}")
-    elif args.tolerances:
-        raise SetupError(f"tolerances {path} does not exist")
+    elif args.tolerances or not args.report_only:
+        raise SetupError(f"tolerances {path} does not exist: derive them with `tolerances`, "
+                         f"or pass --report-only to print the report without a verdict")
     report = compare(golden, current, manifest, tolerances)
     print(render_report(report))
     if args.json:
         write_json(args.json, report)
-    if report["violations"] and not args.report_only and tolerances is not None:
+    if report["violations"] and not args.report_only:
         return 1
     return 0
 
@@ -959,8 +1021,11 @@ def cmd_update(args):
     manifest = _load_inputs(args)
     path = _golden_path(args)
     golden = _load_golden(path, manifest, args.profile)
+    require_clean_scan(args.db, args.profile)
     current = build_golden(args.db, args.set_dir, manifest, args.profile,
                            collect_environment(args.profile, args.db, _scan_config(args)))
+    if set(golden["photos"]) != set(current["photos"]):
+        raise SetupError(f"golden {path} and the scan hold different photos: re-record with `record`")
     print(render_report(compare(golden, current, manifest, None)))
     fraction = moved_fraction(golden, current)
     print(f"\nphotos moved: {fraction:.0%}")
@@ -979,6 +1044,8 @@ def derive_tolerances(exports, manifest, profile):
     if len(exports) < 2:
         raise SetupError("tolerances need at least 2 runs")
     ids = sorted(set.intersection(*(set(e["photos"]) for e in exports)))
+    if not ids or any(set(e["photos"]) != set(ids) for e in exports):
+        raise SetupError("the runs do not hold the same photos (or none): scan the whole set")
     score_abs = {"_default": SCORE_FLOOR}
     for column in SCORE_COLUMNS:
         worst = 0.0
@@ -992,7 +1059,7 @@ def derive_tolerances(exports, manifest, profile):
         score_abs[column] = round(max(3 * worst, SCORE_FLOOR), 4)
     pairs = [(a, b) for i, a in enumerate(exports) for b in exports[i + 1:]]
     srcc_min, jaccards, ious, face_changes = {}, [], [], 0
-    flips_by_case, assign_max = {}, {}
+    flips_by_case, assign_max, attribute_max = {}, {}, {}
     agreement_drop, confusion_rise = 0.0, 0
     for a, b in pairs:
         report = compare(a, b, manifest, None)
@@ -1008,8 +1075,11 @@ def derive_tolerances(exports, manifest, profile):
                     ious.append(row[key])
             for kind, count in row["assignment_changes"].items():
                 assign_max[kind] = max(assign_max.get(kind, 0), count)
+            for name, count in row["attribute_changes"].items():
+                attribute_max[name] = max(attribute_max.get(name, 0), count)
         for pid in ids:
-            face_changes = max(face_changes, abs(b["photos"][pid]["face_count"] - a["photos"][pid]["face_count"]))
+            face_changes = max(face_changes, abs((b["photos"][pid]["face_count"] or 0)
+                                                 - (a["photos"][pid]["face_count"] or 0)))
         labels = report["labels"]
         for entry in labels["agreement"].values():
             if entry["golden_rate"] is not None and not entry["low_confidence"]:
@@ -1026,6 +1096,7 @@ def derive_tolerances(exports, manifest, profile):
         "category_flips_max": {"_default": 0, **dict(sorted(flips_by_case.items()))},
         "face_count_change_max": face_changes,
         "assignment_changes_max": {"_default": 0, **dict(sorted(assign_max.items()))},
+        "attribute_changes_max": {"_default": 0, **dict(sorted(attribute_max.items()))},
         "bbox_iou_min": round(max(0.0, (min(ious) if ious else 1.0) - IOU_MARGIN), 4),
         "label": {"min_pairs": MIN_PAIRS, "pair_agreement_margin": round(agreement_drop, 4),
                   "confusion_errors_margin": max(0, confusion_rise)},
@@ -1034,10 +1105,12 @@ def derive_tolerances(exports, manifest, profile):
 
 def cmd_tolerances(args):
     manifest = rc.load_manifest(args.manifest)
+    require_lock(args.set_dir, manifest)
     exports = []
     for db in args.runs:
         refuse_protected_db(db)
         assert_db_in_set(db, args.set_dir)
+        require_clean_scan(db, args.profile)
         exports.append(build_golden(db, args.set_dir, manifest, args.profile, {}))
     tolerances = derive_tolerances(exports, manifest, args.profile)
     out = args.out or TOLERANCES_DIR / f"{args.profile}.json"
@@ -1047,6 +1120,7 @@ def cmd_tolerances(args):
         return 0
     refuse_protected_db(args.holdout)
     assert_db_in_set(args.holdout, args.set_dir)
+    require_clean_scan(args.holdout, args.profile)
     held = build_golden(args.holdout, args.set_dir, manifest, args.profile, {})
     report = compare(exports[0], held, manifest, tolerances)
     print(render_report(report))
@@ -1105,6 +1179,9 @@ def main(argv=None):
         return args.func(args)
     except SetupError as error:
         print(f"setup error: {error}", file=sys.stderr)
+        return 2
+    except Exception as error:  # noqa: BLE001 - exit 1 means "past tolerance", never "crashed"
+        print(f"setup error: unexpected error ({type(error).__name__}): {error}", file=sys.stderr)
         return 2
 
 

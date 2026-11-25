@@ -103,7 +103,8 @@ def test_shipped_has_no_binaries():
         if path.is_file() and "__pycache__" not in path.parts:
             assert path.suffix.lower() not in images, path
             # reference_set.json is a text manifest of ~550 entries; the cap guards against binaries
-            cap = 3_000_000 if path.name == "reference_set.json" else 1_000_000
+            cap = 3_000_000 if path.name == "reference_set.json" else (
+                4_000_000 if "reference_goldens" in path.parts else 1_000_000)  # a 537-photo golden is ~1.4-1.9 MB
             assert path.stat().st_size <= cap, path
 
 
@@ -556,3 +557,32 @@ def test_sequence_case_counts_sets_not_frames(valid):
     valid["photos"][0]["sequence"] = {"set_id": "two", "role": "r", "expected_kind": "panorama"}
     valid["photos"][1]["sequence"] = {"set_id": "three", "role": "r", "expected_kind": "panorama"}
     assert_error(valid, "case seq-panorama-ge8: 3 photos, need 1-2")
+
+
+def test_shipped_satisfies_the_434_hand_off(shipped):
+    assert rc.hand_off_errors(shipped) == []
+
+
+def test_hand_off_fails_without_the_40mp_files(shipped):
+    manifest = copy.deepcopy(shipped)
+    manifest["photos"] = [p for p in manifest["photos"] if (p.get("megapixels") or 0) < 40]
+    assert any("40" in error for error in rc.hand_off_errors(manifest))
+
+
+@pytest.mark.parametrize("what", ["panorama", "bracket", "companion", "raw"])
+def test_hand_off_fails_when_a_required_part_is_gone(shipped, what):
+    manifest = copy.deepcopy(shipped)
+    photos = manifest["photos"]
+    if what == "panorama":
+        for p in photos:
+            if (p.get("sequence") or {}).get("expected_kind") == "panorama":
+                p["sequence"]["expected_kind"] = "none"
+    elif what == "bracket":
+        manifest["photos"] = [p for p in photos if (p.get("sequence") or {}).get("expected_kind") != "bracket"]
+    elif what == "companion":
+        for p in photos:
+            p["companion_of"] = None
+    else:
+        raw = {s.lstrip(".") for s in rc.RAW_SUFFIXES}
+        manifest["photos"] = [p for p in photos if p.get("format") not in raw]
+    assert rc.hand_off_errors(manifest)

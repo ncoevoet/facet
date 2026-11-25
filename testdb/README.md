@@ -275,13 +275,17 @@ Everything is described by `testdb/reference_set.json` (`schema_version`, `cases
 
 Only CC0, CC-BY and public domain photos are accepted. CC-BY-SA is accepted unmodified only (never
 used as a derivation base, no pixels or thumbnails committed). NC and ND licences are rejected, as are
-AI-generated media and identifiable minors. `testdb/licence_check.py` is the machine gate: for
+AI-generated media and identifiable minors. `testdb/licence_check.py` is the machine gate, and it does
+not screen children on its own: it rejects a candidate for a child only when the researcher's metadata
+flags one (`child`, or `identifiable_people` together with a Commons category naming children, minors,
+girls, boys or kids), and the same holds for AI-generated media (category test only). A first pass let 5
+photos of children through; a visual review removed them. Review every new candidate by eye. For
 Wikimedia Commons it reads the licence from the Commons API twice independently and both reads must
 map to the allowlist; for raw.pixls.us it accepts only samples the site lists as CC0. Attribution
 lives per photo in the manifest (`attribution`, `author`, `source_page`, `licence_evidence`). See also
 [Reference set: CC-BY-SA files](#reference-set-cc-by-sa-files) above.
 
-### Build the set (about 4.6 GB)
+### Build the set (about 4.5 GB)
 
 Build into a folder on a data drive, never inside the repo or a git worktree and never on a network
 path:
@@ -310,7 +314,8 @@ database holding a photo outside `<set-dir>/photos`. It scans with the override 
 `scoring_config.json`, and fails if that file changed during the scan. After the scan it runs, in
 order, `--recompute-average`, `--detect-sequences`, `--detect-duplicates`, `--detect-junk` and
 `--detect-moments`; each pass's exit code goes into a sidecar next to the database, and the command
-exits 1 if any pass failed. `--config-dir` selects another folder of profile configs.
+exits 1 if any pass failed. The sidecar also records the `profile`. `--config-dir` selects another
+folder of profile configs.
 
 ### Record, check, update
 
@@ -321,13 +326,24 @@ python testdb/check_reference.py check  --profile 8gb --set-dir D:/ref-set --db 
 python testdb/check_reference.py update --profile 8gb --set-dir D:/ref-set --db D:/ref-scans/8gb-new.db
 ```
 
-- `record` exports a golden: the scores, faces, categories and set assignments of every scored photo,
-  plus an informational environment block. Goldens live in `testdb/reference_goldens/<profile>.json`
+- Every command except `scan` first reads `<set-dir>/manifest.lock.json` (written by
+  `make_reference_set.py`) and exits 2 when it is missing or its `file_level_digest` differs from the
+  manifest's, and reads the database's pass sidecar and exits 2 when it is missing, shows a failed pass
+  or names another profile than `--profile`. `record`, `update` and `tolerances` (including
+  `--holdout`) refuse a bad scan like `check` does, so a half-finished scan can never become a golden.
+- `record` exports a golden: the scores, faces, categories, composition pattern, flags (blink,
+  monochrome, silhouette, group portrait, shadow and highlight clipping), GPS presence (a boolean: the
+  coordinates themselves are EXIF inputs), `caption` and set assignments of every scored photo, plus an
+  informational environment block. `caption` is VLM free text: it is recorded for reading and never
+  compared. Goldens live in `testdb/reference_goldens/<profile>.json`
   and are produced by the recording runs, not edited by hand.
 - `check` diffs a scan against the golden (`--golden` to pick another file). `--report-only` prints the
-  report and never exits 1. `--json OUT` also writes the report as JSON.
+  report and never exits 1. `--json OUT` also writes the report as JSON. Without a tolerances file
+  `check` is a setup error (exit 2) unless `--report-only` is given.
 - `update` rewrites the golden after an intended change. It prints the report first and refuses when
-  more than 20 % of the photos moved unless `--yes` is given.
+  more than 20 % of the photos moved unless `--yes` is given (exit 1 in that case, the same code as a
+  regression; the golden is left untouched). A golden and a scan that hold different photos are a setup
+  error: re-record instead.
 
 ### Tolerances
 
@@ -342,29 +358,38 @@ Scan the same profile at least twice on the same machine; the limits (score nois
 floor, tag overlap, face-box overlap, allowed category flips, label margins) come from the spread
 between those runs. `--holdout` compares a further, independent run against the derived limits and
 prints `HOLD-OUT PASS` or `FAIL` (exit 1), which shows the limits are not tuned to the runs they came
-from. The file is written by this command, not by hand. Without a tolerances file, `check` is
-report-only.
+from. The file is written by this command, not by hand. It also holds `attribute_changes_max`: how many
+photos per case may change `composition_pattern`, a flag or GPS presence (derived from the spread
+between the runs; 0 when they agree).
 
 ### Read the report
 
 Sections: (1) overall SRCC per score column, (2) per case (lost faces, category flips, moved scores,
-assignment changes), (3) the most moved photos, (4) category confusion and photos outside
+assignment changes, changed composition patterns, flags and GPS presence), (3) the most moved photos, (4) category confusion and photos outside
 `acceptable_categories`, (5) pairwise agreement per category, (6) sequence, burst, duplicate, junk and
 moment changes, then the violations.
 
+Coverage is exact: a photo in the golden but not in the scan (`photo_not_in_scan`), in the scan but
+not in the golden (`photo_not_in_golden`), or a `scored: false` manifest photo that the scan scored
+anyway (`unscored_photo_scored`, a companion RAW no longer suppressed) is a violation listed by id; a
+golden and a scan with no photo in common is a setup error.
+
 The **NOT CHECKED** block lists what a green run does not cover: pair categories with fewer than 10
-pairs or none (`LOW-CONFIDENCE`) and every known-gap case. Read it before calling a run clean.
+pairs or none (`LOW-CONFIDENCE`), `comp-xmp: xmp rating import is not exercised by the scan passes`
+(no `--import-sidecars` pass runs) and every known-gap case. Read it before calling a run clean.
 
 Exit codes of `check`: `0` pass (or report-only), `1` past tolerance, `2` setup error (missing set
-files, manifest digest differs from the golden so it must be re-recorded, database not from the set or
-refused, golden for another profile, a failed scan pass).
+files or lock, manifest digest differs from the golden or the lock so it must be re-recorded, database
+not from the set or refused, golden for another profile, a failed, missing or other-profile scan
+sidecar, no tolerances file without `--report-only`, or an unexpected exception: exit 1 only ever
+means past tolerance).
 
 ### Add a case or a photo
 
 1. Run `python testdb/licence_check.py CANDIDATES.jsonl --out APPROVED.json --rejected REJECTED.json`
    on candidate entries, then `python testdb/make_reference_set.py --pin APPROVED.json --out D:/ref-set`
-   to download, hash and merge them into the manifest. `--finalize-gaps` (with `--date`) recomputes
-   the `known_gap` entries.
+   to download, hash and merge them into the manifest. `--finalize-gaps` (with `--date` and `--out`)
+   recomputes the `known_gap` entries.
 2. A new case needs an entry under `cases` (group, title, `min_photos`, `max_photos`).
 3. Add labels or pairs only after a visual check. Pairs must name two scored photos.
 4. Run the manifest validator tests (`python -m pytest tests -q -k reference`) and

@@ -94,7 +94,22 @@ def base_row(i, set_dir):
 FACE_BBOX = (10, 10, 50, 50)
 
 
-def build_db(tmp_path, name, set_dir, edit=None, brackets=None):
+def write_sidecar(db, profile="16gb", exit_code=0, **extra):
+    """The pass sidecar ``run_scan`` writes next to a scan DB."""
+    passes = [{"name": name, "argv": [], "exit_code": exit_code if name == "detect-moments" else 0}
+              for name, _ in cr.POST_PASSES]
+    payload = {"profile": profile, "passes": passes, **extra}
+    cr.passes_path(db).write_text(json.dumps(payload), "utf8")
+
+
+def write_lock(set_dir, manifest, digest=None):
+    """The ``manifest.lock.json`` ``make_reference_set.py`` writes into the set folder."""
+    payload = {"file_level_digest": digest or rc.file_level_digest(manifest), "only": None,
+               "covered": [], "photos": {}}
+    (Path(set_dir) / "manifest.lock.json").write_text(json.dumps(payload), "utf8")
+
+
+def build_db(tmp_path, name, set_dir, edit=None, brackets=None, sidecar=True):
     """A scan DB for the synthetic set; ``edit(rows, faces)`` mutates it before insertion."""
     db = tmp_path / name
     init_database(str(db), build_photo_indexes=False)
@@ -120,6 +135,8 @@ def build_db(tmp_path, name, set_dir, edit=None, brackets=None):
                 " VALUES (?, ?, ?, ?, ?, ?, ?, ?)", (path, index, b"\x05" * 8, *box, 0.9))
     conn.commit()
     conn.close()
+    if sidecar:
+        write_sidecar(db)
     return db
 
 
@@ -133,6 +150,7 @@ def world(tmp_path):
         target.write_bytes(b"x")
     manifest_path = tmp_path / "manifest.json"
     manifest_path.write_text(json.dumps(manifest), "utf8")
+    write_lock(set_dir, manifest)
     golden_path = tmp_path / "golden.json"
     tol_path = tmp_path / "tol.json"
     tol_path.write_text(json.dumps(TOLERANCES), "utf8")
@@ -308,7 +326,9 @@ def test_report_only_never_exits_one(recorded):
         rows[2]["face_count"] = 0
         faces["p02"] = []
     db = build_db(recorded["tmp"], "ro.db", recorded["set"], edit)
-    assert run_check(recorded, db, tolerances=False) == 0
+    assert run_check(recorded, db, tolerances=False) == 2  # no tolerances file is a setup error
+    assert run_check(recorded, db, tolerances=False, ) == 2
+    assert run_check(recorded, db, "--report-only", tolerances=False) == 0
     assert run_check(recorded, db, "--report-only") == 0
     assert report_of(recorded, db, tolerances=None)["violations"] == []
 
@@ -361,6 +381,7 @@ def test_digest_mismatch_exits_two(recorded, capsys):
     manifest = recorded["manifest"]
     manifest["photos"][0]["sha256"] = "f" * 64
     recorded["manifest_path"].write_text(json.dumps(manifest), "utf8")
+    write_lock(recorded["set"], manifest)
     db = build_db(recorded["tmp"], "dg.db", recorded["set"])
     assert run_check(recorded, db) == 2
     assert "manifest digest" in capsys.readouterr().err
@@ -398,7 +419,7 @@ def test_db_missing_a_photo_exits_two(recorded):
 
 def test_failed_scan_pass_exits_two(recorded, capsys):
     db = build_db(recorded["tmp"], "fp.db", recorded["set"])
-    cr.passes_path(db).write_text(json.dumps({"passes": [{"name": "detect-moments", "exit_code": 1}]}), "utf8")
+    write_sidecar(db, exit_code=1)
     assert run_check(recorded, db) == 2
     assert "detect-moments (exit 1)" in capsys.readouterr().err
 
@@ -596,3 +617,171 @@ def test_hf_commits_reads_snapshot_dirs(tmp_path):
     snap.mkdir(parents=True)
     config = {"a": {"model": "org/name", "path": "not/cached"}, "b": ["plain"]}
     assert cr.hf_commits(config, tmp_path) == {"org/name": ["abc123"]}
+
+
+# --------------------------------------------------------------------------- review findings (I1-I6, M)
+
+def test_empty_golden_is_a_setup_error(recorded, capsys):
+    golden = json.loads(recorded["golden"].read_text("utf8"))
+    golden["photos"] = {}
+    for name in golden["sets"]:
+        golden["sets"][name] = []
+    recorded["golden"].write_text(json.dumps(golden), "utf8")
+    assert run_check(recorded, build_db(recorded["tmp"], "empty.db", recorded["set"])) == 2
+    assert "0 photos compared" in capsys.readouterr().err
+
+
+def test_photo_missing_from_the_golden_fails_and_is_listed(recorded, capsys):
+    golden = json.loads(recorded["golden"].read_text("utf8"))
+    del golden["photos"]["p02"]
+    recorded["golden"].write_text(json.dumps(golden), "utf8")
+    db = build_db(recorded["tmp"], "nogold.db", recorded["set"])
+    assert run_check(recorded, db) == 1
+    assert "photo_not_in_golden p02" in capsys.readouterr().out
+
+
+def test_photo_missing_from_the_scan_fails_and_is_listed(recorded):
+    golden = json.loads(recorded["golden"].read_text("utf8"))
+    current = cr.build_golden(build_db(recorded["tmp"], "c.db", recorded["set"]), recorded["set"],
+                              recorded["manifest"], "16gb", {})
+    del current["photos"]["p03"]
+    report = cr.compare(golden, current, recorded["manifest"], TOLERANCES)
+    assert [v["photo"] for v in find(report, cr.OVERALL, "photo_not_in_scan")] == ["p03"]
+
+
+def test_composition_pattern_change_is_a_violation(recorded):
+    def edit(rows, faces):
+        rows[5]["composition_pattern"] = "triangular"
+    db = build_db(recorded["tmp"], "comp.db", recorded["set"], edit)
+    report = report_of(recorded, db)
+    assert find(report, "landscape", "attribute:composition_pattern")[0]["value"] == 1
+    assert run_check(recorded, db) == 1
+
+
+@pytest.mark.parametrize("flag", cr.FLAG_COLUMNS)
+def test_flag_change_is_a_violation(recorded, flag):
+    def edit(rows, faces):
+        rows[0][flag] = 1
+    db = build_db(recorded["tmp"], f"flag-{flag}.db", recorded["set"], edit)
+    assert find(report_of(recorded, db), "face-tiny", f"attribute:{flag}")
+    assert run_check(recorded, db) == 1
+
+
+def test_attribute_changes_are_allowed_up_to_the_tolerance(recorded):
+    def edit(rows, faces):
+        rows[5]["composition_pattern"] = "triangular"
+    db = build_db(recorded["tmp"], "allow.db", recorded["set"], edit)
+    loose = dict(TOLERANCES, attribute_changes_max={"_default": 0, "composition_pattern": 1})
+    assert not find(report_of(recorded, db, loose), "landscape", "attribute:composition_pattern")
+
+
+def test_caption_is_not_compared(recorded):
+    def edit(rows, faces):
+        for row in rows:
+            row["caption"] = "a different VLM sentence"
+    assert run_check(recorded, build_db(recorded["tmp"], "cap.db", recorded["set"], edit)) == 0
+
+
+def test_gps_presence_is_recorded_and_compared(recorded):
+    assert json.loads(recorded["golden"].read_text("utf8"))["photos"]["p04"]["gps"] is False
+
+    def edit(rows, faces):
+        rows[4]["gps_latitude"], rows[4]["gps_longitude"] = 48.1, 11.5
+    db = build_db(recorded["tmp"], "gps.db", recorded["set"], edit)
+    assert find(report_of(recorded, db), "landscape", "attribute:gps")
+    assert run_check(recorded, db) == 1
+
+
+def test_a_scored_row_for_an_unscored_manifest_photo_is_a_violation(world, capsys):
+    manifest = world["manifest"]
+    manifest["photos"].append({
+        "id": "raw1", "path": "cat/p05.nef", "url": "u", "sha256": "e" * 64, "bytes": 5, "kind": "download",
+        "format": "nef", "scored": False, "companion_of": "p05", "cases": ["landscape"]})
+    world["manifest_path"].write_text(json.dumps(manifest), "utf8")
+    write_lock(world["set"], manifest)
+    (world["set"] / "photos" / "cat" / "p05.nef").write_bytes(b"x")
+    record(world)
+
+    def edit(rows, faces):
+        extra = dict(base_row(5, world["set"]))
+        extra["path"] = str(world["set"] / "photos" / "cat" / "p05.nef")
+        rows.append(extra)
+    db = build_db(world["tmp"], "raw.db", world["set"], edit)
+    assert run_check(world, db) == 1
+    assert "unscored_photo_scored raw1" in capsys.readouterr().out
+
+
+def test_comp_xmp_is_listed_as_not_checked(recorded, capsys):
+    run_check(recorded, build_db(recorded["tmp"], "x.db", recorded["set"]))
+    assert "comp-xmp: xmp rating import is not exercised by the scan passes" in capsys.readouterr().out
+
+
+@pytest.mark.parametrize("command", ["record", "update", "tolerances"])
+@pytest.mark.parametrize("state", ["failed", "missing"])
+def test_writers_refuse_a_scan_without_a_clean_pass_sidecar(recorded, command, state, capsys):
+    db = build_db(recorded["tmp"], "w.db", recorded["set"], sidecar=False)
+    if state == "failed":
+        write_sidecar(db, exit_code=1)
+    base = ["--profile", "16gb", "--set-dir", str(recorded["set"]), "--manifest", str(recorded["manifest_path"])]
+    extra = {"record": ["--db", str(db), "--out", str(recorded["tmp"] / "o.json")],
+             "update": ["--db", str(db), "--golden", str(recorded["golden"])],
+             "tolerances": ["--runs", str(db), str(db), "--out", str(recorded["tmp"] / "t.json")]}[command]
+    assert cr.main([command, *base, *extra]) == 2
+    assert not (recorded["tmp"] / "o.json").exists() and not (recorded["tmp"] / "t.json").exists()
+    assert "scan" in capsys.readouterr().err
+
+
+def test_tolerances_holdout_refuses_a_failed_scan(recorded):
+    good = [str(build_db(recorded["tmp"], f"g{i}.db", recorded["set"])) for i in range(2)]
+    bad = build_db(recorded["tmp"], "bad.db", recorded["set"])
+    write_sidecar(bad, exit_code=1)
+    argv = ["tolerances", "--profile", "16gb", "--set-dir", str(recorded["set"]), "--manifest",
+            str(recorded["manifest_path"]), "--runs", *good, "--out", str(recorded["tmp"] / "t.json"),
+            "--holdout", str(bad)]
+    assert cr.main(argv) == 2
+
+
+@pytest.mark.parametrize("command", ["check", "record", "update", "tolerances"])
+@pytest.mark.parametrize("profile", ["8gb", None])
+def test_scan_profile_must_match_the_requested_profile(recorded, command, profile, capsys):
+    db = build_db(recorded["tmp"], "p.db", recorded["set"], sidecar=False)
+    payload = {"passes": [{"name": n, "argv": [], "exit_code": 0} for n, _ in cr.POST_PASSES]}
+    if profile:
+        payload["profile"] = profile
+    cr.passes_path(db).write_text(json.dumps(payload), "utf8")
+    base = ["--profile", "16gb", "--set-dir", str(recorded["set"]), "--manifest", str(recorded["manifest_path"])]
+    extra = {"check": ["--db", str(db), "--golden", str(recorded["golden"]), "--tolerances", str(recorded["tol"])],
+             "record": ["--db", str(db), "--out", str(recorded["tmp"] / "o.json")],
+             "update": ["--db", str(db), "--golden", str(recorded["golden"])],
+             "tolerances": ["--runs", str(db), str(db), "--out", str(recorded["tmp"] / "t.json")]}[command]
+    assert cr.main([command, *base, *extra]) == 2
+    assert "profile" in capsys.readouterr().err
+
+
+def test_missing_lock_is_a_setup_error(recorded, capsys):
+    (recorded["set"] / "manifest.lock.json").unlink()
+    assert run_check(recorded, build_db(recorded["tmp"], "nl.db", recorded["set"])) == 2
+    assert "manifest.lock.json" in capsys.readouterr().err
+
+
+def test_lock_with_another_digest_is_a_setup_error(recorded, capsys):
+    write_lock(recorded["set"], recorded["manifest"], digest="0" * 64)
+    assert run_check(recorded, build_db(recorded["tmp"], "ld.db", recorded["set"])) == 2
+    assert "file_level_digest" in capsys.readouterr().err
+
+
+def test_unexpected_exception_exits_two_not_one(recorded, capsys):
+    golden = json.loads(recorded["golden"].read_text("utf8"))
+    del golden["sets"]
+    recorded["golden"].write_text(json.dumps(golden), "utf8")
+    assert run_check(recorded, build_db(recorded["tmp"], "ue.db", recorded["set"])) == 2
+    assert "unexpected error" in capsys.readouterr().err
+
+
+def test_tolerances_survive_a_null_face_count(recorded):
+    def edit(rows, faces):
+        rows[6]["face_count"] = None
+    db = build_db(recorded["tmp"], "fn.db", recorded["set"], edit)
+    base = ["tolerances", "--profile", "16gb", "--set-dir", str(recorded["set"]), "--manifest",
+            str(recorded["manifest_path"]), "--runs", str(db), str(db), "--out", str(recorded["tmp"] / "t.json")]
+    assert cr.main(base) == 0

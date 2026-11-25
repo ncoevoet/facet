@@ -370,3 +370,37 @@ def validate(manifest, config=None):
     _check_sequences(photos, errors)
     _check_pairs(manifest, by_id, errors)
     return errors
+
+
+# --------------------------------------------------------------------------- #434 hand-off
+
+HAND_OFF_MIN_MEGAPIXELS = 40
+
+
+def hand_off_errors(manifest):
+    """What the set must still hold for the #434 scan-speed work (spec step 12, S8); [] when it does.
+
+    RAW and JPEG files, a >= 40 MP file (``megapixels``), a companion pair (``companion_of``), a
+    bracket set and a panorama set of >= ``MIN_PANORAMA_FRAMES`` frames.
+    """
+    photos = manifest["photos"]
+    raw = {suffix.lstrip(".") for suffix in RAW_SUFFIXES}
+    errors = []
+    if not any(p.get("format") in raw for p in photos):
+        errors.append("no RAW file")
+    if not any(p.get("format") == "jpeg" for p in photos):
+        errors.append("no JPEG file")
+    if not any((p.get("megapixels") or 0) >= HAND_OFF_MIN_MEGAPIXELS for p in photos):
+        errors.append(f"no file of >= {HAND_OFF_MIN_MEGAPIXELS} MP")
+    if not any(p.get("companion_of") for p in photos):
+        errors.append("no companion pair (companion_of)")
+    sets = {}
+    for photo in photos:
+        sequence = photo.get("sequence") or {}
+        if sequence.get("expected_kind") in ("bracket", "panorama"):
+            sets.setdefault((sequence["expected_kind"], sequence.get("set_id")), []).append(photo)
+    if not any(kind == "bracket" for kind, _ in sets):
+        errors.append("no bracket set")
+    if not any(kind == "panorama" and len(members) >= MIN_PANORAMA_FRAMES for (kind, _), members in sets.items()):
+        errors.append(f"no panorama set of >= {MIN_PANORAMA_FRAMES} frames")
+    return errors
