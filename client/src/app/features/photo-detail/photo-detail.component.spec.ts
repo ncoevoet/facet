@@ -1429,13 +1429,21 @@ describe('PhotoDetailComponent', () => {
       const root = fixture.nativeElement as HTMLElement;
       const readout = root.querySelector('[data-image-readout]')!;
       expect(readout.querySelector('[role="status"]')?.textContent).toContain('600 × 400');
+      expect(readout.classList).toContain('border-t');
+      expect(readout.querySelector('app-context-help')).not.toBeNull();
       const source = view.fullImageUrl();
       TestBed.inject(PhotoReadoutPreferences).setVisible(false); fixture.detectChanges();
       expect(readout.querySelector('[role="status"]')).toBeNull();
       expect(readout.querySelector('[data-rendition-fit]')).not.toBeNull();
+      expect(readout.classList).toContain('absolute');
+      expect(readout.classList).not.toContain('border-t');
+      expect(readout.querySelector('app-context-help')).toBeNull();
       expect(view.fullImageUrl()).toBe(source);
       TestBed.inject(PhotoReadoutPreferences).setVisible(true); fixture.detectChanges();
       expect(readout.querySelector('[role="status"]')?.textContent).toContain('600 × 400');
+      expect(readout.classList).toContain('border-t');
+      expect(readout.classList).not.toContain('absolute');
+      expect(readout.querySelector('app-context-help')).not.toBeNull();
       fixture.destroy();
     });
 

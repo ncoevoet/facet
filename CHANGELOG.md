@@ -4,6 +4,10 @@ All notable changes to Facet are documented in this file.
 
 ## [Unreleased]
 
+### Added
+
+- **Hide the photo source readout.** User menu → Display now offers a browser-persisted “Show image source information” switch, on by default. Turning it off removes the dedicated row beneath the photo and keeps Zoom/Fit in a compact overlay. Loading, source failures and Retry remain available.
+
 ### Fixed
 
 - **Map markers stay visible across the international date line.** Photo and cluster markers use the visible copy of the map when you pan across the boundary.
@@ -28,8 +32,6 @@ All notable changes to Facet are documented in this file.
 ## [1.30.0] "Obturateur" — 2026-11-18
 
 ### Added
-
-- **Hide the photo source readout.** User menu → Display now offers a browser-persisted “Show image source information” switch, on by default. Turning it off removes the dedicated row beneath the photo and keeps Zoom/Fit in a compact overlay. Loading, source failures and Retry remain available.
 
 - **Downloading a selection shows its progress.** Downloading several photos from the gallery selection (original or a darktable profile) or from a shared album now keeps a notification on screen with the running count, a progress bar and **Cancel**, and says when the last file is saved. A photo that fails (a darktable render error, a file gone from disk) is skipped and counted instead of silently stopping the rest; a lost connection or session, or three failures in a row (a revoked shared link, a server that is down), stops the batch. The final message waits for an Undo offer still on screen instead of replacing it.
 - **Optional scan settings for bursts, duplicates and RAW files**, all off by default. `burst_detection.embedding_cosine_threshold` stops two photos with matching pHashes from being grouped as a burst when their embeddings disagree (it holds about `4 x dim` bytes per photo while it runs). `duplicate_detection.enabled` runs the near-duplicate pass at the end of every scan instead of only on `--detect-duplicates`. `scanning.skip_raw` leaves camera RAW files out of a scan. `--recompute-saliency` now honours the paths given on the command line.

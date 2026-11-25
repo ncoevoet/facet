@@ -86,9 +86,10 @@ test('a hidden source readout still reports a failed image and retries it', asyn
   const readout = page.locator('[data-image-readout]');
   await expect(readout).toContainText('Source image unavailable');
   await readout.getByRole('button', { name: 'Retry', exact: true }).click();
-  await retryStarted;
-  try { await expect(readout).toContainText('Requested rendition loading'); }
-  finally { release(); }
+  try {
+    await Promise.race([retryStarted, new Promise<never>((_, reject) => setTimeout(() => reject(new Error('Retry sent no second image request')), 10_000))]);
+    await expect(readout).toContainText('Requested rendition loading');
+  } finally { release(); }
   await expect(readout.getByRole('status')).toHaveCount(0);
   await expect(readout.getByRole('button', { name: 'Retry', exact: true })).toHaveCount(0);
   await expect(readout.getByRole('button', { name: 'Zoom in', exact: true })).toBeVisible();

@@ -34,6 +34,7 @@ describe('RenditionReadoutComponent', () => {
     fixture.componentRef.setInput('pending', true);
     fixture.detectChanges();
     expect(fixture.nativeElement.textContent).toContain('photo_detail.rendition.pending');
+    expect(fixture.nativeElement.querySelector('[role="status"]')).not.toBeNull();
     fixture.componentRef.setInput('pending', false);
     fixture.componentRef.setInput('state', { kind: 'source', phase: 'loading' });
     fixture.detectChanges();
