@@ -20,6 +20,8 @@ import reference_common as rc  # noqa: E402
 from tests.test_reference_set import CASE, make_photo  # noqa: E402
 
 MANIFEST = rc.load_manifest()
+# The shipped set is full; the gate tests need an empty one so the case caps do not interfere.
+MANIFEST["photos"], MANIFEST["pairs"] = [], []
 
 
 def meta(licence, artist="<a href='x'>Jane &amp; Co</a>", **extra):
@@ -555,7 +557,10 @@ def test_cli_end_to_end(tmp_path, monkeypatch):
     source = tmp_path / "c.jsonl"
     source.write_text(json.dumps(cand("File:A.jpg")) + "\n", encoding="utf8")
     out, rej = tmp_path / "ok.json", tmp_path / "rej.json"
-    assert lc.main([str(source), "--out", str(out), "--rejected", str(rej), "--date", "2026-11-25"]) == 0
+    path = tmp_path / "m.json"  # an empty manifest: the shipped one is full, so ids would not start at 01
+    path.write_text(json.dumps(MANIFEST), encoding="utf8")
+    args = [str(source), "--out", str(out), "--rejected", str(rej), "--manifest", str(path), "--date", "2026-11-25"]
+    assert lc.main(args) == 0
     assert json.loads(out.read_text())[0]["id"] == "landscape-01"
     assert json.loads(rej.read_text()) == []
 

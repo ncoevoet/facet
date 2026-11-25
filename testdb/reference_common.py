@@ -338,7 +338,7 @@ def _check_pairs(manifest, by_id, errors):
             if photo is None:
                 errors.append(f"{label}: {side} does not exist")
                 continue
-            if not photo.get("scored"):
+            if photo.get("scored") is False:
                 errors.append(f"{label}: {side} is not scored")
             if photo.get("expected_category") != pair.get("category"):
                 errors.append(f"{label}: {side} expected_category differs from the pair category")

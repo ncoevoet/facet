@@ -101,10 +101,19 @@ def entry(index, url, body, **overrides):
     return photo
 
 
+def blank_manifest():
+    """Shipped case table with no photos or pairs, every case an unsourced placeholder gap."""
+    manifest = copy.deepcopy(rc.load_manifest())
+    manifest["photos"], manifest["pairs"] = [], []
+    for case in manifest["cases"].values():
+        case["known_gap"] = mrs.PLACEHOLDER_GAP
+    return manifest
+
+
 @pytest.fixture
 def setup(server, tmp_path):
     """(manifest path, manifest, out dir, server): three downloads of the landscape case."""
-    manifest = copy.deepcopy(rc.load_manifest())
+    manifest = blank_manifest()
     manifest["cases"][CASE]["known_gap"] = None
     bodies = {i: jpeg_bytes(i) for i in (1, 2, 3)}
     manifest["photos"] = [entry(i, server.add(f"p{i}.jpg", bodies[i]), bodies[i]) for i in bodies]
@@ -340,7 +349,7 @@ def bare(index, server, seed=None):
 
 
 def test_pin_clears_placeholder_gap_and_manifest_validates(server, tmp_path, capsys):
-    manifest = copy.deepcopy(rc.load_manifest())
+    manifest = blank_manifest()
     manifest["photos"] = []
     assert manifest["cases"][CASE]["known_gap"] == mrs.PLACEHOLDER_GAP
     path, out = tmp_path / "manifest.json", tmp_path / "out"
@@ -355,7 +364,7 @@ def test_pin_clears_placeholder_gap_and_manifest_validates(server, tmp_path, cap
 
 
 def test_pin_into_case_with_other_gap_is_an_error(server, tmp_path, capsys):
-    manifest = copy.deepcopy(rc.load_manifest())
+    manifest = blank_manifest()
     manifest["photos"] = []
     manifest["cases"][CASE]["known_gap"] = "no CC0 source exists"
     path, out = tmp_path / "manifest.json", tmp_path / "out"
@@ -369,7 +378,7 @@ def test_pin_into_case_with_other_gap_is_an_error(server, tmp_path, capsys):
 
 
 def test_count_error_matches_the_validators_message():
-    manifest = copy.deepcopy(rc.load_manifest())
+    manifest = blank_manifest()
     manifest["photos"] = []
     manifest["cases"][CASE]["known_gap"] = None
     errors = [e for e in rc.validate(manifest) if CASE in e]
@@ -647,7 +656,7 @@ def test_candidates_to_licence_check_to_pin_validates(server, tmp_path):
     ]
     candidates_file = tmp_path / "candidates.jsonl"
     candidates_file.write_text("\n".join(lines) + "\n", encoding="utf8")
-    manifest = copy.deepcopy(rc.load_manifest())
+    manifest = blank_manifest()
     manifest["photos"] = []
     path, out = tmp_path / "manifest.json", tmp_path / "out"
     mrs.write_manifest(manifest, path)
@@ -882,7 +891,7 @@ def test_raw_embedded_jpeg_bitmap_thumb_is_an_error(tmp_path, monkeypatch):
 
 def gap_manifest(server, tmp_path, with_base=True):
     """landscape: 1 photo (min 3), the base of derived d1; macro: p2 and d1 (min 1)."""
-    manifest = copy.deepcopy(rc.load_manifest())
+    manifest = blank_manifest()
     manifest["photos"] = []
     body = jpeg_bytes(1)
     base = entry(1, server.add("p1.jpg", body), body)

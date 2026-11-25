@@ -62,7 +62,11 @@ def make_photo(index, **overrides):
 def valid(shipped):
     """The shipped case table with the `landscape` gap lifted and three valid photos."""
     manifest = copy.deepcopy(shipped)
+    for case_id, case in manifest["cases"].items():
+        if case_id != CASE and case.get("known_gap") is None:
+            case["known_gap"] = "fixture: independent of the shipped photo set"
     manifest["cases"][CASE]["known_gap"] = None
+    manifest["pairs"] = []
     manifest["photos"] = [make_photo(i) for i in range(1, 4)]
     return manifest
 
@@ -86,8 +90,11 @@ def test_valid_fixture_is_valid(valid):
 
 def test_shipped_gap_removal_fails(shipped):
     manifest = copy.deepcopy(shipped)
-    manifest["cases"]["face-tiny"]["known_gap"] = None
-    assert_error(manifest, "case face-tiny: 0 photos")
+    listed = {c for photo in manifest["photos"] for c in photo["cases"]}
+    gaps = [cid for cid, case in manifest["cases"].items() if case.get("known_gap") and cid not in listed]
+    assert gaps, "no shipped known gap without photos left to test"
+    manifest["cases"][gaps[0]]["known_gap"] = None
+    assert_error(manifest, f"case {gaps[0]}: 0 photos")
 
 
 def test_shipped_has_no_binaries():
@@ -95,7 +102,9 @@ def test_shipped_has_no_binaries():
     for path in TESTDB.rglob("*"):
         if path.is_file() and "__pycache__" not in path.parts:
             assert path.suffix.lower() not in images, path
-            assert path.stat().st_size <= 1_000_000, path
+            # reference_set.json is a text manifest of ~550 entries; the cap guards against binaries
+            cap = 3_000_000 if path.name == "reference_set.json" else 1_000_000
+            assert path.stat().st_size <= cap, path
 
 
 def test_unknown_case_id(valid):
@@ -294,6 +303,14 @@ def test_pair_unscored(valid):
     valid["photos"][1]["scored"] = False
     valid["pairs"] = [pair()]
     assert_error(valid, "p2 is not scored")
+
+
+def test_pair_side_with_default_scored_is_valid(valid):
+    for photo in valid["photos"][:2]:
+        photo["scored"] = None
+    del valid["photos"][1]["scored"]
+    valid["pairs"] = [pair()]
+    assert errors_of(valid) == []
 
 
 def test_pair_across_categories(valid):
