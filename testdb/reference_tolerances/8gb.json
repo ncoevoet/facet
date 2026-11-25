@@ -146,6 +146,7 @@
     "min_pairs": 10,
     "pair_agreement_margin": 0.0
   },
+  "photo_min": {},
   "profile": "8gb",
   "score_abs": {
     "_default": 0.02,
