@@ -1,7 +1,6 @@
 {
   "assignment_changes_max": {
-    "_default": 0,
-    "burst": 2
+    "_default": 0
   },
   "attribute_changes_max": {
     "_default": 0
@@ -102,7 +101,6 @@
     "raw-nef": 0,
     "raw-orf": 0,
     "raw-pef": 0,
-    "raw-raf": 0,
     "raw-rw2": 0,
     "samp-cross": 0,
     "samp-global": 0,
@@ -146,23 +144,6 @@
     "confusion_errors_margin": 0,
     "min_pairs": 10,
     "pair_agreement_margin": 0.0
-  },
-  "photo_min": {
-    "raw-raf-01": {
-      "bbox_iou_min": 0.9774
-    },
-    "raw-raf-02": {
-      "bbox_iou_min": 0.9778
-    },
-    "raw-raf-03": {
-      "bbox_iou_min": 0.9789
-    },
-    "raw-raf-04": {
-      "bbox_iou_min": 0.9788
-    },
-    "raw-raf-05": {
-      "tag_jaccard_min": 0.6167
-    }
   },
   "profile": "16gb",
   "score_abs": {
@@ -216,38 +197,14 @@
     "tech_sharpness": 0.02,
     "topiq_score": 0.02
   },
-  "score_abs_photo": {
-    "raw-raf-01": {
-      "aggregate": 0.1808,
-      "leading_lines_score": 0.6954
-    },
-    "raw-raf-02": {
-      "aggregate": 0.18,
-      "leading_lines_score": 0.7055
-    },
-    "raw-raf-03": {
-      "bg_separation": 0.06,
-      "subject_placement": 0.03
-    },
-    "raw-raf-04": {
-      "bg_separation": 0.03
-    },
-    "raw-raf-05": {
-      "aggregate": 1.0835,
-      "color_harmony": 0.0346,
-      "leading_lines_score": 4.1833,
-      "narrative_moment_confidence": 0.0232,
-      "qrealign_score": 0.0442
-    }
-  },
   "srcc_min": {
     "aesthetic": 0.995,
     "aesthetic_iaa": 0.995,
-    "aggregate": 0.9942,
+    "aggregate": 0.995,
     "bg_separation": 0.995,
     "channel_clip_highlight_pct": 0.995,
     "channel_clip_shadow_pct": 0.995,
-    "color_harmony": 0.9905,
+    "color_harmony": 0.995,
     "color_score": 0.995,
     "comp_score": 0.995,
     "contrast_score": 0.995,
@@ -268,7 +225,7 @@
     "image_height": 0.995,
     "image_width": 0.995,
     "isolation_bonus": 0.995,
-    "leading_lines_score": 0.9918,
+    "leading_lines_score": 0.995,
     "liqe_score": 0.995,
     "mean_luminance": 0.995,
     "mean_saturation": 0.995,

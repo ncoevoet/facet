@@ -101,7 +101,6 @@
     "raw-nef": 0,
     "raw-orf": 0,
     "raw-pef": 0,
-    "raw-raf": 0,
     "raw-rw2": 0,
     "samp-cross": 0,
     "samp-global": 0,
@@ -146,7 +145,6 @@
     "min_pairs": 10,
     "pair_agreement_margin": 0.0
   },
-  "photo_min": {},
   "profile": "8gb",
   "score_abs": {
     "_default": 0.02,
@@ -199,35 +197,14 @@
     "tech_sharpness": 0.02,
     "topiq_score": 0.02
   },
-  "score_abs_photo": {
-    "raw-raf-01": {
-      "aggregate": 0.2787,
-      "leading_lines_score": 1.0928,
-      "qrealign_score": 0.0364
-    },
-    "raw-raf-02": {
-      "aggregate": 0.3923,
-      "leading_lines_score": 1.5417
-    },
-    "raw-raf-03": {
-      "bg_separation": 0.5369,
-      "qrealign_score": 0.0523,
-      "subject_placement": 0.0458
-    },
-    "raw-raf-05": {
-      "aggregate": 0.8748,
-      "leading_lines_score": 3.3948,
-      "qrealign_score": 0.0553
-    }
-  },
   "srcc_min": {
     "aesthetic": 0.995,
     "aesthetic_iaa": 0.995,
-    "aggregate": 0.9945,
-    "bg_separation": 0.9947,
+    "aggregate": 0.995,
+    "bg_separation": 0.995,
     "channel_clip_highlight_pct": 0.995,
     "channel_clip_shadow_pct": 0.995,
-    "color_harmony": 0.991,
+    "color_harmony": 0.995,
     "color_score": 0.995,
     "comp_score": 0.995,
     "contrast_score": 0.995,
@@ -248,7 +225,7 @@
     "image_height": 0.995,
     "image_width": 0.995,
     "isolation_bonus": 0.995,
-    "leading_lines_score": 0.9906,
+    "leading_lines_score": 0.995,
     "liqe_score": 0.995,
     "mean_luminance": 0.995,
     "mean_saturation": 0.995,
