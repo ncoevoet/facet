@@ -663,3 +663,277 @@ def test_candidates_to_licence_check_to_pin_validates(server, tmp_path):
     assert errors == []
     for photo in pinned["photos"]:
         assert (out / "photos" / photo["path"]).read_bytes() in bodies.values()
+
+
+# --- recipe ops added for the reference set candidates -----------------------------------------
+
+
+@pytest.fixture
+def rich_base(tmp_path):
+    """A JPEG carrying an ICC profile and an EXIF block (orientation + capture time)."""
+    from PIL import ImageCms
+
+    rng = random.Random(7)
+    img = Image.frombytes("RGB", (64, 48), bytes(rng.randrange(256) for _ in range(64 * 48 * 3)))
+    exif = Image.Exif()
+    exif[0x0112] = 1
+    exif[0x0132] = "2020:01:01 10:00:00"
+    path = tmp_path / "rich.jpg"
+    icc = ImageCms.ImageCmsProfile(ImageCms.createProfile("sRGB")).tobytes()
+    img.save(path, "JPEG", quality=90, exif=exif.tobytes(), icc_profile=icc)
+    return path
+
+
+def render_twice(base, recipe, tmp_path, ext):
+    first, second = tmp_path / f"one{ext}", tmp_path / f"two{ext}"
+    mrs.render_derived(base, recipe, first)
+    mrs.render_derived(base, recipe, second)
+    return first, second
+
+
+@pytest.mark.parametrize(("recipe", "ext"), [
+    ("strip_icc", ".jpg"), ("crop_aspect:1x1", ".jpg"), ("crop_aspect:21x9", ".jpg"),
+    ("set_exif_datetime:2021:03:04 05:06:07", ".jpg"), ("to_16bit:png", ".png"), ("to_16bit:tiff", ".tif"),
+    ("encode_heic:60", ".heic"), ("resize:32;crop_aspect:1x1;to_16bit:tiff", ".tiff"),
+])
+def test_new_ops_are_deterministic(tmp_path, rich_base, recipe, ext):
+    first, second = render_twice(rich_base, recipe, tmp_path, ext)
+    assert mrs.pixel_sha256(first) == mrs.pixel_sha256(second)
+    if not recipe.startswith("encode_heic"):  # libheif bytes may differ between versions, pixels may not
+        assert first.read_bytes() == second.read_bytes()
+
+
+def test_strip_icc_drops_profile_keeps_pixels(tmp_path, rich_base):
+    out = tmp_path / "o.jpg"
+    mrs.render_derived(rich_base, "strip_icc", out)
+    with Image.open(rich_base) as before, Image.open(out) as after:
+        assert before.info.get("icc_profile") and "icc_profile" not in after.info
+        assert after.getexif()[0x0112] == 1  # EXIF is a different concern and is kept
+    ref = tmp_path / "ref.jpg"
+    mrs.render_derived(rich_base, "strip_exif", ref)  # same single save, profile kept
+    assert mrs.pixel_sha256(out) == mrs.pixel_sha256(ref)
+
+
+@pytest.mark.parametrize(("spec", "expected"), [("1x1", (48, 48)), ("21x9", (64, 27)), ("4x3", (64, 48))])
+def test_crop_aspect_centres(tmp_path, rich_base, spec, expected):
+    out = tmp_path / "o.png"
+    mrs.render_derived(rich_base, f"crop_aspect:{spec}", out)
+    with Image.open(out) as img, Image.open(rich_base) as base:
+        assert img.size == expected
+        left = (64 - expected[0]) // 2
+        top = (48 - expected[1]) // 2
+        assert img.tobytes() == base.crop((left, top, left + expected[0], top + expected[1])).tobytes()
+
+
+@pytest.mark.parametrize(("kind", "ext"), [("png", ".png"), ("tiff", ".tif")])
+def test_to_16bit_writes_16_bits_and_hashes_raw_samples(tmp_path, rich_base, kind, ext):
+    import numpy as np
+
+    out = tmp_path / f"o{ext}"
+    mrs.render_derived(rich_base, f"to_16bit:{kind}", out)
+    array = mrs._read_16bit(out)
+    assert array is not None and array.dtype == np.uint16 and array.shape == (48, 64, 3)
+    with Image.open(rich_base) as base:
+        assert (array == np.asarray(base.convert("RGB")).astype(np.uint16) * 257).all()
+    want = hashlib.sha256(b"RGB16:64x48:" + array.astype("<u2").tobytes()).hexdigest()
+    assert mrs.pixel_sha256(out) == want
+    plain = tmp_path / "plain.png"  # an 8-bit file keeps the old definition
+    mrs.render_derived(rich_base, "strip_exif", plain)
+    assert mrs._read_16bit(plain) is None
+
+
+def test_to_16bit_rules(tmp_path, rich_base):
+    with pytest.raises(mrs.RecipeError):
+        mrs.parse_recipe("to_16bit:png;resize:10")
+    with pytest.raises(mrs.RecipeError):
+        mrs.parse_recipe("to_16bit:gif")
+    with pytest.raises(mrs.RecipeError):
+        mrs.render_derived(rich_base, "to_16bit:png", tmp_path / "o.tif")
+
+
+def test_encode_heic_pixel_hash_stable_across_encodes(tmp_path, rich_base):
+    first, second = render_twice(rich_base, "encode_heic:50", tmp_path, ".heic")
+    assert first.read_bytes()[4:8] == b"ftyp"
+    assert mrs.pixel_sha256(first) == mrs.pixel_sha256(second)
+    with pytest.raises(mrs.RecipeError):
+        mrs.render_derived(rich_base, "encode_heic:50", tmp_path / "o.jpg")
+    with pytest.raises(mrs.RecipeError):
+        mrs.parse_recipe("encode_heic:0")
+
+
+def test_set_exif_datetime_distinguishes_variants(tmp_path, rich_base):
+    a, b = tmp_path / "a.jpg", tmp_path / "b.jpg"
+    mrs.render_derived(rich_base, "set_exif_orientation:6;set_exif_datetime:2021:03:04 05:06:07", a)
+    mrs.render_derived(rich_base, "set_exif_orientation:8;set_exif_datetime:2021:03:04 05:07:07", b)
+    with Image.open(a) as ia, Image.open(b) as ib:
+        ea, eb = ia.getexif(), ib.getexif()
+        assert ea.get_ifd(0x8769)[0x9003] == "2021:03:04 05:06:07" and ea[0x0132] == "2021:03:04 05:06:07"
+        assert eb.get_ifd(0x8769)[0x9003] == "2021:03:04 05:07:07"
+        assert ea[0x0112] == 6 and eb[0x0112] == 8
+    assert mrs.pixel_sha256(a) == mrs.pixel_sha256(b)  # pixels are shared, the clock tells them apart
+    c = tmp_path / "c.jpg"
+    mrs.render_derived(rich_base, "strip_exif;set_exif_datetime:2022:01:02 03:04:05", c)
+    with Image.open(c) as ic:
+        assert ic.getexif().get_ifd(0x8769)[0x9003] == "2022:01:02 03:04:05"
+
+
+@pytest.mark.parametrize("recipe", ["set_exif_datetime:2021-03-04", "set_exif_datetime:2021:13:40 25:61:61"])
+def test_set_exif_datetime_rejects_bad_dates(recipe):
+    with pytest.raises(mrs.RecipeError):
+        mrs.parse_recipe(recipe)
+
+
+def test_write_xmp_sidecar_is_deterministic_and_complete(tmp_path):
+    with pytest.raises(mrs.RecipeError):
+        mrs.parse_recipe("write_xmp_sidecar:rating=4,keywords=sea & sky")  # '&' is outside the alphabet
+    recipe = "write_xmp_sidecar:rating=4,label=Red,keywords=sunset|sea sky"
+    first, second = tmp_path / "p1.xmp", tmp_path / "p2.xmp"
+    mrs.render_derived(tmp_path / "unused.jpg", recipe, first)
+    mrs.render_derived(tmp_path / "unused.jpg", recipe, second)
+    assert first.read_bytes() == second.read_bytes()
+    text = first.read_text(encoding="utf8")
+    assert 'xmp:Rating="4"' in text and 'xmp:Label="Red"' in text
+    assert "<rdf:li>sunset</rdf:li><rdf:li>sea sky</rdf:li>" in text
+    assert "Date" not in text and "202" not in text  # no timestamps
+    assert b"\r" not in first.read_bytes()
+
+
+@pytest.mark.parametrize("recipe", [
+    "write_xmp_sidecar:rating=9", "write_xmp_sidecar:colour=red", "write_xmp_sidecar:rating=1,rating=2",
+    "write_xmp_sidecar:keywords=a||b", "write_xmp_sidecar:rating=1;resize:10", "write_xmp_sidecar",
+    "raw_embedded_jpeg:1", "raw_embedded_jpeg;strip_exif",
+])
+def test_xmp_and_raw_recipe_rules(recipe):
+    with pytest.raises(mrs.RecipeError):
+        mrs.parse_recipe(recipe)
+
+
+def test_xmp_entry_builds_verifies_and_pins(setup):
+    path, manifest, out, _ = setup
+    assert run(path, out) == 0
+    recipe = "write_xmp_sidecar:rating=3,keywords=a|b"
+    sidecar = out.parent / "scratch.xmp"
+    mrs.render_derived(out / "photos" / P1, recipe, sidecar)
+    xmp = entry(
+        8, None, b"x", kind="derived", path="categories/landscape/p1.xmp", derived_from="p1", recipe=recipe,
+        companion_of="p1", pixel_sha256=None, format="xmp", cases=[], expected_category=None,
+        acceptable_categories=[], labeller=None, reviewed=False, scored=False, megapixels=None,
+        sha256=hashlib.sha256(sidecar.read_bytes()).hexdigest(), bytes=sidecar.stat().st_size,
+    )
+    manifest["photos"].append(xmp)
+    mrs.write_manifest(manifest, path)
+    assert run(path, out, "--resume") == 0  # builds the sidecar next to its photo
+    dest = out / "photos" / xmp["path"]
+    assert dest.read_bytes() == sidecar.read_bytes()
+    assert mrs.verify_on_disk(xmp, dest) == ("ok", "")
+    dest.write_text("tampered", encoding="utf8")
+    assert mrs.verify_on_disk(xmp, dest)[0] == "mismatch"
+    partial = {k: v for k, v in xmp.items() if k not in ("sha256", "bytes", "megapixels")}
+    partial["id"] = "p8b"
+    manifest["photos"].remove(xmp)
+    mrs.write_manifest(manifest, path)
+    assert pin(path, out, [partial]) == 0
+    pinned = {p["id"]: p for p in rc.load_manifest(path)["photos"]}["p8b"]
+    assert pinned["pixel_sha256"] is None and pinned["sha256"] == xmp["sha256"]
+
+
+def _find_raw():
+    root = Path("D:/facet-scratch/tmp/refute-393/img")
+    return next(iter(sorted(root.glob("*.cr3"))), None) if root.is_dir() else None
+
+
+def test_raw_embedded_jpeg_roundtrip(tmp_path):
+    raw = _find_raw()
+    if raw is None:
+        pytest.skip("no RAW sample available")
+    base = tmp_path / raw.name
+    base.write_bytes(raw.read_bytes())
+    first, second = render_twice(base, "raw_embedded_jpeg", tmp_path, ".jpg")
+    assert first.read_bytes() == second.read_bytes() and first.read_bytes()[:3] == b"\xff\xd8\xff"
+    assert mrs.pixel_sha256(first) == mrs.pixel_sha256(second)
+
+
+def test_raw_embedded_jpeg_bitmap_thumb_is_an_error(tmp_path, monkeypatch):
+    import rawpy
+
+    class Thumb:
+        format = rawpy.ThumbFormat.BITMAP
+        data = b""
+
+    class Raw:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *exc):
+            return False
+
+        def extract_thumb(self):
+            return Thumb()
+
+    monkeypatch.setattr(rawpy, "imread", lambda path: Raw())
+    with pytest.raises(mrs.DeriveError, match="BITMAP"):
+        mrs.render_derived(tmp_path / "x.cr3", "raw_embedded_jpeg", tmp_path / "o.jpg")
+    status, detail = mrs.derive_one(
+        {"recipe": "raw_embedded_jpeg", "kind": "derived", "pixel_sha256": "0" * 64},
+        tmp_path / "x.cr3", tmp_path / "o.jpg",
+    )
+    assert status == "mismatch" and "BITMAP" in detail
+
+
+def gap_manifest(server, tmp_path, with_base=True):
+    """landscape: 1 photo (min 3), the base of derived d1; macro: p2 and d1 (min 1)."""
+    manifest = copy.deepcopy(rc.load_manifest())
+    manifest["photos"] = []
+    body = jpeg_bytes(1)
+    base = entry(1, server.add("p1.jpg", body), body)
+    base["cases"] = [CASE]
+    manifest["cases"][CASE]["known_gap"] = None
+    other = entry(2, server.add("p2.jpg", body), body)
+    other["cases"] = ["macro"]
+    other["expected_category"] = "macro"
+    other["acceptable_categories"] = ["macro"]
+    manifest["cases"]["macro"]["known_gap"] = None
+    for case in ("landscape", "macro"):
+        manifest["cases"][case]["min_photos"] = 3 if case == "landscape" else 1
+    derived = {**base, "id": "d1", "path": "derived/d1.jpg", "url": None, "kind": "derived",
+               "derived_from": "p1", "recipe": "strip_exif", "pixel_sha256": "e" * 64,
+               "cases": ["macro"], "expected_category": "macro", "acceptable_categories": ["macro"]}
+    manifest["photos"] = [base, other, derived]
+    path = tmp_path / "manifest.json"
+    mrs.write_manifest(manifest, path)
+    return path
+
+
+def test_finalize_gaps_keeps_derivation_bases_and_drops_orphans(server, tmp_path, capsys):
+    path = gap_manifest(server, tmp_path)
+    before = path.read_bytes()
+    code = mrs.main(["--manifest", str(path), "--out", str(tmp_path / "out"), "--finalize-gaps",
+                     "--date", "2026-11-25", *FAST])
+    assert code == 0
+    after = json.loads(path.read_text(encoding="utf8"))
+    assert after["cases"][CASE]["known_gap"] == "only 1 candidate(s) passed the licence gate on 2026-11-25"
+    assert after["cases"]["macro"]["known_gap"] is None
+    ids = [p["id"] for p in after["photos"]]
+    assert ids == ["p1", "p2", "d1"]  # p1 lost its only case but is d1's base
+    assert after["photos"][0]["cases"] == []
+    assert path.read_bytes() != before
+    assert "| landscape | 1 |" in capsys.readouterr().out
+    assert not (tmp_path / "out").exists()
+
+
+def test_finalize_gaps_drops_orphan_and_its_pairs(server, tmp_path):
+    path = gap_manifest(server, tmp_path)
+    manifest = json.loads(path.read_text(encoding="utf8"))
+    manifest["photos"] = [p for p in manifest["photos"] if p["id"] != "d1"]
+    manifest["pairs"] = [{"better": "p1", "worse": "p2", "defect": "blur", "category": "landscape"}]
+    mrs.write_manifest(manifest, path)
+    assert mrs.main(["--manifest", str(path), "--out", str(tmp_path / "out"), "--finalize-gaps",
+                     "--date", "2026-11-25", *FAST]) == 0
+    after = json.loads(path.read_text(encoding="utf8"))
+    assert [p["id"] for p in after["photos"]] == ["p2"]
+    assert after["pairs"] == []
+
+
+def test_finalize_gaps_needs_a_date(server, tmp_path, capsys):
+    path = gap_manifest(server, tmp_path)
+    assert mrs.main(["--manifest", str(path), "--out", str(tmp_path / "out"), "--finalize-gaps", *FAST]) == 2

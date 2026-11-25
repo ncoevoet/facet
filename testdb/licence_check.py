@@ -30,6 +30,7 @@ everything else under the case group directory.
 import argparse
 import email.utils
 import html
+import copy
 import json
 import re
 import sys
@@ -37,9 +38,10 @@ import time
 import urllib.error
 import urllib.parse
 import urllib.request
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path, PurePosixPath
 
+from make_reference_set import RecipeError, parse_recipe
 from reference_common import (
     DEFAULT_MAX_PHOTOS,
     DEFAULT_MIN_PHOTOS,
@@ -56,6 +58,9 @@ COMMONS_API = "https://commons.wikimedia.org/w/api.php"
 COMMONS_PAGE = "https://commons.wikimedia.org/wiki/"
 BATCH_SIZE = 50
 PIXLS_FEED = "https://raw.pixls.us/json/getrepository.php?set=all"
+PIXLS_FILELIST = "https://raw.pixls.us/data/filelist.sha256"
+PIXLS_DATA = "https://raw.pixls.us/data/"
+BASE_DATE = datetime(2001, 1, 1)
 PIXLS_CC0 = "creativecommons.org/publicdomain/zero/1.0"
 RAW_FORMATS = ("cr2", "cr3", "nef", "arw", "raf", "rw2", "orf", "pef", "dng", "srw")
 MAX_AUTHOR = 200
@@ -267,6 +272,8 @@ def merge_candidates(candidates):
     merged = {}
     for candidate in candidates:
         key = candidate_key(candidate)
+        if candidate.get("derive"):
+            key += "|" + json.dumps(candidate["derive"], sort_keys=True)
         if key not in merged:
             merged[key] = dict(candidate)
             continue
@@ -275,7 +282,6 @@ def merge_candidates(candidates):
         have["covers_also"] = [c for c in dict.fromkeys(union) if c != have.get("case")]
         for flag in ("identifiable_people", "child", "ai_generated"):
             have[flag] = bool(have.get(flag)) or bool(candidate.get(flag))
-        have["derive"] = have.get("derive") or candidate.get("derive")
     return list(merged.values())
 
 
@@ -397,13 +403,59 @@ def parse_pixls_feed(body):
     return rows
 
 
-def pixls_row(candidate, rows):
-    """``(row | None, detail)``: by getfile id, else by make + model + filename."""
+def parse_filelist(body):
+    """``{path: sha256}`` of ``filelist.sha256`` lines (``<sha256> *<path>``, path under /data/)."""
+    found = {}
+    for line in body.splitlines():
+        match = re.fullmatch(r"([0-9a-fA-F]{64}) [* ](.+)", line.rstrip("\r\n"))
+        if match:
+            found[match.group(2)] = match.group(1).lower()
+    return found
+
+
+def unquote_all(text):
+    """Percent-decode until stable (researchers sometimes double-encode ``[`` and ``]``)."""
+    text = str(text)
+    for _ in range(4):
+        decoded = urllib.parse.unquote(text)
+        if decoded == text:
+            break
+        text = decoded
+    return text
+
+
+def data_path(candidate):
+    """The decoded path under ``/data/`` of a candidate's direct or page URL, or None."""
+    for field in ("direct_url", "page_url"):
+        path = urllib.parse.urlparse(str(candidate.get(field) or "")).path
+        if path.startswith("/data/") and not path.endswith("/"):
+            return unquote_all(path[len("/data/"):])
+    return None
+
+
+def pixls_row(candidate, rows, filelist=None):
+    """``(row | None, detail, data_url)``: by getfile id, /data/ path sha256, else make + model + filename."""
     for field in ("direct_url", "page_url"):
         found = re.search(r"getfile\.php/(\d+)", str(candidate.get(field) or ""))
         if found:
             hit = [r for r in rows if r["id"] == found.group(1)]
-            return (hit[0], "") if hit else (None, f"no feed row for getfile id {found.group(1)}")
+            return (hit[0], "", None) if hit else (None, f"no feed row for getfile id {found.group(1)}", None)
+    path = data_path(candidate)
+    if path and filelist is not None:
+        files = filelist()
+        sha = files.get(path)
+        if sha is None:
+            lowered = {k.lower(): v for k, v in files.items()}
+            sha = lowered.get(path.lower())
+        hits = [r for r in rows if sha and r["sha256"] == sha]
+        hits.sort(key=lambda r: r["licence_href"].rstrip("/").lower() != PIXLS_CC0)
+        if hits:
+            return hits[0], "", PIXLS_DATA + urllib.parse.quote(path)
+    return pixls_name_row(candidate, rows) + (None,)
+
+
+def pixls_name_row(candidate, rows):
+    """``(row | None, detail)`` by make + model + filename segments."""
     paths = [urllib.parse.urlparse(str(candidate.get(f) or "")).path for f in ("direct_url", "page_url")]
     segments = {_norm(s) for path in paths for s in path.split("/") if s}
     hits = [r for r in rows
@@ -421,7 +473,7 @@ def check_pixls(candidate, feed):
         return reject(candidate, flag)
     if feed is None:
         return reject(candidate, "api_error", "repository feed unavailable")
-    row, detail = pixls_row(candidate, feed[0])
+    row, detail, data_url = pixls_row(candidate, feed[0], feed[2] if len(feed) > 2 else None)
     if row is None:
         return reject(candidate, "not_found", detail)
     href = re.sub(r"^https?://", "", row["licence_href"]).rstrip("/").lower()
@@ -435,7 +487,7 @@ def check_pixls(candidate, feed):
         return reject(candidate, "format_unknown", row["url"])
     page = candidate.get("page_url") or row["url"]
     return {
-        "url": row["url"], "licence": "CC0-1.0", "author": "raw.pixls.us contributors",
+        "url": data_url or row["url"], "licence": "CC0-1.0", "author": "raw.pixls.us contributors",
         "source_page": page, "attribution": f"raw.pixls.us contributors, CC0-1.0, raw.pixls.us ({page})",
         "licence_evidence": {
             "api_url": PIXLS_FEED, "license_short_name": row["licence_href"],
@@ -460,6 +512,21 @@ def verify_commons_candidates(candidates, cached):
     return {c["title"]: (first.get(c["title"]), second.get(c["title"])) for c in commons}
 
 
+def lazy_filelist(fetch):
+    """A memoised loader of ``filelist.sha256``; an unreachable list reads as empty."""
+    state = {}
+
+    def load():
+        if "files" not in state:
+            try:
+                state["files"] = parse_filelist(fetch(PIXLS_FILELIST)[0])
+            except (ApiError, urllib.error.URLError, OSError):
+                state["files"] = {}
+        return state["files"]
+
+    return load
+
+
 def verify_all(candidates, fetch):
     """``(verified {key: (candidate, entry)}, rejected)`` for the non-derived candidates."""
     reads = verify_commons_candidates(candidates, fetch)
@@ -467,7 +534,7 @@ def verify_all(candidates, fetch):
     if any(c.get("source") == "rawpixls" for c in candidates):
         try:
             body, stamp = fetch(PIXLS_FEED)
-            feed = (parse_pixls_feed(body), stamp)
+            feed = (parse_pixls_feed(body), stamp, lazy_filelist(fetch))
         except (ApiError, urllib.error.URLError, OSError, ValueError):
             feed = None
     verified, rejected = {}, []
@@ -492,7 +559,7 @@ def verify_all(candidates, fetch):
 
 def entry_directory(candidate, source, group, derived, companion):
     if derived:
-        return "derived"
+        return f"derived/{group}"
     if companion:
         return "companions"
     sequence = candidate.get("sequence")
@@ -500,7 +567,143 @@ def entry_directory(candidate, source, group, derived, companion):
         return "sequences/" + re.sub(r"[^\w.-]", "_", str(sequence["set_id"]))
     if source["format"].lower() in RAW_FORMATS:
         return "raw"
+    if candidate.get("auto_base"):
+        return "bases"
     return group
+
+
+# --- recipes -------------------------------------------------------------------------------
+
+_STEP_MAP = (
+    (re.compile(r"grayscale"), "to_grayscale"),
+    (re.compile(r"sepia"), "to_sepia"),
+    (re.compile(r"crop:center_square"), "crop_aspect:1x1"),
+    (re.compile(r"crop:(\d+x\d+)"), r"crop_aspect:\1"),
+    (re.compile(r"resize:max_edge=(\d+)"), r"resize:\1"),
+    (re.compile(r"reencode_jpeg:q(\d+)"), r"reencode_jpeg:\1"),
+    (re.compile(r"to_(\d+)bit_(png|tiff)"), r"to_\1bit:\2"),
+    (re.compile(r"encode_heic"), "encode_heic:90"),
+    (re.compile(r"write_xmp_sidecar\((.*)\)"), r"write_xmp_sidecar:\1"),
+)
+
+
+def normalise_recipe(raw):
+    """Map a researcher's recipe spelling onto the canonical grammar of ``make_reference_set``."""
+    text = str(raw or "").strip()
+    if re.search(r"extract embedded|^render_jpeg_from_raw", text):
+        return "raw_embedded_jpeg"
+    text = re.sub(r"write_xmp_sidecar\(([^)]*)\)", r"write_xmp_sidecar:\1", text)
+    text = re.sub(r"\s*\([^)]*\)", "", text)
+    steps = []
+    for part in re.split(r"[;+]", text):
+        part = part.strip()
+        for pattern, replacement in _STEP_MAP:
+            if pattern.fullmatch(part):
+                part = pattern.sub(replacement, part)
+                break
+        steps.append(part)
+    return ";".join(steps)
+
+
+def recipe_extension(steps, base_ext):
+    """``(extension, format)`` of a derived output, following its ops."""
+    ops = [op for op, _ in steps]
+    if "write_xmp_sidecar" in ops:
+        return "xmp", "xmp"
+    if "raw_embedded_jpeg" in ops:
+        return "jpg", "jpeg"
+    if "encode_heic" in ops:
+        return "heic", "heic"
+    if ops[-1] == "to_16bit":
+        return ("png", "png") if steps[-1][1] == "png" else ("tif", "tiff")
+    return (base_ext, "jpeg") if base_ext in ("jpg", "jpeg") else (base_ext, base_ext)
+
+
+def add_datetimes(entries):
+    """Give each JPEG/TIFF variant of one base its own capture time (2001-01-01 + N hours)."""
+    groups = {}
+    for entry in entries:
+        if entry.get("kind") != "derived" or entry["path"].rsplit(".", 1)[-1] not in ("jpg", "tif"):
+            continue
+        steps = parse_recipe(entry["recipe"])
+        if any(op in ("set_exif_datetime", "raw_embedded_jpeg", "write_xmp_sidecar") for op, _ in steps):
+            continue
+        groups.setdefault(entry["derived_from"], []).append((entry, steps))
+    for variants in groups.values():
+        for index, (entry, steps) in enumerate(sorted(variants, key=lambda v: v[0]["id"]), 1):
+            stamp = (BASE_DATE + timedelta(hours=index)).strftime("%Y:%m:%d %H:%M:%S")
+            texts = [f"{op}:{arg}" if arg else op for op, arg in steps]
+            at = len(texts) - 1 if steps[-1][0] == "to_16bit" else len(texts)
+            texts.insert(at, f"set_exif_datetime:{stamp}")
+            entry["recipe"] = ";".join(texts)
+            parse_recipe(entry["recipe"])
+
+
+# --- base lookup ---------------------------------------------------------------------------
+
+def ref_keys(value):
+    """Lookup keys of a title / URL / filename: the decoded path and its bare file name."""
+    text = unquote_all(value or "").strip()
+    if not text:
+        return set()
+    text = re.sub(r"^https?://[^/]+/", "", text.split("#")[0].split("?")[0])
+    name = re.sub(r"^file:", "", text.rsplit("/", 1)[-1], flags=re.I)
+    keys = {"name:" + _norm(name)}
+    if "/" in text:
+        keys.add("path:" + _norm(re.sub(r"^(data|wiki)/", "", text)))
+    return keys
+
+
+def derive_refs(candidate):
+    spec = candidate.get("derive") or {}
+    return [spec[k] for k in ("from_case_candidate", "from_title", "from_url") if spec.get(k)]
+
+
+def auto_base_candidate(ref, derived):
+    """A base candidate for a derivation source that no candidate covers, or None."""
+    if re.match(r"file:", str(ref), re.I):
+        return {"case": None, "source": "commons", "title": str(ref), "page_url": None,
+                "covers_also": [], "derive": None, "auto_base": True,
+                "notes": "auto-added derivation base"}
+    if str(ref).startswith(PIXLS_DATA) or derived.get("source") == "rawpixls":
+        direct = str(ref) if str(ref).startswith(PIXLS_DATA) else derived.get("direct_url")
+        if direct and ref_keys(ref) & ref_keys(direct):
+            return {"case": None, "source": "rawpixls", "title": None, "direct_url": direct,
+                    "page_url": derived.get("page_url"), "covers_also": [], "derive": None,
+                    "auto_base": True, "notes": "auto-added derivation base"}
+    return None
+
+
+def add_auto_bases(candidates):
+    covered = set()
+    for candidate in candidates:
+        if not candidate.get("derive"):
+            for field in ("title", "page_url", "direct_url"):
+                covered |= ref_keys(candidate.get(field))
+    extra = {}
+    for candidate in candidates:
+        refs = derive_refs(candidate)
+        if not refs or any(ref_keys(ref) & covered for ref in refs):
+            continue
+        base = auto_base_candidate(refs[0], candidate)
+        if base:
+            extra.setdefault(candidate_key(base), base)
+    return candidates + list(extra.values())
+
+
+PAIR_CASE = "comp-raw-jpeg"
+
+
+def set_id_of(item):
+    sequence = item.get("sequence")
+    sid = sequence.get("set_id") if isinstance(sequence, dict) else None
+    return None if sid in (None, "") else sid
+
+
+def set_key(item):
+    """The identity a sequence case counts: the set id, or the photo itself when it has none."""
+    sid = set_id_of(item)
+    return ("set", sid) if sid is not None else ("photo", item.get("id") or candidate_key(item))
 
 
 def run(candidates, manifest, fetch, max_per_case=DEFAULT_MAX_PHOTOS, date=None):
@@ -510,51 +713,98 @@ def run(candidates, manifest, fetch, max_per_case=DEFAULT_MAX_PHOTOS, date=None)
     existing = manifest.get("photos") or []
     present = {clean_url(p["url"]) for p in existing if p.get("url")}
     counts, last = {}, {}
+    # Sequence-group cases count SETS (one per sequence.set_id, a lone frame being its own set).
+    seq_cases = {c for c, spec in cases.items() if spec.get("group") == "sequences"}
+    set_members = {c: set() for c in seq_cases}
     for photo in existing:
         for case in photo.get("cases") or ():
-            counts[case] = counts.get(case, 0) + 1
+            if case in seq_cases:
+                set_members[case].add(set_key(photo))
+                counts[case] = len(set_members[case])
+            else:
+                counts[case] = counts.get(case, 0) + 1
         found = re.fullmatch(r"(.+)-(\d+)", str(photo.get("id")))
         if found:
             last[found.group(1)] = max(last.get(found.group(1), 0), int(found.group(2)))
-    candidates = merge_candidates(candidates)
+    candidates = add_auto_bases(merge_candidates(candidates))
     verified, rejected = verify_all(candidates, fetch)
     bases = {c["companion_of"] for c in candidates if c.get("companion_of")}
     approved, lookup = [], {}
+    paths = {p.get("path") for p in existing}
+    sources, placed_keys = {}, set()
+    companion_cases = {c for c, spec in cases.items() if spec.get("group") == "companions"}
 
-    def place(candidate, source, derived_from=None, companion=None):
+    def case_open(case, skey):
+        if case in seq_cases:
+            return skey in set_members[case] or len(set_members[case]) < max_per_case
+        # comp-raw-jpeg counts PAIRS: only the derived JPEG is counted, its RAW rides along.
+        return counts.get(case, 0) < max_per_case
+
+    def place(candidate, source, derived_from=None, companion=None, output=None):
         wanted = candidate_cases(candidate)
+        auto = bool(candidate.get("auto_base"))
         known = [c for c in wanted if c in cases]
-        if not known:
+        if not known and not auto:
             rejected.append(reject(candidate, "case_unknown", ", ".join(wanted)))
             return
         if not derived_from and clean_url(source["url"]) in present:
             rejected.append(reject(candidate, "already_present", source["url"]))
             return
-        open_cases = [c for c in known if counts.get(c, 0) < max_per_case]
-        if not open_cases:
+        skey = set_key(candidate)
+        open_cases = [c for c in known if case_open(c, skey)]
+        if not open_cases and not auto:
             rejected.append(reject(candidate, "case_full", ", ".join(known)))
             return
-        primary = open_cases[0]
-        last[primary] = last.get(primary, 0) + 1
-        pid = f"{primary}-{last[primary]:02d}"
-        for case in open_cases:
-            counts[case] = counts.get(case, 0) + 1
+        primary = open_cases[0] if open_cases else "base"
+        pid = f"{primary}-{last.get(primary, 0) + 1:02d}"
+        group = cases[primary]["group"] if open_cases else "bases"
+        ext, fmt = output or (source["_ext"], source["format"])
         in_pair = companion is not None or any(
             candidate.get(f) in bases for f in ("title", "page_url", "direct_url") if candidate.get(f))
-        directory = entry_directory(candidate, source, cases[primary]["group"], derived_from, in_pair)
+        directory = entry_directory(candidate, source, group, derived_from, in_pair)
         stem = companion["path"].rsplit("/", 1)[1].rsplit(".", 1)[0] if companion else pid
+        raw_pair = bool(derived_from) and fmt == "jpeg" and str(
+            (candidate.get("derive") or {}).get("recipe")) == "raw_embedded_jpeg"
+        if raw_pair:
+            # The JPEG stands in for its RAW: the pair shares companions/<stem>, as facet.py's
+            # RAW suppression needs (same directory, same stem).
+            directory = "companions"
+            stem = derived_from["path"].rsplit("/", 1)[1].rsplit(".", 1)[0]
+            raw_path = f"companions/{stem}.{derived_from['path'].rsplit('.', 1)[1]}"
+            if raw_path != derived_from["path"] and raw_path in paths:
+                rejected.append(reject(candidate, "duplicate_path", raw_path))
+                return
+            paths.add(raw_path)
+        if fmt == "xmp":
+            directory, _, stem = derived_from["path"].rpartition("/")
+            stem = stem.rsplit(".", 1)[0]
+        path = f"{directory}/{stem}.{ext}"
+        if path in paths:
+            rejected.append(reject(candidate, "duplicate_path", path))
+            return
+        paths.add(path)
+        last[primary] = last.get(primary, 0) + 1
+        # A companion is scored: false, so only the companions group may list it.
+        if companion:
+            open_cases = [c for c in open_cases if c in companion_cases]
+        for case in open_cases:
+            if case in seq_cases:
+                set_members[case].add(skey)
+                counts[case] = len(set_members[case])
+            else:
+                counts[case] = counts.get(case, 0) + 1
         notes = " ".join(n for n in (candidate.get("notes") or "", source.get("_note") or "") if n)
         entry = {
-            "id": pid, "path": f"{directory}/{stem}.{source['_ext']}",
+            "id": pid, "path": path,
             "url": None if derived_from else source["url"],
             "kind": "derived" if derived_from else "download",
             "licence": source["licence"], "author": source["author"],
             "source_page": source["source_page"], "attribution": source["attribution"],
             "approved_by": "licence-check", "approved_on": date,
             "licence_evidence": source["licence_evidence"],
-            "cases": open_cases, "format": source["format"], "notes": notes,
+            "cases": open_cases, "format": fmt, "notes": notes,
         }
-        for extra in ("share_alike_ok", "change_notice", "sha256"):
+        for extra in ("share_alike_ok", "change_notice") + (() if derived_from else ("sha256",)):
             if extra in source:
                 entry[extra] = source[extra]
         megapixels = source.get("megapixels") or candidate.get("megapixels")
@@ -566,39 +816,175 @@ def run(candidates, manifest, fetch, max_per_case=DEFAULT_MAX_PHOTOS, date=None)
             entry["companion_of"] = companion["id"]
             entry["scored"] = False
         if derived_from:
-            entry["derived_from"] = derived_from
+            entry["derived_from"] = derived_from["id"]
             entry["recipe"] = candidate["derive"]["recipe"]
+            if fmt == "xmp":
+                entry["companion_of"] = derived_from["id"]
+                entry["scored"] = False
+            if raw_pair:
+                # The RAW moves beside the JPEG as its companion; run() trims its cases to the
+                # companions group once the pair is placed.
+                derived_from["path"] = raw_path
+                derived_from["companion_of"] = pid
+                derived_from["scored"] = False
         approved.append(entry)
-        for field in ("title", "page_url", "direct_url"):
-            if candidate.get(field):
-                lookup.setdefault(candidate[field], (entry, source))
+        sources[pid] = source
+        if not derived_from:
+            placed_keys.add(candidate_key(candidate))
+            for field in ("title", "page_url", "direct_url"):
+                for key in ref_keys(candidate.get(field)):
+                    lookup.setdefault(key, (entry, source))
+
+    def find_base(candidate):
+        refs = derive_refs(candidate)
+        for ref in refs:
+            for key in sorted(ref_keys(ref), key=lambda k: not k.startswith("path:")):
+                if key in lookup:
+                    return lookup[key], str(ref)
+        return None, str(refs[0] if refs else None)
+
+    def strippable(entry):
+        """The non-companion cases of ``entry`` if dropping them keeps every case at min_photos."""
+        own = [c for c in entry["cases"] if c not in companion_cases]
+        for case in own:
+            if counts.get(case, 0) - 1 < cases[case].get("min_photos", DEFAULT_MIN_PHOTOS):
+                return None
+        return own
+
+    def choose_companion_raw(base_entry, base_source):
+        """``(entry, source, cases_to_strip)`` of the RAW to pair with an embedded JPEG, or None.
+
+        A companion RAW is ``scored: false``, so facet.py never produces golden output for it and
+        any non-companion case left on it would count a photo that is never checked."""
+        fmt = base_source["format"].lower()
+        if not base_entry.get("companion_of") and strippable(base_entry) == []:
+            return base_entry, base_source, []
+        for key in sorted(verified):
+            candidate, source = verified[key]
+            if (key in placed_keys or candidate.get("derive") or source["format"].lower() != fmt
+                    or source["licence"] != DERIVABLE_LICENCE
+                    or not any(r["key"] == key and r["reason"] == "case_full" for r in rejected)):
+                continue
+            rejected[:] = [r for r in rejected if not (r["key"] == key and r["reason"] == "case_full")]
+            before = len(approved)
+            place({**candidate, "auto_base": True}, source)
+            if len(approved) > before:
+                return approved[-1], source, []
+        others = sorted((e for e in approved if e["kind"] == "download" and not e.get("companion_of")
+                         and e["format"].lower() == fmt and e["licence"] == DERIVABLE_LICENCE
+                         and e["id"] in sources and strippable(e) is not None),
+                        key=lambda e: (e is not base_entry, e["id"]))
+        if others:
+            return others[0], sources[others[0]["id"]], strippable(others[0])
+        return None
 
     pairs = [k for k in sorted(verified) if verified[k][0].get("companion_of")]
+    # Sequence sets are atomic: every frame of a set.set_id is kept or none is.
+    failed_sets = {}
+    for item in rejected:
+        sid = set_id_of(item["candidate"])
+        if sid is not None:
+            failed_sets.setdefault(sid, item)
+    set_keys = {}
     for key in sorted(verified):
-        if key not in pairs:
-            place(*verified[key])
+        sid = set_id_of(verified[key][0])
+        if sid is not None and key not in pairs:
+            set_keys.setdefault(sid, []).append(key)
+
+    def reject_set(sid, why):
+        for member in set_keys[sid]:
+            rejected.append(reject(verified[member][0], "set_member_rejected", f"{sid}: {why}"))
+
+    def place_set(sid):
+        saved = (copy.copy(counts), copy.copy(last), set(paths), len(approved), copy.copy(lookup),
+                 copy.copy(sources), set(placed_keys), {c: set(v) for c, v in set_members.items()},
+                 len(rejected))
+        for member in set_keys[sid]:
+            place(*verified[member])
+            if len(rejected) > saved[-1]:
+                bad = rejected[saved[-1]]
+                for live, old in zip((counts, last, paths, lookup, sources, placed_keys), saved[:3] + saved[4:7]):
+                    live.clear()
+                    live.update(old)
+                del approved[saved[3]:]
+                for c in set_members:
+                    set_members[c] = saved[7][c]
+                del rejected[saved[-1]:]
+                reject_set(sid, f"{bad['key']}: {bad['reason']}")
+                return
+
+    for sid, item in failed_sets.items():
+        if sid in set_keys:
+            reject_set(sid, f"{item['key']}: {item['reason']}")
+            del set_keys[sid]
+    done_sets = set()
+    for key in sorted(verified):
+        if key in pairs:
+            continue
+        candidate, source = verified[key]
+        sid = set_id_of(candidate)
+        if sid is not None:
+            if sid in set_keys and sid not in done_sets:
+                done_sets.add(sid)
+                place_set(sid)
+            continue
+        if candidate.get("auto_base") and source["licence"] != DERIVABLE_LICENCE:
+            rejected.append(reject(candidate, "derive_base_not_cc0", source["licence"]))
+        else:
+            place(candidate, source)
     for key in pairs:
         candidate, source = verified[key]
-        base = lookup.get(candidate["companion_of"])
+        base = None
+        for k in ref_keys(candidate["companion_of"]) | {candidate["companion_of"]}:
+            base = base or lookup.get(k)
         if base is None:
             rejected.append(reject(candidate, "companion_base_missing", str(candidate["companion_of"])))
         else:
             place(candidate, source, companion=base[0])
-    for candidate in sorted((c for c in candidates if c.get("derive")), key=candidate_key):
+    for candidate in sorted((c for c in candidates if c.get("derive")),
+                            key=lambda c: (candidate_key(c), json.dumps(c["derive"], sort_keys=True))):
         spec = candidate["derive"]
-        found = lookup.get(spec.get("from_case_candidate"))
+        found, ref = find_base(candidate)
         if found is None:
-            rejected.append(reject(candidate, "derive_base_missing", str(spec.get("from_case_candidate"))))
+            rejected.append(reject(candidate, "derive_base_missing", ref))
         elif found[0]["licence"] != DERIVABLE_LICENCE:
             rejected.append(reject(candidate, "derive_base_not_cc0", found[0]["licence"]))
         elif not str(spec.get("recipe") or "").strip():
             rejected.append(reject(candidate, "derive_recipe_missing"))
         else:
-            place(candidate, found[1], derived_from=found[0]["id"])
+            recipe = normalise_recipe(spec["recipe"])
+            try:
+                steps = parse_recipe(recipe)
+            except RecipeError as error:
+                rejected.append(reject(candidate, "recipe_invalid", str(error)))
+                continue
+            base_entry, base_source = found
+            if steps[0][0] == "raw_embedded_jpeg" and base_source["format"].lower() not in RAW_FORMATS:
+                rejected.append(reject(candidate, "recipe_invalid", "raw_embedded_jpeg needs a RAW base"))
+                continue
+            candidate = {**candidate, "derive": {**spec, "recipe": recipe}}
+            strip = []
+            if steps[0][0] == "raw_embedded_jpeg":
+                chosen = choose_companion_raw(base_entry, base_source)
+                if chosen is None:
+                    rejected.append(reject(candidate, "companion_base_unavailable", base_source["format"]))
+                    continue
+                base_entry, base_source, strip = chosen
+            before = len(approved)
+            place(candidate, base_source, derived_from=base_entry,
+                  output=recipe_extension(steps, base_source["_ext"]))
+            if steps[0][0] == "raw_embedded_jpeg" and len(approved) > before:
+                base_entry["scored"] = False
+                for case in strip:
+                    counts[case] -= 1
+                keep = [c for c in base_entry["cases"] if c in companion_cases]
+                base_entry["cases"] = keep + [c for c in approved[-1]["cases"]
+                                              if c in companion_cases and c not in keep]
+    add_datetimes(approved)
     approved.sort(key=lambda e: e["id"])
     short = {}
     for case, spec in cases.items():
-        have = counts.get(case, 0)
+        have = counts.get(case, 0) * (2 if case == PAIR_CASE else 1)
         if have < spec.get("min_photos", DEFAULT_MIN_PHOTOS) and any(
             case in candidate_cases(c) for c in candidates
         ):

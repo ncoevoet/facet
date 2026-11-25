@@ -669,8 +669,8 @@
     "comp-raw-jpeg": {
       "group": "companions",
       "title": "comp raw jpeg",
-      "min_photos": 3,
-      "max_photos": 5,
+      "min_photos": 6,
+      "max_photos": 10,
       "known_gap": "not yet sourced"
     },
     "comp-xmp": {
@@ -683,42 +683,42 @@
     "seq-bracket3": {
       "group": "sequences",
       "title": "seq bracket3",
-      "min_photos": 3,
+      "min_photos": 2,
       "max_photos": 5,
       "known_gap": "not yet sourced"
     },
     "seq-bracket5": {
       "group": "sequences",
       "title": "seq bracket5",
-      "min_photos": 3,
+      "min_photos": 2,
       "max_photos": 5,
       "known_gap": "not yet sourced"
     },
     "seq-panorama-ge8": {
       "group": "sequences",
       "title": "seq panorama ge8",
-      "min_photos": 3,
+      "min_photos": 2,
       "max_photos": 5,
       "known_gap": "not yet sourced"
     },
     "seq-panorama-le6-negative": {
       "group": "sequences",
       "title": "seq panorama le6 negative",
-      "min_photos": 3,
+      "min_photos": 2,
       "max_photos": 5,
       "known_gap": "not yet sourced"
     },
     "seq-burst-obvious": {
       "group": "sequences",
       "title": "seq burst obvious",
-      "min_photos": 3,
+      "min_photos": 2,
       "max_photos": 5,
       "known_gap": "not yet sourced"
     },
     "seq-burst-ambiguous": {
       "group": "sequences",
       "title": "seq burst ambiguous",
-      "min_photos": 3,
+      "min_photos": 2,
       "max_photos": 5,
       "known_gap": "not yet sourced"
     },

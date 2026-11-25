@@ -111,7 +111,12 @@ def _check_cases(manifest, errors):
         if not (isinstance(low, int) and isinstance(high, int) and 0 < low <= high):
             errors.append(f"case {case_id}: bad min_photos/max_photos {low!r}/{high!r}")
             continue
-        count = sum(case_id in photo.get("cases", ()) for photo in manifest["photos"])
+        members = [photo for photo in manifest["photos"] if case_id in photo.get("cases", ())]
+        if case.get("group") == "sequences":
+            # A sequence case counts SETS: a 12-frame panorama is one photo of the case.
+            count = len({(photo.get("sequence") or {}).get("set_id") or photo.get("id") for photo in members})
+        else:
+            count = len(members)
         gap = case.get("known_gap")
         if gap is not None and (not isinstance(gap, str) or not gap.strip()):
             errors.append(f"case {case_id}: known_gap must be a non-empty reason")
@@ -208,20 +213,50 @@ def _check_share_alike(photo, by_id, errors):
         errors.append(f"photo {pid}: CC-BY-SA needs a non-empty change_notice")
 
 
+RAW_PAIR_RECIPE = "raw_embedded_jpeg"
+RAW_SUFFIXES = (".cr2", ".cr3", ".nef", ".arw", ".raf", ".rw2", ".dng", ".orf", ".srw", ".pef")
+
+
+def _check_raw_pair(photo, base, own, theirs, errors):
+    """The one derived JPEG that sits beside its base: a RAW's embedded preview, same stem."""
+    pid = photo["id"]
+    if (photo.get("format") != "jpeg" or own.parent != PurePosixPath("companions")
+            or own.suffix.lower() not in (".jpg", ".jpeg")):
+        errors.append(f"photo {pid}: a raw_embedded_jpeg must be a jpeg at companions/<stem>.jpg")
+    if (theirs.parent != own.parent or theirs.stem != own.stem
+            or theirs.suffix.lower() not in RAW_SUFFIXES):
+        errors.append(f"photo {pid}: a raw_embedded_jpeg needs a RAW base at companions/<same stem>.<raw ext>")
+    if base.get("scored") is not False or base.get("companion_of") != pid:
+        errors.append(f"photo {pid}: the RAW base of a raw_embedded_jpeg needs scored: false and companion_of set to the jpeg")
+
+
 def _check_derived(photo, by_id, errors):
     pid = photo["id"]
+    sidecar = photo.get("format") == "xmp"
     base = by_id.get(photo.get("derived_from"))
     if base is None:
         errors.append(f"photo {pid}: derived_from must name an existing photo")
     else:
         if base.get("kind") != "download" or base.get("licence") != DERIVABLE_LICENCE:
             errors.append(f"photo {pid}: derived files need a CC0-1.0 download as base")
-        own_dir = PurePosixPath(photo["path"]).parent
-        if PurePosixPath(photo["path"]).parts[:1] != ("derived",) or own_dir == PurePosixPath(base["path"]).parent:
+        own, theirs = PurePosixPath(photo["path"]), PurePosixPath(base["path"])
+        if sidecar:
+            # An XMP sidecar is the one derived file that must sit beside its photo: same
+            # directory, same stem, and declared as that photo's companion.
+            if own.parent != theirs.parent or own.stem != theirs.stem or own.suffix.lower() != ".xmp":
+                errors.append(f"photo {pid}: an xmp sidecar must be <base stem>.xmp in the base's directory")
+            if photo.get("companion_of") != base.get("id"):
+                errors.append(f"photo {pid}: an xmp sidecar must have companion_of set to its base")
+        elif photo.get("recipe") == RAW_PAIR_RECIPE:
+            _check_raw_pair(photo, base, own, theirs, errors)
+        elif own.parts[:1] != ("derived",) or own.parent == theirs.parent:
             errors.append(f"photo {pid}: derived files live under derived/, apart from their base")
     if not str(photo.get("recipe") or "").strip():
         errors.append(f"photo {pid}: derived needs a recipe")
-    if not SHA256_PATTERN.fullmatch(str(photo.get("pixel_sha256"))):
+    if sidecar:
+        if photo.get("pixel_sha256") is not None:
+            errors.append(f"photo {pid}: an xmp sidecar has no pixels, so no pixel_sha256 (it is checked by sha256)")
+    elif not SHA256_PATTERN.fullmatch(str(photo.get("pixel_sha256"))):
         errors.append(f"photo {pid}: derived needs pixel_sha256 (64 hex)")
 
 
@@ -256,6 +291,15 @@ def _check_companions(photos, by_id, errors):
         )
         if not same:
             errors.append(f"photo {photo['id']}: companion_of needs an existing same-directory same-stem photo")
+
+
+def _check_unscored(photos, cases, errors):
+    for photo in photos:
+        if photo.get("scored") is not False:
+            continue
+        for case in photo.get("cases") or ():
+            if (cases.get(case) or {}).get("group") != "companions":
+                errors.append(f"photo {photo['id']}: unscored photos may only list companions cases, not {case}")
 
 
 def _check_sequences(photos, errors):
@@ -322,6 +366,7 @@ def validate(manifest, config=None):
         _check_provenance(photo, by_id, errors)
         _check_labels(photo, manifest["cases"], categories, errors)
     _check_companions(photos, by_id, errors)
+    _check_unscored(photos, manifest["cases"], errors)
     _check_sequences(photos, errors)
     _check_pairs(manifest, by_id, errors)
     return errors

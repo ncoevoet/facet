@@ -46,6 +46,11 @@ a skipped entry (download failure, id clash) is reported and also gives exit 1.
 pixel_sha256 (derived files; originals are always byte-exact)
     sha256 over ``"<mode>:<width>x<height>:"`` followed by the raw bytes of the decoded image
     converted to RGB (RGBA when it has alpha), ignoring EXIF orientation. See ``pixel_sha256``.
+    A 16 bits per channel PNG / TIFF (``to_16bit``) hashes ``"RGB16:<w>x<h>:"`` followed by the
+    uint16 samples, little-endian, row-major, interleaved R,G,B (decoded with imagecodecs /
+    tifffile, never Pillow, which would truncate to 8 bits). A HEIC hashes its decoded pixels, so
+    its bytes may differ across libheif versions while its hash must not.
+    A ``.xmp`` sidecar has no pixels: it is checked by byte ``sha256`` and carries no pixel_sha256.
 
 Recipe grammar: ``op[:arg];op[:arg];...`` applied left to right to the decoded base, the closed set
     resize:N                    longest side to N pixels (Lanczos, aspect kept)
@@ -55,8 +60,25 @@ Recipe grammar: ``op[:arg];op[:arg];...`` applied left to right to the decoded b
     set_exif_orientation:N      write EXIF orientation N (1-8); pixels are not rotated
     convert_icc:srgb            convert from the base's embedded profile (else assume sRGB) to sRGB
     to_cmyk | to_grayscale | to_sepia
+    strip_icc                   drop the ICC profile, keep the pixels
+    crop_aspect:WxH             centre crop to the aspect ratio W:H (``1x1``, ``21x9``)
+    set_exif_datetime:YYYY:MM:DD HH:MM:SS
+                                write DateTime / DateTimeOriginal / DateTimeDigitized
+    to_16bit:png|tiff           16 bits per channel (8-bit samples x 257); must be the last op,
+                                the extension must match, EXIF / ICC are not carried
+    encode_heic:Q               HEIC at quality Q (1-100) via pillow_heif; extension .heic/.heif/.hif
+    raw_embedded_jpeg           sole op, base is a RAW: the embedded preview JPEG bytes unchanged
+                                (an entry whose preview is a bitmap is reported as an error)
+    write_xmp_sidecar:rating=N,label=X,keywords=a|b
+                                sole op, output ``<base stem>.xmp`` next to the base (rating 0-5,
+                                each field optional, at least one); no timestamps
 An unknown op or a malformed argument is an error. The output format follows the file extension
-(.jpg/.jpeg, .png, .tif/.tiff).
+(.jpg/.jpeg, .png, .tif/.tiff, .heic/.heif/.hif, .xmp).
+
+Derived variants of one base share its pixels (and its EXIF capture time unless changed), so Facet
+would group them as bursts or duplicates. Give each variant that must stay separate its own
+``set_exif_datetime`` (or keep it in a different directory); ``set_exif_orientation`` and
+``strip_exif`` variants of one base are otherwise identical except for the EXIF block.
 """
 
 import argparse
@@ -70,10 +92,11 @@ import sys
 import time
 import urllib.error
 import urllib.request
+from datetime import datetime
 from email.utils import parsedate_to_datetime
 from pathlib import Path, PurePosixPath, PureWindowsPath
 
-from reference_common import MANIFEST_PATH, file_level_digest, load_manifest, validate
+from reference_common import DEFAULT_MIN_PHOTOS, MANIFEST_PATH, file_level_digest, load_manifest, validate
 
 REPO_DIR = Path(__file__).resolve().parent.parent
 USER_AGENT = "FacetReferenceSet/1.0 (https://github.com/ncoevoet/facet)"
@@ -82,7 +105,11 @@ MAX_ATTEMPTS = 4
 MAX_RETRY_AFTER = 60.0
 CHUNK = 1 << 20
 RAW_FORMATS = ("cr2", "cr3", "nef", "arw", "raf", "rw2", "orf", "pef", "dng")
-IMAGE_FORMATS = {".jpg": "JPEG", ".jpeg": "JPEG", ".png": "PNG", ".tif": "TIFF", ".tiff": "TIFF"}
+IMAGE_FORMATS = {
+    ".jpg": "JPEG", ".jpeg": "JPEG", ".png": "PNG", ".tif": "TIFF", ".tiff": "TIFF",
+    ".heic": "HEIF", ".heif": "HEIF", ".hif": "HEIF",
+}
+HEIC_EXTENSIONS = (".heic", ".heif", ".hif")
 DEFAULT_QUALITY = 95
 # The validator's exact message (reference_common._check_cases) for a case below its photo minimum.
 COUNT_ERROR = re.compile(r"case \S+: \d+ photos, need \d+-\d+ or a known_gap")
@@ -105,6 +132,10 @@ class RecipeError(ValueError):
     """An unknown recipe op or a malformed argument."""
 
 
+class DeriveError(ValueError):
+    """A valid recipe that cannot be applied to this base (reported per entry, not a bad recipe)."""
+
+
 class FetchError(Exception):
     """A download that gave up; ``status`` is the HTTP code or None for a network failure."""
 
@@ -125,7 +156,17 @@ _OPS = {
     "to_cmyk": None,
     "to_grayscale": None,
     "to_sepia": None,
+    "strip_icc": None,
+    "crop_aspect": re.compile(r"[1-9]\d*x[1-9]\d*"),
+    "set_exif_datetime": re.compile(r"\d{4}:\d{2}:\d{2} \d{2}:\d{2}:\d{2}"),
+    "to_16bit": re.compile(r"png|tiff"),
+    "encode_heic": re.compile(r"\d{1,3}"),
+    "raw_embedded_jpeg": None,
+    "write_xmp_sidecar": re.compile(r"[^;]+"),
 }
+SOLE_OPS = ("raw_embedded_jpeg", "write_xmp_sidecar")
+XMP_FIELDS = ("rating", "label", "keywords")
+XMP_VALUE = re.compile(r"[\w .|-]+")
 
 
 def parse_recipe(recipe):
@@ -140,8 +181,67 @@ def parse_recipe(recipe):
             raise RecipeError(f"bad argument {arg!r} for recipe op {op!r}")
         if op == "reencode_jpeg" and not 1 <= int(arg) <= 100:
             raise RecipeError("reencode_jpeg quality must be 1-100")
+        if op == "encode_heic" and not 1 <= int(arg) <= 100:
+            raise RecipeError("encode_heic quality must be 1-100")
+        if op == "set_exif_datetime":
+            try:
+                datetime.strptime(arg, "%Y:%m:%d %H:%M:%S")
+            except ValueError as exc:
+                raise RecipeError(f"bad date {arg!r} for set_exif_datetime") from exc
+        if op == "write_xmp_sidecar":
+            parse_xmp_arg(arg)
         steps.append((op, arg))
+    for op, _ in steps:
+        if op in SOLE_OPS and len(steps) > 1:
+            raise RecipeError(f"{op} must be the only op of a recipe")
+    if any(op == "to_16bit" for op, _ in steps[:-1]):
+        raise RecipeError("to_16bit must be the last op of a recipe")
     return steps
+
+
+def parse_xmp_arg(arg):
+    """``{"rating": int, "label": str, "keywords": [str]}`` of ``rating=N,label=X,keywords=a|b``."""
+    fields = {}
+    for part in arg.split(","):
+        key, _, value = part.partition("=")
+        if key not in XMP_FIELDS or key in fields or not XMP_VALUE.fullmatch(value):
+            raise RecipeError(f"bad write_xmp_sidecar field {part!r}")
+        if key == "rating":
+            if not (value.isdigit() and 0 <= int(value) <= 5):
+                raise RecipeError("write_xmp_sidecar rating must be 0-5")
+            fields[key] = int(value)
+        elif key == "keywords":
+            words = [w.strip() for w in value.split("|")]
+            if not all(words):
+                raise RecipeError("write_xmp_sidecar keywords must be non-empty")
+            fields[key] = words
+        else:
+            fields[key] = value.strip()
+    return fields
+
+
+def xmp_text(arg):
+    """A deterministic XMP sidecar (no timestamps, no tool version) for a ``write_xmp_sidecar`` argument."""
+    from xml.sax.saxutils import escape
+
+    fields = parse_xmp_arg(arg)
+    attrs = ""
+    if "rating" in fields:
+        attrs += f' xmp:Rating="{fields["rating"]}"'
+    if "label" in fields:
+        attrs += f' xmp:Label="{escape(fields["label"])}"'
+    body = ""
+    if "keywords" in fields:
+        items = "".join(f"<rdf:li>{escape(word)}</rdf:li>" for word in fields["keywords"])
+        body = f"<dc:subject><rdf:Bag>{items}</rdf:Bag></dc:subject>"
+    return (
+        '<?xpacket begin="" id="W5M0MpCehiHzreSzNTczkc9d"?>\n'
+        '<x:xmpmeta xmlns:x="adobe:ns:meta/">\n'
+        '<rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#">\n'
+        '<rdf:Description rdf:about="" xmlns:xmp="http://ns.adobe.com/xap/1.0/" '
+        f'xmlns:dc="http://purl.org/dc/elements/1.1/"{attrs}>{body}</rdf:Description>\n'
+        '</rdf:RDF>\n</x:xmpmeta>\n<?xpacket end="w"?>\n'
+    )
 
 
 class _State:
@@ -152,6 +252,7 @@ class _State:
         self.exif = img.getexif() if img.getexif() else None
         self.icc = img.info.get("icc_profile")
         self.quality = DEFAULT_QUALITY
+        self.depth16 = None
 
 
 def _apply_step(state, op, arg):
@@ -187,6 +288,60 @@ def _apply_step(state, op, arg):
         state.img = img.convert("L")
     elif op == "to_sepia":
         state.img = ImageOps.colorize(img.convert("L"), "#2e1a0a", "#ffe9c4")
+    elif op == "strip_icc":
+        state.icc = None
+        state.img.info.pop("icc_profile", None)
+    elif op == "crop_aspect":
+        want_w, want_h = (int(v) for v in arg.split("x"))
+        width, height = img.size
+        if width * want_h > height * want_w:
+            new_w, new_h = max(1, height * want_w // want_h), height
+        else:
+            new_w, new_h = width, max(1, width * want_h // want_w)
+        left, top = (width - new_w) // 2, (height - new_h) // 2
+        state.img = img.crop((left, top, left + new_w, top + new_h))
+    elif op == "set_exif_datetime":
+        if state.exif is None:
+            state.exif = Image.Exif()
+        state.exif[0x0132] = arg
+        exif_ifd = state.exif.get_ifd(0x8769)
+        exif_ifd[0x9003] = arg
+        exif_ifd[0x9004] = arg
+    elif op == "encode_heic":
+        state.quality = int(arg)
+    elif op == "to_16bit":
+        state.depth16 = arg
+
+
+def _write_16bit(img, dest_path, kind):
+    import numpy as np
+
+    suffix = Path(dest_path).suffix.lower()
+    if suffix not in ((".png",) if kind == "png" else (".tif", ".tiff")):
+        raise RecipeError(f"to_16bit:{kind} needs a matching extension, got {suffix!r}")
+    array = np.asarray(img.convert("RGB"), dtype=np.uint16) * 257
+    if kind == "png":
+        import imagecodecs
+
+        Path(dest_path).write_bytes(imagecodecs.png_encode(array))
+    else:
+        import tifffile
+
+        tifffile.imwrite(dest_path, array, photometric="rgb", software=False, metadata=None)
+
+
+def _extract_raw_jpeg(base_path, dest_path):
+    import rawpy
+
+    name = Path(base_path).name
+    try:
+        with rawpy.imread(str(base_path)) as raw:
+            thumb = raw.extract_thumb()
+    except (rawpy.LibRawError, OSError) as exc:
+        raise DeriveError(f"no embedded preview in {name}: {type(exc).__name__}: {exc}") from exc
+    if thumb.format != rawpy.ThumbFormat.JPEG:
+        raise DeriveError(f"embedded preview of {name} is {thumb.format.name}, not JPEG")
+    Path(dest_path).write_bytes(bytes(thumb.data))
 
 
 def render_derived(base_path, recipe, dest_path):
@@ -194,12 +349,29 @@ def render_derived(base_path, recipe, dest_path):
     from PIL import Image
 
     steps = parse_recipe(recipe)
+    suffix = Path(dest_path).suffix.lower()
+    if steps[0][0] == "write_xmp_sidecar":
+        if suffix != ".xmp":
+            raise RecipeError("write_xmp_sidecar writes a .xmp")
+        Path(dest_path).write_text(xmp_text(steps[0][1]), encoding="utf8", newline="\n")
+        return
+    if steps[0][0] == "raw_embedded_jpeg":
+        if suffix not in (".jpg", ".jpeg"):
+            raise RecipeError("raw_embedded_jpeg writes a .jpg")
+        _extract_raw_jpeg(base_path, dest_path)
+        return
+    _register_openers()
     with Image.open(base_path) as opened:
         opened.load()
         state = _State(opened)
     for op, arg in steps:
         _apply_step(state, op, arg)
-    fmt = IMAGE_FORMATS.get(Path(dest_path).suffix.lower())
+    if any(op == "encode_heic" for op, _ in steps) and suffix not in HEIC_EXTENSIONS:
+        raise RecipeError("encode_heic needs a .heic/.heif/.hif destination")
+    if state.depth16:
+        _write_16bit(state.img, dest_path, state.depth16)
+        return
+    fmt = IMAGE_FORMATS.get(suffix)
     if fmt is None:
         raise RecipeError(f"cannot write a derived file with extension {Path(dest_path).suffix!r}")
     options = {}
@@ -207,16 +379,48 @@ def render_derived(base_path, recipe, dest_path):
         options["exif"] = state.exif.tobytes()
     if state.icc:
         options["icc_profile"] = state.icc
-    if fmt == "JPEG":
+    if fmt in ("JPEG", "HEIF"):
         options["quality"] = state.quality
     with open(dest_path, "wb") as handle:
         state.img.save(handle, fmt, **options)
+
+
+def _read_16bit(path):
+    """The uint16 RGB array of a 16 bits per channel PNG / TIFF, else ``None`` (read without Pillow)."""
+    suffix = Path(path).suffix.lower()
+    try:
+        if suffix == ".png":
+            with open(path, "rb") as handle:
+                header = handle.read(26)
+            if header[12:16] != b"IHDR" or header[24] != 16:
+                return None
+            import imagecodecs
+
+            array = imagecodecs.png_decode(Path(path).read_bytes())
+        elif suffix in (".tif", ".tiff"):
+            import tifffile
+
+            with tifffile.TiffFile(path) as tif:
+                if tif.pages[0].dtype.itemsize != 2:
+                    return None
+                array = tif.asarray()
+        else:
+            return None
+    except Exception:  # noqa: BLE001 - not a readable 16-bit file: the Pillow path decides
+        return None
+    return array if array.dtype.itemsize == 2 and array.ndim == 3 and array.shape[2] == 3 else None
 
 
 def pixel_sha256(path):
     """sha256 of ``"<mode>:<w>x<h>:"`` + the decoded pixel bytes, RGB (RGBA with alpha), no EXIF rotation."""
     from PIL import Image
 
+    _register_openers()
+    deep = _read_16bit(path)
+    if deep is not None:
+        digest = hashlib.sha256(f"RGB16:{deep.shape[1]}x{deep.shape[0]}:".encode())
+        digest.update(deep.astype("<u2").tobytes())
+        return digest.hexdigest()
     with Image.open(path) as img:
         img.load()
         alpha = img.mode in ("RGBA", "LA", "PA") or "transparency" in img.info
@@ -379,7 +583,7 @@ def verify_on_disk(photo, dest):
     """``(status, detail)``: ``ok``, ``missing`` or ``mismatch`` for the file at ``dest``."""
     if not dest.exists():
         return "missing", "not on disk"
-    if photo["kind"] == "derived":
+    if photo["kind"] == "derived" and photo.get("format") != "xmp":
         try:
             got = pixel_sha256(dest)
         except Exception as exc:  # noqa: BLE001 - truncated / undecodable file is a mismatch, not a crash
@@ -647,7 +851,7 @@ def run_pin(args, manifest, out):
                 if dest.exists():
                     quarantine(dest)
                 render_derived(photo_dest(out, base), entry["recipe"], dest)
-                done["pixel_sha256"] = pixel_sha256(dest)
+                done["pixel_sha256"] = None if entry.get("format") == "xmp" else pixel_sha256(dest)
             else:
                 dest = pin_download(entry, out, fetcher, existing)
                 wrong = check_revision(entry, dest)
@@ -690,6 +894,63 @@ def run_pin(args, manifest, out):
     return 1 if other or skipped else 0
 
 
+def _case_count(manifest, case_id):
+    """Photos carrying the case; for a sequence-group case, distinct sets."""
+    members = [p for p in manifest["photos"] if case_id in (p.get("cases") or ())]
+    if (manifest["cases"][case_id].get("group")) == "sequences":
+        return len({(p.get("sequence") or {}).get("set_id") or p["id"] for p in members})
+    return len(members)
+
+
+def run_finalize_gaps(args, manifest):
+    """Turn every case still below min_photos into a known_gap; never touches files on disk."""
+    photos = manifest["photos"]
+    rows = []
+    for case_id, spec in manifest["cases"].items():
+        have = _case_count(manifest, case_id)
+        if have >= spec.get("min_photos", DEFAULT_MIN_PHOTOS):
+            continue
+        if have == 0 and spec.get("known_gap") not in (None, PLACEHOLDER_GAP):
+            continue
+        spec["known_gap"] = f"only {have} candidate(s) passed the licence gate on {args.date}"
+        for photo in photos:
+            if case_id in (photo.get("cases") or ()):
+                photo["cases"] = [c for c in photo["cases"] if c != case_id]
+        rows.append((case_id, have))
+    kept = {p["id"] for p in photos if p.get("cases")}
+    by_id = {p["id"]: p for p in photos}
+    grown = True
+    while grown:
+        grown = False
+        sets = {(p.get("sequence") or {}).get("set_id") for p in photos if p["id"] in kept} - {None}
+        for photo in photos:
+            pid = photo["id"]
+            linked = {photo.get("derived_from"), photo.get("companion_of")} - {None}
+            owners = {p["id"] for p in photos if pid in (p.get("derived_from"), p.get("companion_of"))}
+            in_set = (photo.get("sequence") or {}).get("set_id") in sets
+            if pid not in kept and (owners & kept or in_set):
+                kept.add(pid)
+                grown = True
+            if pid in kept:
+                for other in linked:
+                    if other in by_id and other not in kept:
+                        kept.add(other)
+                        grown = True
+    dropped = [p["id"] for p in photos if p["id"] not in kept]
+    manifest["photos"] = [p for p in photos if p["id"] in kept]
+    manifest["pairs"] = [pair for pair in manifest["pairs"]
+                         if pair.get("better") not in dropped and pair.get("worse") not in dropped]
+    write_manifest(manifest, args.manifest)
+    print("| case | photos | known_gap |")
+    for case_id, have in rows:
+        print(f"| {case_id} | {have} | only {have} candidate(s) passed the licence gate on {args.date} |")
+    print(f"finalize-gaps: {len(rows)} gap(s), dropped {len(dropped)} photo(s) from the manifest "
+          f"(files on disk untouched)")
+    for error in validate(manifest):
+        print(f"validate: {error}")
+    return 0
+
+
 # --- entry point -------------------------------------------------------------------------
 
 
@@ -701,6 +962,9 @@ def main(argv=None):
     parser.add_argument("--resume", action="store_true", help="reuse an existing --out, skipping verified files")
     parser.add_argument("--verify-only", action="store_true", help="no network: re-hash what is on disk")
     parser.add_argument("--pin", type=Path, help="APPROVED.json from licence_check: fill hashes into the manifest")
+    parser.add_argument("--finalize-gaps", action="store_true",
+                        help="after pins: turn cases below min_photos into known_gaps (needs --date)")
+    parser.add_argument("--date", help="YYYY-MM-DD recorded in the known_gap reason")
     parser.add_argument("--allow-anywhere", action="store_true", help="skip the repo / drive C: refusal (tests)")
     parser.add_argument("--delay", type=float, default=1.0, help="seconds between requests")
     parser.add_argument("--backoff", type=float, default=1.0, help="base seconds of the 429/5xx back-off")
@@ -710,8 +974,15 @@ def main(argv=None):
         out = check_out(args.out, args.allow_anywhere)
         check_out_contents(out)
         manifest = load_manifest(args.manifest)
+        if args.finalize_gaps and not re.fullmatch(r"\d{4}-\d{2}-\d{2}", args.date or ""):
+            raise ValueError("--finalize-gaps needs --date YYYY-MM-DD")
         if args.pin:
-            return run_pin(args, manifest, out)
+            code = run_pin(args, manifest, out)
+            if args.finalize_gaps:
+                code = run_finalize_gaps(args, load_manifest(args.manifest)) or code
+            return code
+        if args.finalize_gaps:
+            return run_finalize_gaps(args, manifest)
         errors = validate(manifest)
         if errors:
             print("\n".join(f"manifest: {e}" for e in errors), file=sys.stderr)

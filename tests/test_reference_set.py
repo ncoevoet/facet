@@ -445,3 +445,97 @@ def test_licence_check_approval_with_evidence_is_valid(valid):
         licence_evidence={"api_url": "https://x/api", "license_short_name": "CC0"},
     )
     assert errors_of(valid) == []
+
+
+def xmp_entry(**overrides):
+    fields = {
+        "kind": "derived", "derived_from": "p1", "recipe": "write_xmp_sidecar:rating=3", "format": "xmp",
+        "pixel_sha256": None, "path": "categories/landscape/p1.xmp", "url": None, "cases": [],
+        "expected_category": None, "acceptable_categories": [], "companion_of": "p1",
+    }
+    fields.update(overrides)
+    return make_photo(9, **fields)
+
+
+def test_xmp_sidecar_may_sit_beside_its_base(valid):
+    valid["photos"].append(xmp_entry())
+    assert errors_of(valid) == []
+
+
+def test_xmp_sidecar_needs_base_stem_and_directory(valid):
+    valid["photos"].append(xmp_entry(path="derived/p1.xmp", companion_of=None))
+    assert_error(valid, "xmp sidecar must be <base stem>.xmp")
+
+
+def test_xmp_sidecar_needs_companion_of(valid):
+    valid["photos"].append(xmp_entry(companion_of=None))
+    assert_error(valid, "companion_of set to its base")
+
+
+def test_xmp_sidecar_carries_no_pixel_hash(valid):
+    valid["photos"].append(xmp_entry(pixel_sha256="b" * 64))
+    assert_error(valid, "no pixel_sha256")
+
+
+def test_derived_exception_is_xmp_only(valid):
+    valid["photos"].append(derived(path="categories/landscape/p1b.jpg"))
+    assert_error(valid, "live under derived/")
+
+
+def raw_pair(valid, **jpeg_overrides):
+    """p1 becomes the RAW at companions/p9.cr2; p9 its embedded-preview JPEG beside it."""
+    valid["photos"][0].update(path="companions/p9.cr2", format="cr2", scored=False, companion_of="p9",
+                              cases=[])
+    valid["photos"].append(make_photo(10))
+    fields = {"path": "companions/p9.jpg", "recipe": "raw_embedded_jpeg", "pixel_sha256": "a" * 64,
+              "cases": [], "expected_category": None, "acceptable_categories": []}
+    fields.update(jpeg_overrides)
+    valid["photos"].append(derived(**fields))
+
+
+def test_unscored_photo_may_only_list_companions_cases(valid):
+    raw_pair(valid)
+    valid["photos"][0]["cases"] = [CASE]
+    assert_error(valid, f"photo p1: unscored photos may only list companions cases, not {CASE}")
+
+
+def test_raw_embedded_jpeg_pair_is_accepted(valid):
+    raw_pair(valid)
+    assert errors_of(valid) == []
+
+
+def test_companions_jpeg_with_other_recipe_is_rejected(valid):
+    raw_pair(valid, recipe="reencode_jpeg:90")
+    assert_error(valid, "live under derived/")
+
+
+def test_raw_pair_stem_mismatch_is_rejected(valid):
+    raw_pair(valid, path="companions/other.jpg")
+    assert_error(valid, "needs a RAW base at companions/<same stem>")
+
+
+def test_raw_pair_base_must_be_raw(valid):
+    raw_pair(valid)
+    valid["photos"][0].update(path="companions/p9.jpg", format="jpeg")
+    valid["photos"][-1]["path"] = "companions/p9.jpg"
+    assert_error(valid, "needs a RAW base")
+
+
+@pytest.mark.parametrize("field", ["scored", "companion_of"])
+def test_raw_pair_raw_needs_scored_false_and_companion_of(valid, field):
+    raw_pair(valid)
+    valid["photos"][0][field] = True if field == "scored" else None
+    assert_error(valid, "needs scored: false and companion_of")
+
+
+def test_sequence_case_counts_sets_not_frames(valid):
+    valid["cases"]["seq-panorama-ge8"].update(known_gap=None, min_photos=1, max_photos=2)
+    valid["photos"] = [
+        make_photo(i, cases=["seq-panorama-ge8"], expected_category=None, acceptable_categories=[],
+                   sequence={"set_id": "pano", "role": f"frame-{i}", "expected_kind": "panorama"})
+        for i in range(1, 11)
+    ]
+    assert not [e for e in errors_of(valid) if "case seq-panorama-ge8" in e]
+    valid["photos"][0]["sequence"] = {"set_id": "two", "role": "r", "expected_kind": "panorama"}
+    valid["photos"][1]["sequence"] = {"set_id": "three", "role": "r", "expected_kind": "panorama"}
+    assert_error(valid, "case seq-panorama-ge8: 3 photos, need 1-2")
