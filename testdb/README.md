@@ -358,7 +358,7 @@ Scan the same profile at least twice on the same machine; the limits (score nois
 floor, tag overlap, face-box overlap, allowed category flips, label margins) come from the spread
 between those runs. `--holdout` compares a further, independent run against the derived limits and
 prints `HOLD-OUT PASS` or `FAIL` (exit 1), which shows the limits are not tuned to the runs they came
-from. The file is written by this command, not by hand. It also holds `attribute_changes_max`: how many
+from. The saliency columns (`subject_sharpness`, `subject_placement`, `bg_separation`) never derive below `SALIENCY_NOISE_FLOOR`, the shared BiRefNet model's jitter measured on the 8gb scans. The file is written by this command, not by hand. It also holds `attribute_changes_max`: how many
 photos per case may change `composition_pattern`, a flag or GPS presence (derived from the spread
 between the runs; 0 when they agree).
 

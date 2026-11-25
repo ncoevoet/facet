@@ -67,6 +67,11 @@ TOP_N = 10
 UPDATE_MOVED_LIMIT = 0.20
 FLOAT_DIGITS = 4
 SCORE_FLOOR = 0.02
+# Run-to-run jitter of the saliency-derived columns. All profiles share one BiRefNet model
+# (models.saliency; profiles only toggle saliency_enabled), so the limits measured on the 8gb A/B/C scans
+# (non-RAF photos) hold for every profile: a 4th identical legacy run moved subject_placement by 0.04.
+# subject_prominence is not listed: no jitter was measured for it, so it stays at SCORE_FLOOR.
+SALIENCY_NOISE_FLOOR = {"subject_placement": 0.0693, "bg_separation": 0.2252, "subject_sharpness": 0.0346}
 # Formats whose decode differs between runs of the same file, so their photos are checked for presence
 # only, never for values. LibRaw's X-Trans demosaic is not deterministic (3 decodes of raw-raf-05 gave
 # 3 pixel hashes; a NEF decodes identically). Nothing else may be listed without such a measurement.
@@ -1079,7 +1084,7 @@ def derive_tolerances(exports, manifest, profile):
             mean = sum(values) / len(values)
             std = math.sqrt(sum((v - mean) ** 2 for v in values) / (len(values) - 1))
             worst = max(worst, std)
-        score_abs[column] = round(max(3 * worst, SCORE_FLOOR), 4)
+        score_abs[column] = round(max(3 * worst, SALIENCY_NOISE_FLOOR.get(column, SCORE_FLOOR)), 4)
     pairs = [(a, b) for i, a in enumerate(exports) for b in exports[i + 1:]]
     srcc_min, jaccards, ious, face_changes = {}, [], [], 0
     flips_by_case, assign_max, attribute_max = {}, {}, {}

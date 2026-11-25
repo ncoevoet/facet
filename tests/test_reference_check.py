@@ -511,6 +511,13 @@ def test_raf_noise_leaves_every_global_limit_unchanged(recorded):
         cr.derive_tolerances(exports[:1], manifest, "16gb")
 
 
+def test_saliency_columns_keep_their_noise_floor_without_noise(recorded):
+    derived, _, _ = _derived(recorded, "sf", lambda rows, faces: None)
+    for column, floor in cr.SALIENCY_NOISE_FLOOR.items():
+        assert derived["score_abs"][column] == floor > cr.SCORE_FLOOR
+    assert derived["score_abs"]["aggregate"] == cr.SCORE_FLOOR
+
+
 def test_non_raf_noise_still_widens_the_global_limit(recorded):
     def edit(rows, faces):
         rows[9]["aggregate"] += 0.3
