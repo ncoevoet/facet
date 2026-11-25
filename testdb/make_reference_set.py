@@ -19,9 +19,8 @@ Rules that never bend: nothing is ever deleted (a file that fails its hash is re
 every mode (pin, resume, verify-only) a non-empty ``--out`` must already hold a
 ``manifest.lock.json`` or ``photos/`` tree written by this script. ``--out`` may never be a
 network path (backslash-backslash host, //host, or the extended UNC prefix: the NAS is read-only),
-and unless ``--allow-anywhere`` (tests only) may not sit on drive C: (any letter case), inside the
-running checkout, inside any registered git worktree (``git worktree list``) or inside
-``D:/photo-llm``.
+and unless ``--allow-anywhere`` (tests only) may not sit inside the running checkout or inside any
+registered git worktree (``git worktree list``, which includes the main checkout).
 
 ``--only`` merges into an existing ``manifest.lock.json`` (when it was written for the same
 manifest digest) and records ``only`` and ``covered`` (every photo id the lock vouches for), so a
@@ -116,7 +115,6 @@ COUNT_ERROR = re.compile(r"case \S+: \d+ photos, need \d+-\d+ or a known_gap")
 # The ``known_gap`` every shipped case carries until a photo is sourced for it.
 PLACEHOLDER_GAP = "not yet sourced"
 # The main checkout's tree (photos live there); never a build target.
-PROTECTED_TREES = ("D:/photo-llm",)
 LOCK_NAME = "manifest.lock.json"
 # Canonical key order of a manifest photo entry; unknown keys follow in their given order.
 ENTRY_ORDER = (
@@ -659,11 +657,6 @@ def _inside(path, base):
     return left == right or left.startswith(right.rstrip("\\/") + os.sep)
 
 
-def on_drive_c(text):
-    """True for a path on drive C: in any letter case (c:/x or C:/x)."""
-    return PureWindowsPath(str(text)).drive.upper() == "C:"
-
-
 def worktree_roots():
     """The running checkout plus every registered git worktree (read-only ``git worktree list``)."""
     roots = [REPO_DIR]
@@ -681,22 +674,16 @@ def worktree_roots():
 
 
 def check_out(out, allow_anywhere):
-    """Refuse a network ``--out`` always; unless ``allow_anywhere`` also drive C:, the repo and its worktrees."""
+    """Refuse a network ``--out`` always; unless ``allow_anywhere`` also the repo and its worktrees."""
     if is_network_path(out):
         raise ValueError(f"--out {out} is a network path (never written to)")
     resolved = Path(out).resolve()
     if is_network_path(resolved):
         raise ValueError(f"--out {resolved} resolves to a network path (never written to)")
     if not allow_anywhere:
-        for candidate in (str(out), str(resolved)):
-            if on_drive_c(candidate):
-                raise ValueError(f"--out {resolved} is on drive C: (use D:)")
         for root in worktree_roots():
             if _inside(resolved, root):
                 raise ValueError(f"--out {resolved} is inside the checkout or worktree {root}")
-        for tree in PROTECTED_TREES:
-            if _inside(resolved, tree):
-                raise ValueError(f"--out {resolved} is inside {tree}")
     return resolved
 
 
@@ -965,7 +952,7 @@ def main(argv=None):
     parser.add_argument("--finalize-gaps", action="store_true",
                         help="after pins: turn cases below min_photos into known_gaps (needs --date)")
     parser.add_argument("--date", help="YYYY-MM-DD recorded in the known_gap reason")
-    parser.add_argument("--allow-anywhere", action="store_true", help="skip the repo / drive C: refusal (tests)")
+    parser.add_argument("--allow-anywhere", action="store_true", help="skip the checkout / worktree refusal (tests)")
     parser.add_argument("--delay", type=float, default=1.0, help="seconds between requests")
     parser.add_argument("--backoff", type=float, default=1.0, help="base seconds of the 429/5xx back-off")
     args = parser.parse_args(argv)

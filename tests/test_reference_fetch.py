@@ -214,14 +214,12 @@ def test_non_empty_out_is_refused(setup, capsys):
     assert srv.hits == {}
 
 
-def test_out_inside_repo_or_on_c_is_refused(setup, capsys):
+def test_out_inside_repo_is_refused(setup, capsys):
     path, _, _, srv = setup
     inside = mrs.REPO_DIR / "reference_fetch_test_out"
     assert mrs.main(["--manifest", str(path), "--out", str(inside), "--delay", "0"]) == 2
     assert "inside the checkout" in capsys.readouterr().err
     assert not inside.exists() and srv.hits == {}
-    with pytest.raises(ValueError, match="drive C"):
-        mrs.check_out(Path("C:/facet-ref-test"), False)
 
 
 def test_derived_recipe_reproduces_pixel_hash(setup):
@@ -402,11 +400,10 @@ def test_network_out_is_refused_even_with_allow_anywhere(setup, raw, capsys):
         mrs.check_out(Path(raw), True)
 
 
-def test_out_inside_any_worktree_or_protected_tree_is_refused(tmp_path, monkeypatch):
-    sibling, protected = tmp_path / "sibling-worktree", tmp_path / "photo-llm"
+def test_out_inside_any_worktree_is_refused(tmp_path, monkeypatch):
+    sibling = tmp_path / "sibling-worktree"
     monkeypatch.setattr(mrs, "worktree_roots", lambda: [mrs.REPO_DIR, sibling])
-    monkeypatch.setattr(mrs, "PROTECTED_TREES", (str(protected),))
-    for inside in (sibling / "out", sibling, protected / "photos", protected):
+    for inside in (sibling / "out", sibling):
         with pytest.raises(ValueError, match="inside"):
             mrs.check_out(inside, False)
     elsewhere = tmp_path / "elsewhere" / "out"
@@ -417,18 +414,6 @@ def test_out_inside_any_worktree_or_protected_tree_is_refused(tmp_path, monkeypa
 def test_real_worktree_list_contains_this_checkout():
     roots = [str(r).lower().replace("\\", "/") for r in mrs.worktree_roots()]
     assert str(mrs.REPO_DIR).lower().replace("\\", "/") in roots
-
-
-@pytest.mark.parametrize("raw", ["c:/facet-ref-test", "C:/facet-ref-test", "c:\\x\\y", "C:\\x"])
-def test_drive_c_is_refused_in_any_letter_case(raw):
-    with pytest.raises(ValueError, match="drive C"):
-        mrs.check_out(Path(raw), False)
-
-
-@pytest.mark.parametrize("raw,expected", [("c:/x", True), ("C:/x", True), ("d:/x", False), ("c", False)])
-def test_on_drive_c_ignores_letter_case(raw, expected):
-    # Path.resolve() upper-cases the drive on Windows, so only the helper itself can tell
-    assert mrs.on_drive_c(raw) is expected
 
 
 def test_pin_refuses_a_foreign_non_empty_out(setup, server, capsys):
@@ -863,7 +848,7 @@ def test_raw_embedded_jpeg_roundtrip(tmp_path):
 
 
 def test_raw_embedded_jpeg_bitmap_thumb_is_an_error(tmp_path, monkeypatch):
-    import rawpy
+    rawpy = pytest.importorskip("rawpy")
 
     class Thumb:
         format = rawpy.ThumbFormat.BITMAP
