@@ -167,6 +167,11 @@ def _check_provenance(photo, by_id, errors):
     for field in REQUIRED_TEXT:
         if not str(photo.get(field) or "").strip():
             errors.append(f"photo {pid}: {field} is required")
+    if photo.get("approved_by") == "licence-check":
+        evidence = photo.get("licence_evidence")
+        if not (isinstance(evidence, dict) and str(evidence.get("api_url") or "").strip()
+                and str(evidence.get("license_short_name") or "").strip()):
+            errors.append(f"photo {pid}: licence-check approval needs licence_evidence with api_url and license_short_name")
     approved_on = str(photo.get("approved_on") or "")
     if approved_on.strip() and not DATE_PATTERN.fullmatch(approved_on):
         errors.append(f"photo {pid}: approved_on must be YYYY-MM-DD")

@@ -428,3 +428,20 @@ def test_share_alike_missing_change_notice_rejected(valid, value):
 @pytest.mark.parametrize("licence", ["CC-BY-NC-SA-4.0", "CC-BY-NC-4.0", "CC-BY-ND-4.0"])
 def test_non_commercial_and_no_derivs_still_rejected(valid, licence):
     assert_error(with_sa(valid, licence=licence), "not allowed")
+
+
+@pytest.mark.parametrize(
+    "evidence",
+    [None, "text", {}, {"api_url": "u"}, {"license_short_name": "CC0"}, {"api_url": " ", "license_short_name": "CC0"}],
+)
+def test_licence_check_approval_needs_evidence(valid, evidence):
+    valid["photos"][0].update(approved_by="licence-check", licence_evidence=evidence)
+    assert_error(valid, "needs licence_evidence")
+
+
+def test_licence_check_approval_with_evidence_is_valid(valid):
+    valid["photos"][0].update(
+        approved_by="licence-check",
+        licence_evidence={"api_url": "https://x/api", "license_short_name": "CC0"},
+    )
+    assert errors_of(valid) == []
