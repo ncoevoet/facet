@@ -362,16 +362,15 @@ from. The file is written by this command, not by hand. It also holds `attribute
 photos per case may change `composition_pattern`, a flag or GPS presence (derived from the spread
 between the runs; 0 when they agree).
 
-Photos of a format in `NONDETERMINISTIC_FORMATS` (`raf`) get per-photo score limits. LibRaw's X-Trans
-demosaic of Fujifilm RAF files differs between decodes of the same file (3 decodes of `raw-raf-05` gave
-3 different pixel hashes; a NEF decodes identically), so those photos swing `aggregate` and
-`leading_lines_score` by up to a few points. Their own limit (3x their spread between the runs, never
-below the floor) goes in `score_abs_photo`; every other photo feeds the global `score_abs`, so the RAFs
-cannot loosen the check on the rest of the set and small saliency jitter is absorbed globally. The report
-lists the allowances under **NOISY PHOTOS**: those photos are only loosely checked, and a green run does
-not say otherwise. The tag and box minima follow the same split: a RAF's own lowest tag Jaccard / box IoU
-(minus the margin) goes in `photo_min` when it is below the global `tag_jaccard_min` / `bbox_iou_min`, which
-only the other photos feed. No other format is listed without a measurement like the one above.
+Photos of a format in `NONDETERMINISTIC_FORMATS` (`raf`) are excluded from every value comparison
+(scores, SRCC, tags, boxes, face count, category, assignments, attributes, label and pair metrics) and from
+every input to the derived tolerances. LibRaw's X-Trans demosaic of Fujifilm RAF files differs between
+decodes of the same file: 3 decodes of `raw-raf-05` gave 3 different pixel hashes (a NEF decodes
+identically), and a 4th 16gb run moved `raw-raf-03`'s aggregate by 1.05, flipped its category and dropped
+`raw-raf-02`'s tag Jaccard to 0.43, far outside any allowance derived from three runs. Such a photo is still
+checked for presence: its row must exist in the scan and a score the golden holds must not become NULL.
+The report lists each one under **NOT CHECKED** ("values not compared"), so the RAF case proves decode and
+presence, not values. No other format is listed without a measurement like the one above.
 
 ### Read the report
 

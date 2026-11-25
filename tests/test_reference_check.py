@@ -19,11 +19,12 @@ import check_reference as cr  # noqa: E402
 import reference_common as rc  # noqa: E402
 from db.schema import PHOTOS_COLUMNS, init_database  # noqa: E402
 
-N = 12
+N = 13
+RAF_ID = "p12"   # the one non-deterministic-format photo, outside every set, pair and label
 FACE_IDS = ["p00", "p01", "p02", "p03"]
 BRACKET_A = ["p04", "p05", "p06"]
 BRACKET_B = ["p07", "p08", "p09"]
-LANDSCAPE = [f"p{i:02d}" for i in range(4, N)]
+LANDSCAPE = [f"p{i:02d}" for i in range(4, 12)]
 TOLERANCES = {
     "profile": "16gb",
     "score_abs": {"_default": 0.05},
@@ -54,10 +55,10 @@ def make_manifest():
         photos.append({
             "id": pid, "path": f"cat/{pid}.jpg", "url": "https://example.org/x", "sha256": f"{i:064x}",
             "bytes": 100 + i, "kind": "download", "derived_from": None, "recipe": None,
-            "pixel_sha256": None, "format": "raf" if pid == "p07" else "jpeg", "megapixels": 1.0,
+            "pixel_sha256": None, "format": "raf" if pid == RAF_ID else "jpeg", "megapixels": 1.0,
             "companion_of": None, "scored": True, "cases": case_of(pid),
-            "expected_category": "portrait" if face else "landscape",
-            "acceptable_categories": ["portrait"] if face else ["landscape", "architecture"],
+            "expected_category": None if pid == RAF_ID else ("portrait" if face else "landscape"),
+            "acceptable_categories": None if pid == RAF_ID else (["portrait"] if face else ["landscape", "architecture"]),
         })
     landscape = [p for p in photos if p["expected_category"] == "landscape"]
     pairs = [
@@ -160,9 +161,10 @@ def world(tmp_path):
 
 
 @pytest.fixture(autouse=True)
-def no_environment(monkeypatch):
+def no_environment(monkeypatch, tmp_path):
     """The environment block needs torch and git; the logic under test does not."""
     monkeypatch.setattr(cr, "collect_environment", lambda *a, **k: {"recorded_at": "2026-11-25"})
+    monkeypatch.setattr(cr, "TOLERANCES_DIR", tmp_path / "no-shipped-tolerances")
 
 
 def record(world):
@@ -343,7 +345,7 @@ def test_report_sections_and_json(recorded, capsys):
         assert heading in text
     assert "known gap case: raw-pef" in text
     assert "pairs-portrait: no pairs (LOW-CONFIDENCE)" in text
-    assert json.loads(out_json.read_text("utf8"))["photos"] == N
+    assert json.loads(out_json.read_text("utf8"))["photos"] == N - 1   # the raf photo is not compared
 
 
 # --------------------------------------------------------------------------- labels
@@ -495,14 +497,16 @@ def _derived(recorded, name, edit):
     return cr.derive_tolerances(exports, manifest, "16gb"), exports, manifest
 
 
-def test_raf_noise_gets_a_per_photo_allowance_and_leaves_the_global_limit(recorded):
+def test_raf_noise_leaves_every_global_limit_unchanged(recorded):
     def edit(rows, faces):
-        rows[7]["aggregate"] += 0.3   # p07 is the raf photo
+        rows[12]["aggregate"] += 0.3
+        rows[12]["tags"] = "x,y"
     derived, exports, manifest = _derived(recorded, "na", edit)
     assert derived["score_abs"]["aggregate"] == cr.SCORE_FLOOR
-    assert derived["score_abs_photo"]["p07"]["aggregate"] == pytest.approx(3 * 0.3 / 2 ** 0.5, abs=1e-3)
-    assert list(derived["score_abs_photo"]) == ["p07"]
     assert derived["score_abs"]["topiq_score"] == cr.SCORE_FLOOR
+    assert derived["tag_jaccard_min"] == round(1.0 - cr.JACCARD_MARGIN, 4)
+    assert derived["bbox_iou_min"] == round(1.0 - cr.IOU_MARGIN, 4)
+    assert "score_abs_photo" not in derived and "photo_min" not in derived
     with pytest.raises(cr.SetupError):
         cr.derive_tolerances(exports[:1], manifest, "16gb")
 
@@ -512,16 +516,6 @@ def test_non_raf_noise_still_widens_the_global_limit(recorded):
         rows[9]["aggregate"] += 0.3
     derived, _, _ = _derived(recorded, "nb", edit)
     assert derived["score_abs"]["aggregate"] == pytest.approx(3 * 0.3 / 2 ** 0.5, abs=1e-3)
-    assert derived["score_abs_photo"] == {}
-
-
-def test_raf_tag_change_gets_a_per_photo_minimum_and_leaves_the_global_one(recorded):
-    def edit(rows, faces):
-        rows[7]["tags"] = "x,y"   # p07 is the raf photo
-    derived, _, _ = _derived(recorded, "ta", edit)
-    assert derived["tag_jaccard_min"] == round(1.0 - cr.JACCARD_MARGIN, 4)
-    assert derived["photo_min"]["p07"]["tag_jaccard_min"] == round(max(0.0, 0.0 - cr.JACCARD_MARGIN), 4)
-    assert list(derived["photo_min"]) == ["p07"]
 
 
 def test_non_raf_tag_change_still_lowers_the_global_minimum(recorded):
@@ -529,44 +523,41 @@ def test_non_raf_tag_change_still_lowers_the_global_minimum(recorded):
         rows[9]["tags"] = "x,y"
     derived, _, _ = _derived(recorded, "tb", edit)
     assert derived["tag_jaccard_min"] == round(max(0.0, 0.0 - cr.JACCARD_MARGIN), 4)
-    assert derived["photo_min"] == {}
 
 
-def test_tag_loss_fails_a_quiet_photo_while_the_raf_allowance_passes(recorded):
-    tol = dict(TOLERANCES, photo_min={"p07": {"tag_jaccard_min": 0.0}})
-
-    def raf_only(rows, faces):
-        rows[7]["tags"] = "x,y"
-
-    def raf_and_quiet(rows, faces):
-        rows[7]["tags"] = "x,y"
-        rows[8]["tags"] = "x,y"
-
-    ok = report_of(recorded, build_db(recorded["tmp"], "t1.db", recorded["set"], raf_only), tol)
-    assert not find(ok, "landscape", "tag_jaccard")
-    assert ok["noisy_photos"] == {"p07": {"tag_jaccard_min": 0.0}}
-    bad = report_of(recorded, build_db(recorded["tmp"], "t2.db", recorded["set"], raf_and_quiet), tol)
-    assert [v["photo"] for v in find(bad, "landscape", "tag_jaccard")] == ["p08"]
+def test_raf_photo_values_are_not_compared_and_it_is_listed(recorded):
+    def edit(rows, faces):
+        rows[12]["aggregate"] = 1.0
+        rows[12]["tags"] = "x,y"
+        rows[12]["category"] = "street" if rows[12]["category"] != "street" else "landscape"
+    report = report_of(recorded, build_db(recorded["tmp"], "r1.db", recorded["set"], edit), TOLERANCES)
+    assert report["violations"] == []
+    assert report["not_compared"] == ["p12: values not compared (non-deterministic raf decode)"]
+    assert "  p12: values not compared (non-deterministic raf decode)" in cr.render_report(report)
+    assert "NOISY PHOTOS" not in cr.render_report(report)
 
 
-def test_per_photo_allowance_does_not_loosen_quiet_photos(recorded, capsys):
-    tol = dict(TOLERANCES, score_abs_photo={"p07": {"aggregate": 1.0}})
+def test_raf_photo_losing_a_score_fails_presence(recorded):
+    def edit(rows, faces):
+        rows[12]["aggregate"] = None
+    report = report_of(recorded, build_db(recorded["tmp"], "r2.db", recorded["set"], edit), TOLERANCES)
+    assert [v["photo"] for v in report["violations"] if v["metric"] == "score_presence:aggregate"] == [RAF_ID]
 
-    def noisy_within(rows, faces):
-        rows[7]["aggregate"] += 0.9
 
-    def quiet_regression(rows, faces):
-        rows[7]["aggregate"] += 0.9
+def test_missing_raf_row_fails(recorded):
+    golden = json.loads(recorded["golden"].read_text("utf8"))
+    current = json.loads(recorded["golden"].read_text("utf8"))
+    del current["photos"][RAF_ID]
+    report = cr.compare(golden, current, recorded["manifest"], TOLERANCES)
+    assert [v["photo"] for v in report["violations"] if v["metric"] == "photo_not_in_scan"] == [RAF_ID]
+
+
+def test_non_raf_regression_still_fails_next_to_a_raf_swing(recorded):
+    def edit(rows, faces):
+        rows[12]["aggregate"] = 1.0
         rows[8]["aggregate"] += 1.0
-
-    ok = report_of(recorded, build_db(recorded["tmp"], "n1.db", recorded["set"], noisy_within), tol)
-    assert not find(ok, "landscape", "score_abs:aggregate")
-    assert ok["noisy_photos"] == {"p07": {"aggregate": 1.0}}
-    bad = report_of(recorded, build_db(recorded["tmp"], "n2.db", recorded["set"], quiet_regression), tol)
-    hits = find(bad, "landscape", "score_abs:aggregate")
-    assert [v["photo"] for v in hits] == ["p08"] and hits[0]["limit"] == 0.05
-    text = cr.render_report(bad)
-    assert "== NOISY PHOTOS" in text and "non-deterministic RAW decode (raf)" in text and "p07: aggregate +/-1.0" in text
+    report = report_of(recorded, build_db(recorded["tmp"], "r3.db", recorded["set"], edit), TOLERANCES)
+    assert [v["photo"] for v in find(report, "landscape", "score_abs:aggregate")] == ["p08"]
 
 
 def test_tolerances_default_to_the_per_profile_path(recorded, monkeypatch):

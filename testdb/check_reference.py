@@ -67,9 +67,9 @@ TOP_N = 10
 UPDATE_MOVED_LIMIT = 0.20
 FLOAT_DIGITS = 4
 SCORE_FLOOR = 0.02
-# Formats whose decode differs between runs of the same file, so their photos get per-photo score
-# allowances. LibRaw's X-Trans demosaic is not deterministic (3 decodes of raw-raf-05 gave 3 pixel
-# hashes; a NEF decodes identically). Nothing else may be listed without such a measurement.
+# Formats whose decode differs between runs of the same file, so their photos are checked for presence
+# only, never for values. LibRaw's X-Trans demosaic is not deterministic (3 decodes of raw-raf-05 gave
+# 3 pixel hashes; a NEF decodes identically). Nothing else may be listed without such a measurement.
 NONDETERMINISTIC_FORMATS = ("raf",)
 SRCC_MARGIN = 0.005
 JACCARD_MARGIN = 0.05
@@ -632,8 +632,9 @@ def assignments(golden, maps, pid):
 
 def label_metrics(golden_like, manifest):
     """Confusion matrix, out-of-accepted list and per-category pairwise agreement for one scan."""
-    photos = golden_like["photos"]
     by_id = {p["id"]: p for p in manifest["photos"]}
+    photos = {pid: r for pid, r in golden_like["photos"].items()
+              if by_id[pid].get("format") not in NONDETERMINISTIC_FORMATS}
     matrix, outside = {}, []
     for pid, record in photos.items():
         label = by_id[pid]
@@ -676,17 +677,9 @@ class Tolerances:
             node = node[key]
         return node
 
-    def score(self, column, photo=None):
-        own = self.data.get("score_abs_photo", {}).get(photo, {})
-        if column in own:
-            return own[column]
+    def score(self, column):
         table = self.data.get("score_abs", {})
         return table.get(column, table.get("_default", SCORE_FLOOR))
-
-    def minimum(self, key, photo=None):
-        """A photo's own ``photo_min`` limit for ``key`` (tag_jaccard_min / bbox_iou_min), else the global."""
-        own = self.data.get("photo_min", {}).get(photo, {})
-        return own[key] if key in own else self.data.get(key)
 
     def per_case(self, name, case, default=0):
         table = self.data.get(name, {})
@@ -754,6 +747,8 @@ def compare(golden, current, manifest, tolerances=None):
     if not ids:
         raise SetupError("0 photos compared: the golden and the scan share no photo")
     by_id = {p["id"]: p for p in manifest["photos"]}
+    not_compared = [pid for pid in ids if by_id[pid].get("format") in NONDETERMINISTIC_FORMATS]
+    ids = [pid for pid in ids if pid not in not_compared]
     maps_then, maps_now = _member_map(golden), _member_map(current)
     diffs = {
         pid: _photo_diff(golden["photos"][pid], current["photos"][pid],
@@ -774,6 +769,11 @@ def compare(golden, current, manifest, tolerances=None):
         violate(OVERALL, "photo_not_in_scan", pid, None, None)
     for pid in sorted(set(current["photos"]) - set(golden["photos"])):
         violate(OVERALL, "photo_not_in_golden", pid, None, None)
+    # Non-deterministic decodes: presence only. A score the golden holds must still be non-null.
+    for pid in not_compared:
+        for column in SCORE_COLUMNS:
+            if golden["photos"][pid]["scores"].get(column) is not None                     and current["photos"][pid]["scores"].get(column) is None:
+                violate(OVERALL, f"score_presence:{column}", pid, None, None)
     for pid in current.get("unscored_rows") or ():
         violate(OVERALL, "unscored_photo_scored", pid, None, None)
 
@@ -805,7 +805,7 @@ def compare(golden, current, manifest, tolerances=None):
             if tol is None:
                 continue
             for column, delta in d["scores"].items():
-                limit = tol.score(column, pid)
+                limit = tol.score(column)
                 if delta is None:
                     violate(case, f"score_presence:{column}", pid, None, None)
                 elif abs(delta) > limit:
@@ -815,7 +815,7 @@ def compare(golden, current, manifest, tolerances=None):
             for metric, value, key in (("face_bbox_iou", d["face_iou"], "bbox_iou_min"),
                                        ("subject_bbox_iou", d["subject_iou"], "bbox_iou_min"),
                                        ("tag_jaccard", d["jaccard"], "tag_jaccard_min")):
-                limit = tol.minimum(key, pid)
+                limit = tol.get(key)
                 if limit is not None and value is not None and value < limit:
                     violate(case, metric, pid, round(value, 4), limit)
         cases[case] = row
@@ -853,10 +853,8 @@ def compare(golden, current, manifest, tolerances=None):
         "not_exercised": list(NOT_EXERCISED),
         "report_only": tol is None,
         "photo_values": photo_values,
-        "noisy_photos": {pid: {**tol.get("score_abs_photo", default={}).get(pid, {}),
-                               **tol.get("photo_min", default={}).get(pid, {})}
-                         for pid in sorted(set(tol.get("score_abs_photo", default={}))
-                                           | set(tol.get("photo_min", default={}))) if pid in diffs} if tol else {},
+        "not_compared": [f"{pid}: values not compared (non-deterministic {by_id[pid]['format']} decode)"
+                         for pid in not_compared],
     }
 
 
@@ -946,11 +944,8 @@ def render_report(report):
     changes = [(case, kind, n) for case, row in report["cases"].items() for kind, n in row["assignment_changes"].items()
                if case == OVERALL]
     lines += [f"  {kind}: {n} photo(s) changed" for _, kind, n in changes] or ["  none"]
-    lines += ["", "== NOISY PHOTOS (per-photo allowances: non-deterministic RAW decode (raf), only loosely checked) =="]
-    lines += [f"  {pid}: " + ", ".join(f"{col} >={limit}" if col.endswith("_min") else f"{col} +/-{limit}"
-                                for col, limit in sorted(cols.items()))
-              for pid, cols in report["noisy_photos"].items()] or ["  none"]
     lines += ["", "== NOT CHECKED (a green run is not full coverage) =="]
+    lines += [f"  {item}" for item in report["not_compared"]]
     lines += [f"  {item}" for item in labels["not_checked"]]
     lines += [f"  {item}" for item in report["not_exercised"]]
     lines += [f"  known gap case: {case}" for case in report["known_gaps"]]
@@ -1071,12 +1066,10 @@ def derive_tolerances(exports, manifest, profile):
     ids = sorted(set.intersection(*(set(e["photos"]) for e in exports)))
     if not ids or any(set(e["photos"]) != set(ids) for e in exports):
         raise SetupError("the runs do not hold the same photos (or none): scan the whole set")
-    # A photo of a format in NONDETERMINISTIC_FORMATS gets its own limit per column (3 x its spread,
-    # never below the floor). Every other photo feeds the global limit, so a decoder-noisy file
-    # cannot loosen the check on the rest of the set, and saliency jitter is absorbed globally.
+    # Photos of a NONDETERMINISTIC format feed nothing: their values are never compared.
     formats = {p["id"]: p.get("format") for p in manifest["photos"]}
+    ids = [pid for pid in ids if formats.get(pid) not in NONDETERMINISTIC_FORMATS]
     score_abs = {"_default": SCORE_FLOOR}
-    score_abs_photo = {}
     for column in SCORE_COLUMNS:
         worst = 0.0
         for pid in ids:
@@ -1085,16 +1078,10 @@ def derive_tolerances(exports, manifest, profile):
                 continue
             mean = sum(values) / len(values)
             std = math.sqrt(sum((v - mean) ** 2 for v in values) / (len(values) - 1))
-            if formats.get(pid) in NONDETERMINISTIC_FORMATS:
-                limit = round(max(3 * std, SCORE_FLOOR), 4)
-                if limit > SCORE_FLOOR:
-                    score_abs_photo.setdefault(pid, {})[column] = limit
-            else:
-                worst = max(worst, std)
+            worst = max(worst, std)
         score_abs[column] = round(max(3 * worst, SCORE_FLOOR), 4)
     pairs = [(a, b) for i, a in enumerate(exports) for b in exports[i + 1:]]
     srcc_min, jaccards, ious, face_changes = {}, [], [], 0
-    raf_values = {}
     flips_by_case, assign_max, attribute_max = {}, {}, {}
     agreement_drop, confusion_rise = 0.0, 0
     for a, b in pairs:
@@ -1111,11 +1098,7 @@ def derive_tolerances(exports, manifest, profile):
             for key, bucket in (("tag_jaccard", jaccards), ("bbox_iou", ious)):
                 if values[key] is None:
                     continue
-                if formats.get(pid) in NONDETERMINISTIC_FORMATS:
-                    own = raf_values.setdefault(pid, {})
-                    own[key] = min(own.get(key, 1.0), values[key])
-                else:
-                    bucket.append(values[key])
+                bucket.append(values[key])
         for pid in ids:
             face_changes = max(face_changes, abs((b["photos"][pid]["face_count"] or 0)
                                                  - (a["photos"][pid]["face_count"] or 0)))
@@ -1128,21 +1111,11 @@ def derive_tolerances(exports, manifest, profile):
             confusion_rise = max(confusion_rise, count - sum(n for g, n in then.items() if g != expected))
     tag_jaccard_min = round(max(0.0, (min(jaccards) if jaccards else 1.0) - JACCARD_MARGIN), 4)
     bbox_iou_min = round(max(0.0, (min(ious) if ious else 1.0) - IOU_MARGIN), 4)
-    photo_min = {}
-    for pid, own in raf_values.items():
-        for key, margin, name, global_limit in (("tag_jaccard", JACCARD_MARGIN, "tag_jaccard_min", tag_jaccard_min),
-                                                 ("bbox_iou", IOU_MARGIN, "bbox_iou_min", bbox_iou_min)):
-            if key in own:
-                limit = round(max(0.0, own[key] - margin), 4)
-                if limit < global_limit:
-                    photo_min.setdefault(pid, {})[name] = limit
     return {
         "profile": profile,
         "derived_from_runs": len(exports),
         "score_abs": score_abs,
-        "score_abs_photo": dict(sorted(score_abs_photo.items())),
         "srcc_min": {c: round(v - SRCC_MARGIN, 4) for c, v in sorted(srcc_min.items())},
-        "photo_min": dict(sorted(photo_min.items())),
         "tag_jaccard_min": tag_jaccard_min,
         "category_flips_max": {"_default": 0, **dict(sorted(flips_by_case.items()))},
         "face_count_change_max": face_changes,
