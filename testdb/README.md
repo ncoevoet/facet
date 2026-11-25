@@ -369,7 +369,9 @@ demosaic of Fujifilm RAF files differs between decodes of the same file (3 decod
 below the floor) goes in `score_abs_photo`; every other photo feeds the global `score_abs`, so the RAFs
 cannot loosen the check on the rest of the set and small saliency jitter is absorbed globally. The report
 lists the allowances under **NOISY PHOTOS**: those photos are only loosely checked, and a green run does
-not say otherwise. No other format is listed without a measurement like the one above.
+not say otherwise. The tag and box minima follow the same split: a RAF's own lowest tag Jaccard / box IoU
+(minus the margin) goes in `photo_min` when it is below the global `tag_jaccard_min` / `bbox_iou_min`, which
+only the other photos feed. No other format is listed without a measurement like the one above.
 
 ### Read the report
 

@@ -683,6 +683,11 @@ class Tolerances:
         table = self.data.get("score_abs", {})
         return table.get(column, table.get("_default", SCORE_FLOOR))
 
+    def minimum(self, key, photo=None):
+        """A photo's own ``photo_min`` limit for ``key`` (tag_jaccard_min / bbox_iou_min), else the global."""
+        own = self.data.get("photo_min", {}).get(photo, {})
+        return own[key] if key in own else self.data.get(key)
+
     def per_case(self, name, case, default=0):
         table = self.data.get(name, {})
         if isinstance(table, dict):
@@ -773,6 +778,10 @@ def compare(golden, current, manifest, tolerances=None):
         violate(OVERALL, "unscored_photo_scored", pid, None, None)
 
     cases = {}
+    photo_values = {}
+    for pid, d in diffs.items():
+        ious = [v for v in (d["face_iou"], d["subject_iou"]) if v is not None]
+        photo_values[pid] = {"tag_jaccard": d["jaccard"], "bbox_iou": min(ious) if ious else None}
     for case, members in sorted(case_members.items()):
         row = {"photos": len(members), "faces_lost_photos": 0, "category_flips": 0, "score_moved": 0,
                "worst_jaccard": None, "worst_face_iou": None, "worst_subject_iou": None,
@@ -806,7 +815,7 @@ def compare(golden, current, manifest, tolerances=None):
             for metric, value, key in (("face_bbox_iou", d["face_iou"], "bbox_iou_min"),
                                        ("subject_bbox_iou", d["subject_iou"], "bbox_iou_min"),
                                        ("tag_jaccard", d["jaccard"], "tag_jaccard_min")):
-                limit = tol.get(key)
+                limit = tol.minimum(key, pid)
                 if limit is not None and value is not None and value < limit:
                     violate(case, metric, pid, round(value, 4), limit)
         cases[case] = row
@@ -843,8 +852,11 @@ def compare(golden, current, manifest, tolerances=None):
         "known_gaps": sorted(c for c, v in manifest["cases"].items() if v.get("known_gap")),
         "not_exercised": list(NOT_EXERCISED),
         "report_only": tol is None,
-        "noisy_photos": {pid: dict(cols) for pid, cols in sorted(tol.get("score_abs_photo", default={}).items())
-                         if pid in diffs} if tol else {},
+        "photo_values": photo_values,
+        "noisy_photos": {pid: {**tol.get("score_abs_photo", default={}).get(pid, {}),
+                               **tol.get("photo_min", default={}).get(pid, {})}
+                         for pid in sorted(set(tol.get("score_abs_photo", default={}))
+                                           | set(tol.get("photo_min", default={}))) if pid in diffs} if tol else {},
     }
 
 
@@ -935,7 +947,8 @@ def render_report(report):
                if case == OVERALL]
     lines += [f"  {kind}: {n} photo(s) changed" for _, kind, n in changes] or ["  none"]
     lines += ["", "== NOISY PHOTOS (per-photo allowances: non-deterministic RAW decode (raf), only loosely checked) =="]
-    lines += [f"  {pid}: " + ", ".join(f"{col} +/-{limit}" for col, limit in sorted(cols.items()))
+    lines += [f"  {pid}: " + ", ".join(f"{col} >={limit}" if col.endswith("_min") else f"{col} +/-{limit}"
+                                for col, limit in sorted(cols.items()))
               for pid, cols in report["noisy_photos"].items()] or ["  none"]
     lines += ["", "== NOT CHECKED (a green run is not full coverage) =="]
     lines += [f"  {item}" for item in labels["not_checked"]]
@@ -1081,6 +1094,7 @@ def derive_tolerances(exports, manifest, profile):
         score_abs[column] = round(max(3 * worst, SCORE_FLOOR), 4)
     pairs = [(a, b) for i, a in enumerate(exports) for b in exports[i + 1:]]
     srcc_min, jaccards, ious, face_changes = {}, [], [], 0
+    raf_values = {}
     flips_by_case, assign_max, attribute_max = {}, {}, {}
     agreement_drop, confusion_rise = 0.0, 0
     for a, b in pairs:
@@ -1089,16 +1103,19 @@ def derive_tolerances(exports, manifest, profile):
             srcc_min[column] = min(srcc_min.get(column, 1.0), value)
         for case, row in report["cases"].items():
             flips_by_case[case] = max(flips_by_case.get(case, 0), row["category_flips"])
-            for key in ("worst_jaccard",):
-                if row[key] is not None:
-                    jaccards.append(row[key])
-            for key in ("worst_face_iou", "worst_subject_iou"):
-                if row[key] is not None:
-                    ious.append(row[key])
             for kind, count in row["assignment_changes"].items():
                 assign_max[kind] = max(assign_max.get(kind, 0), count)
             for name, count in row["attribute_changes"].items():
                 attribute_max[name] = max(attribute_max.get(name, 0), count)
+        for pid, values in report["photo_values"].items():
+            for key, bucket in (("tag_jaccard", jaccards), ("bbox_iou", ious)):
+                if values[key] is None:
+                    continue
+                if formats.get(pid) in NONDETERMINISTIC_FORMATS:
+                    own = raf_values.setdefault(pid, {})
+                    own[key] = min(own.get(key, 1.0), values[key])
+                else:
+                    bucket.append(values[key])
         for pid in ids:
             face_changes = max(face_changes, abs((b["photos"][pid]["face_count"] or 0)
                                                  - (a["photos"][pid]["face_count"] or 0)))
@@ -1109,18 +1126,29 @@ def derive_tolerances(exports, manifest, profile):
         for expected, count in labels["confusion_errors"].items():
             then = label_metrics(a, manifest)["confusion"].get(expected, {})
             confusion_rise = max(confusion_rise, count - sum(n for g, n in then.items() if g != expected))
+    tag_jaccard_min = round(max(0.0, (min(jaccards) if jaccards else 1.0) - JACCARD_MARGIN), 4)
+    bbox_iou_min = round(max(0.0, (min(ious) if ious else 1.0) - IOU_MARGIN), 4)
+    photo_min = {}
+    for pid, own in raf_values.items():
+        for key, margin, name, global_limit in (("tag_jaccard", JACCARD_MARGIN, "tag_jaccard_min", tag_jaccard_min),
+                                                 ("bbox_iou", IOU_MARGIN, "bbox_iou_min", bbox_iou_min)):
+            if key in own:
+                limit = round(max(0.0, own[key] - margin), 4)
+                if limit < global_limit:
+                    photo_min.setdefault(pid, {})[name] = limit
     return {
         "profile": profile,
         "derived_from_runs": len(exports),
         "score_abs": score_abs,
         "score_abs_photo": dict(sorted(score_abs_photo.items())),
         "srcc_min": {c: round(v - SRCC_MARGIN, 4) for c, v in sorted(srcc_min.items())},
-        "tag_jaccard_min": round(max(0.0, (min(jaccards) if jaccards else 1.0) - JACCARD_MARGIN), 4),
+        "photo_min": dict(sorted(photo_min.items())),
+        "tag_jaccard_min": tag_jaccard_min,
         "category_flips_max": {"_default": 0, **dict(sorted(flips_by_case.items()))},
         "face_count_change_max": face_changes,
         "assignment_changes_max": {"_default": 0, **dict(sorted(assign_max.items()))},
         "attribute_changes_max": {"_default": 0, **dict(sorted(attribute_max.items()))},
-        "bbox_iou_min": round(max(0.0, (min(ious) if ious else 1.0) - IOU_MARGIN), 4),
+        "bbox_iou_min": bbox_iou_min,
         "label": {"min_pairs": MIN_PAIRS, "pair_agreement_margin": round(agreement_drop, 4),
                   "confusion_errors_margin": max(0, confusion_rise)},
     }

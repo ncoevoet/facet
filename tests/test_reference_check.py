@@ -515,6 +515,40 @@ def test_non_raf_noise_still_widens_the_global_limit(recorded):
     assert derived["score_abs_photo"] == {}
 
 
+def test_raf_tag_change_gets_a_per_photo_minimum_and_leaves_the_global_one(recorded):
+    def edit(rows, faces):
+        rows[7]["tags"] = "x,y"   # p07 is the raf photo
+    derived, _, _ = _derived(recorded, "ta", edit)
+    assert derived["tag_jaccard_min"] == round(1.0 - cr.JACCARD_MARGIN, 4)
+    assert derived["photo_min"]["p07"]["tag_jaccard_min"] == round(max(0.0, 0.0 - cr.JACCARD_MARGIN), 4)
+    assert list(derived["photo_min"]) == ["p07"]
+
+
+def test_non_raf_tag_change_still_lowers_the_global_minimum(recorded):
+    def edit(rows, faces):
+        rows[9]["tags"] = "x,y"
+    derived, _, _ = _derived(recorded, "tb", edit)
+    assert derived["tag_jaccard_min"] == round(max(0.0, 0.0 - cr.JACCARD_MARGIN), 4)
+    assert derived["photo_min"] == {}
+
+
+def test_tag_loss_fails_a_quiet_photo_while_the_raf_allowance_passes(recorded):
+    tol = dict(TOLERANCES, photo_min={"p07": {"tag_jaccard_min": 0.0}})
+
+    def raf_only(rows, faces):
+        rows[7]["tags"] = "x,y"
+
+    def raf_and_quiet(rows, faces):
+        rows[7]["tags"] = "x,y"
+        rows[8]["tags"] = "x,y"
+
+    ok = report_of(recorded, build_db(recorded["tmp"], "t1.db", recorded["set"], raf_only), tol)
+    assert not find(ok, "landscape", "tag_jaccard")
+    assert ok["noisy_photos"] == {"p07": {"tag_jaccard_min": 0.0}}
+    bad = report_of(recorded, build_db(recorded["tmp"], "t2.db", recorded["set"], raf_and_quiet), tol)
+    assert [v["photo"] for v in find(bad, "landscape", "tag_jaccard")] == ["p08"]
+
+
 def test_per_photo_allowance_does_not_loosen_quiet_photos(recorded, capsys):
     tol = dict(TOLERANCES, score_abs_photo={"p07": {"aggregate": 1.0}})
 
