@@ -3509,6 +3509,7 @@ export const I18N = {
       base_render: "photo_detail.rendition.base_render",
       edited_failed: "photo_detail.rendition.edited_failed",
       source_failed: "photo_detail.rendition.source_failed",
+      show_info: "photo_detail.rendition.show_info",
     },
     remove_catalog: {
       title: "photo_detail.remove_catalog.title",

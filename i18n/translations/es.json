@@ -3469,7 +3469,8 @@
       "note": "Imagen de origen es la imagen para visualización que entrega el servidor, no un revelado RAW editable. Las dimensiones describen los píxeles decodificados. El zoom es relativo a Ajustar, no al 100 % de los píxeles del sensor. Las mediciones almacenadas del histograma describen la imagen analizada; las estimaciones de miniaturas y los marcadores de recorte no demuestran recorte de valores del sensor RAW.",
       "base_render": "Imagen base de visualización",
       "edited_failed": "Vista previa revelada no disponible",
-      "source_failed": "Imagen de origen no disponible"
+      "source_failed": "Imagen de origen no disponible",
+      "show_info": "Mostrar información del origen de la imagen"
     },
     "remove_catalog": {
       "title": "¿Quitar de Facet?",

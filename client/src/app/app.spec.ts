@@ -23,6 +23,7 @@ import { By } from '@angular/platform-browser';
 import { MatTooltip } from '@angular/material/tooltip';
 
 import { KeyboardMappingService, KEYMAP_STORAGE_KEY } from './core/services/keyboard-mapping.service';
+import { PHOTO_READOUT_KEY, PhotoReadoutPreferences } from './core/services/photo-readout-preferences.service';
 import { FEATURE_MARK } from './shared/pipes/mark-tone.pipe';
 
 @Component({ selector: 'app-navigation-fixture-page', template: '' })
@@ -940,6 +941,24 @@ describe('App', () => {
       expect(sub.some(l => l.includes(I18N.ui.switch_language))).toBe(true);
       expect(sub.some(l => l.includes(I18N.ui.light_mode))).toBe(true);
       expect(sub.some(l => l.includes(I18N.ui.theme))).toBe(true);
+    });
+
+    it('toggles the photo source information from Display', () => {
+      try {
+        const { fixture, root } = render(false);
+        const preferences = TestBed.inject(PhotoReadoutPreferences);
+        const item = () => openSubmenu(fixture, openUserMenu(fixture, root), I18N.ui.display_menu)
+          .find(i => i.textContent!.includes(I18N.photo_detail.rendition.show_info))!;
+        const toggle = item();
+        expect(toggle.getAttribute('role')).toBe('menuitemcheckbox');
+        expect(toggle.getAttribute('aria-checked')).toBe('true');
+        toggle.click(); fixture.detectChanges();
+        expect(preferences.visible()).toBe(false);
+        expect(localStorage.getItem(PHOTO_READOUT_KEY)).toBe('false');
+        expect(item().getAttribute('aria-checked')).toBe('false');
+      } finally {
+        localStorage.removeItem(PHOTO_READOUT_KEY);
+      }
     });
 
     it.each([[true, false, false, true], [false, false, false, false],

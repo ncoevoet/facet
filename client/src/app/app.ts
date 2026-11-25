@@ -26,6 +26,7 @@ import { AuthService } from './core/services/auth.service';
 import { ScanService } from './core/services/scan.service';
 import { I18nService } from './core/services/i18n.service';
 import { ThemeService } from './core/services/theme.service';
+import { PhotoReadoutPreferences } from './core/services/photo-readout-preferences.service';
 import { PageHelpService } from './core/services/page-help.service';
 import { HeaderSlotService } from './core/services/header-slot.service';
 import { GeoPhotosService } from './core/services/geo-photos.service';
@@ -161,6 +162,7 @@ export class App implements OnInit {
   private readonly geoPhotos = inject(GeoPhotosService);
   protected readonly i18n = inject(I18nService);
   protected readonly themeService = inject(ThemeService);
+  protected readonly photoReadout = inject(PhotoReadoutPreferences);
   protected readonly pageHelp = inject(PageHelpService);
   private readonly keymap = inject(KeyboardMappingService);
 

@@ -4,6 +4,10 @@ All notable changes to Facet are documented in this file.
 
 ## [Unreleased]
 
+### Added
+
+- **Hide the photo source readout.** User menu → Display now offers a browser-persisted “Show image source information” switch, on by default. Turning it off removes the dedicated row beneath the photo and keeps Zoom/Fit in a compact overlay. Loading, source failures and Retry remain available.
+
 ### Fixed
 
 - **Map markers stay visible across the international date line.** Photo and cluster markers use the visible copy of the map when you pan across the boundary.

@@ -64,6 +64,7 @@ import { setScopePatch } from '../gallery/gallery-filters.util';
 import * as L from 'leaflet';
 import { createLeafletMap, OSM_TILES } from '../../shared/leaflet';
 import { MapSourcePreferences } from '../../core/services/map-source-preferences.service';
+import { PhotoReadoutPreferences } from '../../core/services/photo-readout-preferences.service';
 import { I18N, i18nKeys } from '../../core/i18n/keys';
 import { isPageShortcutBlocked } from '../../shared/utils/keyboard';
 import { privateImageSessionKey } from '../../shared/utils/private-image-session';
@@ -313,7 +314,7 @@ function inDetectedSet(photo: Photo): boolean {
             (choose)="openCollectionPhoto($event)" (more)="loadCollectionPage()" (step)="stepCollection($event)" />
         }
         <!-- Image panel -->
-        <div class="flex min-h-40 max-h-[62dvh] min-w-0 shrink-0 flex-col lg:max-h-none lg:min-h-0 lg:flex-1">
+        <div class="relative flex min-h-40 max-h-[62dvh] min-w-0 shrink-0 flex-col lg:max-h-none lg:min-h-0 lg:flex-1">
         <div data-photo-canvas tabindex="0" role="group" [attr.aria-label]="I18N.photo_detail.inspection.title | translate" aria-describedby="photo-inspection-help" [appZoomPan]="p.path" #zoom="zoomPan" [style.aspect-ratio]="photoAspect()" class="group/photo focus-visible:!outline-2 focus-visible:!-outline-offset-4 focus-visible:!outline-white flex flex-auto min-h-0 items-center justify-center bg-[var(--facet-image-canvas)] relative overflow-hidden cursor-grab lg:!aspect-auto lg:flex-1">
           @for (imagePhoto of [p]; track imagePhoto.path) {
           <!-- The collection already loads this thumbnail; keep it underneath
@@ -347,7 +348,9 @@ function inDetectedSet(photo: Photo): boolean {
               <button type="button" data-photo-previous class="pointer-events-auto inline-flex h-11 w-11 cursor-pointer items-center justify-center rounded-full bg-black/60 text-white hover:bg-black/80 focus-visible:outline-2 focus-visible:outline-white disabled:invisible"
                 [disabled]="!collectionNavigation().previous || store.loading()" [attr.aria-label]="I18N.photo_detail.collection.previous | translate"
                 (pointerdown)="$event.stopPropagation()" (dblclick)="$event.stopPropagation()" (click)="stepCollectionPhoto(-1); $event.stopPropagation()"><mat-icon aria-hidden="true">chevron_left</mat-icon></button>
-              <span data-collection-position [attr.title]="I18N.photo_detail.collection.title | translate" class="absolute bottom-2 left-1/2 -translate-x-1/2 whitespace-nowrap rounded-full bg-black/60 px-3 py-1 text-xs tabular-nums text-white">{{ I18N.photo_detail.collection.position | translate:{ position: collectionNavigation().position, total: store.total() } }}</span>
+              <span data-collection-position [attr.title]="I18N.photo_detail.collection.title | translate"
+                class="absolute bottom-2 whitespace-nowrap rounded-full bg-black/60 px-3 py-1 text-xs tabular-nums text-white"
+                [class]="readoutPreferences.visible() ? 'left-1/2 -translate-x-1/2' : 'left-2 max-w-[calc(100%_-_11rem)] truncate'">{{ I18N.photo_detail.collection.position | translate:{ position: collectionNavigation().position, total: store.total() } }}</span>
               <button type="button" data-photo-next class="pointer-events-auto inline-flex h-11 w-11 cursor-pointer items-center justify-center rounded-full bg-black/60 text-white hover:bg-black/80 focus-visible:outline-2 focus-visible:outline-white disabled:invisible"
                 [disabled]="!collectionNavigation().next || store.loading()" [attr.aria-label]="I18N.photo_detail.collection.next | translate"
                 (pointerdown)="$event.stopPropagation()" (dblclick)="$event.stopPropagation()" (click)="stepCollectionPhoto(1); $event.stopPropagation()"><mat-icon aria-hidden="true">chevron_right</mat-icon></button>
@@ -388,9 +391,14 @@ function inDetectedSet(photo: Photo): boolean {
             </div>
           }
         </div>
-          <div data-image-readout class="flex shrink-0 items-center gap-1 border-t border-[var(--facet-image-rule)] bg-[var(--facet-image-chrome)] px-4 py-1 text-[var(--facet-image-ink)] cursor-auto" role="presentation" (pointerdown)="$event.stopPropagation()" (dblclick)="$event.stopPropagation()">
-            <app-rendition-readout class="flex-1" [state]="displayedRendition()" [pending]="sourceRendition().phase === 'loading'" [attemptFailed]="sourceRendition().phase === 'failed'" [failureLabel]="I18N.photo_detail.rendition.source_failed" [scale]="zoom.scale()" [minimumScale]="1" [maximumScale]="zoom.maximumScale" (zoomStep)="zoom.zoomStep($event)" (fit)="zoom.reset()" (retry)="retryFullImage()" />
-            <app-context-help [label]="I18N.gallery.compare.rendition.sources" [keys]="[I18N.photo_detail.rendition.note]" [iconOnly]="true" />
+          <div data-image-readout [class]="readoutPreferences.visible()
+            ? 'flex shrink-0 items-center gap-1 border-t border-[var(--facet-image-rule)] bg-[var(--facet-image-chrome)] px-4 py-1 text-[var(--facet-image-ink)] cursor-auto'
+            : 'absolute bottom-2 right-2 z-10 w-40 max-w-[calc(100%_-_1rem)] rounded bg-black/80 px-2 py-1 text-white shadow cursor-auto'"
+            role="presentation" (pointerdown)="$event.stopPropagation()" (dblclick)="$event.stopPropagation()">
+            <app-rendition-readout class="flex-1" [showInfo]="readoutPreferences.visible()" [state]="displayedRendition()" [pending]="sourceRendition().phase === 'loading'" [attemptFailed]="sourceRendition().phase === 'failed'" [failureLabel]="I18N.photo_detail.rendition.source_failed" [scale]="zoom.scale()" [minimumScale]="1" [maximumScale]="zoom.maximumScale" (zoomStep)="zoom.zoomStep($event)" (fit)="zoom.reset()" (retry)="retryFullImage()" />
+            @if (readoutPreferences.visible()) {
+              <app-context-help [label]="I18N.gallery.compare.rendition.sources" [keys]="[I18N.photo_detail.rendition.note]" [iconOnly]="true" />
+            }
           </div>
         </div>
 
@@ -755,6 +763,7 @@ export class PhotoDetailComponent extends PhotoDetailBase implements OnInit {
   private readonly keymap = inject(KeyboardMappingService);
   private readonly stacks = inject(PhotoStackService);
   private readonly mapSource = inject(MapSourcePreferences);
+  protected readonly readoutPreferences = inject(PhotoReadoutPreferences);
   private readonly stackNavigator = viewChild(StackNavigatorComponent);
   private readonly faceLayer = viewChild(PhotoFaceLayerComponent);
   private readonly personMenu = viewChild(PersonFaceMenuComponent);
