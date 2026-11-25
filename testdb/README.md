@@ -362,6 +362,15 @@ from. The file is written by this command, not by hand. It also holds `attribute
 photos per case may change `composition_pattern`, a flag or GPS presence (derived from the spread
 between the runs; 0 when they agree).
 
+Photos of a format in `NONDETERMINISTIC_FORMATS` (`raf`) get per-photo score limits. LibRaw's X-Trans
+demosaic of Fujifilm RAF files differs between decodes of the same file (3 decodes of `raw-raf-05` gave
+3 different pixel hashes; a NEF decodes identically), so those photos swing `aggregate` and
+`leading_lines_score` by up to a few points. Their own limit (3x their spread between the runs, never
+below the floor) goes in `score_abs_photo`; every other photo feeds the global `score_abs`, so the RAFs
+cannot loosen the check on the rest of the set and small saliency jitter is absorbed globally. The report
+lists the allowances under **NOISY PHOTOS**: those photos are only loosely checked, and a green run does
+not say otherwise. No other format is listed without a measurement like the one above.
+
 ### Read the report
 
 Sections: (1) overall SRCC per score column, (2) per case (lost faces, category flips, moved scores,

@@ -54,8 +54,8 @@ def make_manifest():
         photos.append({
             "id": pid, "path": f"cat/{pid}.jpg", "url": "https://example.org/x", "sha256": f"{i:064x}",
             "bytes": 100 + i, "kind": "download", "derived_from": None, "recipe": None,
-            "pixel_sha256": None, "format": "jpeg", "megapixels": 1.0, "companion_of": None,
-            "scored": True, "cases": case_of(pid),
+            "pixel_sha256": None, "format": "raf" if pid == "p07" else "jpeg", "megapixels": 1.0,
+            "companion_of": None, "scored": True, "cases": case_of(pid),
             "expected_category": "portrait" if face else "landscape",
             "acceptable_categories": ["portrait"] if face else ["landscape", "architecture"],
         })
@@ -488,17 +488,51 @@ def test_tolerances_floors_and_holdout(recorded, capsys):
     assert "HOLD-OUT FAIL" in capsys.readouterr().out
 
 
-def test_tolerances_widen_to_observed_noise(recorded):
-    def edit(rows, faces):
-        rows[7]["aggregate"] += 0.3
+def _derived(recorded, name, edit):
     manifest = recorded["manifest"]
-    exports = [cr.build_golden(build_db(recorded["tmp"], "na.db", recorded["set"]), recorded["set"], manifest, "16gb", {}),
-               cr.build_golden(build_db(recorded["tmp"], "nb.db", recorded["set"], edit), recorded["set"], manifest, "16gb", {})]
-    derived = cr.derive_tolerances(exports, manifest, "16gb")
-    assert derived["score_abs"]["aggregate"] == pytest.approx(3 * 0.3 / 2 ** 0.5, abs=1e-3)
+    exports = [cr.build_golden(build_db(recorded["tmp"], f"{name}a.db", recorded["set"]), recorded["set"], manifest, "16gb", {}),
+               cr.build_golden(build_db(recorded["tmp"], f"{name}b.db", recorded["set"], edit), recorded["set"], manifest, "16gb", {})]
+    return cr.derive_tolerances(exports, manifest, "16gb"), exports, manifest
+
+
+def test_raf_noise_gets_a_per_photo_allowance_and_leaves_the_global_limit(recorded):
+    def edit(rows, faces):
+        rows[7]["aggregate"] += 0.3   # p07 is the raf photo
+    derived, exports, manifest = _derived(recorded, "na", edit)
+    assert derived["score_abs"]["aggregate"] == cr.SCORE_FLOOR
+    assert derived["score_abs_photo"]["p07"]["aggregate"] == pytest.approx(3 * 0.3 / 2 ** 0.5, abs=1e-3)
+    assert list(derived["score_abs_photo"]) == ["p07"]
     assert derived["score_abs"]["topiq_score"] == cr.SCORE_FLOOR
     with pytest.raises(cr.SetupError):
         cr.derive_tolerances(exports[:1], manifest, "16gb")
+
+
+def test_non_raf_noise_still_widens_the_global_limit(recorded):
+    def edit(rows, faces):
+        rows[9]["aggregate"] += 0.3
+    derived, _, _ = _derived(recorded, "nb", edit)
+    assert derived["score_abs"]["aggregate"] == pytest.approx(3 * 0.3 / 2 ** 0.5, abs=1e-3)
+    assert derived["score_abs_photo"] == {}
+
+
+def test_per_photo_allowance_does_not_loosen_quiet_photos(recorded, capsys):
+    tol = dict(TOLERANCES, score_abs_photo={"p07": {"aggregate": 1.0}})
+
+    def noisy_within(rows, faces):
+        rows[7]["aggregate"] += 0.9
+
+    def quiet_regression(rows, faces):
+        rows[7]["aggregate"] += 0.9
+        rows[8]["aggregate"] += 1.0
+
+    ok = report_of(recorded, build_db(recorded["tmp"], "n1.db", recorded["set"], noisy_within), tol)
+    assert not find(ok, "landscape", "score_abs:aggregate")
+    assert ok["noisy_photos"] == {"p07": {"aggregate": 1.0}}
+    bad = report_of(recorded, build_db(recorded["tmp"], "n2.db", recorded["set"], quiet_regression), tol)
+    hits = find(bad, "landscape", "score_abs:aggregate")
+    assert [v["photo"] for v in hits] == ["p08"] and hits[0]["limit"] == 0.05
+    text = cr.render_report(bad)
+    assert "== NOISY PHOTOS" in text and "non-deterministic RAW decode (raf)" in text and "p07: aggregate +/-1.0" in text
 
 
 def test_tolerances_default_to_the_per_profile_path(recorded, monkeypatch):
