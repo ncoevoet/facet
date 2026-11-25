@@ -1,0 +1,8 @@
+{
+  "models": {
+    "vram_profile": "legacy"
+  },
+  "processing": {
+    "mode": "multi-pass"
+  }
+}
