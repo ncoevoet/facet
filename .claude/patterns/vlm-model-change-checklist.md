@@ -49,6 +49,7 @@ these locations. The `tagging_model` profile string (e.g. `qwen3.5-2b`) → tagg
 - `grep -rniE 'qwen3[._]5|<old_name>' --include=*.py --include=*.json .` returns nothing stale.
 - Trace one profile end-to-end: `tagging_model` string → tagger key → config block → real `model_path`.
 - `python -m pytest tests/test_multi_pass.py tests/test_model_manager.py tests/test_caption.py`.
+- Run `python testdb/check_reference.py check` for each recorded profile (`legacy`, `8gb`, `16gb`) before and after the model change; re-record a golden (`update`) only for an intended change. See [testdb/README.md](../../testdb/README.md#reference-photo-set).
 
 > **DRY follow-up:** sites 7–16 each re-implement the same string→key map. A single shared
 > `tagging_model_to_key()` helper would collapse them and kill this bug class.

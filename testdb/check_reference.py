@@ -57,7 +57,7 @@ from db.schema import PHOTOS_COLUMNS  # noqa: E402
 GOLDEN_VERSION = 1
 GOLDEN_DIR = TESTDB_DIR / "reference_goldens"
 CONFIG_DIR = TESTDB_DIR / "reference_configs"
-TOLERANCES_PATH = TESTDB_DIR / "reference_tolerances.json"
+TOLERANCES_DIR = TESTDB_DIR / "reference_tolerances"
 PROFILES = ("legacy", "8gb", "16gb", "24gb")
 PROTECTED_DB_NAME = "photo_scores_pro.db"
 OVERALL = "(overall)"
@@ -627,7 +627,7 @@ def label_metrics(golden_like, manifest):
 # --------------------------------------------------------------------------- diff engine
 
 class Tolerances:
-    """Limits from ``reference_tolerances.json``; ``None`` limits mean report-only."""
+    """Limits from ``reference_tolerances/<profile>.json``; ``None`` limits mean report-only."""
 
     def __init__(self, data):
         self.data = data
@@ -887,6 +887,10 @@ def _load_inputs(args):
     return manifest
 
 
+def _tolerances_path(args):
+    return Path(args.tolerances) if getattr(args, "tolerances", None) else TOLERANCES_DIR / f"{args.profile}.json"
+
+
 def _golden_path(args):
     return Path(args.golden) if getattr(args, "golden", None) else GOLDEN_DIR / f"{args.profile}.json"
 
@@ -928,9 +932,12 @@ def cmd_check(args):
     golden = _load_golden(_golden_path(args), manifest, args.profile)
     current = _current(args, manifest)
     tolerances = None
-    path = Path(args.tolerances) if args.tolerances else TOLERANCES_PATH
+    path = _tolerances_path(args)
     if path.exists():
         tolerances = json.loads(path.read_text("utf8"))
+        if tolerances.get("profile") != args.profile:
+            raise SetupError(
+                f"tolerances {path} are for profile {tolerances.get('profile')!r}, not {args.profile!r}")
     elif args.tolerances:
         raise SetupError(f"tolerances {path} does not exist")
     report = compare(golden, current, manifest, tolerances)
@@ -967,7 +974,7 @@ def cmd_update(args):
 
 # --------------------------------------------------------------------------- tolerances
 
-def derive_tolerances(exports, manifest):
+def derive_tolerances(exports, manifest, profile):
     """Tolerances from >= 2 repeat exports of the same set (spec "Tolerances plan")."""
     if len(exports) < 2:
         raise SetupError("tolerances need at least 2 runs")
@@ -1011,6 +1018,7 @@ def derive_tolerances(exports, manifest):
             then = label_metrics(a, manifest)["confusion"].get(expected, {})
             confusion_rise = max(confusion_rise, count - sum(n for g, n in then.items() if g != expected))
     return {
+        "profile": profile,
         "derived_from_runs": len(exports),
         "score_abs": score_abs,
         "srcc_min": {c: round(v - SRCC_MARGIN, 4) for c, v in sorted(srcc_min.items())},
@@ -1031,9 +1039,10 @@ def cmd_tolerances(args):
         refuse_protected_db(db)
         assert_db_in_set(db, args.set_dir)
         exports.append(build_golden(db, args.set_dir, manifest, args.profile, {}))
-    tolerances = derive_tolerances(exports, manifest)
-    write_json(args.out, tolerances)
-    print(f"tolerances from {len(exports)} runs written to {args.out}")
+    tolerances = derive_tolerances(exports, manifest, args.profile)
+    out = args.out or TOLERANCES_DIR / f"{args.profile}.json"
+    write_json(out, tolerances)
+    print(f"tolerances from {len(exports)} runs written to {out}")
     if not args.holdout:
         return 0
     refuse_protected_db(args.holdout)
@@ -1046,6 +1055,9 @@ def cmd_tolerances(args):
 
 
 def cmd_scan(args):
+    if shutil.which("exiftool") is None:
+        print("WARNING: exiftool not found on PATH; EXIF is read by the exifread fallback, so this run is "
+              "not comparable with an exiftool golden")
     failed = run_scan(args.profile, args.set_dir, args.db, args.config_dir)
     print(f"scan finished; {failed} failed pass(es); see {passes_path(args.db)}")
     return 1 if failed else 0
@@ -1082,7 +1094,7 @@ def build_parser():
     p = common(sub.add_parser("tolerances", help="derive tolerances from repeat runs"), db=False)
     p.add_argument("--runs", nargs="+", required=True)
     p.add_argument("--holdout")
-    p.add_argument("--out", default=str(TOLERANCES_PATH))
+    p.add_argument("--out", default=None)
     p.set_defaults(func=cmd_tolerances)
     return parser
 

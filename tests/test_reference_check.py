@@ -25,6 +25,7 @@ BRACKET_A = ["p04", "p05", "p06"]
 BRACKET_B = ["p07", "p08", "p09"]
 LANDSCAPE = [f"p{i:02d}" for i in range(4, N)]
 TOLERANCES = {
+    "profile": "16gb",
     "score_abs": {"_default": 0.05},
     "srcc_min": {"aggregate": 0.9},
     "tag_jaccard_min": 0.5,
@@ -472,11 +473,60 @@ def test_tolerances_widen_to_observed_noise(recorded):
     manifest = recorded["manifest"]
     exports = [cr.build_golden(build_db(recorded["tmp"], "na.db", recorded["set"]), recorded["set"], manifest, "16gb", {}),
                cr.build_golden(build_db(recorded["tmp"], "nb.db", recorded["set"], edit), recorded["set"], manifest, "16gb", {})]
-    derived = cr.derive_tolerances(exports, manifest)
+    derived = cr.derive_tolerances(exports, manifest, "16gb")
     assert derived["score_abs"]["aggregate"] == pytest.approx(3 * 0.3 / 2 ** 0.5, abs=1e-3)
     assert derived["score_abs"]["topiq_score"] == cr.SCORE_FLOOR
     with pytest.raises(cr.SetupError):
-        cr.derive_tolerances(exports[:1], manifest)
+        cr.derive_tolerances(exports[:1], manifest, "16gb")
+
+
+def test_tolerances_default_to_the_per_profile_path(recorded, monkeypatch):
+    set_dir, tmp = recorded["set"], recorded["tmp"]
+    monkeypatch.setattr(cr, "TOLERANCES_DIR", tmp / "tols")
+    runs = [str(build_db(tmp, "da.db", set_dir)), str(build_db(tmp, "db.db", set_dir))]
+    base = ["--profile", "16gb", "--set-dir", str(set_dir), "--manifest", str(recorded["manifest_path"])]
+    assert cr.main(["tolerances", *base, "--runs", *runs]) == 0
+    written = tmp / "tols" / "16gb.json"
+    assert json.loads(written.read_text("utf8"))["profile"] == "16gb"
+    assert run_check(recorded, build_db(tmp, "dc.db", set_dir), tolerances=False) == 0
+
+
+def test_check_loads_the_per_profile_default(recorded, monkeypatch):
+    tmp = recorded["tmp"]
+    monkeypatch.setattr(cr, "TOLERANCES_DIR", tmp / "tols")
+    (tmp / "tols").mkdir()
+    loose = dict(TOLERANCES, score_abs={"_default": 5.0})
+    (tmp / "tols" / "16gb.json").write_text(json.dumps(loose), "utf8")
+
+    def edit(rows, faces):
+        rows[7]["aggregate"] += 1.0
+    assert run_check(recorded, build_db(tmp, "pd.db", recorded["set"], edit), tolerances=False) == 0
+
+
+def test_check_refuses_tolerances_of_another_profile(recorded, capsys):
+    other = recorded["tmp"] / "other.json"
+    other.write_text(json.dumps(dict(TOLERANCES, profile="8gb")), "utf8")
+    db = build_db(recorded["tmp"], "mm.db", recorded["set"])
+    assert run_check(recorded, db, "--tolerances", str(other), tolerances=False) == 2
+    assert "for profile '8gb', not '16gb'" in capsys.readouterr().err
+
+
+def test_check_refuses_tolerances_without_a_profile(recorded, capsys):
+    bare = recorded["tmp"] / "bare.json"
+    bare.write_text(json.dumps({k: v for k, v in TOLERANCES.items() if k != "profile"}), "utf8")
+    db = build_db(recorded["tmp"], "np.db", recorded["set"])
+    assert run_check(recorded, db, "--tolerances", str(bare), tolerances=False) == 2
+    assert "for profile None" in capsys.readouterr().err
+
+
+@pytest.mark.parametrize("present", [False, True])
+def test_scan_warns_when_exiftool_is_missing(world, monkeypatch, capsys, present):
+    monkeypatch.setattr(cr.shutil, "which", lambda name: "exiftool" if present else None)
+    monkeypatch.setattr(cr, "run_scan", lambda *a, **k: 0)
+    argv = ["scan", "--profile", "16gb", "--set-dir", str(world["set"]), "--manifest",
+            str(world["manifest_path"]), "--db", str(world["tmp"] / "s.db")]
+    assert cr.main(argv) == 0
+    assert ("WARNING: exiftool not found" in capsys.readouterr().out) is (not present)
 
 
 # --------------------------------------------------------------------------- scan
