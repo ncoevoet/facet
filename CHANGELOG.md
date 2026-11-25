@@ -4,6 +4,8 @@ All notable changes to Facet are documented in this file.
 
 ## [Unreleased]
 
+## [1.31.0] "Huangpu" — 2026-11-25
+
 ### Added
 
 - **A reference photo set catches scoring regressions before a release.** `testdb/reference_set.json` pins 537 openly licensed photos (529 scored) across 130 filled cases (147 defined, 17 are documented gaps): faces, formats, EXIF orientation, ICC profiles, geometry, technical defects, bursts, brackets, panoramas, duplicates, junk and narrative moments, with category labels and defect pairs. `testdb/make_reference_set.py` fetches and verifies it, rejecting a photo whose licence the machine gate cannot confirm. `testdb/check_reference.py` scans it per VRAM profile and compares the result with the committed golden for `legacy`, `8gb` or `16gb`, using limits derived from repeat scans. Any change outside those limits is reported by case and exits 1. Values of Fujifilm RAF files are not compared, because their X-Trans decode differs on every run. See `testdb/README.md`.
