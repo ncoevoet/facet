@@ -326,3 +326,10 @@ Independent opus pass: 4 BLOCKER, 14 GAP, 3 NOTE. All accepted and adjudicated; 
   - Accepted entries carry `approved_by: "licence-check"`, `approved_on` (run date) and `licence_evidence` (API URL + the raw `LicenseShortName` value). The validator requires `licence_evidence` whenever `approved_by == "licence-check"`.
   - The maintainer reviews the final manifest in the single PR; that review is the human gate.
 - Everything else (no prod DB, D: only, never delete files, no AI attribution in commits) unchanged.
+
+## Progress log (orchestrator checkpoint)
+- 2026-11-25 wave 1-3 DONE, pushed to `origin/feat/reference-set-393` (HEAD 6d7dc1f81): validator, `make_reference_set.py` (fetch/verify/pin/--finalize-gaps, recipes), `licence_check.py` (machine gate), `check_reference.py` (scan/record/check/update/tolerances), 346 tests green.
+- Set built at `D:\facet-scratch\refset-393` (4.6 GB, 575 photos verified, 15 known gaps). Candidates in `.claude/.scratch/393-candidates-*.jsonl`; last gate run `D:\facet-scratch\tmp\393-run5\`.
+- Deviation: `learned_score` excluded from goldens (depends on the user's own comparisons).
+- Sequence cases (`seq-*`) min 2 sets; `comp-raw-jpeg` 6-10 photos (3-5 pairs).
+- NEXT: (4) visual case-fit + child check of every photo, which also proposes `expected_category`/`acceptable_categories`; drop failing case memberships, re-run `--finalize-gaps`; (5) defect `pairs` + `reviewed`/`labeller` fields; (6) stability scans + goldens for legacy/8gb/16gb via `check_reference.py scan` (scratch DBs on D:, never the prod DB); (7) docs (`testdb/README.md`, model-change checklist line); (8) full gates, open the single PR, merge on green CI.
