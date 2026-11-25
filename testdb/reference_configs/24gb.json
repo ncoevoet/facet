@@ -1,0 +1,8 @@
+{
+  "models": {
+    "vram_profile": "24gb"
+  },
+  "processing": {
+    "mode": "multi-pass"
+  }
+}

@@ -229,3 +229,180 @@ Massachusetts, Amherst, Technical Report 07-49, October 2007.
 http://vis-www.cs.umass.edu/lfw/
 
 LFW photos are 250x250 and carry no capture date, so scenes and the timeline do not apply.
+
+## Reference set: CC-BY-SA files
+
+Reference-set files under CC-BY-SA (any case, used unmodified only) keep their own licence and are not
+covered by the repo's MIT licence. They are never derived from, no pixels or thumbnails of them
+are committed, and review pages built from them stay local.
+
+## Reference photo set
+
+A fixed set of 537 photos with a recorded output per VRAM profile (`legacy`, `8gb`, `16gb`). It is a
+regression guard for model, weight and scoring changes: after a change you scan the set again and the
+check shows what moved. Results are reported per case (a category, a face situation, a file format, a
+sequence kind, a technical defect), so a regression confined to one case is not hidden by an average
+over the whole set.
+
+**Labels are a regression guard, not training data.** `expected_category`, `acceptable_categories` and
+the defect `pairs` record what a reviewer judged at curation time so that a change in behaviour shows
+up. Do not train, fit or tune weights on them.
+
+### Contents
+
+Everything is described by `testdb/reference_set.json` (`schema_version`, `cases`, `photos`, `pairs`,
+`known_gaps`). No photo is committed; only the manifest is.
+
+- **cases**: a closed vocabulary. Each case has a `group`, a `title`, `min_photos` / `max_photos` and
+  an optional `known_gap`. A photo lists the cases it belongs to.
+- **photos**: id, path inside the set, source URL, `sha256`, `bytes`, `kind` (`download`, or `derived`
+  with a `recipe` and `pixel_sha256`), licence, author, attribution, source page and the licence
+  evidence the gate recorded. RAW files that only accompany a JPEG are `scored: false`.
+- **labels**: a photo may carry `expected_category`, `acceptable_categories`, `labeller` and `reviewed`.
+  Labels exist for the 15 categories `portrait`, `portrait_bw`, `group_portrait`, `silhouette`, `art`,
+  `macro`, `astro`, `street`, `aerial`, `concert`, `night`, `wildlife`, `architecture`, `food`,
+  `landscape`.
+- **pairs**: `better` / `worse` photo ids with a `category`, a `defect` (`motion_blur`, `out_of_focus`,
+  `clipped_highlights`, `clipped_shadows`, `underexposed`, `overexposed`, `blink`, `closed_eyes`,
+  `noise`, `compression`, `colour_cast`, `burst_best_frame`) and a reason. The check asks whether the
+  scorer still ranks `better` above `worse`. A category is only checked with at least 10 pairs.
+- **known_gaps**: a case that has no usable photos yet, with the reason. Reasons are the machine
+  licence gate finding nothing admissible, a visual review dropping a photo that did not fit its case,
+  and children (no photo of an identifiable child is accepted, so `face-child` is a gap). The
+  categories outside the 15 labelled ones appear as `label-<category>` gaps.
+
+### Licences
+
+Only CC0, CC-BY and public domain photos are accepted. CC-BY-SA is accepted unmodified only (never
+used as a derivation base, no pixels or thumbnails committed). NC and ND licences are rejected, as are
+AI-generated media and identifiable minors. `testdb/licence_check.py` is the machine gate, and it does
+not screen children on its own: it rejects a candidate for a child only when the researcher's metadata
+flags one (`child`, or `identifiable_people` together with a Commons category naming children, minors,
+girls, boys or kids), and the same holds for AI-generated media (category test only). A first pass let 5
+photos of children through; a visual review removed them. Review every new candidate by eye. For
+Wikimedia Commons it reads the licence from the Commons API twice independently and both reads must
+map to the allowlist; for raw.pixls.us it accepts only samples the site lists as CC0. Attribution
+lives per photo in the manifest (`attribution`, `author`, `source_page`, `licence_evidence`). See also
+[Reference set: CC-BY-SA files](#reference-set-cc-by-sa-files) above.
+
+### Build the set (about 4.5 GB)
+
+Build into a folder on a data drive, never inside the repo or a git worktree and never on a network
+path:
+
+```bash
+python testdb/make_reference_set.py --out D:/ref-set
+python testdb/make_reference_set.py --out D:/ref-set --verify-only   # no network: re-hash every file
+```
+
+It downloads each photo, checks `bytes` and `sha256`, recomputes derived photos from their base and
+checks `pixel_sha256`, then writes `manifest.lock.json`. A file failing its hash is renamed to
+`<name>.bad`; nothing is deleted. Useful flags: `--only GROUP_OR_CASE`, `--resume` (reuse an existing
+`--out`), `--delay` and `--backoff` for the request pacing. Exit code 0 means everything verified.
+
+### Scan a profile
+
+```bash
+python testdb/check_reference.py scan --profile 8gb --set-dir D:/ref-set --db D:/ref-scans/8gb-A.db
+```
+
+Prerequisite: exiftool >= 13.28 on PATH (Facet refuses to write with 13.23-13.27); without it the scan
+warns that EXIF comes from the exifread fallback and is not comparable with an exiftool golden.
+The database must be a scratch file. The command refuses the production/default database and any
+database holding a photo outside `<set-dir>/photos`. It scans with the override config
+`testdb/reference_configs/<profile>.json` (copied next to the database), never writes the operator's
+`scoring_config.json`, and fails if that file changed during the scan. After the scan it runs, in
+order, `--recompute-average`, `--detect-sequences`, `--detect-duplicates`, `--detect-junk` and
+`--detect-moments`; each pass's exit code goes into a sidecar next to the database, and the command
+exits 1 if any pass failed. The sidecar also records the `profile`. `--config-dir` selects another
+folder of profile configs.
+
+### Record, check, update
+
+```bash
+python testdb/check_reference.py record --profile 8gb --set-dir D:/ref-set --db D:/ref-scans/8gb-A.db \
+    --out testdb/reference_goldens/8gb.json
+python testdb/check_reference.py check  --profile 8gb --set-dir D:/ref-set --db D:/ref-scans/8gb-new.db
+python testdb/check_reference.py update --profile 8gb --set-dir D:/ref-set --db D:/ref-scans/8gb-new.db
+```
+
+- Every command except `scan` first reads `<set-dir>/manifest.lock.json` (written by
+  `make_reference_set.py`) and exits 2 when it is missing or its `file_level_digest` differs from the
+  manifest's, and reads the database's pass sidecar and exits 2 when it is missing, shows a failed pass
+  or names another profile than `--profile`. `record`, `update` and `tolerances` (including
+  `--holdout`) refuse a bad scan like `check` does, so a half-finished scan can never become a golden.
+- `record` exports a golden: the scores, faces, categories, composition pattern, flags (blink,
+  monochrome, silhouette, group portrait, shadow and highlight clipping), GPS presence (a boolean: the
+  coordinates themselves are EXIF inputs), `caption` and set assignments of every scored photo, plus an
+  informational environment block. `caption` is VLM free text: it is recorded for reading and never
+  compared. Goldens live in `testdb/reference_goldens/<profile>.json`
+  and are produced by the recording runs, not edited by hand.
+- `check` diffs a scan against the golden (`--golden` to pick another file). `--report-only` prints the
+  report and never exits 1. `--json OUT` also writes the report as JSON. Without a tolerances file
+  `check` is a setup error (exit 2) unless `--report-only` is given.
+- `update` rewrites the golden after an intended change. It prints the report first and refuses when
+  more than 20 % of the photos moved unless `--yes` is given (exit 1 in that case, the same code as a
+  regression; the golden is left untouched). A golden and a scan that hold different photos are a setup
+  error: re-record instead.
+
+### Tolerances
+
+```bash
+python testdb/check_reference.py tolerances --profile 8gb --set-dir D:/ref-set \
+    --runs A.db B.db --holdout C.db
+```
+
+The file is written to `testdb/reference_tolerances/<profile>.json` (`--out` overrides) with a `profile`
+key; `check` loads the file of its own `--profile` and exits 2 on a mismatch.
+Scan the same profile at least twice on the same machine; the limits (score noise per column, SRCC
+floor, tag overlap, face-box overlap, allowed category flips, label margins) come from the spread
+between those runs. `--holdout` compares a further, independent run against the derived limits and
+prints `HOLD-OUT PASS` or `FAIL` (exit 1), which shows the limits are not tuned to the runs they came
+from. The saliency columns (`subject_sharpness`, `subject_placement`, `bg_separation`) never derive below `SALIENCY_NOISE_FLOOR`, the shared BiRefNet model's jitter measured on the 8gb scans. The file is written by this command, not by hand. It also holds `attribute_changes_max`: how many
+photos per case may change `composition_pattern`, a flag or GPS presence (derived from the spread
+between the runs; 0 when they agree).
+
+Photos of a format in `NONDETERMINISTIC_FORMATS` (`raf`) are excluded from every value comparison
+(scores, SRCC, tags, boxes, face count, category, assignments, attributes, label and pair metrics) and from
+every input to the derived tolerances. LibRaw's X-Trans demosaic of Fujifilm RAF files differs between
+decodes of the same file: 3 decodes of `raw-raf-05` gave 3 different pixel hashes (a NEF decodes
+identically), and a 4th 16gb run moved `raw-raf-03`'s aggregate by 1.05, flipped its category and dropped
+`raw-raf-02`'s tag Jaccard to 0.43, far outside any allowance derived from three runs. Such a photo is still
+checked for presence: its row must exist in the scan and a score the golden holds must not become NULL.
+The report lists each one under **NOT CHECKED** ("values not compared"), so the RAF case proves decode and
+presence, not values. No other format is listed without a measurement like the one above.
+
+### Read the report
+
+Sections: (1) overall SRCC per score column, (2) per case (lost faces, category flips, moved scores,
+assignment changes, changed composition patterns, flags and GPS presence), (3) the most moved photos, (4) category confusion and photos outside
+`acceptable_categories`, (5) pairwise agreement per category, (6) sequence, burst, duplicate, junk and
+moment changes, then the violations.
+
+Coverage is exact: a photo in the golden but not in the scan (`photo_not_in_scan`), in the scan but
+not in the golden (`photo_not_in_golden`), or a `scored: false` manifest photo that the scan scored
+anyway (`unscored_photo_scored`, a companion RAW no longer suppressed) is a violation listed by id; a
+golden and a scan with no photo in common is a setup error.
+
+The **NOT CHECKED** block lists what a green run does not cover: pair categories with fewer than 10
+pairs or none (`LOW-CONFIDENCE`), `comp-xmp: xmp rating import is not exercised by the scan passes`
+(no `--import-sidecars` pass runs) and every known-gap case. Read it before calling a run clean.
+
+Exit codes of `check`: `0` pass (or report-only), `1` past tolerance, `2` setup error (missing set
+files or lock, manifest digest differs from the golden or the lock so it must be re-recorded, database
+not from the set or refused, golden for another profile, a failed, missing or other-profile scan
+sidecar, no tolerances file without `--report-only`, or an unexpected exception: exit 1 only ever
+means past tolerance).
+
+### Add a case or a photo
+
+1. Run `python testdb/licence_check.py CANDIDATES.jsonl --out APPROVED.json --rejected REJECTED.json`
+   on candidate entries, then `python testdb/make_reference_set.py --pin APPROVED.json --out D:/ref-set`
+   to download, hash and merge them into the manifest. `--finalize-gaps` (with `--date` and `--out`)
+   recomputes the `known_gap` entries.
+2. A new case needs an entry under `cases` (group, title, `min_photos`, `max_photos`).
+3. Add labels or pairs only after a visual check. Pairs must name two scored photos.
+4. Run the manifest validator tests (`python -m pytest tests -q -k reference`) and
+   `make_reference_set.py --verify-only`.
+5. Changing a photo changes the manifest digest, so re-record every profile golden; changing only a
+   label or a pair does not.
