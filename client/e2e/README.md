@@ -79,6 +79,7 @@ FACET_E2E_PYTHON=../venv/bin/python npm run e2e
 | `27-display-settings` | The Fast scrolling switch in Display persists across a reload |
 | `28-portfolio-export` | Export portfolio waits for a target folder (allow-listed in the seed config) and writes the album's static site there |
 | `29-capsules-date-range` | Setting and clearing the last date filter reloads the capsule grid with page 1 and no stale date parameter |
+| `30-photo-source-readout` | Desktop and phone source-information preference, persistence, floating zoom/Fit bounds and source-failure retry while hidden |
 
 Not covered yet: merge suggestions and the other persons tabs (the unnamed seed cluster does not reach "Needs naming"),
 starting a scan (it would run the scoring models), the library export, and settings beyond the Display switches.

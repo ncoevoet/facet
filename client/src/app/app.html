@@ -399,6 +399,12 @@
           }
         </mat-menu>
         <mat-menu #displayMenu="matMenu">
+          <button mat-menu-item role="menuitemcheckbox" [attr.aria-checked]="photoReadout.visible()"
+            (click)="photoReadout.setVisible(!photoReadout.visible())">
+            <mat-icon [class.invisible]="!photoReadout.visible()">check</mat-icon>
+            {{ I18N.photo_detail.rendition.show_info | translate }}
+          </button>
+          <mat-divider />
           <button mat-menu-item [matMenuTriggerFor]="langMenu">
             <mat-icon>language</mat-icon>
             {{ I18N.ui.switch_language | translate }}

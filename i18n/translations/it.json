@@ -3469,7 +3469,8 @@
       "note": "Immagine sorgente indica l’immagine da visualizzare fornita dal server, non uno sviluppo RAW modificabile. Le dimensioni descrivono i pixel decodificati. Lo zoom è relativo alla vista Adatta, non ai pixel del sensore al 100%. Le misurazioni salvate dell’istogramma descrivono l’immagine analizzata; le stime delle miniature e gli indicatori di clipping non dimostrano la saturazione del sensore RAW.",
       "base_render": "Immagine di visualizzazione di base",
       "edited_failed": "Anteprima sviluppata non disponibile",
-      "source_failed": "Immagine sorgente non disponibile"
+      "source_failed": "Immagine sorgente non disponibile",
+      "show_info": "Mostra informazioni sulla sorgente dell’immagine"
     },
     "remove_catalog": {
       "title": "Rimuovere da Facet?",

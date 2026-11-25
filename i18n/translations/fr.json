@@ -3469,7 +3469,8 @@
       "note": "Image source désigne l’image d’affichage fournie par le serveur, pas un rendu RAW modifiable. Les dimensions décrivent les pixels décodés. Le zoom est relatif à la vue ajustée au cadre, pas aux pixels du capteur à 100 %. Les mesures d’histogramme enregistrées décrivent le rendu analysé ; les estimations des miniatures et les repères d’écrêtage ne prouvent pas l’écrêtage du capteur RAW.",
       "base_render": "Rendu d’affichage de base",
       "edited_failed": "Aperçu développé indisponible",
-      "source_failed": "Image source indisponible"
+      "source_failed": "Image source indisponible",
+      "show_info": "Afficher les informations sur la source de l’image"
     },
     "remove_catalog": {
       "title": "Retirer de Facet ?",

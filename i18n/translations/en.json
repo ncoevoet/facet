@@ -3494,7 +3494,8 @@
       "note": "Source image means the display image delivered by the server, not an editable RAW render. Dimensions describe decoded pixels. Zoom is relative to Fit, not 100% sensor pixels. Stored histogram measurements describe the analyzed render; thumbnail estimates and clipping markers do not prove RAW sensor clipping.",
       "base_render": "Base display render",
       "edited_failed": "Developed preview unavailable",
-      "source_failed": "Source image unavailable"
+      "source_failed": "Source image unavailable",
+      "show_info": "Show image source information"
     },
     "remove_catalog": {
       "title": "Remove from Facet?",

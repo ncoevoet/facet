@@ -3469,7 +3469,8 @@
       "note": "Quellbild bezeichnet das vom Server gelieferte Anzeigebild, keine bearbeitbare RAW-Darstellung. Die Abmessungen beschreiben dekodierte Pixel. Der Zoom bezieht sich auf die eingepasste Ansicht, nicht auf Sensorpixel bei 100 %. Gespeicherte Histogrammwerte beschreiben die analysierte Darstellung; Schätzungen aus Miniaturen und Clipping-Markierungen belegen kein RAW-Sensor-Clipping.",
       "base_render": "Basisdarstellung",
       "edited_failed": "Entwickelte Vorschau nicht verfügbar",
-      "source_failed": "Quellbild nicht verfügbar"
+      "source_failed": "Quellbild nicht verfügbar",
+      "show_info": "Informationen zur Bildquelle anzeigen"
     },
     "remove_catalog": {
       "title": "Aus Facet entfernen?",

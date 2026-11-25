@@ -13,15 +13,17 @@ import { MatIconModule } from '@angular/material/icon';
   host: { class: '@container/rendition block min-w-0 text-xs' },
   template: `
     <div class="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1" data-rendition-readout>
-      <span role="status">
+      @if (showInfo() || pending() || attemptFailed() || state().phase !== 'ready') {
+      <span role="status" class="min-w-0 break-words">
         <span>{{ kindLabel() | translate }}<span aria-hidden="true" [class]="state().phase === 'ready' && state().width && state().height ? '@max-[320px]/rendition:hidden' : ''"> · </span></span>
         <span [class.sr-only]="state().phase === 'ready'">{{ phaseLabel() | translate }}</span>
         @if (state().phase === 'ready' && state().width && state().height) { <span class="@max-[320px]/rendition:sr-only">{{ state().width }} × {{ state().height }}</span> }
       </span>
+      }
       @if (pending()) { <span>{{ I18N.photo_detail.rendition.pending | translate }}</span> }
       @if (state().phase === 'failed' || attemptFailed()) {
         <span class="inline-flex min-w-0 items-center gap-2">
-          @if (attemptFailed()) { <span>{{ failureLabel() | translate }}</span> }
+          @if (attemptFailed()) { <span class="min-w-0 break-words">{{ failureLabel() | translate }}</span> }
           <button type="button" data-rendition-retry class="min-h-9 pointer-coarse:min-h-11 shrink-0 cursor-pointer rounded border border-current/40 px-2 font-medium hover:bg-white/15 focus-visible:outline-2" (click)="retry.emit()">{{ I18N.gallery.load_error.retry | translate }}</button>
         </span>
       }
@@ -38,6 +40,8 @@ import { MatIconModule } from '@angular/material/icon';
 export class RenditionReadoutComponent {
   protected readonly I18N = I18N;
   readonly state = input.required<DisplayedRendition>();
+  /** Hide only healthy metadata: loading and failures must remain visible. */
+  readonly showInfo = input(true);
   readonly pending = input(false);
   readonly attemptFailed = input(false);
   readonly failureLabel = input<string>(I18N.photo_detail.rendition.attempt_failed);

@@ -24,6 +24,7 @@ import { AuthService } from '../../core/services/auth.service';
 import { I18nService } from '../../core/services/i18n.service';
 import { I18N } from '../../core/i18n/keys';
 import { KeyboardMappingService, KEYMAP_STORAGE_KEY } from '../../core/services/keyboard-mapping.service';
+import { PHOTO_READOUT_KEY, PhotoReadoutPreferences } from '../../core/services/photo-readout-preferences.service';
 import { AssistantChangesService, AssistantChangeBatch } from '../../core/agent/assistant-changes.service';
 import { privateImageSessionKey, resetPrivateImageSession } from '../../shared/utils/private-image-session';
 
@@ -44,6 +45,7 @@ describe('PhotoDetailComponent', () => {
   // The open metric tab is remembered across tests otherwise.
   afterEach(() => {
     localStorage.removeItem('facet_photo_detail_tab');
+    localStorage.removeItem(PHOTO_READOUT_KEY);
     history.replaceState(null, '', location.href);
   });
 
@@ -1417,6 +1419,45 @@ describe('PhotoDetailComponent', () => {
       Object.defineProperties(img, { complete: { value: true }, naturalWidth: { value: width }, naturalHeight: { value: height } });
       return img;
     };
+
+    it('reacts to the readout preference without reloading the displayed image', () => {
+      createComponent();
+      const fixture = TestBed.createComponent(PhotoDetailComponent);
+      const view: any = fixture.componentInstance;
+      view.photo.set(samplePhoto); fixture.detectChanges();
+      view.onFullImageLoad({ target: loadedImage(view.fullImageUrl()) }); fixture.detectChanges();
+      const root = fixture.nativeElement as HTMLElement;
+      const readout = root.querySelector('[data-image-readout]')!;
+      expect(readout.querySelector('[role="status"]')?.textContent).toContain('600 × 400');
+      const source = view.fullImageUrl();
+      TestBed.inject(PhotoReadoutPreferences).setVisible(false); fixture.detectChanges();
+      expect(readout.querySelector('[role="status"]')).toBeNull();
+      expect(readout.querySelector('[data-rendition-fit]')).not.toBeNull();
+      expect(view.fullImageUrl()).toBe(source);
+      TestBed.inject(PhotoReadoutPreferences).setVisible(true); fixture.detectChanges();
+      expect(readout.querySelector('[role="status"]')?.textContent).toContain('600 × 400');
+      fixture.destroy();
+    });
+
+    it('can recover a failed source while the source-information preference is off', () => {
+      createComponent();
+      TestBed.inject(PhotoReadoutPreferences).setVisible(false);
+      const fixture = TestBed.createComponent(PhotoDetailComponent);
+      const view: any = fixture.componentInstance;
+      view.photo.set(samplePhoto); fixture.detectChanges();
+      const source = view.fullImageUrl();
+      view.onFullImageError({ target: loadedImage(source, 0, 0) }); fixture.detectChanges();
+      const readout = (fixture.nativeElement as HTMLElement).querySelector('[data-image-readout]')!;
+      expect(readout.textContent).toContain('photo_detail.rendition.source_failed');
+      readout.querySelector<HTMLButtonElement>('[data-rendition-retry]')!.click(); fixture.detectChanges();
+      expect(view.fullImageUrl()).not.toBe(source);
+      expect(view.sourceRendition().phase).toBe('loading');
+      view.onFullImageLoad({ target: loadedImage(view.fullImageUrl()) }); fixture.detectChanges();
+      expect(readout.querySelector('[data-rendition-retry]')).toBeNull();
+      expect(readout.querySelector('[role="status"]')).toBeNull();
+      expect(TestBed.inject(PhotoReadoutPreferences).visible()).toBe(false);
+      fixture.destroy();
+    });
 
     it('accepts only decoded pixels for the current source and refuses a late former frame', () => {
       createComponent();
