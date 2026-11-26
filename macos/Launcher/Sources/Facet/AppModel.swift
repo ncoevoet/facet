@@ -25,7 +25,6 @@ final class AppModel {
 
     struct ScanState: Equatable {
         var running = false
-        var phase: String? = nil
         var current: Int? = nil
         var total: Int? = nil
     }
@@ -285,16 +284,32 @@ final class AppModel {
         let pid = pid_t(UserDefaults.standard.integer(forKey: Self.serverPIDKey))
         guard pid > 0, pid != process?.processIdentifier else { return }
         UserDefaults.standard.removeObject(forKey: Self.serverPIDKey)
-        if getpgid(pid) == pid {
-            // Only a process running this app's bundled Python: the PID may since belong to anything.
-            var path = [CChar](repeating: 0, count: 4096)
-            guard proc_pidpath(pid, &path, UInt32(path.count)) > 0,
-                  Supervision.isAppPython(String(cString: path)) else { return }
-        } else if kill(-pid, 0) != 0 {
-            return
-        }
-        // A group ID is not reused while the group lives, so a leaderless one still holds our scans.
+        // Led or leaderless, the group may since belong to anything: stop it only while one of its
+        // members still runs this app's bundled Python. A reused group id never holds one, and a
+        // scan's own tools (ExifTool is Perl) may share the group, so not every member must.
+        guard Self.groupIsAppPython(pid) else { return }
         await Self.stopGroup(pid)
+    }
+
+    /// Whether process group `pgid` still has a member running some copy of the app's Python.
+    private static func groupIsAppPython(_ pgid: pid_t) -> Bool {
+        let estimate = proc_listpids(UInt32(PROC_PGRP_ONLY), UInt32(pgid), nil, 0)
+        guard estimate > 0 else { return false }
+        // Headroom for a member started between the two calls.
+        var pids = [pid_t](repeating: 0, count: Int(estimate) / MemoryLayout<pid_t>.stride + 16)
+        let bytes = pids.withUnsafeMutableBytes { buffer in
+            proc_listpids(UInt32(PROC_PGRP_ONLY), UInt32(pgid), buffer.baseAddress, Int32(buffer.count))
+        }
+        guard bytes > 0 else { return false }
+        let members = pids.prefix(Int(bytes) / MemoryLayout<pid_t>.stride).filter { $0 > 0 }
+        return members.contains(where: isAppPython)
+    }
+
+    /// Whether `pid` runs some copy of the app's bundled Python.
+    private static func isAppPython(_ pid: pid_t) -> Bool {
+        var path = [CChar](repeating: 0, count: 4096)
+        return proc_pidpath(pid, &path, UInt32(path.count)) > 0 &&
+            Supervision.isAppPython(String(cString: path))
     }
 
     /// SIGTERM a process group, then SIGKILL whatever is left of it after `stopGrace`.
@@ -348,7 +363,6 @@ final class AppModel {
 
     private struct ScanStatus: Decodable {
         struct Progress: Decodable {
-            let phase: String?
             let current: Double?
             let total: Double?
         }
@@ -365,7 +379,7 @@ final class AppModel {
                 let url = URL(string: "http://127.0.0.1:\(port)/api/scan/status")!
                 if let (data, _) = try? await URLSession.shared.data(from: url),
                    let status = try? JSONDecoder().decode(ScanStatus.self, from: data) {
-                    self.scan = ScanState(running: status.running, phase: status.progress?.phase,
+                    self.scan = ScanState(running: status.running,
                                           current: status.progress?.current.map { Int($0) },
                                           total: status.progress?.total.map { Int($0) })
                     self.setScanning(status.running)

@@ -46,7 +46,11 @@ var length = socklen_t(MemoryLayout<sockaddr_in>.size)
 _ = withUnsafeMutablePointer(to: &address) { $0.withMemoryRebound(to: sockaddr.self, capacity: 1) { getsockname(held, $0, &length) } }
 let heldPort = Int(UInt16(bigEndian: address.sin_port))
 check(!Ports.isFree(heldPort), "a bound port is not free")
-check(Ports.free(preferred: heldPort) != heldPort, "a held preferred port is skipped")
+if let offered = Ports.free(preferred: heldPort) {
+    check(offered != heldPort, "a held preferred port is skipped")
+} else {
+    check(false, "a held preferred port is skipped (no free port offered)")
+}
 
 // A viewer that just stopped leaves its port in TIME_WAIT; the next viewer can still bind it.
 listen(held, 1)
@@ -56,6 +60,7 @@ close(accept(held, nil, nil))
 close(client)
 close(held)
 check(Ports.isFree(heldPort), "a port left in TIME_WAIT is free")
+check(Ports.free(preferred: heldPort) == heldPort, "a free preferred port is reused")
 
 // A viewer started in a terminal listens on 0.0.0.0; a loopback bind would shadow it.
 let wildcard = socket(AF_INET, SOCK_STREAM, 0)
