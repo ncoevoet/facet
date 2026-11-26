@@ -1,0 +1,7 @@
+# Packages macos/compile-lock.sh leaves out of macos/requirements.lock.txt, one per line.
+# tests/test_macos_lock.py reads this file too.
+opencv-python
+pytest-asyncio
+pytest-timeout
+pytest-xdist
+execnet

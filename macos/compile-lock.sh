@@ -10,11 +10,14 @@ cd "$(dirname "$0")"
 TARGET="--python-version 3.12 --python-platform aarch64-apple-darwin"
 # The app's minimum macOS (LSMinimumSystemVersion); onnxruntime 1.27 needs 14 or later.
 # --no-config: a personal uv.toml (index, exclude-newer) must not change the committed lock.
+# The left-out packages live in lock-excludes.txt (tests/test_macos_lock.py reads it too).
+[ -r lock-excludes.txt ] || { echo 'compile-lock.sh: lock-excludes.txt is missing' >&2; exit 1; }
+EXCLUDES=$(grep -Ev '^[[:space:]]*(#|$)' lock-excludes.txt | sed 's/^/--no-emit-package /' | tr '\n' ' ')
+# shellcheck disable=SC2086
 MACOSX_DEPLOYMENT_TARGET=15.0 uv pip compile --no-config requirements.in \
     -c ../requirements.lock.txt -c ../requirements.restricted.lock.txt $TARGET \
     --generate-hashes --no-annotate --no-header --quiet \
-    --no-emit-package opencv-python --no-emit-package pytest-asyncio \
-    --no-emit-package pytest-timeout --no-emit-package pytest-xdist --no-emit-package execnet \
+    $EXCLUDES \
     -o requirements.lock.txt "$@"
 # What the source-only packages (filterpy, openai-clip, reverse-geocoder) need to build, at
 # the lock's own versions, so setup checks a hash for every file it downloads.

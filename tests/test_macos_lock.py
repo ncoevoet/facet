@@ -39,7 +39,8 @@ def test_every_shared_pin_keeps_its_version_on_the_mac():
 def test_every_requirement_is_in_the_mac_lock():
     # A dependency added to requirements.txt without running compile-lock.sh would be an
     # ImportError in the app only. compile-lock.sh leaves these out on purpose.
-    left_out = {'opencv-python', 'pytest-asyncio', 'pytest-timeout', 'pytest-xdist'}
+    left_out = {canonicalize_name(line.strip()) for line in (REPO / 'macos' / 'lock-excludes.txt').read_text().splitlines()
+                if line.strip() and not line.strip().startswith('#')}
     mac = _pins(MAC_LOCK)
     missing = []
     for source in ('requirements.txt', 'requirements.restricted.txt'):
