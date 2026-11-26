@@ -41,6 +41,7 @@ import numpy as np
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from models.piaa_prior import prior_path, save_prior  # noqa: E402
+from models.weights import resolve_models_path  # noqa: E402
 
 RNG_SEED = 42
 MAX_HEADS = 6
@@ -152,7 +153,7 @@ def main():
     weights, bias, names, meta = fit_prior(
         args.caches, args.dim, args.clusters, args.alpha, args.version,
     )
-    out = args.out or prior_path(args.dim)
+    out = resolve_models_path(args.out) if args.out else prior_path(args.dim)
     save_prior(out, weights, bias, names, meta)
     print(f"Wrote {out}: {len(names)} heads {names} (version={args.version}, dim={args.dim})")
 

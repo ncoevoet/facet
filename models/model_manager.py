@@ -11,7 +11,7 @@ import math
 from typing import Dict, List
 
 import licensing
-from models.weights import pretrained_model_path
+from models.weights import SAMP_NET_DEFAULT_PATH, pretrained_model_path
 from utils.system_memory import BYTES_PER_GB
 
 logger = logging.getLogger("facet.models")
@@ -946,7 +946,7 @@ class ModelManager:
             from models.samp_net import SAMPNetScorer
 
             samp_config = self.model_settings.get('samp_net', {})
-            model_path = samp_config.get('model_path', 'pretrained_models/samp_net.pth')
+            model_path = samp_config.get('model_path', SAMP_NET_DEFAULT_PATH)
 
             scorer = SAMPNetScorer(model_path=model_path, device=self.device)
             scorer.ensure_loaded()

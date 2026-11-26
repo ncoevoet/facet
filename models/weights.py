@@ -34,6 +34,8 @@ DOWNLOAD_RETRY_BACKOFF_SECONDS = 2
 
 MODELS_DIR_ENV = 'FACET_MODELS_DIR'
 MODELS_DIRNAME = 'pretrained_models'
+SAMP_NET_DEFAULT_PATH = f'{MODELS_DIRNAME}/samp_net.pth'
+U2NETP_DEFAULT_PATH = f'{MODELS_DIRNAME}/u2netp.pth'
 PRETRAINED_MODELS_DIR = (Path(os.environ[MODELS_DIR_ENV]).expanduser().resolve()
                          if os.environ.get(MODELS_DIR_ENV)
                          else Path(__file__).resolve().parent.parent / MODELS_DIRNAME)
