@@ -10,6 +10,7 @@ on:
     paths:
       - "macos/**"
       - "config_resolve.py"
+      - "processing/__init__.py"
       - "processing/progress.py"
       - "tests/test_macos_*.py"
       - ".github/workflows/macos-app.yml"

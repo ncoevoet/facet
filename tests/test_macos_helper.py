@@ -24,6 +24,9 @@ pytestmark = pytest.mark.skipif(sys.platform == 'win32', reason='macOS app helpe
 def mac(tmp_path, monkeypatch):
     # The module reads FACET_HOME at import, so each test gets a fresh copy.
     monkeypatch.setenv('FACET_HOME', str(tmp_path / 'home'))
+    # The helper sets sys.dont_write_bytecode and prepends to sys.path at import.
+    monkeypatch.setattr(sys, 'dont_write_bytecode', sys.dont_write_bytecode)
+    monkeypatch.setattr(sys, 'path', list(sys.path))
     spec = importlib.util.spec_from_file_location('facet_mac_under_test', HELPER)
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
@@ -179,10 +182,11 @@ def test_unknown_command_prints_usage(mac, capsys):
 def _imports(path):
     tree = ast.parse(path.read_text())
     names = {alias.name for node in ast.walk(tree) if isinstance(node, ast.Import) for alias in node.names}
-    return names | {node.module for node in ast.walk(tree) if isinstance(node, ast.ImportFrom)}
+    return names | {node.module for node in ast.walk(tree) if isinstance(node, ast.ImportFrom) and node.module}
 
 
-@pytest.mark.parametrize('source', ['macos/facet_mac.py', 'processing/progress.py'])
+@pytest.mark.parametrize('source', ['macos/facet_mac.py', 'processing/progress.py', 'config_resolve.py',
+                                    'processing/__init__.py'])
 def test_helper_imports_only_the_stdlib(source):
     # It runs on the bare bundled interpreter, before any environment exists, so its
     # imports and those of the Facet modules it borrows must be the stdlib alone.
@@ -191,8 +195,15 @@ def test_helper_imports_only_the_stdlib(source):
     assert roots <= set(sys.stdlib_module_names)
 
 
+# The doctor check (-c) and database.py are steered by files beside the script, so a test
+# can make either fail: doctor-mode is the shell fragment the check runs, library-fails
+# makes database.py exit 1.
 _FAKE_VENV_PYTHON = """#!/bin/sh
-if [ "$1" = "-c" ]; then echo '{"torch": "2.0", "mps": true, "mps_works": true}'; fi
+here=$(dirname "$0")
+if [ "$1" = "-c" ]; then
+  if [ -f "$here/doctor-mode" ]; then . "$here/doctor-mode"; else
+    echo '{"torch": "2.0", "mps": true, "mps_works": true}'; fi
+elif [ -f "$here/library-fails" ]; then echo "database boom" >&2; exit 1; fi
 exit 0
 """
 
@@ -200,9 +211,9 @@ exit 0
 # fails while the fail-sync file exists. Paths are baked in: uv gets no ambient variables.
 _FAKE_UV = """#!/bin/sh
 case "$1" in
-  venv) for last; do :; done
+  venv) echo "$@" >> '{calls}'; for last; do :; done
         mkdir -p "$last/bin" && cp '{python}' "$last/bin/python" && chmod +x "$last/bin/python" ;;
-  pip) [ -f '{fail_sync}' ] && exit 3 ;;
+  pip) echo "$@" >> '{calls}'; [ -f '{fail_sync}' ] && exit 3 ;;
 esac
 exit 0
 """
@@ -214,7 +225,7 @@ def fake_tools(mac, tmp_path, monkeypatch):
     python.write_text(_FAKE_VENV_PYTHON)
     python.chmod(0o755)
     uv = tmp_path / 'uv'
-    uv.write_text(_FAKE_UV.format(python=python, fail_sync=tmp_path / 'fail-sync'))
+    uv.write_text(_FAKE_UV.format(python=python, fail_sync=tmp_path / 'fail-sync', calls=tmp_path / 'uv-calls'))
     uv.chmod(0o755)
     monkeypatch.setattr(mac, 'UV', uv)
     monkeypatch.setattr(mac, '_check_free_space', lambda: None)
@@ -279,3 +290,62 @@ def test_a_failed_rebuild_keeps_the_working_environment(mac, fake_tools, monkeyp
     assert failure.value.code == 'download'
     monkeypatch.setattr(mac, 'SETUP_VERSION', built)
     assert mac.ready_report()['mps_works'] is True
+
+
+def test_setup_gives_uv_the_hash_and_relocatable_flags(mac, fake_tools, tmp_path):
+    mac.setup()
+    calls = [line.split() for line in (tmp_path / 'uv-calls').read_text().splitlines()]
+    venv_call = next(call for call in calls if call[:1] == ['venv'])
+    sync_call = next(call for call in calls if call[:2] == ['pip', 'sync'])
+    assert '--relocatable' in venv_call
+    assert {'--require-hashes', '--require-build-hashes'} <= set(sync_call)
+    assert sync_call[sync_call.index('--build-constraints') + 1] == str(mac.BUILD_CONSTRAINTS)
+    assert sync_call[-1] == str(mac.LOCK)
+
+
+@pytest.mark.parametrize('doctor', ['exit 1', 'true', 'echo "not json"'],
+                         ids=['exits-1', 'prints-nothing', 'prints-non-json'])
+def test_a_failed_gpu_check_fails_setup_without_a_marker(mac, fake_tools, tmp_path, monkeypatch, doctor):
+    real_run = subprocess.run
+
+    def run_with_doctor_mode(cmd, *args, **kwargs):
+        # The fake python sits in the venv only once uv has built it.
+        if len(cmd) > 1 and cmd[1] == '-c':
+            (Path(cmd[0]).parent / 'doctor-mode').write_text(doctor + '\n')
+        return real_run(cmd, *args, **kwargs)
+
+    monkeypatch.setattr(mac.subprocess, 'run', run_with_doctor_mode)
+    with pytest.raises(mac.SetupError) as failure:
+        mac.setup()
+    assert failure.value.code == 'check'
+    assert not mac.MARKER.exists() and mac.ready_report() is None
+
+
+def test_a_failed_check_logs_the_childs_stderr(mac, fake_tools, monkeypatch):
+    real_run = subprocess.run
+
+    def run_with_doctor_mode(cmd, *args, **kwargs):
+        if len(cmd) > 1 and cmd[1] == '-c':
+            (Path(cmd[0]).parent / 'doctor-mode').write_text('echo "torch exploded" >&2; exit 1\n')
+        return real_run(cmd, *args, **kwargs)
+
+    monkeypatch.setattr(mac.subprocess, 'run', run_with_doctor_mode)
+    with pytest.raises(mac.SetupError):
+        mac.setup()
+    assert 'torch exploded' in (mac.LOGS / 'setup.log').read_text()
+
+
+def test_a_failing_database_init_fails_setup_as_library(mac, fake_tools, monkeypatch):
+    real_run = subprocess.run
+
+    def run_failing(cmd, *args, **kwargs):
+        if len(cmd) > 1 and cmd[1].endswith('database.py'):
+            (Path(cmd[0]).parent / 'library-fails').touch()
+        return real_run(cmd, *args, **kwargs)
+
+    monkeypatch.setattr(mac.subprocess, 'run', run_failing)
+    with pytest.raises(mac.SetupError) as failure:
+        mac.setup()
+    assert failure.value.code == 'library'
+    assert not mac.MARKER.exists()
+    assert 'database boom' in (mac.LOGS / 'setup.log').read_text()

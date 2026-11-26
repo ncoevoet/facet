@@ -172,7 +172,12 @@ class TestMissingMediaPipe:
         notes = [r for r in caplog.records if 'MediaPipe' in r.getMessage()]
         assert [r.levelname for r in notes] == ['INFO']
         assert 'pip' not in notes[0].getMessage()
-        assert scorer._ensure_loaded() is False  # decided once, not retried per face
+        caplog.clear()
+        with caplog.at_level('INFO', logger='facet.face_blendshapes'):
+            assert scorer._ensure_loaded() is False
+        # Decided once: the second call neither re-imports nor logs again.
+        assert scorer._load_failed is True
+        assert not [r for r in caplog.records if 'MediaPipe' in r.getMessage()]
 
     def test_a_missing_dependency_of_an_installed_mediapipe_still_warns(self, monkeypatch, caplog):
         import builtins
