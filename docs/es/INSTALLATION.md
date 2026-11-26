@@ -200,9 +200,9 @@ sigue libre, o si no en el primer puerto a partir del 5000 en el que no escuche 
 visor que hayas iniciado en un terminal, ocupa a menudo el 5000). La app activa
 `viewer.trusted_local_editing`, así que un navegador en este Mac puede editar e iniciar escaneos sin
 contraseña, mientras que las peticiones de otros dispositivos se rechazan. «Este Mac» incluye sus otras
-cuentas de usuario: en un Mac compartido, define `viewer.password` o `viewer.edition_password`, lo que
-desactiva esa confianza. Entonces el menú ya no puede iniciar escaneos ni seguirlos, así que inícialos
-desde el navegador. Añade carpetas solo cuando no haya un escaneo en curso: al añadirlas se reinicia la galería. Las fototecas de Apple Fotos se omiten: indica a Facet carpetas de fotos normales.
+cuentas de usuario: en un Mac compartido, define `viewer.password`, que también
+desactiva esa confianza. `viewer.edition_password` por sí sola solo impide que otras cuentas editen: aun así pueden explorar y descargar todas las fotos. Entonces el menú ya no puede iniciar escaneos ni seguirlos, así que inícialos
+desde el navegador. Añadir una carpeta reinicia la galería; si hay un escaneo en curso, el reinicio espera a que termine. Las fototecas de Apple Fotos se omiten: indica a Facet carpetas de fotos normales.
 
 **Actualizar.** Arrastra la nueva versión sobre la anterior. Cuando una actualización necesita un entorno
 nuevo, la ventana de configuración se abre en el paso de descarga; tu biblioteca, tu configuración y tus

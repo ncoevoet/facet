@@ -595,6 +595,7 @@ Sélectionne les modèles utilisés selon le profil VRAM.
 | `saliency.resolution` | `1024` | Résolution d'inférence |
 | `saliency.mask_threshold` | `0.3` | Seuil sigmoïde pour le masque binaire du sujet |
 | `saliency.min_subject_pixels` | `50` | Nombre minimal de pixels de sujet pour considérer qu'un sujet est détecté |
+| `samp_net.model_path` | `"pretrained_models/samp_net.pth"` | Poids de SAMP-Net. Une valeur commençant par `pretrained_models/` désigne le dossier des modèles (`FACET_MODELS_DIR`, par défaut `<install>/pretrained_models`) ; les chemins absolus sont utilisés tels quels |
 
 Remarques :
 - **`ram_cache_reserve_gb` :** un modèle n'est conservé que tant que la RAM libre dépasse sa taille plus cette réserve. `"always"` saute la vérification ; `"never"` ne met rien en cache. Ce doit être un nombre >= 0, sinon le scan s'arrête au démarrage. Sous pression mémoire, le cache libère d'abord le modèle nécessaire le plus tard dans le futur (voir [Fonctionnement du multi-pass](#fonctionnement-du-multi-pass)).

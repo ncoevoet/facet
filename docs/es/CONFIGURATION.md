@@ -595,6 +595,7 @@ Selecciona qué modelos se usan por cada perfil de VRAM.
 | `saliency.resolution` | `1024` | Resolución de inferencia |
 | `saliency.mask_threshold` | `0.3` | Umbral sigmoide para la máscara binaria del sujeto |
 | `saliency.min_subject_pixels` | `50` | Píxeles mínimos del sujeto para contar un sujeto como detectado |
+| `samp_net.model_path` | `"pretrained_models/samp_net.pth"` | Pesos de SAMP-Net. Un valor que empieza por `pretrained_models/` designa la carpeta de modelos (`FACET_MODELS_DIR`, por defecto `<install>/pretrained_models`); las rutas absolutas se usan tal cual |
 
 Notas:
 - **`ram_cache_reserve_gb`:** un modelo se conserva solo mientras la RAM libre supere su tamaño más esta reserva. `"always"` omite la comprobación; `"never"` no almacena nada en caché. Debe ser un número >= 0, o el escaneo se detiene al inicio. Bajo presión de memoria, la caché libera primero el modelo que se necesitará más tarde (ver [Cómo funciona el modo multipase](#cómo-funciona-el-modo-multipase)).

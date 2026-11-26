@@ -441,6 +441,12 @@ Welche Datei gelesen wird:
 
 Ein Pfad, den `--config` oder `FACET_CONFIG` nennt und der nicht existiert, ist ein Fehler und kein „Standardwerte verwenden“. Der Viewer protokolliert den fehlenden Pfad und verweigert den Start im offenen Modus.
 
+Verwandte Umgebungsvariablen:
+
+- `FACET_MODELS_DIR`: Ablageort der automatisch heruntergeladenen Modellgewichte. Standard `<install>/pretrained_models`; setzen Sie sie, wenn der Installationsordner schreibgeschützt ist.
+- `FACET_PLUGINS_DIR`: der Ordner, in dem nach Plugin-Modulen gesucht wird. Standard `<install>/plugins`.
+- `FACET_HOME`: Der Launcher der macOS-App legt Daten, Konfiguration, Caches und Protokolle in diesem einen Ordner ab statt in `~/Library/Application Support/Facet`, `~/Library/Caches/Facet`, `~/Library/Logs/Facet` (für Tests und CI).
+
 > **Warnung:** `viewer.py` liest nie eine `scoring_config.json` aus dem Verzeichnis, in dem Sie ihn starten. Starten Sie ihn aus einer Fotosammlung heraus und hat die Installation keine Konfiguration, läuft er mit den Standardwerten: ein leeres `viewer.edition_password` und kein Viewer-Passwort, sodass jeder stöbern kann.
 
 ```bash

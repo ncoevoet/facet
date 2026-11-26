@@ -594,6 +594,7 @@ Wählt aus, welche Modelle je VRAM-Profil verwendet werden.
 | `saliency.resolution` | `1024` | Inferenzauflösung |
 | `saliency.mask_threshold` | `0.3` | Sigmoid-Schwellenwert für die binäre Subjektmaske |
 | `saliency.min_subject_pixels` | `50` | Mindestanzahl an Subjektpixeln, um ein Subjekt als erkannt zu werten |
+| `samp_net.model_path` | `"pretrained_models/samp_net.pth"` | SAMP-Net-Gewichte. Ein Wert, der mit `pretrained_models/` beginnt, bezeichnet den Modellordner (`FACET_MODELS_DIR`, Standard `<install>/pretrained_models`); absolute Pfade werden unverändert verwendet |
 
 Hinweise:
 

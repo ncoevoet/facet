@@ -201,9 +201,8 @@ dernière fois s'il est encore libre, sinon sur le premier port à partir de 500
 n'écoute (AirPlay, ou une visionneuse lancée dans un terminal, occupe souvent le 5000). L'application
 active `viewer.trusted_local_editing`, si bien qu'un navigateur sur ce Mac peut modifier et lancer des
 scans sans mot de passe, tandis que les requêtes des autres appareils sont refusées. « Ce Mac » inclut ses
-autres comptes utilisateur : sur un Mac partagé, définissez `viewer.password` ou
-`viewer.edition_password`, ce qui désactive cette confiance. Le menu ne peut alors plus lancer de scans
-ni les suivre ; lancez-les donc depuis le navigateur. Ajoutez des dossiers seulement quand aucun scan ne tourne : cet ajout redémarre la galerie. Les photothèques Apple Photos sont ignorées :
+autres comptes utilisateur : sur un Mac partagé, définissez `viewer.password`, ce qui désactive aussi cette confiance. `viewer.edition_password` seul empêche seulement les autres comptes de modifier : ils peuvent toujours parcourir et télécharger toutes les photos. Le menu ne peut alors plus lancer de scans
+ni les suivre ; lancez-les donc depuis le navigateur. Ajouter un dossier redémarre la galerie ; si un scan est en cours, le redémarrage attend la fin de ce scan. Les photothèques Apple Photos sont ignorées :
 indiquez à Facet des dossiers de photos ordinaires.
 
 **Mise à jour.** Glissez la nouvelle version par-dessus l'ancienne. Quand une mise à jour exige un nouvel

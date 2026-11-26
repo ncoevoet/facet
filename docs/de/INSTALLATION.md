@@ -205,9 +205,8 @@ wenn er noch frei ist, sonst auf dem ersten Port ab 5000, auf dem nichts anderes
 Viewer, den Sie in einem Terminal gestartet haben, belegt oft 5000). Die App schaltet
 `viewer.trusted_local_editing` ein, sodass ein Browser auf diesem Mac ohne Passwort bearbeiten und Scans
 starten kann, während Anfragen von anderen Geräten abgelehnt werden. „Dieser Mac“ umfasst auch seine
-anderen Benutzerkonten: Setzen Sie auf einem gemeinsam genutzten Mac `viewer.password` oder
-`viewer.edition_password`, was dieses Vertrauen abschaltet. Das Menü kann dann keine Scans mehr starten
-oder verfolgen, starten Sie sie also im Browser. Fügen Sie Ordner nur hinzu, wenn kein Scan läuft: Das Hinzufügen startet die Galerie neu. Apple-Fotos-Mediatheken werden übersprungen: Geben Sie
+anderen Benutzerkonten: Setzen Sie auf einem gemeinsam genutzten Mac `viewer.password`, was dieses Vertrauen ebenfalls abschaltet. `viewer.edition_password` allein hindert andere Konten nur am Bearbeiten: Sie können weiterhin alle Fotos ansehen und herunterladen. Das Menü kann dann keine Scans mehr starten
+oder verfolgen, starten Sie sie also im Browser. Das Hinzufügen eines Ordners startet die Galerie neu; läuft gerade ein Scan, wartet der Neustart, bis dieser Scan beendet ist. Apple-Fotos-Mediatheken werden übersprungen: Geben Sie
 Facet gewöhnliche Fotoordner an.
 
 **Aktualisieren.** Ziehen Sie die neue Version über die alte. Braucht ein Update eine neue Umgebung, öffnet

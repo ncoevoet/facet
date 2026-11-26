@@ -594,6 +594,7 @@ Seleciona quais modelos são usados por perfil de VRAM.
 | `saliency.resolution` | `1024` | Resolução de inferência |
 | `saliency.mask_threshold` | `0.3` | Limiar sigmoide para a máscara binária do assunto |
 | `saliency.min_subject_pixels` | `50` | Mínimo de pixels de assunto para contar um assunto como detectado |
+| `samp_net.model_path` | `"pretrained_models/samp_net.pth"` | Pesos do SAMP-Net. Um valor que começa com `pretrained_models/` designa a pasta de modelos (`FACET_MODELS_DIR`, padrão `<install>/pretrained_models`); caminhos absolutos são usados como estão |
 
 Notas:
 - **`ram_cache_reserve_gb`:** um modelo só é mantido enquanto a RAM disponível for maior que o tamanho dele mais esta reserva. `"always"` pula a verificação; `"never"` não coloca nada em cache. Deve ser um número >= 0, ou a varredura para na inicialização. Sob pressão de memória, o cache devolve primeiro o modelo que será necessário mais tarde (veja [Como Funcionam as Múltiplas Passagens](#como-funcionam-as-múltiplas-passagens)).

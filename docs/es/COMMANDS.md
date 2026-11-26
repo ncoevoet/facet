@@ -441,6 +441,12 @@ Qué archivo se lee:
 
 Una ruta indicada con `--config` o `FACET_CONFIG` que no existe es un error, no "usar los valores predeterminados". El visor registra la ruta que falta y se niega a iniciarse en modo abierto.
 
+Variables de entorno relacionadas:
+
+- `FACET_MODELS_DIR`: dónde se guardan los pesos de modelos descargados automáticamente. Por defecto `<install>/pretrained_models`; defínela cuando la carpeta de instalación es de solo lectura.
+- `FACET_PLUGINS_DIR`: la carpeta donde se buscan módulos de plugins. Por defecto `<install>/plugins`.
+- `FACET_HOME`: el lanzador de la app de macOS guarda datos, configuración, cachés y registros en esta única carpeta en lugar de `~/Library/Application Support/Facet`, `~/Library/Caches/Facet`, `~/Library/Logs/Facet` (para pruebas y CI).
+
 > **Advertencia:** `viewer.py` nunca lee un `scoring_config.json` del directorio desde el que lo inicias. Si lo inicias desde una biblioteca y la raíz de la instalación no tiene configuración, funciona con los valores predeterminados: un `viewer.edition_password` vacío y ninguna contraseña del visor, de modo que cualquiera puede navegar.
 
 ```bash

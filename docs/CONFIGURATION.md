@@ -596,6 +596,7 @@ Selects which models are used per VRAM profile.
 | `saliency.resolution` | `1024` | Inference resolution |
 | `saliency.mask_threshold` | `0.3` | Sigmoid threshold for the binary subject mask |
 | `saliency.min_subject_pixels` | `50` | Minimum subject pixels to count a subject as detected |
+| `samp_net.model_path` | `"pretrained_models/samp_net.pth"` | SAMP-Net weights. A value starting with `pretrained_models/` names the models folder (`FACET_MODELS_DIR`, default `<install>/pretrained_models`); absolute paths are used as is |
 
 Notes:
 - **`ram_cache_reserve_gb`:** a model is kept only while free RAM exceeds its size plus this reserve. `"always"` skips the check; `"never"` caches nothing. It must be a number >= 0, or the scan stops at startup. Under memory pressure the cache releases the model needed farthest in the future first (see [How Multi-Pass Works](#how-multi-pass-works)).

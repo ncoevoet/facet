@@ -441,6 +441,12 @@ Which file is read:
 
 A path named by `--config` or `FACET_CONFIG` that does not exist is an error, not "use defaults". The viewer logs the missing path and refuses to start in open mode.
 
+Related environment variables:
+
+- `FACET_MODELS_DIR`: where auto-downloaded model weights live. Default `<install>/pretrained_models`; set it when the install folder is read-only.
+- `FACET_PLUGINS_DIR`: the folder scanned for plugin modules. Default `<install>/plugins`.
+- `FACET_HOME`: the macOS app's launcher puts its data, config, caches and logs in this one folder instead of `~/Library/Application Support/Facet`, `~/Library/Caches/Facet`, `~/Library/Logs/Facet` (for tests and CI).
+
 > **Warning:** `viewer.py` never reads a `scoring_config.json` from the directory you start it in. If you start it from a library and the install root has no config, it runs on the defaults: an empty `viewer.edition_password` and no viewer password, so anyone can browse.
 
 ```bash

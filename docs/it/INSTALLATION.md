@@ -201,9 +201,8 @@ volta se è ancora libera, altrimenti sulla prima porta da 5000 in su su cui nie
 (AirPlay, o un visualizzatore avviato da un terminale, occupa spesso la 5000). L'app attiva
 `viewer.trusted_local_editing`, quindi un browser su questo Mac può modificare e avviare scansioni
 senza password, mentre le richieste da altri dispositivi vengono rifiutate. "Questo Mac" comprende
-anche gli altri account utente: su un Mac condiviso, imposta `viewer.password` o
-`viewer.edition_password`, che disattiva questa fiducia. A quel punto il menu non può più avviare
-scansioni né seguirle, quindi avviale dal browser. Aggiungi cartelle solo quando non è in corso una scansione: l'aggiunta riavvia la galleria. Le librerie di Foto di Apple vengono saltate:
+anche gli altri account utente: su un Mac condiviso, imposta `viewer.password`, che disattiva anche questa fiducia. `viewer.edition_password` da sola impedisce solo agli altri account di modificare: possono comunque sfogliare e scaricare tutte le foto. A quel punto il menu non può più avviare
+scansioni né seguirle, quindi avviale dal browser. Aggiungere una cartella riavvia la galleria; se è in corso una scansione, il riavvio attende la fine di quella scansione. Le librerie di Foto di Apple vengono saltate:
 indica a Facet normali cartelle di foto.
 
 **Aggiornamento.** Trascina la nuova versione sopra quella vecchia. Quando un aggiornamento richiede un

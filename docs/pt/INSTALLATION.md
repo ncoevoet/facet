@@ -201,9 +201,9 @@ ainda estiver livre, senão na primeira porta a partir da 5000 em que nada mais 
 AirPlay, ou um visualizador iniciado em um terminal, costuma ocupar a 5000). O app ativa
 `viewer.trusted_local_editing`, então um navegador neste Mac pode editar e iniciar varreduras sem
 senha, enquanto pedidos de outros dispositivos são recusados. "Este Mac" inclui as outras contas de
-usuário dele: em um Mac compartilhado, defina `viewer.password` ou `viewer.edition_password`, o que
-desliga essa confiança. Aí o menu não consegue mais iniciar varreduras nem acompanhá-las, então
-inicie-as pelo navegador. Adicione pastas só quando nenhuma varredura estiver em andamento: isso reinicia a galeria. As bibliotecas do app Fotos da Apple são ignoradas: aponte o Facet para
+usuário dele: em um Mac compartilhado, defina `viewer.password`, o que também
+desliga essa confiança. `viewer.edition_password` sozinha só impede que outras contas editem: elas ainda podem navegar e baixar todas as fotos. Aí o menu não consegue mais iniciar varreduras nem acompanhá-las, então
+inicie-as pelo navegador. Adicionar uma pasta reinicia a galeria; se houver uma varredura em andamento, a reinicialização espera essa varredura terminar. As bibliotecas do app Fotos da Apple são ignoradas: aponte o Facet para
 pastas de fotos comuns.
 
 **Atualizando.** Arraste a nova versão por cima da antiga. Quando uma atualização precisa de um novo

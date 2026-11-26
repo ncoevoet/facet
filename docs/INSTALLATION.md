@@ -200,8 +200,8 @@ still free, else on the first port from 5000 that nothing else listens on (AirPl
 you started in a terminal, often holds 5000). The app turns on `viewer.trusted_local_editing`, so
 a browser on this Mac can edit and start scans without a password, while requests from other
 devices are refused. "This Mac" includes its other user accounts: on a shared Mac, set
-`viewer.password` or `viewer.edition_password`, which turns the trust off. The menu can then no
-longer start scans or follow them, so start them from the browser. Add folders only when no scan is running: adding one restarts the gallery. Apple Photos libraries are
+`viewer.password`, which also turns the trust off. `viewer.edition_password` alone only stops other accounts from editing: they can still browse and download every photo. The menu can then no
+longer start scans or follow them, so start them from the browser. Adding a folder restarts the gallery; if a scan is running, the restart waits until that scan finishes. Apple Photos libraries are
 skipped: point Facet at ordinary photo folders.
 
 **Updating.** Drag the new version over the old one. When an update needs a new environment, the

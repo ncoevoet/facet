@@ -431,8 +431,9 @@ only what reading those two will NOT tell you.
   weights, contexts, panorama thresholds, the share-secret eviction and the plaintext-password
   upgrade. They rewrite different parts of one file, and two locks lost whole updates. The one
   writer outside the viewer process is the macOS app's `facet_mac.py add-folder`, which cannot
-  take that in-process lock; the app restarts the viewer right after it, so only a save made in
-  that same instant can be lost.
+  take that in-process lock; the app restarts the viewer right after it, or, when a scan is
+  running, once that scan finishes. Every viewer writer re-reads the file under the lock, so only
+  a viewer save made in the same instant as the add-folder write can be lost.
 - **The config writer has two commit routes.** The default is an atomic rename over the
   destination; when the destination's owner cannot be adopted (a rootless container, most
   commonly), it falls back to an inode-preserving in-place rewrite instead — same inode, owner

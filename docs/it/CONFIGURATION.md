@@ -596,6 +596,7 @@ Seleziona quali modelli vengono usati per ciascun profilo VRAM.
 | `saliency.resolution` | `1024` | Risoluzione di inferenza |
 | `saliency.mask_threshold` | `0.3` | Soglia sigmoide per la maschera binaria del soggetto |
 | `saliency.min_subject_pixels` | `50` | Pixel minimi del soggetto perché venga considerato rilevato |
+| `samp_net.model_path` | `"pretrained_models/samp_net.pth"` | Pesi di SAMP-Net. Un valore che inizia con `pretrained_models/` indica la cartella dei modelli (`FACET_MODELS_DIR`, predefinita `<install>/pretrained_models`); i percorsi assoluti vengono usati così come sono |
 
 Note:
 - **`ram_cache_reserve_gb`:** un modello viene mantenuto solo finché la RAM libera supera la sua dimensione più questa riserva. `"always"` salta il controllo; `"never"` non mette nulla in cache. Deve essere un numero >= 0, altrimenti la scansione si ferma all'avvio. Sotto pressione di memoria la cache rilascia per primo il modello che servirà più tardi (vedi [Come funziona il multi-passaggio](#come-funziona-il-multi-passaggio)).

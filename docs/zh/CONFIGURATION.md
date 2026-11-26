@@ -594,6 +594,7 @@ penalty = min(noise_max_penalty_points, (noise_sigma - threshold) * noise_penalt
 | `saliency.resolution` | `1024` | 推理分辨率 |
 | `saliency.mask_threshold` | `0.3` | 二值主体掩膜的 sigmoid 阈值 |
 | `saliency.min_subject_pixels` | `50` | 判定检测到主体所需的最少主体像素数 |
+| `samp_net.model_path` | `"pretrained_models/samp_net.pth"` | SAMP-Net 权重。以 `pretrained_models/` 开头的值指向模型文件夹（`FACET_MODELS_DIR`，默认 `<install>/pretrained_models`）；绝对路径按原样使用 |
 
 说明：
 - **`ram_cache_reserve_gb`：** 仅当可用内存大于模型大小加上此预留量时，模型才会留在内存中。`"always"` 跳过该检查；`"never"` 不缓存任何内容。它必须是 >= 0 的数字，否则扫描会在启动时终止。在内存压力下，缓存会先释放最晚才会再用到的模型（见[多遍处理的工作方式](#多遍处理的工作方式)）。
