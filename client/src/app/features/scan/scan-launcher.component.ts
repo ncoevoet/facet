@@ -1,18 +1,15 @@
-import { ChangeDetectionStrategy, Component, OnInit, computed, effect, inject, signal, untracked } from '@angular/core';
+import { ChangeDetectionStrategy, Component, DestroyRef, OnInit, computed, effect, inject, signal, untracked } from '@angular/core';
 import { HttpErrorResponse } from '@angular/common/http';
-import { firstValueFrom } from 'rxjs';
 import { MatDialogRef, MatDialogModule } from '@angular/material/dialog';
 import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
 import { MatProgressBarModule } from '@angular/material/progress-bar';
-import { ScanService, ScanDirectory } from '../../core/services/scan.service';
+import { RecentPhoto, ScanService, ScanDirectory } from '../../core/services/scan.service';
 import { TranslatePipe } from '../../shared/pipes/translate.pipe';
 import { FilenamePipe } from '../../shared/pipes/filename.pipe';
 import { I18N, i18nKeys } from '../../core/i18n/keys';
 import { ScanHistoryComponent } from './scan-history.component';
 import { SHOWCASE_PHOTOS, ScanShowcaseComponent } from './scan-showcase.component';
-import { ApiService } from '../../core/services/api.service';
-import type { PhotosResponse } from '../gallery/gallery.store';
 
 /** Statuses that prove the server refused this start (a 409 may still mean another scan runs). */
 const DEFINITE_REFUSALS = new Set([400, 403, 409, 422, 429]);
@@ -181,7 +178,6 @@ const ANALYSIS_OF_MODEL: readonly (readonly [RegExp, keyof typeof I18N.scan.anal
 export class ScanLauncherComponent implements OnInit {
   protected readonly I18N = i18nKeys();
   private readonly scan = inject(ScanService);
-  private readonly api = inject(ApiService);
   private readonly dialogRef = inject(MatDialogRef<ScanLauncherComponent>);
 
   protected readonly directories = signal<ScanDirectory[]>([]);
@@ -199,9 +195,11 @@ export class ScanLauncherComponent implements OnInit {
   protected readonly canCancel = this.scan.canCancel;
 
   /** The newest photos in the library, refreshed each time the scan saves a chunk. */
-  protected readonly recent = signal<readonly { path: string }[]>([]);
+  protected readonly recent = signal<readonly RecentPhoto[]>([]);
   protected readonly readingLog = signal(false);
-  private recentRequest = 0;
+  private recentInFlight = false;
+  private recentPending = false;
+  private destroyed = false;
   protected readonly status = this.scan.status;
   protected readonly connected = this.scan.connected;
   protected readonly statusKnown = this.scan.statusKnown;
@@ -280,10 +278,11 @@ export class ScanLauncherComponent implements OnInit {
   /** Photos this scan has saved so far; each new chunk brings new photos to show. */
   private readonly savedSoFar = computed(() => {
     const p = this.status().progress;
-    return this.live() && p?.phase === 'scoring' ? p.current ?? 0 : 0;
+    return this.live() && this.status().kind === 'scan' && p?.phase === 'scoring' ? p.current ?? 0 : 0;
   });
 
   constructor() {
+    inject(DestroyRef).onDestroy(() => { this.destroyed = true; });
     effect(() => {
       if (this.savedSoFar() > 0) untracked(() => void this.loadRecent());
     });
@@ -304,14 +303,15 @@ export class ScanLauncherComponent implements OnInit {
     });
   }
 
+  /** Single-flight: ticks that arrive mid-request collapse into one follow-up read. */
   private async loadRecent(): Promise<void> {
-    const request = ++this.recentRequest;
+    if (this.recentInFlight) { this.recentPending = true; return; }
+    this.recentInFlight = true;
     try {
-      const data = await firstValueFrom(this.api.get<PhotosResponse>('/photos', {
-        sort: 'date_added', sort_direction: 'DESC', per_page: SHOWCASE_PHOTOS, page: 1,
-      }));
-      if (request === this.recentRequest) this.recent.set(data.photos);
+      this.recent.set(await this.scan.loadRecentPhotos(SHOWCASE_PHOTOS));
     } catch { /* Decorative: the scan's own status is unaffected. */ }
+    this.recentInFlight = false;
+    if (this.recentPending && !this.destroyed) { this.recentPending = false; void this.loadRecent(); }
   }
 
   protected noteRetrySubmitted(): void {

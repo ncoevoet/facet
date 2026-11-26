@@ -43,6 +43,11 @@ export interface ScanDirectory {
   owner: string;
 }
 
+/** The photo fields the scan showcase reads. */
+export interface RecentPhoto {
+  path: string;
+}
+
 interface ScanSession {
   generation: number;
   /** `AuthService.session()`: a same-session revalidation replaces the status object and may null it briefly. */
@@ -198,6 +203,14 @@ export class ScanService implements OnDestroy {
   async loadDirectories(): Promise<ScanDirectory[]> {
     const response = await this.sessionRead(() => this.api.get<{ directories: ScanDirectory[] }>('/scan/directories'));
     return response.directories;
+  }
+
+  /** The newest photos by date added, for the launcher's live showcase. */
+  async loadRecentPhotos(count: number): Promise<RecentPhoto[]> {
+    const response = await this.sessionRead(() => this.api.get<{ photos: RecentPhoto[] }>('/photos', {
+      sort: 'date_added', sort_direction: 'DESC', per_page: count, page: 1,
+    }));
+    return response.photos;
   }
 
   loadHistory(before?: number): Promise<ScanRunHistory> {

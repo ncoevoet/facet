@@ -541,6 +541,23 @@ describe('ScanService', () => {
     httpTesting.expectNone('/api/scan/start');
   });
 
+  it('reads the newest photos and refuses a late result from another session', async () => {
+    const recent = service.loadRecentPhotos(8);
+    const request = httpTesting.expectOne(r => r.url === '/api/photos');
+    expect(request.request.params.get('sort')).toBe('date_added');
+    expect(request.request.params.get('sort_direction')).toBe('DESC');
+    expect(request.request.params.get('per_page')).toBe('8');
+    TestBed.inject(AuthService).status.set(otherAccount('other'));
+    request.flush({ photos: [{ path: '/a.jpg' }] });
+    await expect(recent).rejects.toThrow('Scan session changed');
+  });
+
+  it('returns the photo list of a current-session read', async () => {
+    const recent = service.loadRecentPhotos(3);
+    httpTesting.expectOne(r => r.url === '/api/photos').flush({ photos: [{ path: '/a.jpg' }] });
+    await expect(recent).resolves.toEqual([{ path: '/a.jpg' }]);
+  });
+
   describe('loadDirectories()', () => {
     it('should fetch configured directories', async () => {
       const promise = service.loadDirectories();

@@ -5446,7 +5446,7 @@ describe('GalleryComponent', () => {
       fixture = null;
     });
 
-    function render(canLaunch: boolean, library: typeof photos, launched = true, scanRunning = false) {
+    function render(canLaunch: boolean, library: typeof photos, launched = true, scanRunning: boolean | Promise<boolean> = false) {
       mockAuth['downloadProfiles'] = vi.fn(() => []);
       mockStore.photos.set(library);
       mockStore.total.set(library.length);
@@ -5511,8 +5511,38 @@ describe('GalleryComponent', () => {
 
     it('never asks about scans over a populated library', async () => {
       const { f, scan } = render(true, photos, true, true);
+      // Init must have progressed past the point where followRunningScan runs before the negative means anything.
+      await vi.waitFor(() => expect(mockStore.loadPhotos).toHaveBeenCalled());
       await f.whenStable();
       expect(scan.isRunning).not.toHaveBeenCalled();
+      expect(scan.openLauncher).not.toHaveBeenCalled();
+    });
+
+    describe.each<[string, () => void, boolean]>([
+      ['an active filter', () => mockStore.activeFilterCount.set(1), true],
+      ['a current album', () => mockStore.currentAlbum.set({ id: 1, name: 'A' } as never), true],
+      ['a load error', () => mockStore.loadError.set(true), true],
+      ['no launch right', () => undefined, false],
+    ])('over an empty library with %s while a scan runs', (_label, arrange, canLaunch) => {
+      it('neither asks about the scan nor opens the launcher', async () => {
+        // init resets currentAlbum, so the state is applied when the photos load, just before the scan check.
+        mockStore.loadPhotos.mockImplementation(async () => { arrange(); });
+        const { f, scan } = render(canLaunch, [], true, true);
+        await vi.waitFor(() => expect(mockStore.loadPhotos).toHaveBeenCalled());
+        await f.whenStable();
+        expect(scan.isRunning).not.toHaveBeenCalled();
+        expect(scan.openLauncher).not.toHaveBeenCalled();
+      });
+    });
+
+    it('does not open the launcher when the status answers after the gallery is destroyed', async () => {
+      let answer!: (running: boolean) => void;
+      const { f, scan } = render(true, [], true, new Promise<boolean>(resolve => { answer = resolve; }));
+      await vi.waitFor(() => expect(scan.isRunning).toHaveBeenCalled());
+      f.destroy();
+      fixture = null;
+      answer(true);
+      await new Promise(resolve => setTimeout(resolve));
       expect(scan.openLauncher).not.toHaveBeenCalled();
     });
 
