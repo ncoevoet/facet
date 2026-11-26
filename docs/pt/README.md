@@ -40,3 +40,4 @@ copiar e colar.
 | Processamento lento | Verifique o perfil; `--single-pass` pode ajudar nos perfis `legacy`/`8gb` com muita VRAM (fora do modo comercial, `12gb`/`16gb`/`24gb` sempre executam multi-passo) |
 | Detecção de faces não usa a GPU | Execute `python facet.py --doctor` (seção ONNX Runtime) e instale o `onnxruntime-gpu` no lugar do `onnxruntime`, nunca ao lado dele — veja [Instalação](INSTALLATION.md#onnx-runtime-para-detecção-de-faces) |
 | exiftool ausente | Opcional — veja [Instalação › exiftool](INSTALLATION.md#exiftool) |
+| Usar o Facet em um Mac sem terminal | O [app para macOS](INSTALLATION.md#app-para-macos) configura o Facet e o mantém na barra de menus |

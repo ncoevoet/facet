@@ -162,7 +162,7 @@ Controla qué directorios visita el escaneo.
 {
   "scanning": {
     "skip_hidden_directories": true,
-    "skip_directories": ["@eaDir", "#recycle", "#snapshot", "@Recycle"],
+    "skip_directories": ["@eaDir", "#recycle", "#snapshot", "@Recycle", "*.photoslibrary"],
     "skip_raw": false
   }
 }
@@ -171,12 +171,12 @@ Controla qué directorios visita el escaneo.
 | Ajuste | Por defecto | Descripción |
 |---------|---------|-------------|
 | `skip_hidden_directories` | `true` | Omite los directorios cuyo nombre empieza por `.` |
-| `skip_directories` | `["@eaDir", "#recycle", "#snapshot", "@Recycle"]` | Globs de nombres de carpeta omitidos a cualquier profundidad |
+| `skip_directories` | `["@eaDir", "#recycle", "#snapshot", "@Recycle", "*.photoslibrary"]` | Globs de nombres de carpeta omitidos a cualquier profundidad |
 | `skip_raw` | `false` | Omitir archivos RAW de cámara al escanear carpetas |
 
 Notas sobre `skip_directories`:
 - Los globs usan `fnmatch`, distinguen mayúsculas y solo se aplican al nombre de la carpeta.
-- Los valores predeterminados cubren `@eaDir` de Synology (sus miniaturas `SYNOPHOTO_THUMB_*.jpg`), `#recycle`, `#snapshot` y `@Recycle` de QNAP.
+- Los valores predeterminados cubren `@eaDir` de Synology (sus miniaturas `SYNOPHOTO_THUMB_*.jpg`), `#recycle`, `#snapshot`, `@Recycle` de QNAP y las fototecas de Apple Fotos (`*.photoslibrary`), cuyos originales y derivados se escanearían si no como duplicados de fotos que guardas en otro lugar.
 - Tu lista reemplaza la predeterminada; `[]` desactiva la omisión por nombre. La raíz del escaneo nunca se omite.
 - Las fotos ya indexadas desde estas carpetas permanecen en la base de datos.
 
@@ -2062,7 +2062,7 @@ Sistema de plugins basado en eventos para reaccionar a eventos de puntuación. L
 
 ### Escribir un plugin
 
-Coloca un archivo `.py` en el directorio `plugins/`. Define funciones con el nombre de los eventos que quieras gestionar:
+Coloca un archivo `.py` en el directorio `plugins/`, o en la carpeta que indique la variable de entorno `FACET_PLUGINS_DIR`. Define funciones con el nombre de los eventos que quieras gestionar:
 
 ```python
 def on_score_complete(data: dict) -> None:

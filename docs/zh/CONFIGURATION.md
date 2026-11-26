@@ -161,7 +161,7 @@ python database.py --add-user alice --role superadmin --display-name "Alice"
 {
   "scanning": {
     "skip_hidden_directories": true,
-    "skip_directories": ["@eaDir", "#recycle", "#snapshot", "@Recycle"],
+    "skip_directories": ["@eaDir", "#recycle", "#snapshot", "@Recycle", "*.photoslibrary"],
     "skip_raw": false
   }
 }
@@ -170,12 +170,12 @@ python database.py --add-user alice --role superadmin --display-name "Alice"
 | 设置 | 默认值 | 说明 |
 |---------|---------|-------------|
 | `skip_hidden_directories` | `true` | 跳过名称以 `.` 开头的目录 |
-| `skip_directories` | `["@eaDir", "#recycle", "#snapshot", "@Recycle"]` | 在任意深度被跳过的文件夹名通配符 |
+| `skip_directories` | `["@eaDir", "#recycle", "#snapshot", "@Recycle", "*.photoslibrary"]` | 在任意深度被跳过的文件夹名通配符 |
 | `skip_raw` | `false` | 扫描文件夹时跳过相机 RAW 文件 |
 
 关于 `skip_directories`：
 - 通配符使用 `fnmatch`，区分大小写，且只匹配文件夹名。
-- 默认值涵盖 Synology 的 `@eaDir`（其 `SYNOPHOTO_THUMB_*.jpg` 缩略图）、`#recycle`、`#snapshot` 以及 QNAP 的 `@Recycle`。
+- 默认值涵盖 Synology 的 `@eaDir`（其 `SYNOPHOTO_THUMB_*.jpg` 缩略图）、`#recycle`、`#snapshot`、QNAP 的 `@Recycle`，以及 Apple“照片”App 的图库（`*.photoslibrary`），否则其中的原片和派生文件会被当作你存放在别处的照片的重复项扫描进来。
 - 你的列表会替换默认值；`[]` 表示不按名称跳过。扫描根目录永远不会被跳过。
 - 已从这些文件夹索引的照片会保留在数据库中。
 
@@ -2057,7 +2057,7 @@ Facet 会检查每一个请求。只有同时满足以下所有条件的请求�
 
 ### 编写插件
 
-把一个 `.py` 文件放进 `plugins/` 目录。按你想处理的事件名定义同名函数：
+把一个 `.py` 文件放进 `plugins/` 目录，或放进环境变量 `FACET_PLUGINS_DIR` 指定的文件夹。按你想处理的事件名定义同名函数：
 
 ```python
 def on_score_complete(data: dict) -> None:

@@ -11,14 +11,15 @@ Facet 在你自己的机器上运行。挑选与你的情况相符的章节，�
 
 | | Docker | 不使用 Docker |
 |---|---|---|
-| 安装 | 一条命令：所有内容都在镜像里 | `install.sh`（Linux、macOS）或 Windows 安装程序在本机建立 Python 环境 |
-| 更新 | 拉取新镜像 | 更新代码后重新运行 `install.sh`，或安装新的 Windows 安装程序 |
+| 安装 | 一条命令：所有内容都在镜像里 | `install.sh`（Linux、macOS）、macOS 应用或 Windows 安装程序在本机建立 Python 环境 |
+| 更新 | 拉取新镜像 | 更新代码后重新运行 `install.sh`，或安装新的 macOS 应用或 Windows 安装程序 |
 | 性能 | Facet 与你的文件和显卡之间隔着一层容器；在 Windows 上它运行在 WSL2 里 | Facet 直接使用本机的显卡和文件 |
 
 | 你的情况 | 前往 |
 |----------------|-------|
 | Windows、macOS 或 Linux，使用容器 | [使用 Docker 安装](#使用-docker-安装) |
 | Windows、macOS 或 Linux，不使用容器 | [不使用 Docker 安装](#不使用-docker-安装) |
+| 使用 Apple Silicon 的 Mac，不用终端 | [macOS 应用](#macos-应用) |
 | NAS，或一台希望从其他机器访问的服务器 | [部署](DEPLOYMENT.md) |
 
 ## 哪种配置档适合我的硬件？
@@ -163,7 +164,48 @@ python viewer.py                       # 启动照片库
 
 打开 <http://localhost:5000>。
 
-### macOS
+### macOS 应用
+
+Facet.app 是一款菜单栏应用，适用于运行 macOS 15 或更高版本的 Apple Silicon Mac。首次打开时它会完成
+Facet 的安装设置，之后让照片库在后台持续运行。
+
+**获取应用。** 1.31.0 之后的 GitHub Releases 会在附件中提供磁盘映像
+`Facet-<version>-<commit>.dmg`，其校验和在 `SHA256SUMS` 中。要自行构建，请使用
+`macos/build-app.sh`，它需要 Xcode Command Line Tools（`xcode-select --install`）和
+已构建的前端（`cd client && npm ci && npm run build`，需 Node.js 24）。它会打包当前提交中的文件，
+并写出 `macos/out/Facet-<version>-<commit>.dmg`。
+
+**首次打开。** 打开磁盘映像，把 Facet 拖进“应用程序”。该应用未经公证，因此 macOS 会阻止下载来的副本：
+先打开一次，然后在“系统设置”的“隐私与安全性”中选择**仍要打开**。随后会有一个窗口引导你完成设置。
+它会下载 Facet 所需的软件包（约 450 MB，安装后 1.5 GB），询问你的照片文件夹并检查 GPU。
+首次扫描还会下载模型，视 Mac 的内存大小为 5 到 20 GB。
+
+| 文件夹 | 内容 |
+|---|---|
+| `~/Library/Application Support/Facet/venv` | Python 环境，当更新改变了 Facet 的依赖项或应用被移动时会重新建立 |
+| `~/Library/Application Support/Facet/library` | 数据库（`photo_scores_pro.db`） |
+| `~/Library/Application Support/Facet/config` | `scoring_config.json` |
+| `~/Library/Application Support/Facet/models`、`huggingface`、`torch` | 下载的模型 |
+| `~/.insightface` | 人脸模型，InsightFace 总是把它们放在这里（约 300 MB） |
+| `~/Library/Logs/Facet` | `setup.log`、`viewer.log`，以及上一次运行留下的 `viewer.previous.log` |
+
+**日常使用。** 菜单栏中的相机图标可以打开照片库、添加文件夹、扫描所有文件夹以及查看日志。
+照片库只在这台 Mac 上响应：如果上次使用的端口仍然空闲就用它，否则用从 5000 开始第一个没有被其他程序
+监听的端口（AirPlay，或你在终端中启动的查看器，常常占用 5000）。该应用会开启
+`viewer.trusted_local_editing`，因此这台 Mac 上的浏览器无需密码即可编辑和启动扫描，而来自其他设备的
+请求会被拒绝。“这台 Mac”也包括它上面的其他用户账户：在共用的 Mac 上，请设置 `viewer.password` 或
+`viewer.edition_password`，这会关闭这种信任。此后菜单将无法再启动或跟踪扫描，请改从浏览器启动。添加文件夹会重启图库，请在没有扫描进行时再添加。
+Apple“照片”App 的图库会被跳过：请让 Facet 指向普通的照片文件夹。
+
+**更新。** 把新版本拖到旧版本上覆盖即可。当某次更新需要新的环境时，设置窗口会从下载步骤开始打开；
+你的照片数据库、配置和模型都会保留。该应用使用 ad hoc 签名，因此更新后 macOS 可能会再次请求访问
+“文稿”等受保护的文件夹。
+
+**卸载。** 从菜单退出 Facet，删除应用，然后删除
+`~/Library/Application Support/Facet`、`~/Library/Caches/Facet` 和 `~/Library/Logs/Facet`。
+同时删除 `~/.insightface`，除非这台 Mac 上的另一个 Facet 安装仍在使用它。
+
+### macOS（从克隆安装）
 
 ```bash
 git clone https://github.com/ncoevoet/facet.git && cd facet
@@ -693,7 +735,9 @@ Mac 对应的配置档键名：32-47GB 用 `"16gb"`，48GB 及以上用 `"24gb"`
 - `~/.cache/torch/hub/`（PyIQA 权重）
 - `~/.insightface/`（人脸检测/识别）
 - 仓库根目录下的 `pretrained_models/`：`samp_net.pth`、`u2netp.pth`、
-  `face_landmarker.task`，以及 `aesthetic_predictor_weights.pth`（仅 `legacy`/`8gb`）
+  `face_landmarker.task`，以及 `aesthetic_predictor_weights.pth`（仅 `legacy`/`8gb`）。
+  设置 `FACET_MODELS_DIR` 可把它们放到别处，例如安装文件夹为只读时。以 `pretrained_models/`
+  开头的已配置路径（`samp_net.model_path`、`piaa_prior.models_dir`）会随之改变。
 
 在 Docker 中这些都是具名卷（`pretrained_models/` 对应 `facet-pretrained`），所以重建容器时
 不会重新下载。镜像中没有烘焙任何模型权重。

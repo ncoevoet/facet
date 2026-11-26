@@ -12,14 +12,15 @@ rendimiento. Elige la que te encaje.
 
 | | Docker | Sin Docker |
 |---|---|---|
-| Instalación | Un comando: todo viene en la imagen | `install.sh` (Linux, macOS) o el instalador de Windows crea un entorno Python en la máquina |
-| Actualización | Descargar la imagen nueva | Actualizar el código y volver a ejecutar `install.sh`, o instalar el nuevo instalador de Windows |
+| Instalación | Un comando: todo viene en la imagen | `install.sh` (Linux, macOS), la app para macOS o el instalador de Windows crea un entorno Python en la máquina |
+| Actualización | Descargar la imagen nueva | Actualizar el código y volver a ejecutar `install.sh`, o instalar la nueva app para macOS o el nuevo instalador de Windows |
 | Rendimiento | Un contenedor se sitúa entre Facet y tus archivos y tu tarjeta gráfica; en Windows funciona dentro de WSL2 | Facet usa directamente la tarjeta gráfica y los archivos de la máquina |
 
 | Tu situación | Ve a |
 |----------------|-------|
 | Windows, macOS o Linux, en un contenedor | [Instalar con Docker](#instalar-con-docker) |
 | Windows, macOS o Linux, sin contenedores | [Instalar sin Docker](#instalar-sin-docker) |
+| Un Mac con Apple Silicon, sin terminal | [App para macOS](#app-para-macos) |
 | Un NAS, o un servidor al que quieras acceder desde otras máquinas | [Despliegue](DEPLOYMENT.md) |
 
 ## ¿Qué perfil se ajusta a mi hardware?
@@ -167,7 +168,52 @@ python viewer.py                       # inicia la galería
 
 Abre <http://localhost:5000>.
 
-### macOS
+### App para macOS
+
+Facet.app es una app de barra de menús para Mac con Apple Silicon y macOS 15 o posterior. Configura
+Facet la primera vez que se abre y después mantiene la galería en marcha en segundo plano.
+
+**Obtener la app.** Las versiones de GitHub Releases posteriores a 1.31.0 incluyen entre sus archivos la
+imagen de disco `Facet-<version>-<commit>.dmg`, con su suma de comprobación en `SHA256SUMS`. Para compilarla tú mismo, usa
+`macos/build-app.sh`, que necesita las Xcode Command Line Tools (`xcode-select --install`) y un
+cliente compilado (`cd client && npm ci && npm run build`, con Node.js 24). Empaqueta el árbol
+confirmado en git y escribe `macos/out/Facet-<version>-<commit>.dmg`.
+
+**Primera apertura.** Abre la imagen de disco y arrastra Facet a Aplicaciones. La app no está notarizada,
+así que macOS bloquea una copia descargada: ábrela una vez y luego elige **Abrir igualmente** en Ajustes del
+Sistema, Privacidad y seguridad. Después, una ventana te guía por la configuración. Descarga los paquetes
+que Facet necesita (unos 450 MB, 1,5 GB una vez instalados), te pide tus carpetas de fotos y comprueba la
+GPU. El primer escaneo también descarga los modelos, de 5 a 20 GB según la memoria del Mac.
+
+| Carpeta | Contenido |
+|---|---|
+| `~/Library/Application Support/Facet/venv` | el entorno Python, que se vuelve a crear cuando una actualización cambia las dependencias de Facet o cuando se mueve la app |
+| `~/Library/Application Support/Facet/library` | la base de datos (`photo_scores_pro.db`) |
+| `~/Library/Application Support/Facet/config` | `scoring_config.json` |
+| `~/Library/Application Support/Facet/models`, `huggingface`, `torch` | los modelos descargados |
+| `~/.insightface` | los modelos faciales, donde InsightFace siempre los guarda (unos 300 MB) |
+| `~/Library/Logs/Facet` | `setup.log`, `viewer.log` y `viewer.previous.log`, el de la ejecución anterior |
+
+**El día a día.** El icono de la cámara en la barra de menús abre la galería, añade carpetas, las escanea
+todas y muestra los registros. La galería solo responde en este Mac, en el puerto que usó la última vez si
+sigue libre, o si no en el primer puerto a partir del 5000 en el que no escuche nada más (AirPlay, o un
+visor que hayas iniciado en un terminal, ocupa a menudo el 5000). La app activa
+`viewer.trusted_local_editing`, así que un navegador en este Mac puede editar e iniciar escaneos sin
+contraseña, mientras que las peticiones de otros dispositivos se rechazan. «Este Mac» incluye sus otras
+cuentas de usuario: en un Mac compartido, define `viewer.password` o `viewer.edition_password`, lo que
+desactiva esa confianza. Entonces el menú ya no puede iniciar escaneos ni seguirlos, así que inícialos
+desde el navegador. Añade carpetas solo cuando no haya un escaneo en curso: al añadirlas se reinicia la galería. Las fototecas de Apple Fotos se omiten: indica a Facet carpetas de fotos normales.
+
+**Actualizar.** Arrastra la nueva versión sobre la anterior. Cuando una actualización necesita un entorno
+nuevo, la ventana de configuración se abre en el paso de descarga; tu biblioteca, tu configuración y tus
+modelos se conservan. La app tiene una firma ad hoc, así que tras una actualización macOS puede volver a
+pedir acceso a carpetas protegidas como Documentos.
+
+**Desinstalar.** Sal de Facet desde su menú, borra la app y luego borra
+`~/Library/Application Support/Facet`, `~/Library/Caches/Facet` y `~/Library/Logs/Facet`.
+Borra también `~/.insightface`, salvo que otra instalación de Facet en este Mac lo siga usando.
+
+### macOS desde un clon
 
 ```bash
 git clone https://github.com/ncoevoet/facet.git && cd facet
@@ -718,7 +764,10 @@ Los modelos se descargan en el primer uso en:
 - `~/.cache/torch/hub/` (pesos de PyIQA)
 - `~/.insightface/` (detección/reconocimiento facial)
 - `pretrained_models/` en la raíz del repositorio: `samp_net.pth`, `u2netp.pth`,
-  `face_landmarker.task` y `aesthetic_predictor_weights.pth` (solo `legacy`/`8gb`)
+  `face_landmarker.task` y `aesthetic_predictor_weights.pth` (solo `legacy`/`8gb`).
+  Define `FACET_MODELS_DIR` para guardarlos en otro sitio, por ejemplo cuando la carpeta de
+  instalación es de solo lectura. Una ruta configurada que empieza por `pretrained_models/`
+  (`samp_net.model_path`, `piaa_prior.models_dir`) la sigue.
 
 En Docker son volúmenes con nombre (`pretrained_models/` es `facet-pretrained`), así que nada
 se vuelve a descargar al recrear el contenedor. No hay pesos integrados en la imagen.

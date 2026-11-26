@@ -161,7 +161,7 @@ Steuert, welche Verzeichnisse der Scan besucht.
 {
   "scanning": {
     "skip_hidden_directories": true,
-    "skip_directories": ["@eaDir", "#recycle", "#snapshot", "@Recycle"],
+    "skip_directories": ["@eaDir", "#recycle", "#snapshot", "@Recycle", "*.photoslibrary"],
     "skip_raw": false
   }
 }
@@ -170,13 +170,13 @@ Steuert, welche Verzeichnisse der Scan besucht.
 | Einstellung | Standard | Beschreibung |
 |---------|---------|-------------|
 | `skip_hidden_directories` | `true` | Überspringt Verzeichnisse, deren Name mit `.` beginnt |
-| `skip_directories` | `["@eaDir", "#recycle", "#snapshot", "@Recycle"]` | Ordnernamen-Globs, die in beliebiger Tiefe übersprungen werden |
+| `skip_directories` | `["@eaDir", "#recycle", "#snapshot", "@Recycle", "*.photoslibrary"]` | Ordnernamen-Globs, die in beliebiger Tiefe übersprungen werden |
 | `skip_raw` | `false` | Kamera-RAW-Dateien beim Verzeichnisscan überspringen |
 
 Hinweise zu `skip_directories`:
 
 - Globs verwenden `fnmatch`, beachten die Groß-/Kleinschreibung und treffen nur den Ordnernamen.
-- Die Standardwerte decken Synology `@eaDir` (die `SYNOPHOTO_THUMB_*.jpg`-Vorschaubilder), `#recycle`, `#snapshot` und QNAP `@Recycle` ab.
+- Die Standardwerte decken Synology `@eaDir` (die `SYNOPHOTO_THUMB_*.jpg`-Vorschaubilder), `#recycle`, `#snapshot`, QNAP `@Recycle` und Apple-Fotos-Mediatheken (`*.photoslibrary`) ab, deren Originale und abgeleitete Dateien sonst als Duplikate von Fotos gescannt würden, die Sie anderswo aufbewahren.
 - Ihre Liste ersetzt den Standard; `[]` deaktiviert das Überspringen nach Namen. Das Scan-Stammverzeichnis wird nie übersprungen.
 - Bereits aus diesen Ordnern indizierte Fotos bleiben in der Datenbank.
 
@@ -2073,7 +2073,7 @@ Ereignisgesteuertes Plugin-System zum Reagieren auf Bewertungsereignisse. Plugin
 
 ### Ein Plugin schreiben
 
-Legen Sie eine `.py`-Datei im Verzeichnis `plugins/` ab. Definieren Sie Funktionen, die nach den Ereignissen benannt sind, die Sie behandeln möchten:
+Legen Sie eine `.py`-Datei im Verzeichnis `plugins/` ab oder in dem Ordner, den die Umgebungsvariable `FACET_PLUGINS_DIR` nennt. Definieren Sie Funktionen, die nach den Ereignissen benannt sind, die Sie behandeln möchten:
 
 ```python
 def on_score_complete(data: dict) -> None:

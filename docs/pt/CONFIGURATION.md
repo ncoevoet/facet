@@ -161,7 +161,7 @@ Controla quais diretórios o escaneamento visita.
 {
   "scanning": {
     "skip_hidden_directories": true,
-    "skip_directories": ["@eaDir", "#recycle", "#snapshot", "@Recycle"],
+    "skip_directories": ["@eaDir", "#recycle", "#snapshot", "@Recycle", "*.photoslibrary"],
     "skip_raw": false
   }
 }
@@ -170,12 +170,12 @@ Controla quais diretórios o escaneamento visita.
 | Configuração | Padrão | Descrição |
 |--------------|--------|-----------|
 | `skip_hidden_directories` | `true` | Ignora diretórios cujo nome começa com `.` |
-| `skip_directories` | `["@eaDir", "#recycle", "#snapshot", "@Recycle"]` | Globs de nomes de pasta ignorados em qualquer profundidade |
+| `skip_directories` | `["@eaDir", "#recycle", "#snapshot", "@Recycle", "*.photoslibrary"]` | Globs de nomes de pasta ignorados em qualquer profundidade |
 | `skip_raw` | `false` | Ignorar arquivos RAW da câmera durante o escaneamento de pastas |
 
 Notas sobre `skip_directories`:
 - Os globs usam `fnmatch`, diferenciam maiúsculas de minúsculas e comparam apenas o nome da pasta.
-- Os padrões cobrem `@eaDir` da Synology (suas miniaturas `SYNOPHOTO_THUMB_*.jpg`), `#recycle`, `#snapshot` e `@Recycle` da QNAP.
+- Os padrões cobrem `@eaDir` da Synology (suas miniaturas `SYNOPHOTO_THUMB_*.jpg`), `#recycle`, `#snapshot`, `@Recycle` da QNAP e as bibliotecas do app Fotos da Apple (`*.photoslibrary`), cujos originais e derivados seriam escaneados como duplicatas de fotos que você guarda em outro lugar.
 - Sua lista substitui a padrão; `[]` desativa a exclusão por nome. A raiz do escaneamento nunca é ignorada.
 - Fotos já indexadas dessas pastas permanecem no banco de dados.
 
@@ -2052,7 +2052,7 @@ Sistema de plugins orientado a eventos para reagir a eventos de pontuação. Os 
 
 ### Escrevendo um Plugin
 
-Coloque um arquivo `.py` no diretório `plugins/`. Defina funções nomeadas conforme os eventos que você deseja tratar:
+Coloque um arquivo `.py` no diretório `plugins/`, ou na pasta indicada pela variável de ambiente `FACET_PLUGINS_DIR`. Defina funções nomeadas conforme os eventos que você deseja tratar:
 
 ```python
 def on_score_complete(data: dict) -> None:

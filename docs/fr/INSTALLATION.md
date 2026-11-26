@@ -12,14 +12,15 @@ contre les performances. Choisissez celle qui vous convient.
 
 | | Docker | Sans Docker |
 |---|---|---|
-| Installation | Une commande : tout est dans l'image | `install.sh` (Linux, macOS) ou l'installeur Windows crée un environnement Python sur la machine |
-| Mise à jour | Récupérer la nouvelle image | Mettre à jour le code et relancer `install.sh`, ou installer le nouvel installeur Windows |
+| Installation | Une commande : tout est dans l'image | `install.sh` (Linux, macOS), l'application macOS ou l'installeur Windows crée un environnement Python sur la machine |
+| Mise à jour | Récupérer la nouvelle image | Mettre à jour le code et relancer `install.sh`, ou installer la nouvelle application macOS ou le nouvel installeur Windows |
 | Performances | Un conteneur se place entre Facet et vos fichiers et votre carte graphique ; sous Windows il tourne dans WSL2 | Facet utilise directement la carte graphique et les fichiers de la machine |
 
 | Votre situation | Aller à |
 |----------------|-------|
 | Windows, macOS ou Linux, dans un conteneur | [Installer avec Docker](#installer-avec-docker) |
 | Windows, macOS ou Linux, sans conteneur | [Installer sans Docker](#installer-sans-docker) |
+| Un Mac Apple Silicon, sans terminal | [Application macOS](#application-macos) |
 | Un NAS, ou un serveur que vous voulez atteindre depuis d'autres machines | [Déploiement](DEPLOYMENT.md) |
 
 ## Quel profil correspond à mon matériel ?
@@ -167,7 +168,54 @@ python viewer.py                       # démarrer la galerie
 
 Ouvrez <http://localhost:5000>.
 
-### macOS
+### Application macOS
+
+Facet.app est une application de barre des menus pour les Mac Apple Silicon sous macOS 15 ou ultérieur.
+Elle installe Facet à sa première ouverture, puis fait tourner la galerie en arrière-plan.
+
+**Obtenir l'application.** Les GitHub Releases postérieures à 1.31.0 fournissent l'image disque
+`Facet-<version>-<commit>.dmg` parmi leurs fichiers, avec sa somme de contrôle dans `SHA256SUMS`. Pour la construire vous-même, utilisez
+`macos/build-app.sh`, qui exige les Xcode Command Line Tools (`xcode-select --install`) et un
+client compilé (`cd client && npm ci && npm run build`, avec Node.js 24). Il empaquette l'arborescence
+commitée et écrit `macos/out/Facet-<version>-<commit>.dmg`.
+
+**Première ouverture.** Ouvrez l'image disque et glissez Facet dans Applications. L'application n'est pas
+notarisée, donc macOS bloque une copie téléchargée : ouvrez-la une fois, puis choisissez **Ouvrir quand
+même** dans Réglages Système, Confidentialité et sécurité. Une fenêtre vous guide ensuite dans
+l'installation. Elle télécharge les paquets dont Facet a besoin (environ 450 Mo, 1,5 Go une fois
+installés), demande vos dossiers de photos et vérifie le GPU. Le premier scan télécharge aussi les
+modèles, de 5 à 20 Go selon la mémoire du Mac.
+
+| Dossier | Contenu |
+|---|---|
+| `~/Library/Application Support/Facet/venv` | l'environnement Python, reconstruit quand une mise à jour modifie les dépendances de Facet ou que l'application est déplacée |
+| `~/Library/Application Support/Facet/library` | la base de données (`photo_scores_pro.db`) |
+| `~/Library/Application Support/Facet/config` | `scoring_config.json` |
+| `~/Library/Application Support/Facet/models`, `huggingface`, `torch` | les modèles téléchargés |
+| `~/.insightface` | les modèles de visage, là où InsightFace les range toujours (environ 300 Mo) |
+| `~/Library/Logs/Facet` | `setup.log`, `viewer.log` et `viewer.previous.log`, celui de l'exécution précédente |
+
+**Au quotidien.** L'icône d'appareil photo dans la barre des menus ouvre la galerie, ajoute des dossiers,
+les scanne tous et affiche les journaux. La galerie ne répond que sur ce Mac, sur le port utilisé la
+dernière fois s'il est encore libre, sinon sur le premier port à partir de 5000 sur lequel rien d'autre
+n'écoute (AirPlay, ou une visionneuse lancée dans un terminal, occupe souvent le 5000). L'application
+active `viewer.trusted_local_editing`, si bien qu'un navigateur sur ce Mac peut modifier et lancer des
+scans sans mot de passe, tandis que les requêtes des autres appareils sont refusées. « Ce Mac » inclut ses
+autres comptes utilisateur : sur un Mac partagé, définissez `viewer.password` ou
+`viewer.edition_password`, ce qui désactive cette confiance. Le menu ne peut alors plus lancer de scans
+ni les suivre ; lancez-les donc depuis le navigateur. Ajoutez des dossiers seulement quand aucun scan ne tourne : cet ajout redémarre la galerie. Les photothèques Apple Photos sont ignorées :
+indiquez à Facet des dossiers de photos ordinaires.
+
+**Mise à jour.** Glissez la nouvelle version par-dessus l'ancienne. Quand une mise à jour exige un nouvel
+environnement, la fenêtre d'installation s'ouvre à l'étape de téléchargement ; votre bibliothèque, votre
+configuration et vos modèles sont conservés. L'application est signée ad hoc, donc macOS peut redemander
+l'accès aux dossiers protégés comme Documents après une mise à jour.
+
+**Désinstallation.** Quittez Facet depuis son menu, supprimez l'application, puis supprimez
+`~/Library/Application Support/Facet`, `~/Library/Caches/Facet` et `~/Library/Logs/Facet`.
+Supprimez aussi `~/.insightface`, sauf si une autre installation de Facet sur ce Mac l'utilise encore.
+
+### macOS depuis un clone
 
 ```bash
 git clone https://github.com/ncoevoet/facet.git && cd facet
@@ -719,7 +767,10 @@ Les modèles se téléchargent à la première utilisation dans :
 - `~/.cache/torch/hub/` (poids PyIQA)
 - `~/.insightface/` (détection/reconnaissance de visages)
 - `pretrained_models/` à la racine du dépôt : `samp_net.pth`, `u2netp.pth`,
-  `face_landmarker.task` et `aesthetic_predictor_weights.pth` (`legacy`/`8gb` uniquement)
+  `face_landmarker.task` et `aesthetic_predictor_weights.pth` (`legacy`/`8gb` uniquement).
+  Définissez `FACET_MODELS_DIR` pour les placer ailleurs, par exemple quand le dossier
+  d'installation est en lecture seule. Un chemin configuré qui commence par `pretrained_models/`
+  (`samp_net.model_path`, `piaa_prior.models_dir`) le suit.
 
 Sous Docker, ce sont des volumes nommés (`pretrained_models/` est `facet-pretrained`), si bien que rien
 ne se retélécharge à la recréation du conteneur. Aucun poids n'est intégré à l'image.

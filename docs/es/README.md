@@ -36,6 +36,7 @@ copiar y pegar.
 | Problema | Respuesta |
 |-------|--------|
 | ¿Qué perfil debería usar? | [Instalación › ¿Qué perfil se ajusta a mi hardware?](INSTALLATION.md#qué-perfil-se-ajusta-a-mi-hardware) |
+| Mac sin terminal | La [app para macOS](INSTALLATION.md#app-para-macos) configura Facet y lo mantiene en la barra de menús |
 | "externally-managed-environment" al instalar | Usa un entorno virtual (o Docker) — consulta [Instalación](INSTALLATION.md) |
 | Procesamiento lento | Comprueba el perfil. `--single-pass` puede ayudar en los perfiles `legacy`/`8gb` con mucha VRAM; `12gb`/`16gb`/`24gb` siempre ejecutan multipaso (salvo en modo comercial) |
 | La detección de rostros no usa la GPU | Ejecuta `python facet.py --doctor` (sección ONNX Runtime) e instala `onnxruntime-gpu` en lugar de `onnxruntime`, nunca junto a él — consulta [Instalación](INSTALLATION.md#onnx-runtime-para-la-detección-de-rostros) |
