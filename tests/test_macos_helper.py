@@ -182,6 +182,27 @@ def test_serve_runs_the_viewer_in_a_process_group_of_its_own(tmp_path, group_lea
     assert pid == pgid
 
 
+
+def test_serve_starts_the_viewer_with_the_key_its_library_and_the_port(tmp_path):
+    # Without FACET_ACCESS_KEY the viewer installs no gate, and every account on the Mac reaches it.
+    home = tmp_path / 'home'
+    fake_python = home / 'venv' / 'bin' / 'python'
+    fake_python.parent.mkdir(parents=True)
+    fake_python.write_text('#!/bin/sh\n/usr/bin/env\necho "ARGV=$*"\necho "CWD=$(pwd -P)"\n')
+    fake_python.chmod(0o755)
+    (home / 'library').mkdir()
+    result = subprocess.run([sys.executable, '-I', str(HELPER), 'serve', '5999'],
+                            env={'FACET_HOME': str(home), 'PATH': '/usr/bin:/bin'},
+                            capture_output=True, text=True, timeout=30)
+    assert result.returncode == 0, result.stderr
+    seen = dict(line.split('=', 1) for line in result.stdout.splitlines() if '=' in line)
+    assert seen['FACET_ACCESS_KEY'] == (home / 'access.key').read_text().strip()
+    assert seen['DB_PATH'] == str(home / 'library' / 'photo_scores_pro.db')
+    assert seen['FACET_CONFIG'] == str(home / 'config' / 'scoring_config.json')
+    assert seen['FACET_MODELS_DIR'] == str(home / 'models')
+    assert seen['ARGV'].endswith('viewer.py --production --host 127.0.0.1 --port 5999')
+    assert seen['CWD'] == str((home / 'library').resolve())
+
 def test_every_setup_error_has_its_text_in_every_language():
     # The app shows macos_app.setup.error_<code>; a code without text would show its key.
     import re
