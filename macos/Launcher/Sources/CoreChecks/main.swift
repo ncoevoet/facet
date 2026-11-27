@@ -1,6 +1,7 @@
 // `swift run core-checks`: exits non-zero on the first failed check.
 import Darwin
 import FacetCore
+import Foundation
 
 var failures = 0
 func check(_ condition: Bool, _ name: String) {
@@ -20,6 +21,20 @@ check(ProgressEvent(phase: "environment", current: 10, total: 0).fraction == nil
 check(InstallLocation.of("/private/var/folders/x4/abc/T/AppTranslocation/1234/d/Facet.app") == .translocated,
       "translocated path is not stable")
 check(InstallLocation.of("/Applications/Facet.app") == .stable, "Applications is stable")
+// A disk image mounted outside /Volumes is still a disk image.
+let imageDir = NSTemporaryDirectory() + "facet-core-checks-\(getpid())"
+func hdiutil(_ arguments: [String]) {
+    let tool = Process()
+    tool.executableURL = URL(fileURLWithPath: "/usr/bin/hdiutil")
+    tool.arguments = arguments + ["-quiet"]
+    try? tool.run()
+    tool.waitUntilExit()
+}
+hdiutil(["create", "-size", "1m", "-fs", "HFS+", "-volname", "checks", imageDir + ".dmg"])
+hdiutil(["attach", "-readonly", "-nobrowse", "-mountpoint", imageDir, imageDir + ".dmg"])
+check(InstallLocation.of(imageDir) == .diskImage, "a read-only image outside /Volumes is not stable")
+hdiutil(["detach", imageDir])
+try? FileManager.default.removeItem(atPath: imageDir + ".dmg")
 check(Translations.language(preferred: ["fr-FR", "en"]) == "fr", "preferred language is used")
 check(Translations.language(preferred: ["ja-JP"]) == "en", "unsupported language falls back to English")
 let table: [String: Any] = ["macos_app": ["menu": ["open": "Open {name}", "empty": ""]]]

@@ -62,12 +62,11 @@ public enum InstallLocation: Equatable {
     public static func of(_ bundlePath: String) -> InstallLocation {
         // macOS runs a quarantined app that the user did not move from a random read-only path.
         if bundlePath.contains("/AppTranslocation/") { return .translocated }
-        if bundlePath.hasPrefix("/Volumes/") {
-            let url = URL(fileURLWithPath: bundlePath)
-            let readOnly = (try? url.resourceValues(forKeys: [.volumeIsReadOnlyKey]))?.volumeIsReadOnly ?? false
-            if readOnly { return .diskImage }
-        }
-        return .stable
+        // Any read-only volume, not only one under /Volumes: an image mounted elsewhere would
+        // otherwise run in place and rebuild the environment around its own Python.
+        let url = URL(fileURLWithPath: bundlePath)
+        let readOnly = (try? url.resourceValues(forKeys: [.volumeIsReadOnlyKey]))?.volumeIsReadOnly ?? false
+        return readOnly ? .diskImage : .stable
     }
 }
 
