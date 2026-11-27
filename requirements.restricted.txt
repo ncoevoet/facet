@@ -21,4 +21,4 @@ insightface>=0.7.0
 pyiqa>=0.1.16
 # pyiqa's liqe/clipiqa archs depend on PyPI openai-clip, which still imports
 # pkg_resources at runtime (LIQE/CLIPIQA); setuptools 82 removed pkg_resources.
-setuptools<82
+setuptools<85
