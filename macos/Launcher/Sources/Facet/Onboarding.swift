@@ -75,7 +75,7 @@ struct OnboardingView: View {
                 }
                 .keyboardShortcut(.defaultAction)
                 .buttonStyle(.borderedProminent)
-                .disabled(flow.opening && model.server == .starting)
+                .disabled(flow.opening)
             } else {
                 Button(step == .folders && model.folders.isEmpty ? L10n.t("onboarding.skip") : L10n.t("onboarding.continue")) {
                     move(1)

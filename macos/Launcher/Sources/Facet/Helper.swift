@@ -81,7 +81,7 @@ enum Helper {
     }
 }
 
-/// What `facet_mac.py env` prints: only the log folder is needed here.
+/// What `facet_mac.py env` prints: the log folder and the per-install access key; the launcher needs no other field.
 struct LaunchSpec: Decodable {
     let logs: String
     let access_key: String

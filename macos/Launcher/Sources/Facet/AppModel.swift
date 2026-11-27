@@ -253,6 +253,7 @@ final class AppModel {
         guard ended === process else { return }
         process = nil
         scanWatch?.cancel()
+        scan = ScanState()
         setScanning(false)
         if stopping {
             server = .stopped

@@ -89,7 +89,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         // After an update rebuilds the environment, skip the introduction a returning user has seen.
         if model.onboarded { flow.step = .setup }
         let view = OnboardingView(model: model, flow: flow) { [weak self] scanNow in
-            Task { await self?.finishOnboarding(scanNow: scanNow) }
+            Task { @MainActor in
+                await self?.finishOnboarding(scanNow: scanNow)
+                // Re-arms the button only if the window is still up, after a failure.
+                flow.opening = false
+            }
         }
         let window = NSWindow(contentRect: .zero, styleMask: [.titled, .closable, .fullSizeContentView],
                               backing: .buffered, defer: false)
