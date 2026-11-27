@@ -16,14 +16,26 @@ extension InstallLocation {
             alert.addButton(withTitle: L10n.t("install.copy"))
             alert.addButton(withTitle: L10n.t("install.quit"))
             if alert.runModal() == .alertFirstButtonReturn {
-                let target = URL(fileURLWithPath: "/Applications").appendingPathComponent(bundle.lastPathComponent)
+                let applications = URL(fileURLWithPath: "/Applications")
+                let target = applications.appendingPathComponent(bundle.lastPathComponent)
+                let fm = FileManager.default
+                var staging: URL?
                 do {
-                    if FileManager.default.fileExists(atPath: target.path) {
-                        try FileManager.default.trashItem(at: target, resultingItemURL: nil)
+                    // Copy first, beside the target: the installed app goes to the Trash only once
+                    // the new copy is complete, and the final move is a rename.
+                    let folder = try fm.url(for: .itemReplacementDirectory, in: .userDomainMask,
+                                            appropriateFor: applications, create: true)
+                    staging = folder
+                    let staged = folder.appendingPathComponent(bundle.lastPathComponent)
+                    try fm.copyItem(at: bundle, to: staged)
+                    if fm.fileExists(atPath: target.path) {
+                        try fm.trashItem(at: target, resultingItemURL: nil)
                     }
-                    try FileManager.default.copyItem(at: bundle, to: target)
+                    try fm.moveItem(at: staged, to: target)
+                    try? fm.removeItem(at: folder)
                     openAfterExit(target)
                 } catch {
+                    if let staging { try? fm.removeItem(at: staging) }
                     let failed = NSAlert(error: error)
                     failed.runModal()
                 }
