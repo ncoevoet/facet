@@ -38,6 +38,7 @@ check(!Supervision.isAppPython("/opt/homebrew/bin/python3.12"), "another Python 
 check(Updates.version(fromTag: "v1.32.0") == "1.32.0" && Updates.version(fromTag: "1.32.0") == "1.32.0", "tag version")
 check(Updates.isNewer("1.10.0", than: "1.9.0"), "versions compare as numbers")
 check(!Updates.isNewer("1.31", than: "1.31.0") && !Updates.isNewer("1.30.9", than: "1.31.0"), "same or older is no update")
+check(Updates.plainNotes("### Fixed\n- **Scan** uses `uv`\n* two") == "Fixed\n• Scan uses uv\n• two", "release notes lose their Markdown")
 let sums = "abc123  Facet-1.32.0-1a2b3c4d5.dmg\nDEF456 *other.dmg\n"
 check(Updates.checksum(for: "Facet-1.32.0-1a2b3c4d5.dmg", in: sums) == "abc123", "SHA256SUMS text line")
 check(Updates.checksum(for: "other.dmg", in: sums) == "def456", "SHA256SUMS binary line, lowercased")

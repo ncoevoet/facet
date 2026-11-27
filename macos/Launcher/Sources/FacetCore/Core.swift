@@ -173,6 +173,17 @@ public enum Updates {
         return false
     }
 
+    /// Release notes as plain text for the update window: GitHub returns Markdown, which an
+    /// NSTextView would show with its `###`, `**` and backticks.
+    public static func plainNotes(_ markdown: String) -> String {
+        markdown.split(separator: "\n", omittingEmptySubsequences: false).map { line -> String in
+            var text = String(line)
+            if text.hasPrefix("#") { text = String(text.drop(while: { $0 == "#" })).trimmingCharacters(in: .whitespaces) }
+            if text.hasPrefix("- ") || text.hasPrefix("* ") { text = "• " + text.dropFirst(2) }
+            return text.replacingOccurrences(of: "**", with: "").replacingOccurrences(of: "`", with: "")
+        }.joined(separator: "\n")
+    }
+
     /// The hash `sha256sum` listed for `file` in a SHA256SUMS text, lowercased; nil when absent.
     public static func checksum(for file: String, in sums: String) -> String? {
         for line in sums.split(whereSeparator: \.isNewline) {

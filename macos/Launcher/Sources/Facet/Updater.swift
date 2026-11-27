@@ -150,7 +150,7 @@ final class Updater {
         scroll.frame = NSRect(x: 0, y: 0, width: 420, height: 180)
         let text = scroll.documentView as! NSTextView
         text.isEditable = false
-        text.string = notes
+        text.string = Updates.plainNotes(notes)
         return scroll
     }
 
