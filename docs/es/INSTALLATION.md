@@ -197,12 +197,7 @@ GPU. El primer escaneo también descarga los modelos, de 5 a 20 GB según la mem
 **El día a día.** El icono de la cámara en la barra de menús abre la galería, añade carpetas, las escanea
 todas y muestra los registros. La galería solo responde en este Mac, en el puerto que usó la última vez si
 sigue libre, o si no en el primer puerto a partir del 5000 en el que no escuche nada más (AirPlay, o un
-visor que hayas iniciado en un terminal, ocupa a menudo el 5000). La app activa
-`viewer.trusted_local_editing`, así que un navegador en este Mac puede editar e iniciar escaneos sin
-contraseña, mientras que las peticiones de otros dispositivos se rechazan. «Este Mac» incluye sus otras
-cuentas de usuario: en un Mac compartido, define `viewer.password`, que también
-desactiva esa confianza. `viewer.edition_password` por sí sola solo impide que otras cuentas editen: aun así pueden explorar y descargar todas las fotos. Entonces el menú ya no puede iniciar escaneos ni seguirlos, así que inícialos
-desde el navegador. Añadir una carpeta reinicia la galería; si hay un escaneo en curso, el reinicio espera a que termine. Las fototecas de Apple Fotos se omiten: indica a Facet carpetas de fotos normales.
+visor que hayas iniciado en un terminal, ocupa a menudo el 5000). La app activa `viewer.trusted_local_editing`, así que el navegador que abre puede editar e iniciar escaneos sin contraseña. Además da a la galería una clave que solo tu cuenta de usuario puede leer (`access.key` en su carpeta de datos): el menú abre la galería con ella una vez, tu navegador la guarda como cookie y cualquier petición sin ella se rechaza con un aviso para abrir Facet desde la barra de menús. Así quedan fuera otros dispositivos, las demás cuentas de este Mac y las páginas web que intenten llegar a la galería, mientras que los asistentes siguen usando sus propios tokens en `/mcp`. **Abrir Facet** usa tu navegador predeterminado; otro navegador muestra ese aviso. Si defines `viewer.password` o `viewer.edition_password`, la confianza se desactiva y el menú ya no puede iniciar escaneos ni seguirlos, así que inícialos desde el navegador. Añadir una carpeta reinicia la galería; si hay un escaneo en curso, el reinicio espera a que termine. Las fototecas de Apple Fotos se omiten: indica a Facet carpetas de fotos normales.
 
 **Actualizar.** Arrastra la nueva versión sobre la anterior. Cuando una actualización necesita un entorno
 nuevo, la ventana de configuración se abre en el paso de descarga; tu biblioteca, tu configuración y tus

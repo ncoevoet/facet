@@ -446,6 +446,7 @@ Variables d'environnement associées :
 - `FACET_MODELS_DIR` : emplacement des poids de modèles téléchargés automatiquement. Par défaut `<install>/pretrained_models` ; à définir quand le dossier d'installation est en lecture seule.
 - `FACET_PLUGINS_DIR` : le dossier parcouru pour trouver les modules de plugins. Par défaut `<install>/plugins`.
 - `FACET_HOME` : le lanceur de l'app macOS place données, configuration, caches et journaux dans ce seul dossier au lieu de `~/Library/Application Support/Facet`, `~/Library/Caches/Facet`, `~/Library/Logs/Facet` (pour les tests et la CI).
+- `FACET_ACCESS_KEY` : défini par le lanceur de l'app macOS. La visionneuse refuse alors toute requête, sauf `/mcp`, qui ne porte ni le cookie `facet_access` ni l'en-tête `X-Facet-Access-Key` avec cette clé ; ouvrir une fois `/?access_key=<key>` pose le cookie.
 
 > **Avertissement :** `viewer.py` ne lit jamais un `scoring_config.json` du répertoire où vous le lancez. Si vous le démarrez depuis une photothèque et que la racine de l'installation n'a pas de configuration, il tourne sur les valeurs par défaut : un `viewer.edition_password` vide et aucun mot de passe de visionneuse, donc tout le monde peut parcourir.
 

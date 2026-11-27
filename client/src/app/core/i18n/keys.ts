@@ -4366,6 +4366,7 @@ export const I18N = {
       no_answer: "macos_app.server.no_answer",
       crashed: "macos_app.server.crashed",
       not_running: "macos_app.server.not_running",
+      open_from_menu: "macos_app.server.open_from_menu",
     },
     scan: {
       no_folders: "macos_app.scan.no_folders",

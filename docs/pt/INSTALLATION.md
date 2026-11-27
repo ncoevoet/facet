@@ -198,12 +198,7 @@ a memória do Mac.
 **No dia a dia.** O ícone de câmera na barra de menus abre a galeria, adiciona pastas, faz a varredura
 de todas e mostra os logs. A galeria responde somente neste Mac, na porta usada da última vez se ela
 ainda estiver livre, senão na primeira porta a partir da 5000 em que nada mais esteja escutando (o
-AirPlay, ou um visualizador iniciado em um terminal, costuma ocupar a 5000). O app ativa
-`viewer.trusted_local_editing`, então um navegador neste Mac pode editar e iniciar varreduras sem
-senha, enquanto pedidos de outros dispositivos são recusados. "Este Mac" inclui as outras contas de
-usuário dele: em um Mac compartilhado, defina `viewer.password`, o que também
-desliga essa confiança. `viewer.edition_password` sozinha só impede que outras contas editem: elas ainda podem navegar e baixar todas as fotos. Aí o menu não consegue mais iniciar varreduras nem acompanhá-las, então
-inicie-as pelo navegador. Adicionar uma pasta reinicia a galeria; se houver uma varredura em andamento, a reinicialização espera essa varredura terminar. As bibliotecas do app Fotos da Apple são ignoradas: aponte o Facet para
+AirPlay, ou um visualizador iniciado em um terminal, costuma ocupar a 5000). O app ativa `viewer.trusted_local_editing`, então o navegador que ele abre pode editar e iniciar varreduras sem senha. Ele também dá à galeria uma chave que só a sua conta de usuário consegue ler (`access.key` na pasta de dados dele): o menu abre a galeria uma vez com ela, o navegador a guarda como cookie e qualquer pedido sem ela é recusado com um aviso para abrir o Facet pela barra de menus. Isso deixa de fora outros dispositivos, as outras contas deste Mac e páginas da web que tentem alcançar a galeria, enquanto os assistentes continuam usando os próprios tokens em `/mcp`. **Abrir o Facet** usa o seu navegador padrão; outro navegador mostra esse aviso. Se você definir `viewer.password` ou `viewer.edition_password`, a confiança é desligada e o menu não consegue mais iniciar varreduras nem acompanhá-las, então inicie-as pelo navegador. Adicionar uma pasta reinicia a galeria; se houver uma varredura em andamento, a reinicialização espera essa varredura terminar. As bibliotecas do app Fotos da Apple são ignoradas: aponte o Facet para
 pastas de fotos comuns.
 
 **Atualizando.** Arraste a nova versão por cima da antiga. Quando uma atualização precisa de um novo

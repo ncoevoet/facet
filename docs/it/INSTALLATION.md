@@ -198,11 +198,7 @@ verifica la GPU. La prima scansione scarica anche i modelli, da 5 a 20 GB a seco
 **Ogni giorno.** L'icona della fotocamera nella barra dei menu apre la galleria, aggiunge cartelle, le
 scansiona tutte e mostra i log. La galleria risponde solo su questo Mac, sulla porta usata l'ultima
 volta se è ancora libera, altrimenti sulla prima porta da 5000 in su su cui nient'altro è in ascolto
-(AirPlay, o un visualizzatore avviato da un terminale, occupa spesso la 5000). L'app attiva
-`viewer.trusted_local_editing`, quindi un browser su questo Mac può modificare e avviare scansioni
-senza password, mentre le richieste da altri dispositivi vengono rifiutate. "Questo Mac" comprende
-anche gli altri account utente: su un Mac condiviso, imposta `viewer.password`, che disattiva anche questa fiducia. `viewer.edition_password` da sola impedisce solo agli altri account di modificare: possono comunque sfogliare e scaricare tutte le foto. A quel punto il menu non può più avviare
-scansioni né seguirle, quindi avviale dal browser. Aggiungere una cartella riavvia la galleria; se è in corso una scansione, il riavvio attende la fine di quella scansione. Le librerie di Foto di Apple vengono saltate:
+(AirPlay, o un visualizzatore avviato da un terminale, occupa spesso la 5000). L'app attiva `viewer.trusted_local_editing`, quindi il browser che apre può modificare e avviare scansioni senza password. Dà anche alla galleria una chiave che solo il tuo account utente può leggere (`access.key` nella sua cartella dei dati): il menu apre la galleria una volta con questa chiave, il browser la conserva come cookie e ogni richiesta senza di essa viene rifiutata con un avviso che invita ad aprire Facet dalla barra dei menu. Così restano fuori gli altri dispositivi, gli altri account di questo Mac e le pagine web che cercano di raggiungere la galleria, mentre gli assistenti continuano a usare i propri token su `/mcp`. **Apri Facet** usa il browser predefinito; un altro browser mostra quell'avviso. Se imposti `viewer.password` o `viewer.edition_password`, la fiducia si disattiva e il menu non può più avviare scansioni né seguirle, quindi avviale dal browser. Aggiungere una cartella riavvia la galleria; se è in corso una scansione, il riavvio attende la fine di quella scansione. Le librerie di Foto di Apple vengono saltate:
 indica a Facet normali cartelle di foto.
 
 **Aggiornamento.** Trascina la nuova versione sopra quella vecchia. Quando un aggiornamento richiede un

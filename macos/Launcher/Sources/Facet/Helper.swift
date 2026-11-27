@@ -84,4 +84,5 @@ enum Helper {
 /// What `facet_mac.py env` prints: only the log folder is needed here.
 struct LaunchSpec: Decodable {
     let logs: String
+    let access_key: String
 }

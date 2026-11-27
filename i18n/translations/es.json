@@ -4351,7 +4351,8 @@
       "no_port": "No hay ningún puerto libre entre 5000 y 5049.",
       "no_answer": "Facet no se inició en 2 minutos. Consulta los registros.",
       "crashed": "Facet se detuvo de forma inesperada (código {code}). Consulta los registros.",
-      "not_running": "Facet no está en funcionamiento."
+      "not_running": "Facet no está en funcionamiento.",
+      "open_from_menu": "Abre Facet desde su icono de la barra de menús para usarlo en este navegador."
     },
     "scan": {
       "no_folders": "Primero añade una carpeta de fotos."

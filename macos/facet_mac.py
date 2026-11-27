@@ -28,6 +28,7 @@ import hashlib  # noqa: E402
 import json  # noqa: E402
 import os  # noqa: E402
 import re  # noqa: E402
+import secrets  # noqa: E402
 import shutil  # noqa: E402
 import subprocess  # noqa: E402
 from pathlib import Path  # noqa: E402
@@ -61,6 +62,9 @@ MARKER = VENV / '.facet-setup.json'
 CONFIG = SUPPORT / 'config' / 'scoring_config.json'
 LIBRARY = SUPPORT / 'library'
 DB = LIBRARY / 'photo_scores_pro.db'
+# The viewer refuses every request without this per-install key (api/access_key.py).
+ACCESS_KEY = SUPPORT / 'access.key'
+ACCESS_KEY_ENV = 'FACET_ACCESS_KEY'
 
 # Bump when setup builds the environment differently; the lock and interpreter are keyed already.
 SETUP_VERSION = 1
@@ -281,13 +285,31 @@ def add_folder(path):
     return viewer['scan_directories']
 
 
+def access_key():
+    """The per-install key, made on first use in a file only this user can read."""
+    if not ACCESS_KEY.exists():
+        SUPPORT.mkdir(parents=True, exist_ok=True)
+        draft = ACCESS_KEY.with_name(f'.access.key.{os.getpid()}')
+        with os.fdopen(os.open(draft, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600), 'w') as f:
+            f.write(secrets.token_urlsafe(32))
+        # link() never replaces a key another process made first, and never exposes a half-written one.
+        try:
+            os.link(draft, ACCESS_KEY)
+        except FileExistsError:
+            pass
+        finally:
+            draft.unlink()
+    return ACCESS_KEY.read_text()
+
+
 def launch_spec():
     return {
         'python': str(VENV_PYTHON),
         'args': [str(APP_ROOT / 'viewer.py'), '--production', '--host', '127.0.0.1'],
         'cwd': str(LIBRARY),
-        'env': _env_vars(),
+        'env': {**_env_vars(), ACCESS_KEY_ENV: access_key()},
         'logs': str(LOGS),
+        'access_key': access_key(),
     }
 
 

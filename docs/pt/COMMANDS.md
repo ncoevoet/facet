@@ -446,6 +446,7 @@ Variáveis de ambiente relacionadas:
 - `FACET_MODELS_DIR`: onde ficam os pesos de modelos baixados automaticamente. Padrão `<install>/pretrained_models`; defina-a quando a pasta de instalação é somente leitura.
 - `FACET_PLUGINS_DIR`: a pasta onde se procuram módulos de plugin. Padrão `<install>/plugins`.
 - `FACET_HOME`: o launcher do app macOS coloca dados, configuração, caches e logs nesta única pasta em vez de `~/Library/Application Support/Facet`, `~/Library/Caches/Facet`, `~/Library/Logs/Facet` (para testes e CI).
+- `FACET_ACCESS_KEY`: definida pelo launcher do app macOS. O visualizador então recusa todo pedido, exceto `/mcp`, que não traga o cookie `facet_access` nem o cabeçalho `X-Facet-Access-Key` com esta chave; abrir `/?access_key=<key>` uma vez define o cookie.
 
 > **Aviso:** o `viewer.py` nunca lê um `scoring_config.json` do diretório em que você o inicia. Se você o inicia a partir de uma biblioteca e a raiz da instalação não tem configuração, ele roda com os padrões: um `viewer.edition_password` vazio e nenhuma senha do visualizador, de modo que qualquer pessoa pode navegar.
 

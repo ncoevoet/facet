@@ -4351,7 +4351,8 @@
       "no_port": "5000 至 5049 之间没有可用端口。",
       "no_answer": "Facet 未在 2 分钟内启动。请查看日志。",
       "crashed": "Facet 意外停止（代码 {code}）。请查看日志。",
-      "not_running": "Facet 未在运行。"
+      "not_running": "Facet 未在运行。",
+      "open_from_menu": "请从菜单栏图标打开 Facet，以便在此浏览器中使用。"
     },
     "scan": {
       "no_folders": "请先添加一个照片文件夹。"

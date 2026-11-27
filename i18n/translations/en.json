@@ -4351,7 +4351,8 @@
       "no_port": "No free port between 5000 and 5049.",
       "no_answer": "Facet didn't start within 2 minutes. See the logs.",
       "crashed": "Facet stopped unexpectedly (code {code}). See the logs.",
-      "not_running": "Facet isn't running."
+      "not_running": "Facet isn't running.",
+      "open_from_menu": "Open Facet from its menu bar icon to use it in this browser."
     },
     "scan": {
       "no_folders": "Add a photo folder first."

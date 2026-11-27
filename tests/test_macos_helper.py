@@ -136,6 +136,24 @@ def test_everything_writable_lives_outside_the_bundle(mac, tmp_path):
     assert spec['args'][-2:] == ['--host', '127.0.0.1']
 
 
+def test_the_viewer_gets_a_private_access_key_that_lasts(mac):
+    spec = mac.launch_spec()
+    key = spec['access_key']
+    assert len(key) >= 40 and spec['env'][mac.ACCESS_KEY_ENV] == key
+    assert stat.S_IMODE(mac.ACCESS_KEY.stat().st_mode) == 0o600
+    assert mac.launch_spec()['access_key'] == key, 'an open tab keeps working after a relaunch'
+    assert [path.name for path in mac.SUPPORT.iterdir() if path.name.startswith('.access')] == []
+
+
+def test_the_helper_and_the_viewer_name_the_same_access_key_variable(mac):
+    from api.access_key import ACCESS_KEY_ENV
+    assert mac.ACCESS_KEY_ENV == ACCESS_KEY_ENV
+
+
+def test_database_and_doctor_runs_do_not_get_the_access_key(mac):
+    assert mac.ACCESS_KEY_ENV not in mac._child_env()
+
+
 def test_setup_failure_is_reported_as_an_event(mac, monkeypatch, capsys):
     monkeypatch.setattr(mac, 'ENVIRONMENT_FREE_BYTES', 10 ** 18)
     assert mac.main([str(HELPER), 'setup']) == 1

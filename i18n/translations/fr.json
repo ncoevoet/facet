@@ -4351,7 +4351,8 @@
       "no_port": "Aucun port libre entre 5000 et 5049.",
       "no_answer": "Facet n'a pas démarré en 2 minutes. Consultez les journaux.",
       "crashed": "Facet s'est arrêté de façon inattendue (code {code}). Consultez les journaux.",
-      "not_running": "Facet n'est pas actif."
+      "not_running": "Facet n'est pas actif.",
+      "open_from_menu": "Ouvrez Facet depuis son icône dans la barre des menus pour l'utiliser dans ce navigateur."
     },
     "scan": {
       "no_folders": "Ajoutez d'abord un dossier de photos."

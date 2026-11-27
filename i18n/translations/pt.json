@@ -4351,7 +4351,8 @@
       "no_port": "Nenhuma porta livre entre 5000 e 5049.",
       "no_answer": "O Facet não arrancou em 2 minutos. Consulte os registos.",
       "crashed": "O Facet parou inesperadamente (código {code}). Consulte os registos.",
-      "not_running": "O Facet não está ativo."
+      "not_running": "O Facet não está ativo.",
+      "open_from_menu": "Abra o Facet pelo ícone na barra de menus para usá-lo neste navegador."
     },
     "scan": {
       "no_folders": "Adicione primeiro uma pasta de fotografias."

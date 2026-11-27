@@ -4351,7 +4351,8 @@
       "no_port": "Kein freier Port zwischen 5000 und 5049.",
       "no_answer": "Facet ist nicht innerhalb von 2 Minuten gestartet. Siehe Protokolle.",
       "crashed": "Facet wurde unerwartet beendet (Code {code}). Siehe Protokolle.",
-      "not_running": "Facet läuft nicht."
+      "not_running": "Facet läuft nicht.",
+      "open_from_menu": "Öffnen Sie Facet über sein Symbol in der Menüleiste, um es in diesem Browser zu verwenden."
     },
     "scan": {
       "no_folders": "Fügen Sie zuerst einen Fotoordner hinzu."

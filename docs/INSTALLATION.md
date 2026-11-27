@@ -197,11 +197,7 @@ first scan also downloads the models, 5 to 20 GB depending on the Mac's memory.
 **Every day.** The camera icon in the menu bar opens the gallery, adds folders, scans them all
 and shows the logs. The gallery answers on this Mac only, on the port it used last when that is
 still free, else on the first port from 5000 that nothing else listens on (AirPlay, or a viewer
-you started in a terminal, often holds 5000). The app turns on `viewer.trusted_local_editing`, so
-a browser on this Mac can edit and start scans without a password, while requests from other
-devices are refused. "This Mac" includes its other user accounts: on a shared Mac, set
-`viewer.password`, which also turns the trust off. `viewer.edition_password` alone only stops other accounts from editing: they can still browse and download every photo. The menu can then no
-longer start scans or follow them, so start them from the browser. Adding a folder restarts the gallery; if a scan is running, the restart waits until that scan finishes. Apple Photos libraries are
+you started in a terminal, often holds 5000). The app turns on `viewer.trusted_local_editing`, so the browser it opens can edit and start scans without a password. It also gives the gallery a key that only your user account can read (`access.key` in its data folder): the menu opens the gallery with it once, your browser keeps it as a cookie, and any request without it is refused with a note to open Facet from the menu bar. That shuts out other devices, the other accounts on this Mac and web pages that try to reach the gallery, while assistants keep using their own tokens on `/mcp`. **Open Facet** uses your default browser; another browser shows that note. If you set `viewer.password` or `viewer.edition_password`, the trust turns off and the menu can no longer start scans or follow them, so start them from the browser. Adding a folder restarts the gallery; if a scan is running, the restart waits until that scan finishes. Apple Photos libraries are
 skipped: point Facet at ordinary photo folders.
 
 **Updating.** Drag the new version over the old one. When an update needs a new environment, the

@@ -202,11 +202,7 @@ Arbeitsspeicher des Mac 5 bis 20 GB.
 **Im Alltag.** Das Kamerasymbol in der Menüleiste öffnet die Galerie, fügt Ordner hinzu, scannt sie alle
 und zeigt die Protokolle. Die Galerie antwortet nur auf diesem Mac, und zwar auf dem zuletzt genutzten Port,
 wenn er noch frei ist, sonst auf dem ersten Port ab 5000, auf dem nichts anderes lauscht (AirPlay oder ein
-Viewer, den Sie in einem Terminal gestartet haben, belegt oft 5000). Die App schaltet
-`viewer.trusted_local_editing` ein, sodass ein Browser auf diesem Mac ohne Passwort bearbeiten und Scans
-starten kann, während Anfragen von anderen Geräten abgelehnt werden. „Dieser Mac“ umfasst auch seine
-anderen Benutzerkonten: Setzen Sie auf einem gemeinsam genutzten Mac `viewer.password`, was dieses Vertrauen ebenfalls abschaltet. `viewer.edition_password` allein hindert andere Konten nur am Bearbeiten: Sie können weiterhin alle Fotos ansehen und herunterladen. Das Menü kann dann keine Scans mehr starten
-oder verfolgen, starten Sie sie also im Browser. Das Hinzufügen eines Ordners startet die Galerie neu; läuft gerade ein Scan, wartet der Neustart, bis dieser Scan beendet ist. Apple-Fotos-Mediatheken werden übersprungen: Geben Sie
+Viewer, den Sie in einem Terminal gestartet haben, belegt oft 5000). Die App schaltet `viewer.trusted_local_editing` ein, sodass der Browser, den sie öffnet, ohne Passwort bearbeiten und Scans starten kann. Außerdem gibt sie der Galerie einen Schlüssel, den nur Ihr Benutzerkonto lesen kann (`access.key` in ihrem Datenordner): Das Menü öffnet die Galerie einmal damit, Ihr Browser behält ihn als Cookie, und jede Anfrage ohne ihn wird mit dem Hinweis abgelehnt, Facet über die Menüleiste zu öffnen. Das sperrt andere Geräte, die anderen Konten auf diesem Mac und Webseiten aus, die die Galerie zu erreichen versuchen; Assistenten nutzen weiterhin ihre eigenen Tokens auf `/mcp`. **Facet öffnen** verwendet Ihren Standardbrowser; ein anderer Browser zeigt diesen Hinweis. Wenn Sie `viewer.password` oder `viewer.edition_password` setzen, schaltet sich das Vertrauen ab, und das Menü kann keine Scans mehr starten oder verfolgen, starten Sie sie also im Browser. Das Hinzufügen eines Ordners startet die Galerie neu; läuft gerade ein Scan, wartet der Neustart, bis dieser Scan beendet ist. Apple-Fotos-Mediatheken werden übersprungen: Geben Sie
 Facet gewöhnliche Fotoordner an.
 
 **Aktualisieren.** Ziehen Sie die neue Version über die alte. Braucht ein Update eine neue Umgebung, öffnet

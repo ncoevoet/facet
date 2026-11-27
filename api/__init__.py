@@ -754,19 +754,26 @@ def create_app() -> FastAPI:
     from api.config import set_mcp_available
     try:
         from api.agent.bridge import TabRegistry
-        from api.agent.server import mount_agent
+        from api.agent.server import MCP_PATH, mount_agent
         from api.routers.mcp_bridge import router as mcp_bridge_router
         from api.routers.mcp_inpage import router as mcp_inpage_router
     except ImportError as ex:
         logger.warning("Agent (MCP) endpoint unavailable: %s; run `pip install -r requirements.txt`", ex)
         set_mcp_available(False)
         app.state.mcp_session_manager = None
+        agent_paths = ()
     else:
         set_mcp_available(True)
         app.state.tab_registry = TabRegistry()
         app.include_router(mcp_bridge_router)
         app.include_router(mcp_inpage_router)
         app.state.mcp_session_manager = mount_agent(app)
+        agent_paths = (MCP_PATH,)
+
+    # Outermost, so nothing answers before it: the macOS app's key (see api/access_key.py).
+    from api.access_key import ACCESS_KEY_ENV, AccessKeyGate
+    if os.environ.get(ACCESS_KEY_ENV):
+        app.add_middleware(AccessKeyGate, key=os.environ[ACCESS_KEY_ENV], open_paths=agent_paths)
 
     # Check for plaintext passwords at startup
     from api.auth import check_legacy_password_warnings

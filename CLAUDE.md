@@ -434,6 +434,11 @@ only what reading those two will NOT tell you.
   take that in-process lock; the app restarts the viewer right after it, or, when a scan is
   running, once that scan finishes. Every viewer writer re-reads the file under the lock, so only
   a viewer save made in the same instant as the add-folder write can be lost.
+- **Under the macOS app, `api/access_key.py` gates every route but `/mcp`.** With `FACET_ACCESS_KEY`
+  set it is the outermost middleware, so a new route, WebSocket or static mount is refused unless the
+  browser holds the `facet_access` cookie or the app sends `X-Facet-Access-Key`; `/mcp` keeps its own
+  bearer gate. It is what stops other accounts on the Mac and DNS-rebinding pages, which
+  `request_is_local` cannot tell from the user's browser for reads.
 - **The config writer has two commit routes.** The default is an atomic rename over the
   destination; when the destination's owner cannot be adopted (a rootless container, most
   commonly), it falls back to an inode-preserving in-place rewrite instead — same inode, owner

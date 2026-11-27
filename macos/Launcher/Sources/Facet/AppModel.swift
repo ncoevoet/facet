@@ -36,12 +36,16 @@ final class AppModel {
     static let onboardedKey = "onboardingCompleted"
     static let portKey = "lastPort"
     static let serverPIDKey = "lastServerPID"
+    // The viewer refuses any request without the install's key (api/access_key.py).
+    static let accessKeyHeader = "X-Facet-Access-Key"
+    static let accessKeyQuery = "access_key"
 
     var setup: SetupState = .idle
     var server: ServerState = .stopped
     var scan = ScanState()
     var folders: [String] = []
     var logsFolder: URL?
+    private var accessKey = ""
 
     private var process: Process?
     private var starting: Task<Void, Never>?
@@ -70,8 +74,15 @@ final class AppModel {
         return nil
     }
 
+    /// Opens the gallery with the key once; the viewer trades it for a cookie and drops it from the address.
     var facetURL: URL? {
-        port.map { URL(string: "http://127.0.0.1:\($0)/")! }
+        port.map { URL(string: "http://127.0.0.1:\($0)/?\(Self.accessKeyQuery)=\(accessKey)")! }
+    }
+
+    static func viewerRequest(_ port: Int, _ path: String, key: String) -> URLRequest {
+        var request = URLRequest(url: URL(string: "http://127.0.0.1:\(port)\(path)")!)
+        request.setValue(key, forHTTPHeaderField: accessKeyHeader)
+        return request
     }
 
     // MARK: - Setup
@@ -79,6 +90,7 @@ final class AppModel {
     func loadSpec() async {
         if let spec = await Helper.json(LaunchSpec.self, ["env"]) {
             logsFolder = URL(fileURLWithPath: spec.logs)
+            accessKey = spec.access_key
         }
     }
 
@@ -224,7 +236,7 @@ final class AppModel {
         self.process = process
         UserDefaults.standard.set(Int(process.processIdentifier), forKey: Self.serverPIDKey)
         restartAfterScan = false    // a fresh viewer reads every folder in the config
-        if await Self.waitForHealth(port: port, process: process) {
+        if await Self.waitForHealth(port: port, process: process, key: accessKey) {
             server = .running(port: port)
             runningSince = Date()
             watchScans()
@@ -322,11 +334,10 @@ final class AppModel {
         if kill(-pid, 0) == 0 { kill(-pid, SIGKILL) }
     }
 
-    static func waitForHealth(port: Int, process: Process) async -> Bool {
-        let url = URL(string: "http://127.0.0.1:\(port)/health")!
+    static func waitForHealth(port: Int, process: Process, key: String) async -> Bool {
         let deadline = Date().addingTimeInterval(healthTimeout)
         while Date() < deadline, process.isRunning {
-            var request = URLRequest(url: url)
+            var request = viewerRequest(port, "/health", key: key)
             request.timeoutInterval = 2
             if let (_, response) = try? await URLSession.shared.data(for: request),
                (response as? HTTPURLResponse)?.statusCode == 200 {
@@ -343,7 +354,7 @@ final class AppModel {
         guard let port else { return L10n.t("server.not_running") }
         await refreshFolders()
         guard !folders.isEmpty else { return L10n.t("scan.no_folders") }
-        var request = URLRequest(url: URL(string: "http://127.0.0.1:\(port)/api/scan/start")!)
+        var request = Self.viewerRequest(port, "/api/scan/start", key: accessKey)
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         request.httpBody = try? JSONSerialization.data(withJSONObject: ["directories": folders])
@@ -376,8 +387,8 @@ final class AppModel {
         scanWatch = Task { [weak self] in
             while !Task.isCancelled {
                 guard let self, let port = self.port else { return }
-                let url = URL(string: "http://127.0.0.1:\(port)/api/scan/status")!
-                if let (data, _) = try? await URLSession.shared.data(from: url),
+                let request = Self.viewerRequest(port, "/api/scan/status", key: self.accessKey)
+                if let (data, _) = try? await URLSession.shared.data(for: request),
                    let status = try? JSONDecoder().decode(ScanStatus.self, from: data) {
                     self.scan = ScanState(running: status.running,
                                           current: status.progress?.current.map { Int($0) },

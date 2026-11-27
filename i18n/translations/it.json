@@ -4351,7 +4351,8 @@
       "no_port": "Nessuna porta libera tra 5000 e 5049.",
       "no_answer": "Facet non si è avviato entro 2 minuti. Consulta i log.",
       "crashed": "Facet si è fermato inaspettatamente (codice {code}). Consulta i log.",
-      "not_running": "Facet non è attivo."
+      "not_running": "Facet non è attivo.",
+      "open_from_menu": "Apri Facet dalla sua icona nella barra dei menu per usarlo in questo browser."
     },
     "scan": {
       "no_folders": "Aggiungi prima una cartella di foto."
