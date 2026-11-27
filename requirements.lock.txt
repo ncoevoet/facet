@@ -120,7 +120,7 @@ pyarrow==23.0.1 ; sys_platform == "win32"
 pyarrow==24.0.0 ; sys_platform != "win32"
 pycparser==3.11
 pydantic==2.14.4
-pydantic_core==2.50.4
+pydantic_core==2.50.5
 PyJWT==2.15.1
 pyparsing==3.3.3
 pytest-asyncio==1.5.0
