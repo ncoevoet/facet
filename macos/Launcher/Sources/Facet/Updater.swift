@@ -23,7 +23,17 @@ final class Updater {
         let assets: [Asset]
         enum CodingKeys: String, CodingKey { case tag = "tag_name", page = "html_url", notes = "body", assets }
 
+        static let diskImagePrefix = "Facet-"
+        static let sumsName = "SHA256SUMS"
+
         var version: String { Updates.version(fromTag: tag) }
+
+        /// The disk image and its SHA256SUMS; nil until the release workflow has attached both.
+        var downloads: (image: Asset, sums: Asset)? {
+            guard let image = assets.first(where: { $0.name.hasPrefix(Self.diskImagePrefix) && $0.name.hasSuffix(".dmg") }),
+                  let sums = assets.first(where: { $0.name == Self.sumsName }) else { return nil }
+            return (image, sums)
+        }
     }
 
     enum UpdateError: LocalizedError {
@@ -47,8 +57,6 @@ final class Updater {
     static let feedKey = "UpdateFeedURL"
     static let lastCheckKey = "LastUpdateCheck"
     static let checkInterval: TimeInterval = 24 * 60 * 60
-    static let diskImagePrefix = "Facet-"
-    static let sumsName = "SHA256SUMS"
 
     private(set) var available: Release?
     private(set) var installing = false
@@ -113,7 +121,7 @@ final class Updater {
         guard status == 200 else { throw UpdateError.http(status) }
         let release = try JSONDecoder().decode(Release.self, from: data)
         UserDefaults.standard.set(Date(), forKey: Self.lastCheckKey)
-        available = Updates.isNewer(release.version, than: Self.current) ? release : nil
+        available = Updates.isNewer(release.version, than: Self.current) && release.downloads != nil ? release : nil
         return available
     }
 
@@ -156,8 +164,7 @@ final class Updater {
             // Same volume as the app, so the final swap is a rename.
             let folder = try fm.url(for: .itemReplacementDirectory, in: .userDomainMask, appropriateFor: app, create: true)
             work = folder
-            guard let image = release.assets.first(where: { $0.name.hasPrefix(Self.diskImagePrefix) && $0.name.hasSuffix(".dmg") }),
-                  let sums = release.assets.first(where: { $0.name == Self.sumsName }) else { throw UpdateError.noDownload }
+            guard let (image, sums) = release.downloads else { throw UpdateError.noDownload }
             let (sumsData, _) = try await URLSession.shared.data(from: sums.url)
             guard let expected = Updates.checksum(for: image.name, in: String(decoding: sumsData, as: UTF8.self)) else {
                 throw UpdateError.noDownload
