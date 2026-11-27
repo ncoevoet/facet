@@ -4381,7 +4381,8 @@
       "install_failed": "Facet could not install the update: {reason}. The installed version is unchanged.",
       "no_download": "the release has no Facet disk image and checksum",
       "bad_checksum": "the download does not match its checksum",
-      "bad_app": "the downloaded app is not a valid Facet {version}"
+      "bad_app": "the downloaded app is not a valid Facet {version}",
+      "scan_running": "A scan is running, and installing the update would stop it. Choose the update again from the menu once the scan finishes."
     }
   }
 }

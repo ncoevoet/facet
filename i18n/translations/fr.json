@@ -4381,7 +4381,8 @@
       "install_failed": "Facet n'a pas pu installer la mise à jour : {reason}. La version installée n'a pas changé.",
       "no_download": "la version ne contient pas l'image disque de Facet avec sa somme de contrôle",
       "bad_checksum": "le téléchargement ne correspond pas à sa somme de contrôle",
-      "bad_app": "l'app téléchargée n'est pas un Facet {version} valide"
+      "bad_app": "l'app téléchargée n'est pas un Facet {version} valide",
+      "scan_running": "Un scan est en cours, et la mise à jour l'arrêterait. Choisissez à nouveau la mise à jour dans le menu quand le scan est terminé."
     }
   }
 }

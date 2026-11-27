@@ -4337,7 +4337,7 @@
       "quit": "Sair do Facet",
       "check_updates": "Procurar atualizações…",
       "install_update": "Atualizar para o Facet {version}…",
-      "updating": "Atualizando…"
+      "updating": "A atualizar…"
     },
     "status": {
       "stopped": "O Facet está parado",
@@ -4370,18 +4370,19 @@
     },
     "update": {
       "available_title": "O Facet {version} está disponível",
-      "available_body": "Você tem a {current}. O Facet fecha, instala a atualização e abre de novo. Sua biblioteca, configurações e modelos continuam.",
+      "available_body": "Tem a {current}. O Facet fecha, instala a atualização e volta a abrir. A sua biblioteca, as definições e os modelos mantêm-se.",
       "install": "Instalar e reabrir",
       "later": "Mais tarde",
       "open_page": "Abrir a página da versão",
-      "not_writable": "O Facet não consegue se substituir nesta pasta. Baixe a nova versão na página da versão e arraste-a sobre esta.",
+      "not_writable": "O Facet não consegue substituir-se nesta pasta. Descarregue a nova versão na página da versão e arraste-a por cima desta.",
       "up_to_date_title": "O Facet está atualizado",
-      "up_to_date_body": "{current} é a versão mais recente.",
+      "up_to_date_body": "A {current} é a versão mais recente.",
       "check_failed": "O Facet não conseguiu procurar atualizações: {reason}",
       "install_failed": "O Facet não conseguiu instalar a atualização: {reason}. A versão instalada não mudou.",
-      "no_download": "a versão não tem a imagem de disco do Facet com o checksum",
-      "bad_checksum": "o download não confere com o checksum",
-      "bad_app": "o app baixado não é um Facet {version} válido"
+      "no_download": "a versão não tem a imagem de disco do Facet com a soma de verificação",
+      "bad_checksum": "a transferência não corresponde à soma de verificação",
+      "bad_app": "a app descarregada não é um Facet {version} válido",
+      "scan_running": "Está a decorrer uma análise, e instalar a atualização iria interrompê-la. Escolha de novo a atualização no menu quando a análise terminar."
     }
   }
 }

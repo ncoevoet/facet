@@ -4381,7 +4381,8 @@
       "install_failed": "Facet 无法安装更新：{reason}。已安装的版本没有变化。",
       "no_download": "该发布不包含带校验和的 Facet 磁盘映像",
       "bad_checksum": "下载的文件与其校验和不符",
-      "bad_app": "下载的应用不是有效的 Facet {version}"
+      "bad_app": "下载的应用不是有效的 Facet {version}",
+      "scan_running": "正在扫描，安装更新会中断扫描。请在扫描完成后从菜单中再次选择更新。"
     }
   }
 }

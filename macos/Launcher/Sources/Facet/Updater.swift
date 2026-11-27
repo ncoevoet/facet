@@ -138,6 +138,11 @@ final class Updater {
         alert.addButton(withTitle: L10n.t("update.later"))
         NSApp.activate()
         guard alert.runModal() == .alertFirstButtonReturn else { return }
+        // Installing stops the viewer, and a running scan with it.
+        if writable, model.scan.running {
+            AppModel.showError(L10n.t("update.scan_running"))
+            return
+        }
         if writable {
             await install(release)
         } else {

@@ -4396,6 +4396,7 @@ export const I18N = {
       no_download: "macos_app.update.no_download",
       bad_checksum: "macos_app.update.bad_checksum",
       bad_app: "macos_app.update.bad_app",
+      scan_running: "macos_app.update.scan_running",
     },
   },
 } as const;
