@@ -126,3 +126,25 @@ def test_the_viewer_installs_the_gate_only_when_the_app_sets_the_key(monkeypatch
     assert gated.get('/api/i18n/languages', headers={ACCESS_KEY_HEADER: KEY}).status_code == 200
     monkeypatch.delenv(ACCESS_KEY_ENV)
     assert TestClient(create_app()).get('/api/i18n/languages').status_code == 200
+
+
+def test_the_assistant_tools_reach_the_api_through_the_gate(monkeypatch):
+    # The MCP tools call the viewer's own routes in process, back through this middleware.
+    import asyncio
+    from api import create_app
+    from api.agent import tokens
+    from api.agent.internal_client import InternalClient, RouteSpec
+
+    class Grant:
+        def resolve(self):
+            return self
+
+        level = tokens.LEVELS[-1]
+
+        def jwt_claims(self):
+            return None
+
+    monkeypatch.setenv(ACCESS_KEY_ENV, KEY)
+    client = InternalClient(create_app(), allowlist={'languages': RouteSpec('GET', '/api/i18n/languages', 'readonly')})
+    result = asyncio.run(client.call(Grant(), 'languages'))
+    assert result['ok'] is True, result

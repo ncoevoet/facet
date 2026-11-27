@@ -437,7 +437,8 @@ only what reading those two will NOT tell you.
 - **Under the macOS app, `api/access_key.py` gates every route but `/mcp`.** With `FACET_ACCESS_KEY`
   set it is the outermost middleware, so a new route, WebSocket or static mount is refused unless the
   browser holds the `facet_access` cookie or the app sends `X-Facet-Access-Key`; `/mcp` keeps its own
-  bearer gate. It is what stops other accounts on the Mac and DNS-rebinding pages, which
+  bearer gate. The MCP tools reach the API through an in-process ASGI request that passes the gate
+  again, so `InternalClient._send` sends the key header too; any other in-process caller must do the same. It is what stops other accounts on the Mac and DNS-rebinding pages, which
   `request_is_local` cannot tell from the user's browser for reads.
 - **The config writer has two commit routes.** The default is an atomic rename over the
   destination; when the destination's owner cannot be adopted (a rootless container, most
