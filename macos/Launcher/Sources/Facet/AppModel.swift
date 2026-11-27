@@ -39,6 +39,8 @@ final class AppModel {
     // The viewer refuses any request without the install's key (api/access_key.py).
     static let accessKeyHeader = "X-Facet-Access-Key"
     static let accessKeyQuery = "access_key"
+    // Under /api/: the gallery's service worker would answer any other path from its cache.
+    static let launchPath = "/api/access"
 
     var setup: SetupState = .idle
     var server: ServerState = .stopped
@@ -76,7 +78,7 @@ final class AppModel {
 
     /// Opens the gallery with the key once; the viewer trades it for a cookie and drops it from the address.
     var facetURL: URL? {
-        port.map { URL(string: "http://127.0.0.1:\($0)/?\(Self.accessKeyQuery)=\(accessKey)")! }
+        port.map { URL(string: "http://127.0.0.1:\($0)\(Self.launchPath)?\(Self.accessKeyQuery)=\(accessKey)")! }
     }
 
     static func viewerRequest(_ port: Int, _ path: String, key: String) -> URLRequest {

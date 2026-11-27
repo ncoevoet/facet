@@ -1,8 +1,8 @@
 """The macOS app's access key: only a browser the app opened, and the app itself, reach the viewer.
 
 The app keeps a per-install key in a file only its user can read and starts the viewer with it in
-``FACET_ACCESS_KEY``. It opens the gallery once as ``/?access_key=<key>``; the viewer answers with a
-cookie and a redirect that drops the key from the address bar, and the app's own requests send the
+``FACET_ACCESS_KEY``. It opens the gallery once as ``/api/access?access_key=<key>``; the viewer answers with a
+cookie and a redirect to the gallery that drops the key from the address bar, and the app's own requests send the
 ``X-Facet-Access-Key`` header. Anything else is refused: another account on the Mac, a page that
 rebinds its domain to 127.0.0.1 (its requests carry its own Host, so never the cookie), or a local
 tool that does not read the key. ``/mcp`` (``open_paths``) is left to its own bearer-token gate, so a local assistant
@@ -11,7 +11,6 @@ keeps working. Without the variable (a terminal, Docker, a NAS) nothing changes.
 
 import hmac
 from html import escape
-from urllib.parse import urlencode
 
 from starlette.requests import HTTPConnection
 from starlette.responses import HTMLResponse, JSONResponse, RedirectResponse
@@ -22,6 +21,9 @@ from i18n import DEFAULT_LANGUAGE, SUPPORTED_LANGUAGES
 
 ACCESS_KEY_ENV = 'FACET_ACCESS_KEY'
 ACCESS_KEY_QUERY = 'access_key'
+# Under /api/, which the gallery's service worker never answers from its cache: a cached
+# navigation would never reach the viewer, so the cookie would never be set.
+LAUNCH_PATH = '/api/access'
 ACCESS_KEY_HEADER = 'x-facet-access-key'
 ACCESS_KEY_COOKIE = 'facet_access'
 # Chrome caps a cookie's lifetime at 400 days.
@@ -66,10 +68,9 @@ class AccessKeyGate:
             await self.app(scope, receive, send)
             return
         conn = HTTPConnection(scope)
-        if scope['type'] == 'http' and self._matches(conn.query_params.get(ACCESS_KEY_QUERY)):
+        if scope['path'] == LAUNCH_PATH and self._matches(conn.query_params.get(ACCESS_KEY_QUERY)):
             # Relative, so the Host header never picks where the browser goes next.
-            rest = urlencode([(k, v) for k, v in conn.query_params.multi_items() if k != ACCESS_KEY_QUERY])
-            response = RedirectResponse(scope['path'] + (f'?{rest}' if rest else ''), status_code=303)
+            response = RedirectResponse('/', status_code=303)
             response.set_cookie(ACCESS_KEY_COOKIE, self.key, max_age=COOKIE_MAX_AGE, path='/',
                                 httponly=True, samesite='lax')
             await response(scope, receive, send)

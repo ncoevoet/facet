@@ -446,7 +446,7 @@ Related environment variables:
 - `FACET_MODELS_DIR`: where auto-downloaded model weights live. Default `<install>/pretrained_models`; set it when the install folder is read-only.
 - `FACET_PLUGINS_DIR`: the folder scanned for plugin modules. Default `<install>/plugins`.
 - `FACET_HOME`: the macOS app's launcher puts its data, config, caches and logs in this one folder instead of `~/Library/Application Support/Facet`, `~/Library/Caches/Facet`, `~/Library/Logs/Facet` (for tests and CI).
-- `FACET_ACCESS_KEY`: set by the macOS app's launcher. The viewer then refuses every request, except `/mcp`, that carries neither the `facet_access` cookie nor the `X-Facet-Access-Key` header with this key; opening `/?access_key=<key>` once sets the cookie.
+- `FACET_ACCESS_KEY`: set by the macOS app's launcher. The viewer then refuses every request, except `/mcp`, that carries neither the `facet_access` cookie nor the `X-Facet-Access-Key` header with this key; opening `/api/access?access_key=<key>` once sets the cookie.
 
 > **Warning:** `viewer.py` never reads a `scoring_config.json` from the directory you start it in. If you start it from a library and the install root has no config, it runs on the defaults: an empty `viewer.edition_password` and no viewer password, so anyone can browse.
 

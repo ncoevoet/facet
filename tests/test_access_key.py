@@ -8,7 +8,7 @@ from starlette.websockets import WebSocketDisconnect
 import json
 from pathlib import Path
 
-from api.access_key import ACCESS_KEY_COOKIE, ACCESS_KEY_ENV, ACCESS_KEY_HEADER, PUBLIC_PATHS, AccessKeyGate
+from api.access_key import ACCESS_KEY_COOKIE, ACCESS_KEY_ENV, ACCESS_KEY_HEADER, LAUNCH_PATH, PUBLIC_PATHS, AccessKeyGate
 
 KEY = 'k' * 43
 
@@ -43,16 +43,16 @@ def test_a_request_without_the_key_is_refused(client):
 
 def test_a_wrong_key_is_refused_everywhere_it_could_come_from(client):
     assert client.get('/api/photos', headers={ACCESS_KEY_HEADER: 'nope'}).status_code == 403
-    response = client.get('/?access_key=nope', follow_redirects=False)
+    response = client.get(f'{LAUNCH_PATH}?access_key=nope', follow_redirects=False)
     assert response.status_code == 403 and 'set-cookie' not in response.headers
     client.cookies.set(ACCESS_KEY_COOKIE, 'nope')
     assert client.get('/api/photos').status_code == 403
 
 
 def test_the_launch_link_trades_the_key_for_a_cookie_and_drops_it_from_the_address(client):
-    response = client.get(f'/gallery?access_key={KEY}&sort=date', follow_redirects=False)
+    response = client.get(f'{LAUNCH_PATH}?access_key={KEY}', follow_redirects=False)
     assert response.status_code == 303
-    assert response.headers['location'] == '/gallery?sort=date'
+    assert response.headers['location'] == '/'
     cookie = response.headers['set-cookie']
     assert cookie.startswith(f'{ACCESS_KEY_COOKIE}={KEY};')
     assert 'HttpOnly' in cookie and 'SameSite=lax' in cookie and 'Path=/' in cookie
@@ -60,8 +60,20 @@ def test_the_launch_link_trades_the_key_for_a_cookie_and_drops_it_from_the_addre
 
 
 def test_the_location_ignores_the_host_header(client):
-    response = client.get(f'/?access_key={KEY}', headers={'host': 'evil.example'}, follow_redirects=False)
+    response = client.get(f'{LAUNCH_PATH}?access_key={KEY}', headers={'host': 'evil.example'}, follow_redirects=False)
     assert response.headers['location'] == '/'
+
+
+def test_the_key_counts_only_on_the_launch_path(client):
+    # Anywhere else it would be a second way in that skips the redirect.
+    assert client.get(f'/api/photos?access_key={KEY}').status_code == 403
+
+
+def test_the_service_worker_never_answers_the_launch_path():
+    # ngsw serves a cached index.html for every navigation it matches, and such a request
+    # never reaches the viewer, so the cookie would never be set.
+    config = json.loads((Path(__file__).resolve().parent.parent / 'client' / 'ngsw-config.json').read_text())
+    assert '!/api/**' in config['navigationUrls'] and LAUNCH_PATH.startswith('/api/')
 
 
 def test_the_app_itself_sends_the_header(client):
