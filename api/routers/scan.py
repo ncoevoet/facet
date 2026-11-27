@@ -763,6 +763,7 @@ def _build_scan_snapshot(lines: int) -> dict:
             'directories': _scan_state['directories'],
             'output': output_lines,
             'elapsed_seconds': elapsed,
+            'started_at': _scan_state['started_at'],
             'exit_code': _scan_state['exit_code'],
             'progress': _scan_state.get('progress'),
             'job_id': _scan_state.get('job_id'),

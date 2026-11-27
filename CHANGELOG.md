@@ -10,7 +10,7 @@ All notable changes to Facet are documented in this file.
 
 ### Changed
 
-- **The scan dialog is easier to read.** Folders are listed by name with their full path below, the scan says how many photos it holds before the first is saved, the technical log keeps its newest line in view without blank lines or a sideways scrollbar, and while a scan runs the close button reads **Run in background**, since closing never stopped it. While a library scan runs, the newest photos it has saved fill a small panel above the steps.
+- **The scan dialog is easier to read.** Folders are listed by name with their full path below, the scan says how many photos it holds before the first is saved, the technical log keeps its newest line in view without blank lines or a sideways scrollbar, and while a scan runs the close button reads **Run in background**, since closing never stopped it. While a library scan runs, the photos it adds to the library fill a small panel above the steps, newest first.
 - **Scans skip Apple Photos libraries.** `scanning.skip_directories` now also lists `*.photoslibrary` by default, so picking `~/Pictures` no longer scans the originals and derivatives inside `Photos Library.photoslibrary` as duplicates of photos kept elsewhere. A list in your `scoring_config.json` still replaces the default.
 
 ### Fixed

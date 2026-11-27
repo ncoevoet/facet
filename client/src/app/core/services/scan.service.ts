@@ -31,6 +31,8 @@ export interface ScanStatus {
   directories: string[];
   output: string[];
   elapsed_seconds: number | null;
+  /** Epoch seconds on the server's clock. */
+  started_at?: number | null;
   exit_code: number | null;
   progress?: ScanProgress | null;
   job_id?: string | null;
@@ -46,6 +48,7 @@ export interface ScanDirectory {
 /** The photo fields the scan showcase reads. */
 export interface RecentPhoto {
   path: string;
+  date_added?: string | null;
 }
 
 interface ScanSession {
@@ -206,11 +209,14 @@ export class ScanService implements OnDestroy {
   }
 
   /** The newest photos by date added, for the launcher's live showcase. */
-  async loadRecentPhotos(count: number): Promise<RecentPhoto[]> {
+  /** The newest photos added since `since` (epoch seconds, server clock): a rescan keeps a photo's date_added. */
+  async loadRecentPhotos(count: number, since: number): Promise<RecentPhoto[]> {
     const response = await this.sessionRead(() => this.api.get<{ photos: RecentPhoto[] }>('/photos', {
       sort: 'date_added', sort_direction: 'DESC', per_page: count, page: 1,
     }));
-    return response.photos;
+    // date_added has whole seconds; newest first, so the photos this scan added lead the page.
+    const from = Math.floor(since) * 1000;
+    return response.photos.filter(photo => photo.date_added != null && Date.parse(photo.date_added) >= from);
   }
 
   loadHistory(before?: number): Promise<ScanRunHistory> {

@@ -194,7 +194,7 @@ export class ScanLauncherComponent implements OnInit {
   protected readonly pendingStopId = signal<string | null>(null);
   protected readonly canCancel = this.scan.canCancel;
 
-  /** The newest photos in the library, refreshed each time the scan saves a chunk. */
+  /** The newest photos this scan added to the library, refreshed each time it saves a chunk. */
   protected readonly recent = signal<readonly RecentPhoto[]>([]);
   protected readonly readingLog = signal(false);
   private recentInFlight = false;
@@ -306,9 +306,11 @@ export class ScanLauncherComponent implements OnInit {
   /** Single-flight: ticks that arrive mid-request collapse into one follow-up read. */
   private async loadRecent(): Promise<void> {
     if (this.recentInFlight) { this.recentPending = true; return; }
+    const since = this.status().started_at;
+    if (since == null) return;
     this.recentInFlight = true;
     try {
-      this.recent.set(await this.scan.loadRecentPhotos(SHOWCASE_PHOTOS));
+      this.recent.set(await this.scan.loadRecentPhotos(SHOWCASE_PHOTOS, since));
     } catch { /* Decorative: the scan's own status is unaffected. */ }
     this.recentInFlight = false;
     if (this.recentPending && !this.destroyed) { this.recentPending = false; void this.loadRecent(); }

@@ -30,6 +30,8 @@ const translations = {
   moments: { title: 'Moments' }, junk: { title: 'Junk' }, gallery: { title: 'Gallery' },
 };
 
+const SCAN_STARTED_AT = 1_700_000_000.5;
+
 describe('Scan launcher rendered phase labels', () => {
   let fixture: ComponentFixture<ScanLauncherComponent>;
   let http: HttpTestingController;
@@ -41,6 +43,7 @@ describe('Scan launcher rendered phase labels', () => {
   let startScan: ReturnType<typeof vi.fn>;
   let cancelScan: ReturnType<typeof vi.fn>;
   let close: ReturnType<typeof vi.fn>;
+  let loadRecentPhotos: ReturnType<typeof vi.fn>;
   let picker: { name: string; path: string };
 
   beforeEach(async () => {
@@ -49,14 +52,15 @@ describe('Scan launcher rendered phase labels', () => {
     startScan = vi.fn(async () => { statusKnown.set(false); });
     cancelScan = vi.fn(async () => { status.update(s => ({ ...s, cancel_requested: true })); });
     close = vi.fn();
+    loadRecentPhotos = vi.fn((count: number) => firstValueFrom(TestBed.inject(ApiService).get<{ photos: { path: string }[] }>('/photos', { sort: 'date_added', sort_direction: 'DESC', per_page: count, page: 1 }))
+      .then(r => r.photos));
     TestBed.configureTestingModule({ imports: [ScanLauncherComponent], providers: [
       provideHttpClient(withXhr()), provideHttpClientTesting(),
       { provide: ScanService, useValue: {
         status, canLaunch: () => true, connected: signal(true), statusKnown, observationError, connect: reconnect,
         loadDirectories: vi.fn(async () => [{ path: '/fixture/photos', owner: '' }]),
         startScan,
-        loadRecentPhotos: (count: number) => firstValueFrom(TestBed.inject(ApiService).get<{ photos: { path: string }[] }>('/photos', { sort: 'date_added', sort_direction: 'DESC', per_page: count, page: 1 }))
-          .then(r => r.photos),
+        loadRecentPhotos,
         cancelScan, canCancel: computed(() => statusKnown() && !observationError() && status().running && !!status().job_id && !status().cancel_requested),
       } },
       { provide: MatDialogRef, useValue: { close } },
@@ -131,8 +135,8 @@ describe('Scan launcher rendered phase labels', () => {
 
   async function scoring(extra: Partial<NonNullable<ScanStatus['progress']>>, rest: Partial<ScanStatus> = {}) {
     statusKnown.set(true);
-    status.set({ running: true, directories: ['/fixture/photos'], output: ['INFO loading'], elapsed_seconds: 3, exit_code: null,
-      progress: { phase: 'scoring', current: 0, total: 6, ...extra }, ...rest });
+    status.set({ running: true, directories: ['/fixture/photos'], output: ['INFO loading'], elapsed_seconds: 3, started_at: SCAN_STARTED_AT,
+      exit_code: null, progress: { phase: 'scoring', current: 0, total: 6, ...extra }, ...rest });
     await settle();
   }
 
@@ -184,6 +188,7 @@ describe('Scan launcher rendered phase labels', () => {
     const read = http.expectOne(request => request.url === '/api/photos');
     expect(read.request.params.get('sort')).toBe('date_added');
     expect(read.request.params.get('sort_direction')).toBe('DESC');
+    expect(loadRecentPhotos).toHaveBeenCalledWith(5, SCAN_STARTED_AT);
     read.flush({ photos: [{ path: '/fixture/photos/b.jpg' }, { path: '/fixture/photos/a.jpg' }] });
     await settle();
     const images = [...showcase().querySelectorAll('img')].map(img => decodeURIComponent(img.getAttribute('src')!));
@@ -224,6 +229,12 @@ describe('Scan launcher rendered phase labels', () => {
     await settle();
     expect(root.querySelector('app-scan-showcase')).not.toBeNull();
     await drainPhotos();
+  });
+
+  it('reads no showcase photos while the scan start is unknown', async () => {
+    await scoring({ current: 2, step: 'analyze', fraction: 0.4 }, { kind: 'scan', started_at: null });
+    http.expectNone(r => r.url === '/api/photos');
+    expect(root.querySelectorAll('app-scan-showcase img')).toHaveLength(0);
   });
 
   it('shows no showcase for a job that is not a library scan', async () => {

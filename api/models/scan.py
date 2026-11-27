@@ -121,6 +121,8 @@ class ScanStatusResponse(BaseModel):
     directories: list[str]
     output: list[str]
     elapsed_seconds: Optional[float] = None
+    # Epoch seconds on the server's clock, comparable with a photo's date_added.
+    started_at: Optional[float] = None
     exit_code: Optional[int] = None
     progress: Optional[dict] = None
     job_id: Optional[str] = None

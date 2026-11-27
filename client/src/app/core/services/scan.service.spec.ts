@@ -542,7 +542,7 @@ describe('ScanService', () => {
   });
 
   it('reads the newest photos and refuses a late result from another session', async () => {
-    const recent = service.loadRecentPhotos(8);
+    const recent = service.loadRecentPhotos(8, 0);
     const request = httpTesting.expectOne(r => r.url === '/api/photos');
     expect(request.request.params.get('sort')).toBe('date_added');
     expect(request.request.params.get('sort_direction')).toBe('DESC');
@@ -552,10 +552,17 @@ describe('ScanService', () => {
     await expect(recent).rejects.toThrow('Scan session changed');
   });
 
-  it('returns the photo list of a current-session read', async () => {
-    const recent = service.loadRecentPhotos(3);
-    httpTesting.expectOne(r => r.url === '/api/photos').flush({ photos: [{ path: '/a.jpg' }] });
-    await expect(recent).resolves.toEqual([{ path: '/a.jpg' }]);
+  it('returns only the photos added since the scan started', async () => {
+    // 2023-11-14T22:13:20Z; date_added has whole seconds, so the scan's own second counts.
+    const recent = service.loadRecentPhotos(3, 1_700_000_000.7);
+    const photos = [
+      { path: '/new.jpg', date_added: '2023-11-14T22:13:21Z' },
+      { path: '/same-second.jpg', date_added: '2023-11-14T22:13:20Z' },
+      { path: '/old-import.jpg', date_added: '2023-11-14T22:13:19Z' },
+      { path: '/undated.jpg', date_added: null },
+    ];
+    httpTesting.expectOne(r => r.url === '/api/photos').flush({ photos });
+    await expect(recent).resolves.toEqual(photos.slice(0, 2));
   });
 
   describe('loadDirectories()', () => {

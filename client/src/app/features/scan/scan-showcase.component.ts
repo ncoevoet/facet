@@ -6,7 +6,7 @@ export const SHOWCASE_PHOTOS = 5;
 
 /**
  * Something quiet to watch while a long scan runs: placeholder tiles that the photos the
- * scan has already scored fill one by one, the newest large and drifting slowly.
+ * scan has added to the library fill one by one, the newest large and drifting slowly.
  * Decorative only: the launcher's text, progress bar and live region carry the status,
  * and everything holds still under reduced motion.
  */
