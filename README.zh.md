@@ -218,6 +218,8 @@ python viewer.py                       # 照片库 → http://localhost:5000
 ```
 
 > **macOS：**控制中心的“隔空播放接收器”默认占用 5000 端口。如果看到 “Address already in use”，请运行 `python viewer.py --port 5001`。
+>
+> **没有终端的 Mac：**[macOS 应用](docs/zh/INSTALLATION.md#macos-应用)会完成 Facet 的设置，并让它常驻菜单栏。
 
 完整指南：**[安装](docs/zh/INSTALLATION.md)**——按硬件区分的配置说明、首次运行时的
 下载内容，以及[依赖冲突排查](docs/zh/INSTALLATION.md#排查依赖冲突)。

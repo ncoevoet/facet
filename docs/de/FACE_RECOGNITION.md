@@ -258,11 +258,11 @@ Zwei Backends erzeugen sie auf derselben Skala:
    Skalen abgebildet werden. Er erkennt geschlossene Augen, subtile Lächeln und
    gedrehte Köpfe besser, daher **ersetzt** sein Wert den geometrischen. Fehlt
    MediaPipe oder sein Modell, oder ist der Ausschnitt zu klein, bleibt der
-   geometrische Wert erhalten.
+   geometrische Wert erhalten, und das Scan-Protokoll vermerkt einmal, dass MediaPipe nicht installiert ist.
 
 ### MediaPipe installieren
 
-MediaPipe ist optional. Installieren Sie es **ohne** das gebündelte
+MediaPipe ist optional, und die macOS-App enthält es nicht. Installieren Sie es **ohne** das gebündelte
 `opencv-contrib-python`, das mit Facets `opencv-python` kollidieren würde (beide
 liefern `cv2`):
 

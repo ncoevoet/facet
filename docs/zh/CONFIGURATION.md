@@ -161,7 +161,7 @@ python database.py --add-user alice --role superadmin --display-name "Alice"
 {
   "scanning": {
     "skip_hidden_directories": true,
-    "skip_directories": ["@eaDir", "#recycle", "#snapshot", "@Recycle"],
+    "skip_directories": ["@eaDir", "#recycle", "#snapshot", "@Recycle", "*.photoslibrary"],
     "skip_raw": false
   }
 }
@@ -170,12 +170,12 @@ python database.py --add-user alice --role superadmin --display-name "Alice"
 | 设置 | 默认值 | 说明 |
 |---------|---------|-------------|
 | `skip_hidden_directories` | `true` | 跳过名称以 `.` 开头的目录 |
-| `skip_directories` | `["@eaDir", "#recycle", "#snapshot", "@Recycle"]` | 在任意深度被跳过的文件夹名通配符 |
+| `skip_directories` | `["@eaDir", "#recycle", "#snapshot", "@Recycle", "*.photoslibrary"]` | 在任意深度被跳过的文件夹名通配符 |
 | `skip_raw` | `false` | 扫描文件夹时跳过相机 RAW 文件 |
 
 关于 `skip_directories`：
 - 通配符使用 `fnmatch`，区分大小写，且只匹配文件夹名。
-- 默认值涵盖 Synology 的 `@eaDir`（其 `SYNOPHOTO_THUMB_*.jpg` 缩略图）、`#recycle`、`#snapshot` 以及 QNAP 的 `@Recycle`。
+- 默认值涵盖 Synology 的 `@eaDir`（其 `SYNOPHOTO_THUMB_*.jpg` 缩略图）、`#recycle`、`#snapshot`、QNAP 的 `@Recycle`，以及 Apple“照片”App 的图库（`*.photoslibrary`），否则其中的原片和派生文件会被当作你存放在别处的照片的重复项扫描进来。
 - 你的列表会替换默认值；`[]` 表示不按名称跳过。扫描根目录永远不会被跳过。
 - 已从这些文件夹索引的照片会保留在数据库中。
 
@@ -594,6 +594,7 @@ penalty = min(noise_max_penalty_points, (noise_sigma - threshold) * noise_penalt
 | `saliency.resolution` | `1024` | 推理分辨率 |
 | `saliency.mask_threshold` | `0.3` | 二值主体掩膜的 sigmoid 阈值 |
 | `saliency.min_subject_pixels` | `50` | 判定检测到主体所需的最少主体像素数 |
+| `samp_net.model_path` | `"pretrained_models/samp_net.pth"` | SAMP-Net 权重。以 `pretrained_models/` 开头的值指向模型文件夹（`FACET_MODELS_DIR`，默认 `<install>/pretrained_models`）；绝对路径按原样使用 |
 
 说明：
 - **`ram_cache_reserve_gb`：** 仅当可用内存大于模型大小加上此预留量时，模型才会留在内存中。`"always"` 跳过该检查；`"never"` 不缓存任何内容。它必须是 >= 0 的数字，否则扫描会在启动时终止。在内存压力下，缓存会先释放最晚才会再用到的模型（见[多遍处理的工作方式](#多遍处理的工作方式)）。
@@ -2057,7 +2058,7 @@ Facet 会检查每一个请求。只有同时满足以下所有条件的请求�
 
 ### 编写插件
 
-把一个 `.py` 文件放进 `plugins/` 目录。按你想处理的事件名定义同名函数：
+把一个 `.py` 文件放进 `plugins/` 目录，或放进环境变量 `FACET_PLUGINS_DIR` 指定的文件夹。按你想处理的事件名定义同名函数：
 
 ```python
 def on_score_complete(data: dict) -> None:

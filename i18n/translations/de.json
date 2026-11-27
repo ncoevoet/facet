@@ -2211,7 +2211,10 @@
     "added": "{count} neues Foto hinzugefügt",
     "added_plural": "{count} neue Fotos hinzugefügt",
     "none_new": "Keine neuen Fotos gefunden",
-    "progress_label": "Scan-Fortschritt"
+    "progress_label": "Scan-Fortschritt",
+    "total": "{total} Foto",
+    "total_plural": "{total} Fotos",
+    "run_in_background": "Im Hintergrund weiterlaufen"
   },
   "persons": {
     "help": "Von der Gesichtserkennung erkannte Personen. Benennen Sie unbenannte Cluster, führen Sie Duplikate zusammen, legen Sie einen Avatar fest oder blenden Sie eine Person aus. Klicken Sie auf eine Person, um ihre Fotos zu sehen.",
@@ -4264,5 +4267,122 @@
       "help_label": "Über die Schlagwortbearbeitung"
     },
     "help_label": "Über den Schlagwortbaum"
+  },
+  "macos_app": {
+    "onboarding": {
+      "welcome_title": "Willkommen bei Facet",
+      "welcome_body": "Facet bewertet und sortiert Ihre Fotos auf diesem Mac, damit die besten oben landen. Die Einrichtung dauert ein paar Minuten.",
+      "welcome_private": "Alles läuft auf Ihrem Mac. Ihre Fotos verlassen ihn nie.",
+      "continue": "Weiter",
+      "back": "Zurück",
+      "skip": "Vorerst überspringen",
+      "open_facet": "Facet öffnen",
+      "step_of": "Schritt {current} von {total}"
+    },
+    "this_mac": {
+      "title": "Ihr Mac",
+      "body": "Facet bewertet Fotos mit der GPU von Apple Silicon.",
+      "chip": "Chip",
+      "memory": "Arbeitsspeicher",
+      "disk": "Freier Speicher",
+      "free_gb": "{gb} GB frei",
+      "gpu": "GPU (Metal)",
+      "gpu_after_setup": "Wird nach der Einrichtung geprüft",
+      "gpu_ok": "Bereit",
+      "gpu_cpu": "Nicht verfügbar, Facet nutzt die CPU",
+      "models_note": "Der erste Scan lädt außerdem die Modelle von Facet: 5 bis 20 GB, je nach Arbeitsspeicher Ihres Mac.",
+      "low_disk": "Nur {gb} GB frei: Der erste Scan braucht Platz für die Modelle."
+    },
+    "folders": {
+      "title": "Fotoordner auswählen",
+      "body": "Facet scannt diese Ordner. Weitere können Sie später über die Menüleiste hinzufügen.",
+      "none": "Noch keine Ordner",
+      "add": "Ordner hinzufügen…",
+      "photos_note": "Apple-Fotos-Mediatheken werden übersprungen: Facet liest normale Fotoordner."
+    },
+    "setup": {
+      "title": "Facet wird eingerichtet",
+      "body": "Facet lädt herunter, was es braucht, etwa 450 MB.",
+      "downloaded": "{done} von {total}",
+      "phase_environment": "Wird vorbereitet…",
+      "phase_library": "Ihre Bibliothek wird angelegt…",
+      "phase_check": "GPU wird geprüft…",
+      "done_gpu": "Bereit, mit GPU",
+      "done_cpu": "Bereit, mit CPU",
+      "failed": "Die Einrichtung wurde nicht abgeschlossen",
+      "failed_generic": "Die Einrichtung wurde unerwartet beendet.",
+      "error_no_space": "Zum Einrichten braucht Facet {needed} GB freien Speicher, dieser Mac hat {free} GB. Geben Sie Speicher frei und versuchen Sie es erneut.",
+      "error_busy": "Eine andere Kopie von Facet wird gerade eingerichtet. Beenden Sie sie und versuchen Sie es erneut.",
+      "error_download": "Facet konnte nicht herunterladen, was es braucht. Prüfen Sie die Internetverbindung und versuchen Sie es erneut.",
+      "error_library": "Facet konnte Ihre Bibliothek nicht anlegen. Die Protokolle nennen den Grund.",
+      "error_check": "Die Pakete von Facet wurden installiert, starten aber nicht. Die Protokolle nennen den Grund.",
+      "retry": "Erneut versuchen"
+    },
+    "ready": {
+      "title": "Facet ist bereit",
+      "body": "Facet öffnet sich im Browser und läuft in der Menüleiste weiter.",
+      "scan_now": "Meine Ordner jetzt scannen",
+      "menu_note": "Über das Kamerasymbol in der Menüleiste öffnen Sie Facet, fügen Ordner hinzu und starten Scans.",
+      "no_folders": "Noch keine Ordner. Fügen Sie sie jederzeit über „Ordner hinzufügen“ in der Menüleiste hinzu."
+    },
+    "menu": {
+      "open": "Facet öffnen",
+      "add_folder": "Ordner hinzufügen…",
+      "scan_all": "Alle Ordner scannen",
+      "scanning": "Scan läuft…",
+      "setup_window": "Einrichtung…",
+      "show_logs": "Protokolle anzeigen",
+      "copy_diagnostics": "Diagnose kopieren",
+      "restart": "Facet neu starten",
+      "quit": "Facet beenden",
+      "check_updates": "Nach Updates suchen…",
+      "install_update": "Auf Facet {version} aktualisieren…",
+      "updating": "Wird aktualisiert…"
+    },
+    "status": {
+      "stopped": "Facet ist gestoppt",
+      "starting": "Wird gestartet…",
+      "running": "Facet läuft",
+      "scanning": "Scan läuft…",
+      "scanning_count": "Scan: {current} von {total}",
+      "setting_up": "Wird eingerichtet…",
+      "setting_up_percent": "Wird eingerichtet… {percent} %",
+      "setup_failed": "Die Einrichtung wurde nicht abgeschlossen",
+      "error": "Fehler: {message}"
+    },
+    "server": {
+      "no_port": "Kein freier Port zwischen 5000 und 5049.",
+      "no_answer": "Facet ist nicht innerhalb von 2 Minuten gestartet. Siehe Protokolle.",
+      "crashed": "Facet wurde unerwartet beendet (Code {code}). Siehe Protokolle.",
+      "not_running": "Facet läuft nicht.",
+      "open_from_menu": "Öffnen Sie Facet über sein Symbol in der Menüleiste, um es in diesem Browser zu verwenden."
+    },
+    "scan": {
+      "no_folders": "Fügen Sie zuerst einen Fotoordner hinzu."
+    },
+    "install": {
+      "dmg_title": "Facet in „Programme“ kopieren",
+      "dmg_body": "Facet kann nicht vom Disk-Image aus laufen. Kopieren Sie es in „Programme“ und öffnen Sie es dort.",
+      "copy": "Kopieren und öffnen",
+      "quit": "Beenden",
+      "move_title": "Facet in „Programme“ bewegen",
+      "move_body": "macOS führt Facet aus einer temporären, schreibgeschützten Kopie aus. Beenden Sie Facet, ziehen Sie es in den Ordner „Programme“ und öffnen Sie es dort."
+    },
+    "update": {
+      "available_title": "Facet {version} ist verfügbar",
+      "available_body": "Sie haben {current}. Facet wird beendet, installiert das Update und öffnet sich wieder. Ihre Bibliothek, Einstellungen und Modelle bleiben erhalten.",
+      "install": "Installieren und neu starten",
+      "later": "Später",
+      "open_page": "Release-Seite öffnen",
+      "not_writable": "Facet kann sich in diesem Ordner nicht selbst ersetzen. Laden Sie die neue Version von der Release-Seite und ziehen Sie sie über diese.",
+      "up_to_date_title": "Facet ist aktuell",
+      "up_to_date_body": "{current} ist die neueste Version.",
+      "check_failed": "Facet konnte nicht nach Updates suchen: {reason}",
+      "install_failed": "Facet konnte das Update nicht installieren: {reason}. Die installierte Version bleibt unverändert.",
+      "no_download": "das Release enthält kein Facet-Disk-Image mit Prüfsumme",
+      "bad_checksum": "der Download passt nicht zu seiner Prüfsumme",
+      "bad_app": "die geladene App ist kein gültiges Facet {version}",
+      "scan_running": "Ein Scan läuft, und das Update würde ihn abbrechen. Wählen Sie das Update im Menü erneut, sobald der Scan fertig ist."
+    }
   }
 }

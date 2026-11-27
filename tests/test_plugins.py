@@ -62,6 +62,15 @@ class TestPluginManagerInit:
         assert mgr.enabled is True
         mgr.shutdown()
 
+    def test_plugins_dir_env_is_scanned(self, tmp_path, monkeypatch):
+        (tmp_path / "hello.py").write_text("def on_score_complete(data):\n    pass\n")
+        monkeypatch.setenv(plugins_module.PLUGINS_DIR_ENV, str(tmp_path))
+        mgr = PluginManager(config={"plugins": {"enabled": True}})
+        try:
+            assert [p["name"] for p in mgr.list_plugins()] == ["hello"]
+        finally:
+            mgr.shutdown()
+
     def test_list_plugins_empty(self):
         mgr = PluginManager(config=None)
         assert mgr.list_plugins() == []

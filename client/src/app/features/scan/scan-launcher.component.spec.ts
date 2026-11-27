@@ -2,6 +2,8 @@ import { TestBed } from '@angular/core/testing';
 import { NO_ERRORS_SCHEMA, signal, computed } from '@angular/core';
 import { HttpErrorResponse } from '@angular/common/http';
 import { MatDialogRef } from '@angular/material/dialog';
+import { of } from 'rxjs';
+import { ApiService } from '../../core/services/api.service';
 import { I18nService } from '../../core/services/i18n.service';
 import { ScanService, ScanStatus } from '../../core/services/scan.service';
 import { ScanLauncherComponent } from './scan-launcher.component';
@@ -45,6 +47,7 @@ describe('ScanLauncherComponent', () => {
         { provide: ScanService, useValue: mockScan },
         { provide: MatDialogRef, useValue: { close: dialogClose } },
         { provide: I18nService, useValue: { t: (key: string) => `T(${key})`, translations: () => ({}) } },
+        { provide: ApiService, useValue: { get: vi.fn(() => of({ photos: [] })) } },
       ],
     });
     // Scan history has its own service contract; only the launcher is under test.

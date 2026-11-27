@@ -15,6 +15,7 @@ call; (3) mint a 60-second JWT whose role/edition MATCH the effective level.
 import asyncio
 import inspect
 import logging
+import os
 from dataclasses import dataclass
 from datetime import timedelta
 from types import MappingProxyType
@@ -24,6 +25,7 @@ from urllib.parse import quote
 import httpx
 from pydantic import ValidationError
 
+from api.access_key import ACCESS_KEY_ENV, ACCESS_KEY_HEADER
 from api.agent import tokens
 from api.agent.live_updates import LIVE_SINK_OVERRIDE
 from api.auth import create_access_token
@@ -244,6 +246,10 @@ class InternalClient:
                 return err("invalid_input",
                            "A path argument may not be empty or contain '.' or '..' segments"), None, resolved
         headers = {}
+        # The macOS app's access gate wraps the whole app, so this in-process request passes it too.
+        access_key = os.environ.get(ACCESS_KEY_ENV)
+        if access_key:
+            headers[ACCESS_KEY_HEADER] = access_key
         if tool in _FILTER_OPTIONS_PROBED and (query or {}).get("query"):
             headers[FILTER_OPTIONS_OVERFLOW_HEADER] = "1"
         claims = resolved.jwt_claims()

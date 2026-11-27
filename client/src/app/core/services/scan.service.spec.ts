@@ -541,6 +541,30 @@ describe('ScanService', () => {
     httpTesting.expectNone('/api/scan/start');
   });
 
+  it('reads the newest photos and refuses a late result from another session', async () => {
+    const recent = service.loadRecentPhotos(8, 0);
+    const request = httpTesting.expectOne(r => r.url === '/api/photos');
+    expect(request.request.params.get('sort')).toBe('date_added');
+    expect(request.request.params.get('sort_direction')).toBe('DESC');
+    expect(request.request.params.get('per_page')).toBe('8');
+    TestBed.inject(AuthService).status.set(otherAccount('other'));
+    request.flush({ photos: [{ path: '/a.jpg' }] });
+    await expect(recent).rejects.toThrow('Scan session changed');
+  });
+
+  it('returns only the photos added since the scan started', async () => {
+    // 2023-11-14T22:13:20Z; date_added has whole seconds, so the scan's own second counts.
+    const recent = service.loadRecentPhotos(3, 1_700_000_000.7);
+    const photos = [
+      { path: '/new.jpg', date_added: '2023-11-14T22:13:21Z' },
+      { path: '/same-second.jpg', date_added: '2023-11-14T22:13:20Z' },
+      { path: '/old-import.jpg', date_added: '2023-11-14T22:13:19Z' },
+      { path: '/undated.jpg', date_added: null },
+    ];
+    httpTesting.expectOne(r => r.url === '/api/photos').flush({ photos });
+    await expect(recent).resolves.toEqual(photos.slice(0, 2));
+  });
+
   describe('loadDirectories()', () => {
     it('should fetch configured directories', async () => {
       const promise = service.loadDirectories();
@@ -551,6 +575,33 @@ describe('ScanService', () => {
 
       const dirs = await promise;
       expect(dirs).toEqual([{ path: '/photos', owner: 'shared' }]);
+    });
+  });
+
+  describe('isRunning()', () => {
+    const status = (running: boolean) => ({
+      running, directories: [], output: [], elapsed_seconds: null, exit_code: null,
+    });
+
+    it('reports a scan under way', async () => {
+      const promise = service.isRunning();
+      httpTesting.expectOne('/api/scan/status').flush(status(true));
+      expect(await promise).toBe(true);
+    });
+
+    it('reports an idle server', async () => {
+      const promise = service.isRunning();
+      httpTesting.expectOne('/api/scan/status').flush(status(false));
+      expect(await promise).toBe(false);
+    });
+
+    it('treats a failed or malformed read as no scan', async () => {
+      const failed = service.isRunning();
+      httpTesting.expectOne('/api/scan/status').flush('', { status: 500, statusText: 'Server Error' });
+      expect(await failed).toBe(false);
+      const malformed = service.isRunning();
+      httpTesting.expectOne('/api/scan/status').flush({ running: 'yes' });
+      expect(await malformed).toBe(false);
     });
   });
 

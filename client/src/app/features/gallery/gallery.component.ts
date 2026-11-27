@@ -2228,6 +2228,7 @@ export class GalleryComponent implements OnInit, OnDestroy {
       if (!current()) return;
       this.store.initializing.set(false);
       this.refreshSideData();
+      void this.followRunningScan(current);
       await this.restoreHistoryPosition();
       if (!current()) return;
       // IntersectionObserver fires too early before DOM paint — defer recheck
@@ -2920,6 +2921,15 @@ export class GalleryComponent implements OnInit, OnDestroy {
       await this.store.loadTypeCounts();
       await this.store.reloadPhotos();
     }
+  }
+
+  /** An empty library while a scan the viewer started runs (the first scan, or one from another
+   *  tab or the macOS menu bar) shows that scan's progress instead of "No photos found"; the launcher
+   *  reloads the grid when the scan finishes. */
+  private async followRunningScan(current: () => boolean): Promise<void> {
+    if (this.store.total() !== 0 || this.store.loadError() || this.store.activeFilterCount()
+      || this.store.currentAlbum() || !this.scan.canLaunch()) return;
+    if (await this.scan.isRunning() && current()) await this.openScanLauncher();
   }
 
 

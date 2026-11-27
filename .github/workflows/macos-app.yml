@@ -1,0 +1,106 @@
+name: macOS app
+
+# Builds the Apple silicon disk image (macos/build-app.sh), sets it up from scratch as a new
+# user's Mac would, and attaches it to a published GitHub Release. Pull requests that touch the
+# app build it too, as an artifact to try. Run it by hand on a tag to attach a missing image.
+on:
+  release:
+    types: [published]
+  pull_request:
+    paths:
+      - "macos/**"
+      - "config_resolve.py"
+      - "processing/__init__.py"
+      - "processing/progress.py"
+      - "tests/test_macos_*.py"
+      - ".github/workflows/macos-app.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: macos-app-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: Build Facet.app
+    # macos-15 runners are Apple silicon, the only architecture the app is built for.
+    runs-on: macos-15
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v7
+        with:
+          node-version: "24"
+          cache: "npm"
+          cache-dependency-path: client/package-lock.json
+      - name: Build the client
+        working-directory: client
+        run: |
+          npm ci --no-audit --no-fund
+          npm run build
+      - name: Check the launcher's core logic
+        run: swift run --package-path macos/Launcher core-checks
+      - name: Build the disk image
+        env:
+          # The build label names the PR head, not the merge commit the checkout packages.
+          PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: macos/build-app.sh
+      - name: Set up the app from scratch
+        # What the first-run window does: install the lock (every file hash-checked), build the
+        # library, check the GPU. Then the helper's tests, in the environment it just built.
+        shell: bash    # -o pipefail: setup's exit status survives the tail
+        run: |
+          mount="$RUNNER_TEMP/dmg"
+          hdiutil attach -nobrowse -readonly -mountpoint "$mount" macos/out/*.dmg
+          resources="$mount/Facet.app/Contents/Resources"
+          export FACET_HOME="$RUNNER_TEMP/facet-home"
+          "$resources/python/bin/python3" -I "$resources/app/macos/facet_mac.py" setup | tail -3
+          "$resources/python/bin/python3" -I "$resources/app/macos/facet_mac.py" ready
+          "$FACET_HOME/venv/bin/python" -m pytest -q -p no:cacheprovider tests/test_macos_helper.py
+          # Spotlight or a test process can hold the volume a moment longer ("Resource busy").
+          hdiutil detach "$mount" || { sleep 5; hdiutil detach -force "$mount"; }
+      - uses: actions/upload-artifact@v7
+        with:
+          name: facet-macos-app
+          path: macos/out/*.dmg
+          if-no-files-found: error
+          retention-days: 14
+
+  release:
+    name: Attach the disk image to the release
+    # Its own job, so the build (npm packages, downloaded tools) never holds a token that can write.
+    if: github.event_name == 'release' || (github.event_name == 'workflow_dispatch' && github.ref_type == 'tag')
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+      # Provenance for the image, signed here rather than in the build job, which runs npm.
+      id-token: write
+      attestations: write
+    steps:
+      - uses: actions/download-artifact@v8
+        with:
+          name: facet-macos-app
+          path: dmg
+      - name: Attest the disk image
+        # The image is signed ad hoc, which proves nothing about who built it, and a token that can
+        # replace the image can replace SHA256SUMS too. The attestation ties the image to this
+        # workflow: `gh attestation verify <dmg> --repo ncoevoet/facet`.
+        uses: actions/attest-build-provenance@v4
+        with:
+          subject-path: dmg/*.dmg
+      - name: Upload
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          TAG: ${{ github.event.release.tag_name || github.ref_name }}
+        # The checksum lets a download be compared with what this run uploaded.
+        run: |
+          (cd dmg && sha256sum *.dmg > SHA256SUMS)
+          gh release upload "$TAG" dmg/*.dmg dmg/SHA256SUMS --clobber --repo "$REPO"

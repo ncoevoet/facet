@@ -10634,6 +10634,8 @@ export interface components {
             } | null;
             /** Running */
             running: boolean;
+            /** Started At */
+            started_at?: number | null;
         };
         /**
          * ScanStreamTokenResponse

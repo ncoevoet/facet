@@ -218,6 +218,8 @@ python viewer.py                       # Galerie → http://localhost:5000
 ```
 
 > **macOS:** Der AirPlay-Empfänger des ControlCenters belegt standardmäßig Port 5000. Wenn Sie „Address already in use“ sehen, führen Sie `python viewer.py --port 5001` aus.
+>
+> **Mac ohne Terminal:** Die [macOS-App](docs/de/INSTALLATION.md#macos-app) richtet Facet ein und hält es in der Menüleiste.
 
 Vollständige Anleitung: **[Installation](docs/de/INSTALLATION.md)** — Einrichtung pro
 Hardware, Downloads beim ersten Start, und

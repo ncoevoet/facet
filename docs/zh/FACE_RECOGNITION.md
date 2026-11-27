@@ -256,11 +256,11 @@ pip install python-ofiq
    （`eyeBlink*`、`mouthSmile*`、`mouthFrown*`）映射到同样的标度。
    它对闭眼、细微微笑和侧脸的判断更好，因此其分数会**取代**
    几何值。如果缺少 MediaPipe 或其模型，或者裁剪图太小，
-   则保留几何值。
+   则保留几何值，并且扫描日志会提示一次 MediaPipe 未安装。
 
 ### 安装 MediaPipe
 
-MediaPipe 是可选的，并且**必须**在不安装其捆绑的
+MediaPipe 是可选的（macOS 应用不包含它），并且**必须**在不安装其捆绑的
 `opencv-contrib-python` 的前提下安装，否则会在 Facet 的 `opencv-python`
 之外再装入一个 `cv2` 命名空间：
 

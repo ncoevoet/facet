@@ -256,11 +256,11 @@ Dois mecanismos as produzem na mesma escala:
    (`eyeBlink*`, `mouthSmile*`, `mouthFrown*`) mapeiam para as mesmas escalas. Ele lê
    melhor olhos fechados, sorrisos sutis e cabeças viradas, então o seu valor **substitui**
    o geométrico. Se o MediaPipe ou o seu modelo estiverem ausentes, ou o recorte for pequeno
-   demais, o valor geométrico é mantido.
+   demais, o valor geométrico é mantido, e o log da varredura avisa uma vez que o MediaPipe não está instalado.
 
 ### Instalando o MediaPipe
 
-O MediaPipe é opcional. Instale-o **sem** o `opencv-contrib-python` empacotado,
+O MediaPipe é opcional, e o app para macOS não o inclui. Instale-o **sem** o `opencv-contrib-python` empacotado,
 que entraria em conflito com o `opencv-python` do Facet (ambos fornecem `cv2`):
 
 ```bash

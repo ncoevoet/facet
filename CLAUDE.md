@@ -429,7 +429,18 @@ only what reading those two will NOT tell you.
   both `promote` and `excluded`; a partial body 422s rather than silently clearing one.
 - **Every writer of `scoring_config.json` shares `api.config.CONFIG_WRITE_LOCK`** — priorities,
   weights, contexts, panorama thresholds, the share-secret eviction and the plaintext-password
-  upgrade. They rewrite different parts of one file, and two locks lost whole updates.
+  upgrade. They rewrite different parts of one file, and two locks lost whole updates. A writer
+  outside the viewer process cannot take that in-process lock: the CLI tools (`database.py`,
+  `calibrate.py`, the weight optimizer) and the macOS app's `facet_mac.py add-folder`. The app
+  restarts the viewer right after an add-folder, or, when a scan is running, once that scan
+  finishes. Every viewer writer re-reads the file under the lock, so only
+  a viewer save made in the same instant as the add-folder write can be lost.
+- **Under the macOS app, `api/access_key.py` gates every route but `/mcp`.** With `FACET_ACCESS_KEY`
+  set it is the outermost middleware, so a new route, WebSocket or static mount is refused unless the
+  browser holds the `facet_access` cookie or the app sends `X-Facet-Access-Key`; `/mcp` keeps its own
+  bearer gate. The MCP tools reach the API through an in-process ASGI request that passes the gate
+  again, so `InternalClient._send` sends the key header too; any other in-process caller must do the same. It is what stops other accounts on the Mac and DNS-rebinding pages, which
+  `request_is_local` cannot tell from the user's browser for reads.
 - **The config writer has two commit routes.** The default is an atomic rename over the
   destination; when the destination's owner cannot be adopted (a rootless container, most
   commonly), it falls back to an inode-preserving in-place rewrite instead — same inode, owner

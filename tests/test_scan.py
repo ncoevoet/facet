@@ -338,6 +338,7 @@ class TestScanStatus:
         assert len(body["output"]) == 2
         assert body["directories"] == ["/photos"]
         assert body["elapsed_seconds"] is not None
+        assert body["started_at"] == mock_state["started_at"]
 
     def test_scan_status_idle(self):
         """When no scan is running, returns idle state."""

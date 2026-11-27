@@ -299,7 +299,8 @@ describe('GalleryComponent', () => {
           },
         },
         { provide: ActivatedRoute, useValue: routeMock },
-        { provide: ScanService, useValue: { canLaunch: signal(false), openLauncher: vi.fn(() => Promise.resolve(false)) } },
+        { provide: ScanService, useValue: { canLaunch: signal(false), openLauncher: vi.fn(() => Promise.resolve(false)),
+          isRunning: vi.fn(() => Promise.resolve(false)) } },
         { provide: RouterOutlet, useValue: outletMock },
         { provide: ChangeDetectorRef, useValue: { detectChanges: vi.fn() } },
         { provide: MatDialog, useValue: { open: vi.fn() } },
@@ -5445,13 +5446,16 @@ describe('GalleryComponent', () => {
       fixture = null;
     });
 
-    function render(canLaunch: boolean, library: typeof photos, launched = true) {
+    function render(canLaunch: boolean, library: typeof photos, launched = true, scanRunning: boolean | Promise<boolean> = false) {
       mockAuth['downloadProfiles'] = vi.fn(() => []);
       mockStore.photos.set(library);
       mockStore.total.set(library.length);
-      const scan = TestBed.inject(ScanService) as unknown as { canLaunch: WritableSignal<boolean>; openLauncher: Mock };
+      const scan = TestBed.inject(ScanService) as unknown as {
+        canLaunch: WritableSignal<boolean>; openLauncher: Mock; isRunning: Mock;
+      };
       scan.canLaunch.set(canLaunch);
       scan.openLauncher.mockResolvedValue(launched);
+      scan.isRunning.mockResolvedValue(scanRunning);
       fixture = TestBed.createComponent(GalleryComponent);
       fixture.detectChanges();
       return { f: fixture, scan };
@@ -5490,6 +5494,56 @@ describe('GalleryComponent', () => {
       await vi.waitFor(() => expect(mockStore.reloadPhotos).toHaveBeenCalledTimes(1));
       expect(scan.openLauncher).toHaveBeenCalledTimes(1);
       expect(mockStore.loadTypeCounts).toHaveBeenCalled();
+    });
+
+    it('shows the progress of a scan already running on an empty library, then reloads', async () => {
+      const { scan } = render(true, [], true, true);
+      await vi.waitFor(() => expect(scan.openLauncher).toHaveBeenCalledTimes(1));
+      await vi.waitFor(() => expect(mockStore.reloadPhotos).toHaveBeenCalled());
+    });
+
+    it('leaves an empty library alone when no scan is running', async () => {
+      const { f, scan } = render(true, []);
+      await vi.waitFor(() => expect(scan.isRunning).toHaveBeenCalled());
+      await f.whenStable();
+      expect(scan.openLauncher).not.toHaveBeenCalled();
+    });
+
+    it('never asks about scans over a populated library', async () => {
+      const { f, scan } = render(true, photos, true, true);
+      // Init must have progressed past the point where followRunningScan runs before the negative means anything.
+      await vi.waitFor(() => expect(mockStore.loadPhotos).toHaveBeenCalled());
+      await f.whenStable();
+      expect(scan.isRunning).not.toHaveBeenCalled();
+      expect(scan.openLauncher).not.toHaveBeenCalled();
+    });
+
+    describe.each<[string, () => void, boolean]>([
+      ['an active filter', () => mockStore.activeFilterCount.set(1), true],
+      ['a current album', () => mockStore.currentAlbum.set({ id: 1, name: 'A' } as never), true],
+      ['a load error', () => mockStore.loadError.set(true), true],
+      ['no launch right', () => undefined, false],
+    ])('over an empty library with %s while a scan runs', (_label, arrange, canLaunch) => {
+      it('neither asks about the scan nor opens the launcher', async () => {
+        // init resets currentAlbum, so the state is applied when the photos load, just before the scan check.
+        mockStore.loadPhotos.mockImplementation(async () => { arrange(); });
+        const { f, scan } = render(canLaunch, [], true, true);
+        await vi.waitFor(() => expect(mockStore.loadPhotos).toHaveBeenCalled());
+        await f.whenStable();
+        expect(scan.isRunning).not.toHaveBeenCalled();
+        expect(scan.openLauncher).not.toHaveBeenCalled();
+      });
+    });
+
+    it('does not open the launcher when the status answers after the gallery is destroyed', async () => {
+      let answer!: (running: boolean) => void;
+      const { f, scan } = render(true, [], true, new Promise<boolean>(resolve => { answer = resolve; }));
+      await vi.waitFor(() => expect(scan.isRunning).toHaveBeenCalled());
+      f.destroy();
+      fixture = null;
+      answer(true);
+      await new Promise(resolve => setTimeout(resolve));
+      expect(scan.openLauncher).not.toHaveBeenCalled();
     });
 
     it('reloads nothing when the launcher is dismissed', async () => {

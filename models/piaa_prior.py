@@ -18,14 +18,16 @@ import os
 
 import numpy as np
 
+from models.weights import MODELS_DIRNAME, resolve_models_path
+
 logger = logging.getLogger("facet.piaa_prior")
 
-DEFAULT_MODELS_DIR = "pretrained_models"
+DEFAULT_MODELS_DIR = MODELS_DIRNAME
 
 
 def prior_path(dim, models_dir=DEFAULT_MODELS_DIR):
     """Canonical on-disk path for a per-dim prior."""
-    return os.path.join(models_dir, f"piaa_prior_{int(dim)}.npz")
+    return os.path.join(resolve_models_path(models_dir), f"piaa_prior_{int(dim)}.npz")
 
 
 def save_prior(path, weights, bias, head_names, meta, default_mix=None):

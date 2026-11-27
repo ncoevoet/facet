@@ -61,7 +61,7 @@ httpx>=0.28,<1
 websockets>=13.0
 
 # Utilities
-tqdm>=4.65.0
+tqdm>=4.66.0
 exifread>=3.0.0
 
 # System Monitoring (for batch processing auto-tuning)

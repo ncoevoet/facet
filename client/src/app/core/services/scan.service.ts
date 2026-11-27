@@ -31,6 +31,8 @@ export interface ScanStatus {
   directories: string[];
   output: string[];
   elapsed_seconds: number | null;
+  /** Epoch seconds on the server's clock. */
+  started_at?: number | null;
   exit_code: number | null;
   progress?: ScanProgress | null;
   job_id?: string | null;
@@ -41,6 +43,12 @@ export interface ScanStatus {
 export interface ScanDirectory {
   path: string;
   owner: string;
+}
+
+/** The photo fields the scan showcase reads. */
+export interface RecentPhoto {
+  path: string;
+  date_added?: string | null;
 }
 
 interface ScanSession {
@@ -185,9 +193,30 @@ export class ScanService implements OnDestroy {
     return response;
   }
 
+  /** One status read, for a page that only needs to know whether a scan is under way. */
+  async isRunning(): Promise<boolean> {
+    try {
+      const status = await this.sessionRead(() => this.api.get<unknown>('/scan/status'));
+      return isScanStatus(status) && status.running;
+    } catch {
+      return false;
+    }
+  }
+
   async loadDirectories(): Promise<ScanDirectory[]> {
     const response = await this.sessionRead(() => this.api.get<{ directories: ScanDirectory[] }>('/scan/directories'));
     return response.directories;
+  }
+
+  /** The newest photos by date added, for the launcher's live showcase. */
+  /** The newest photos added since `since` (epoch seconds, server clock): a rescan keeps a photo's date_added. */
+  async loadRecentPhotos(count: number, since: number): Promise<RecentPhoto[]> {
+    const response = await this.sessionRead(() => this.api.get<{ photos: RecentPhoto[] }>('/photos', {
+      sort: 'date_added', sort_direction: 'DESC', per_page: count, page: 1,
+    }));
+    // date_added has whole seconds; newest first, so the photos this scan added lead the page.
+    const from = Math.floor(since) * 1000;
+    return response.photos.filter(photo => photo.date_added != null && Date.parse(photo.date_added) >= from);
   }
 
   loadHistory(before?: number): Promise<ScanRunHistory> {

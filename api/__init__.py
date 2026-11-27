@@ -752,9 +752,10 @@ def create_app() -> FastAPI:
     # An install upgraded without re-running `pip install -r requirements.txt` has no
     # `mcp` package: leave the feature off instead of failing to start the viewer.
     from api.config import set_mcp_available
+    agent_paths: tuple[str, ...] = ()
     try:
         from api.agent.bridge import TabRegistry
-        from api.agent.server import mount_agent
+        from api.agent.server import MCP_PATH, mount_agent
         from api.routers.mcp_bridge import router as mcp_bridge_router
         from api.routers.mcp_inpage import router as mcp_inpage_router
     except ImportError as ex:
@@ -767,6 +768,12 @@ def create_app() -> FastAPI:
         app.include_router(mcp_bridge_router)
         app.include_router(mcp_inpage_router)
         app.state.mcp_session_manager = mount_agent(app)
+        agent_paths = (MCP_PATH,)
+
+    # Outermost, so nothing answers before it: the macOS app's key (see api/access_key.py).
+    from api.access_key import ACCESS_KEY_ENV, AccessKeyGate
+    if os.environ.get(ACCESS_KEY_ENV):
+        app.add_middleware(AccessKeyGate, key=os.environ[ACCESS_KEY_ENV], open_paths=agent_paths)
 
     # Check for plaintext passwords at startup
     from api.auth import check_legacy_password_warnings

@@ -12,14 +12,15 @@ performance. Pick the one that fits you.
 
 | | Docker | Without Docker |
 |---|---|---|
-| Installing | One command: everything comes in the image | `install.sh` (Linux, macOS) or the Windows installer builds a Python environment on the machine |
-| Updating | Pull the new image | Update the code and run `install.sh` again, or install the new Windows installer |
+| Installing | One command: everything comes in the image | `install.sh` (Linux, macOS), the macOS app or the Windows installer builds a Python environment on the machine |
+| Updating | Pull the new image | Update the code and run `install.sh` again, or install the new macOS app or Windows installer |
 | Performance | A container sits between Facet and your files and graphics card; on Windows it runs inside WSL2 | Facet uses the machine's graphics card and files directly |
 
 | Your situation | Go to |
 |----------------|-------|
 | Windows, macOS or Linux, in a container | [Install with Docker](#install-with-docker) |
 | Windows, macOS or Linux, without containers | [Install without Docker](#install-without-docker) |
+| A Mac with Apple silicon, without a terminal | [macOS app](#macos-app) |
 | A NAS, or a server you want to reach from other machines | [Deployment](DEPLOYMENT.md) |
 
 ## Which profile fits my hardware?
@@ -167,7 +168,47 @@ python viewer.py                       # start the gallery
 
 Open <http://localhost:5000>.
 
-### macOS
+### macOS app
+
+Facet.app is a menu-bar app for Apple silicon Macs on macOS 15 or later. It sets Facet up the
+first time it opens, then keeps the gallery running in the background.
+
+**Getting the app.** GitHub Releases after 1.31.0 carry the disk image,
+`Facet-<version>-<commit>.dmg`, among their assets, with its checksum in `SHA256SUMS`. `gh attestation verify Facet-<version>-<commit>.dmg --repo ncoevoet/facet` checks that this repository's release workflow built it. To build one yourself, use
+`macos/build-app.sh`, which needs the Xcode Command Line Tools (`xcode-select --install`) and a
+built client (`cd client && npm ci && npm run build`, with Node.js 24). It packages the committed
+tree and writes `macos/out/Facet-<version>-<commit>.dmg`.
+
+**First open.** Open the disk image and drag Facet into Applications. The app is not notarized,
+so macOS blocks a copy that was downloaded: open it once, then choose **Open Anyway** in System
+Settings, Privacy & Security. A window then walks through setup. It downloads the packages Facet
+needs (about 450 MB, 1.5 GB once installed), asks for your photo folders and checks the GPU. The
+first scan also downloads the models, 5 to 20 GB depending on the Mac's memory.
+
+| Folder | What it holds |
+|---|---|
+| `~/Library/Application Support/Facet/venv` | the Python environment, built again when an update changes Facet's dependencies or the app is moved |
+| `~/Library/Application Support/Facet/library` | the database (`photo_scores_pro.db`) |
+| `~/Library/Application Support/Facet/config` | `scoring_config.json` |
+| `~/Library/Application Support/Facet/models`, `huggingface`, `torch` | the downloaded models |
+| `~/.insightface` | the face models, where InsightFace always keeps them (about 300 MB) |
+| `~/Library/Logs/Facet` | `setup.log`, `viewer.log` and the previous run's `viewer.previous.log` |
+
+**Every day.** The camera icon in the menu bar opens the gallery, adds folders, scans them all
+and shows the logs. The gallery answers on this Mac only, on the port it used last when that is
+still free, else on the first port from 5000 that nothing else listens on (AirPlay, or a viewer
+you started in a terminal, often holds 5000). The app turns on `viewer.trusted_local_editing`, so the browser it opens can edit and start scans without a password. It also gives the gallery a key that only your user account can read (`access.key` in its data folder): the menu opens the gallery with it once, your browser keeps it as a cookie, and any request without it is refused with a note to open Facet from the menu bar. That shuts out other devices, the other accounts on this Mac and web pages that try to reach the gallery, while assistants keep using their own tokens on `/mcp`. **Open Facet** uses your default browser; another browser shows that note. If you set `viewer.password` or `viewer.edition_password`, the trust turns off and the menu can no longer start scans or follow them, so start them from the browser. Adding a folder restarts the gallery; if a scan is running, the restart waits until that scan finishes. Apple Photos libraries are
+skipped: point Facet at ordinary photo folders.
+
+**Updating.** Once a day the app asks GitHub for the latest release, and the menu offers **Update to Facet …** when there is one; **Check for Updates…** asks right away. The update downloads the release's disk image, checks it against the release's `SHA256SUMS`, its bundle ID, version and signature, swaps the app and opens it again; any failed check keeps the installed app. Turn the daily check off with `defaults write io.github.ncoevoet.facet AutomaticUpdateChecks -bool false`. Dragging the new version over the old one works too. When an update needs a new environment, the
+setup window opens at the download step; your library, config and models stay. The app is signed
+ad hoc, so macOS may ask again for access to protected folders such as Documents after an update.
+
+**Uninstalling.** Quit Facet from its menu, delete the app, then delete
+`~/Library/Application Support/Facet`, `~/Library/Caches/Facet` and `~/Library/Logs/Facet`.
+Delete `~/.insightface` too, unless another Facet install on this Mac still uses it.
+
+### macOS from a clone
 
 ```bash
 git clone https://github.com/ncoevoet/facet.git && cd facet
@@ -715,7 +756,10 @@ Models download on first use into:
 - `~/.cache/torch/hub/` (PyIQA weights)
 - `~/.insightface/` (face detection/recognition)
 - `pretrained_models/` in the repository root: `samp_net.pth`, `u2netp.pth`,
-  `face_landmarker.task`, and `aesthetic_predictor_weights.pth` (`legacy`/`8gb` only)
+  `face_landmarker.task`, and `aesthetic_predictor_weights.pth` (`legacy`/`8gb` only).
+  Set `FACET_MODELS_DIR` to keep them somewhere else, for example when the install
+  folder is read-only. A configured path that starts with `pretrained_models/`
+  (`samp_net.model_path`, `piaa_prior.models_dir`) follows it.
 
 In Docker these are named volumes (`pretrained_models/` is `facet-pretrained`), so nothing
 re-downloads when the container is recreated. No weights are baked into the image.

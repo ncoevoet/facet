@@ -162,7 +162,7 @@ Controla qué directorios visita el escaneo.
 {
   "scanning": {
     "skip_hidden_directories": true,
-    "skip_directories": ["@eaDir", "#recycle", "#snapshot", "@Recycle"],
+    "skip_directories": ["@eaDir", "#recycle", "#snapshot", "@Recycle", "*.photoslibrary"],
     "skip_raw": false
   }
 }
@@ -171,12 +171,12 @@ Controla qué directorios visita el escaneo.
 | Ajuste | Por defecto | Descripción |
 |---------|---------|-------------|
 | `skip_hidden_directories` | `true` | Omite los directorios cuyo nombre empieza por `.` |
-| `skip_directories` | `["@eaDir", "#recycle", "#snapshot", "@Recycle"]` | Globs de nombres de carpeta omitidos a cualquier profundidad |
+| `skip_directories` | `["@eaDir", "#recycle", "#snapshot", "@Recycle", "*.photoslibrary"]` | Globs de nombres de carpeta omitidos a cualquier profundidad |
 | `skip_raw` | `false` | Omitir archivos RAW de cámara al escanear carpetas |
 
 Notas sobre `skip_directories`:
 - Los globs usan `fnmatch`, distinguen mayúsculas y solo se aplican al nombre de la carpeta.
-- Los valores predeterminados cubren `@eaDir` de Synology (sus miniaturas `SYNOPHOTO_THUMB_*.jpg`), `#recycle`, `#snapshot` y `@Recycle` de QNAP.
+- Los valores predeterminados cubren `@eaDir` de Synology (sus miniaturas `SYNOPHOTO_THUMB_*.jpg`), `#recycle`, `#snapshot`, `@Recycle` de QNAP y las fototecas de Apple Fotos (`*.photoslibrary`), cuyos originales y derivados se escanearían si no como duplicados de fotos que guardas en otro lugar.
 - Tu lista reemplaza la predeterminada; `[]` desactiva la omisión por nombre. La raíz del escaneo nunca se omite.
 - Las fotos ya indexadas desde estas carpetas permanecen en la base de datos.
 
@@ -595,6 +595,7 @@ Selecciona qué modelos se usan por cada perfil de VRAM.
 | `saliency.resolution` | `1024` | Resolución de inferencia |
 | `saliency.mask_threshold` | `0.3` | Umbral sigmoide para la máscara binaria del sujeto |
 | `saliency.min_subject_pixels` | `50` | Píxeles mínimos del sujeto para contar un sujeto como detectado |
+| `samp_net.model_path` | `"pretrained_models/samp_net.pth"` | Pesos de SAMP-Net. Un valor que empieza por `pretrained_models/` designa la carpeta de modelos (`FACET_MODELS_DIR`, por defecto `<install>/pretrained_models`); las rutas absolutas se usan tal cual |
 
 Notas:
 - **`ram_cache_reserve_gb`:** un modelo se conserva solo mientras la RAM libre supere su tamaño más esta reserva. `"always"` omite la comprobación; `"never"` no almacena nada en caché. Debe ser un número >= 0, o el escaneo se detiene al inicio. Bajo presión de memoria, la caché libera primero el modelo que se necesitará más tarde (ver [Cómo funciona el modo multipase](#cómo-funciona-el-modo-multipase)).
@@ -2062,7 +2063,7 @@ Sistema de plugins basado en eventos para reaccionar a eventos de puntuación. L
 
 ### Escribir un plugin
 
-Coloca un archivo `.py` en el directorio `plugins/`. Define funciones con el nombre de los eventos que quieras gestionar:
+Coloca un archivo `.py` en el directorio `plugins/`, o en la carpeta que indique la variable de entorno `FACET_PLUGINS_DIR`. Define funciones con el nombre de los eventos que quieras gestionar:
 
 ```python
 def on_score_complete(data: dict) -> None:

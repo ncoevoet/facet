@@ -137,3 +137,5 @@ test-results/
 client/e2e/.work/
 client/test-results/
 client/playwright-report/
+macos/out/
+macos/Launcher/.build/

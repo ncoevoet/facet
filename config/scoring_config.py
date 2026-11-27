@@ -740,7 +740,7 @@ class ScoringConfig:
         """
         return self.config.get('scanning', {
             'skip_hidden_directories': True,
-            'skip_directories': ['@eaDir', '#recycle', '#snapshot', '@Recycle'],
+            'skip_directories': ['@eaDir', '#recycle', '#snapshot', '@Recycle', '*.photoslibrary'],
             'skip_raw': False,
         })
 

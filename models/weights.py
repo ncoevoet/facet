@@ -4,6 +4,8 @@
 process working directory: ``facet.py`` and ``viewer.py`` are launched from
 different directories, and the Docker image's working directory is not a mounted
 volume, so a CWD-relative destination re-downloads the same file over and over.
+``FACET_MODELS_DIR`` moves it elsewhere, for an install whose own folder is
+read-only (the macOS app bundle).
 """
 
 import hashlib
@@ -30,7 +32,13 @@ DOWNLOAD_TIMEOUT_SECONDS = 60
 DOWNLOAD_ATTEMPTS = 3
 DOWNLOAD_RETRY_BACKOFF_SECONDS = 2
 
-PRETRAINED_MODELS_DIR = Path(__file__).resolve().parent.parent / 'pretrained_models'
+MODELS_DIR_ENV = 'FACET_MODELS_DIR'
+MODELS_DIRNAME = 'pretrained_models'
+SAMP_NET_DEFAULT_PATH = f'{MODELS_DIRNAME}/samp_net.pth'
+U2NETP_DEFAULT_PATH = f'{MODELS_DIRNAME}/u2netp.pth'
+PRETRAINED_MODELS_DIR = (Path(os.environ[MODELS_DIR_ENV]).expanduser().resolve()
+                         if os.environ.get(MODELS_DIR_ENV)
+                         else Path(__file__).resolve().parent.parent / MODELS_DIRNAME)
 
 # Pinned to the commit that added the file (the only one that has ever touched
 # it) rather than `main`, so the download can't silently change out from under
@@ -45,6 +53,20 @@ AESTHETIC_MLP_WEIGHTS_SHA256 = "21dd590f3ccdc646f0d53120778b296013b096a035a2718c
 def pretrained_model_path(filename: str) -> Path:
     """Absolute path of a weights file inside ``pretrained_models/``."""
     return PRETRAINED_MODELS_DIR / filename
+
+
+def resolve_models_path(path: str) -> str:
+    """A configured weights path, with a leading ``pretrained_models/`` naming the models directory.
+
+    The shipped defaults (``samp_net.model_path``, ``piaa_prior.models_dir``) are written
+    that way. Read against the working directory, they put the file wherever the process
+    happened to start, and inside a read-only install they cannot be written at all.
+    An absolute path, or any other relative one, is returned unchanged.
+    """
+    parts = Path(path).parts
+    if parts and parts[0] == MODELS_DIRNAME:
+        return str(PRETRAINED_MODELS_DIR.joinpath(*parts[1:]))
+    return path
 
 
 def _sha256_file(path: str) -> str:

@@ -1,6 +1,8 @@
 import { provideHttpClient, withXhr } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
+import { firstValueFrom } from 'rxjs';
+import { ApiService } from '../../core/services/api.service';
 import { signal, computed } from '@angular/core';
 import { MatDialogRef } from '@angular/material/dialog';
 import { By } from '@angular/platform-browser';
@@ -12,9 +14,9 @@ import { ScanHistoryComponent } from './scan-history.component';
 const translations = {
   scan: {
     checking_status: 'Checking scan status…', status_unavailable: 'Status unavailable', retry_status: 'Read scan status again', failed: 'Scan ended with an error',
-    title: 'Scan Photos', close: 'Close', start_button: 'Start Scan', running: 'Running',
+    title: 'Scan Photos', close: 'Close', run_in_background: 'Run in background', start_button: 'Start Scan', running: 'Running',
     pick_directory: 'Pick a directory',
-    time_left_seconds: 'about {n}s left', time_left_minutes: 'about {n} min left', count: '{current} of {total} photos',
+    time_left_seconds: 'about {n}s left', time_left_minutes: 'about {n} min left', count: '{current} of {total} photos', total: '{total} photo', total_plural: '{total} photos',
     details: 'Technical log', last_observed_output: 'Last observed output', stages_label: 'Scan steps', progress_label: 'Scan progress',
     stage: { find: 'Find', analyze: 'Analyze', organize: 'Organize' },
     step: { decode: 'Reading photos', models: 'Loading models', analyze: 'Analyzing photos', save: 'Saving results' },
@@ -28,6 +30,8 @@ const translations = {
   moments: { title: 'Moments' }, junk: { title: 'Junk' }, gallery: { title: 'Gallery' },
 };
 
+const SCAN_STARTED_AT = 1_700_000_000.5;
+
 describe('Scan launcher rendered phase labels', () => {
   let fixture: ComponentFixture<ScanLauncherComponent>;
   let http: HttpTestingController;
@@ -39,6 +43,8 @@ describe('Scan launcher rendered phase labels', () => {
   let startScan: ReturnType<typeof vi.fn>;
   let cancelScan: ReturnType<typeof vi.fn>;
   let close: ReturnType<typeof vi.fn>;
+  let loadRecentPhotos: ReturnType<typeof vi.fn>;
+  let picker: { name: string; path: string };
 
   beforeEach(async () => {
     status = signal<ScanStatus>({ running: false, directories: [], output: [], elapsed_seconds: null, exit_code: null });
@@ -46,12 +52,15 @@ describe('Scan launcher rendered phase labels', () => {
     startScan = vi.fn(async () => { statusKnown.set(false); });
     cancelScan = vi.fn(async () => { status.update(s => ({ ...s, cancel_requested: true })); });
     close = vi.fn();
+    loadRecentPhotos = vi.fn((count: number) => firstValueFrom(TestBed.inject(ApiService).get<{ photos: { path: string }[] }>('/photos', { sort: 'date_added', sort_direction: 'DESC', per_page: count, page: 1 }))
+      .then(r => r.photos));
     TestBed.configureTestingModule({ imports: [ScanLauncherComponent], providers: [
       provideHttpClient(withXhr()), provideHttpClientTesting(),
       { provide: ScanService, useValue: {
         status, canLaunch: () => true, connected: signal(true), statusKnown, observationError, connect: reconnect,
         loadDirectories: vi.fn(async () => [{ path: '/fixture/photos', owner: '' }]),
         startScan,
+        loadRecentPhotos,
         cancelScan, canCancel: computed(() => statusKnown() && !observationError() && status().running && !!status().job_id && !status().cancel_requested),
       } },
       { provide: MatDialogRef, useValue: { close } },
@@ -65,6 +74,9 @@ describe('Scan launcher rendered phase labels', () => {
     fixture = TestBed.createComponent(ScanLauncherComponent);
     root = fixture.nativeElement;
     await settle();
+    const option = root.querySelector<HTMLInputElement>('input[type="radio"]')!.closest('label')!;
+    const [name, path] = [...option.querySelectorAll('span span')].map(span => span.textContent?.trim() ?? '');
+    picker = { name, path };
     root.querySelector<HTMLInputElement>('input[type="radio"]')!.dispatchEvent(new Event('change'));
     await settle();
     const start = [...root.querySelectorAll<HTMLButtonElement>('button')].find(button => button.textContent?.trim() === 'Start Scan')!;
@@ -73,12 +85,24 @@ describe('Scan launcher rendered phase labels', () => {
     await settle();
   });
 
-  afterEach(() => { http.verify(); TestBed.resetTestingModule(); });
+  afterEach(() => {
+    try { http.verify(); } finally { TestBed.resetTestingModule(); }
+  });
 
   async function settle() {
     fixture.detectChanges();
     await fixture.whenStable();
     fixture.detectChanges();
+  }
+
+  /** Answers the showcase reads a test did not assert on, including the single-flight follow-up. */
+  async function drainPhotos() {
+    for (let i = 0; i < 3; i++) {
+      const open = http.match(request => request.url === '/api/photos');
+      if (!open.length) return;
+      open.forEach(request => request.flush({ photos: [] }));
+      await settle();
+    }
   }
 
   async function progress(phase: string) {
@@ -111,8 +135,8 @@ describe('Scan launcher rendered phase labels', () => {
 
   async function scoring(extra: Partial<NonNullable<ScanStatus['progress']>>, rest: Partial<ScanStatus> = {}) {
     statusKnown.set(true);
-    status.set({ running: true, directories: ['/fixture/photos'], output: ['INFO loading'], elapsed_seconds: 3, exit_code: null,
-      progress: { phase: 'scoring', current: 0, total: 6, ...extra }, ...rest });
+    status.set({ running: true, directories: ['/fixture/photos'], output: ['INFO loading'], elapsed_seconds: 3, started_at: SCAN_STARTED_AT,
+      exit_code: null, progress: { phase: 'scoring', current: 0, total: 6, ...extra }, ...rest });
     await settle();
   }
 
@@ -123,6 +147,114 @@ describe('Scan launcher rendered phase labels', () => {
     expect(root.textContent).not.toContain('0 of 6 photos');
     expect(root.textContent).toContain('about 2 min left');
     expect(root.textContent).not.toContain('saliency');
+  });
+
+  it('names each folder first and keeps its full path beside it', () => {
+    expect(picker).toEqual({ name: 'photos', path: '/fixture/photos' });
+  });
+
+  it('says how many photos the scan has before the first one is saved', async () => {
+    await scoring({ step: 'analyze', detail: 'saliency', fraction: 0.1 });
+    expect(root.textContent).toContain('6 photos');
+  });
+
+  it('says one photo, not one photos', async () => {
+    await scoring({ step: 'analyze', fraction: 0.1, total: 1 });
+    expect(root.textContent).toContain('1 photo');
+    expect(root.textContent).not.toContain('1 photos');
+  });
+
+  it('keeps blank lines out of the log', async () => {
+    await scoring({ step: 'models' }, { output: ['', 'INFO first', '    ', 'INFO second', ''] });
+    expect(root.querySelector('details pre')?.textContent).toBe('INFO first\nINFO second');
+  });
+
+  it('says closing leaves a running scan going, and plain Close once it ended', async () => {
+    const closeLabel = () => [...root.querySelectorAll('mat-dialog-actions button')][0]?.textContent?.trim();
+    await scoring({ step: 'models' });
+    expect(closeLabel()).toBe('Run in background');
+    await scoring({}, { running: false, exit_code: 1 });
+    expect(closeLabel()).toBe('Close');
+  });
+
+  it('shows placeholder tiles, then the newest photos once a chunk is saved', async () => {
+    await scoring({ step: 'analyze', fraction: 0.1 }, { kind: 'scan' });
+    const showcase = () => root.querySelector('app-scan-showcase')!;
+    expect(showcase().getAttribute('aria-hidden')).toBe('true');
+    expect(showcase().querySelectorAll('img')).toHaveLength(0);
+    http.expectNone(request => request.url === '/api/photos');
+
+    await scoring({ current: 2, step: 'analyze', fraction: 0.4 }, { kind: 'scan' });
+    const read = http.expectOne(request => request.url === '/api/photos');
+    expect(read.request.params.get('sort')).toBe('date_added');
+    expect(read.request.params.get('sort_direction')).toBe('DESC');
+    expect(loadRecentPhotos).toHaveBeenCalledWith(5, SCAN_STARTED_AT);
+    read.flush({ photos: [{ path: '/fixture/photos/b.jpg' }, { path: '/fixture/photos/a.jpg' }] });
+    await settle();
+    const images = [...showcase().querySelectorAll('img')].map(img => decodeURIComponent(img.getAttribute('src')!));
+    expect(images).toHaveLength(2);
+    expect(images[0]).toContain('/fixture/photos/b.jpg');
+    expect(showcase().querySelector('div > div')!.className).toContain('col-span-2');
+  });
+
+  it('shows the photos of the follow-up read after ticks that arrived mid-request', async () => {
+    await scoring({ current: 2, step: 'analyze', fraction: 0.2 }, { kind: 'scan' });
+    await scoring({ current: 4, step: 'analyze', fraction: 0.4 }, { kind: 'scan' });
+    http.expectOne(request => request.url === '/api/photos').flush({ photos: [{ path: '/fixture/photos/old.jpg' }] });
+    await settle();
+    http.expectOne(request => request.url === '/api/photos').flush({ photos: [{ path: '/fixture/photos/new.jpg' }] });
+    await settle();
+    const images = [...root.querySelectorAll('app-scan-showcase img')].map(img => decodeURIComponent(img.getAttribute('src')!));
+    expect(images).toHaveLength(1);
+    expect(images[0]).toContain('/fixture/photos/new.jpg');
+  });
+
+  it('keeps scanning when the photo read fails', async () => {
+    await scoring({ current: 2, step: 'analyze', fraction: 0.4 }, { kind: 'scan' });
+    http.expectOne(request => request.url === '/api/photos').flush('boom', { status: 500, statusText: 'Server Error' });
+    await settle();
+    expect(root.querySelectorAll('app-scan-showcase img')).toHaveLength(0);
+    expect(root.textContent).toContain('2 of 6 photos');
+  });
+
+  it('makes room for the technical log while it is open', async () => {
+    await scoring({ current: 2, step: 'analyze', fraction: 0.4 }, { kind: 'scan' });
+    const log = root.querySelector<HTMLDetailsElement>('details')!;
+    log.open = true;
+    log.dispatchEvent(new Event('toggle'));
+    await settle();
+    expect(root.querySelector('app-scan-showcase')).toBeNull();
+    log.open = false;
+    log.dispatchEvent(new Event('toggle'));
+    await settle();
+    expect(root.querySelector('app-scan-showcase')).not.toBeNull();
+    await drainPhotos();
+  });
+
+  it('reads no showcase photos while the scan start is unknown', async () => {
+    await scoring({ current: 2, step: 'analyze', fraction: 0.4 }, { kind: 'scan', started_at: null });
+    http.expectNone(r => r.url === '/api/photos');
+    expect(root.querySelectorAll('app-scan-showcase img')).toHaveLength(0);
+  });
+
+  it('shows no showcase for a job that is not a library scan', async () => {
+    await scoring({ current: 2, step: 'analyze', fraction: 0.4 }, { kind: 'recompute' });
+    expect(root.querySelector('app-scan-showcase')).toBeNull();
+    http.expectNone(r => r.url === '/api/photos');
+  });
+
+  it('reads the showcase single-flight: rapid ticks collapse into one follow-up', async () => {
+    await scoring({ current: 1 }, { kind: 'scan' });
+    for (const current of [2, 3, 4]) await scoring({ current }, { kind: 'scan' });
+    const first = http.match(r => r.url === '/api/photos');
+    expect(first).toHaveLength(1);
+    first[0].flush({ photos: [] });
+    await settle();
+    const second = http.match(r => r.url === '/api/photos');
+    expect(second).toHaveLength(1);
+    second[0].flush({ photos: [] });
+    await settle();
+    http.expectNone(r => r.url === '/api/photos');
   });
 
   it('counts photos once a chunk has been saved', async () => {
@@ -257,6 +389,7 @@ describe('Scan launcher rendered phase labels', () => {
     expect(close).not.toHaveBeenCalled();
     button('Close').click(); await settle();
     expect(close).toHaveBeenCalledWith(true); // caller refreshes already committed scan results
+    await drainPhotos();
   });
 
   it('recovers an uncertain stop using status only and clears the alert when observation confirms it', async () => {
@@ -273,6 +406,7 @@ describe('Scan launcher rendered phase labels', () => {
     status.update(s => ({ ...s, cancel_requested: true })); await settle();
     expect(root.textContent).not.toContain('Stop request unconfirmed');
     expect(root.textContent).toContain('Stop requested');
+    await drainPhotos();
   });
 
   it('updates translated phase labels when the language changes', async () => {

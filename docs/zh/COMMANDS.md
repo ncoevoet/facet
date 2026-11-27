@@ -441,6 +441,13 @@ Facet 会记录每次扫描（状态、模式、目录、计数器）以及每�
 
 `--config` 或 `FACET_CONFIG` 指定的路径若不存在，是一个错误，而不是“使用默认值”。查看器会记录缺失的路径，并拒绝以开放模式启动。
 
+相关环境变量：
+
+- `FACET_MODELS_DIR`：自动下载的模型权重的存放位置。默认 `<install>/pretrained_models`；当安装目录只读时请设置它。
+- `FACET_PLUGINS_DIR`：扫描插件模块的文件夹。默认 `<install>/plugins`。
+- `FACET_HOME`：macOS 应用的启动器把数据、配置、缓存和日志都放在这一个文件夹中，而不是 `~/Library/Application Support/Facet`, `~/Library/Caches/Facet`, `~/Library/Logs/Facet`（用于测试和 CI）。
+- `FACET_ACCESS_KEY`：由 macOS 应用的启动器设置。设置后，查看器会拒绝除 `/mcp` 以外、既不带 `facet_access` Cookie 也不带含此密钥的 `X-Facet-Access-Key` 请求头的所有请求；打开一次 `/api/access?access_key=<key>` 即可设置该 Cookie。
+
 > **警告：** `viewer.py` 从不读取你启动它时所在目录中的 `scoring_config.json`。如果你从某个照片库目录启动它，而安装根目录里没有配置，它就会运行在默认值上：`viewer.edition_password` 为空且没有查看器密码，因此任何人都可以浏览。
 
 ```bash

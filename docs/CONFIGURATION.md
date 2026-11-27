@@ -162,7 +162,7 @@ Controls which directories the scan visits.
 {
   "scanning": {
     "skip_hidden_directories": true,
-    "skip_directories": ["@eaDir", "#recycle", "#snapshot", "@Recycle"],
+    "skip_directories": ["@eaDir", "#recycle", "#snapshot", "@Recycle", "*.photoslibrary"],
     "skip_raw": false
   }
 }
@@ -171,12 +171,12 @@ Controls which directories the scan visits.
 | Setting | Default | Description |
 |---------|---------|-------------|
 | `skip_hidden_directories` | `true` | Skip directories whose name starts with `.` |
-| `skip_directories` | `["@eaDir", "#recycle", "#snapshot", "@Recycle"]` | Folder-name globs skipped at any depth |
+| `skip_directories` | `["@eaDir", "#recycle", "#snapshot", "@Recycle", "*.photoslibrary"]` | Folder-name globs skipped at any depth |
 | `skip_raw` | `false` | Skip camera RAW files during directory scans |
 
 Notes on `skip_directories`:
 - Globs use `fnmatch`, are case-sensitive and match the folder name only.
-- Defaults cover Synology `@eaDir` (its `SYNOPHOTO_THUMB_*.jpg` thumbnails), `#recycle`, `#snapshot` and QNAP `@Recycle`.
+- Defaults cover Synology `@eaDir` (its `SYNOPHOTO_THUMB_*.jpg` thumbnails), `#recycle`, `#snapshot`, QNAP `@Recycle`, and Apple Photos libraries (`*.photoslibrary`), whose originals and derivatives would otherwise be scanned as duplicates of photos you keep elsewhere.
 - Your list replaces the default; `[]` disables name skipping. The scan root is never skipped.
 - Photos already indexed from these folders stay in the database.
 
@@ -596,6 +596,7 @@ Selects which models are used per VRAM profile.
 | `saliency.resolution` | `1024` | Inference resolution |
 | `saliency.mask_threshold` | `0.3` | Sigmoid threshold for the binary subject mask |
 | `saliency.min_subject_pixels` | `50` | Minimum subject pixels to count a subject as detected |
+| `samp_net.model_path` | `"pretrained_models/samp_net.pth"` | SAMP-Net weights. A value starting with `pretrained_models/` names the models folder (`FACET_MODELS_DIR`, default `<install>/pretrained_models`); absolute paths are used as is |
 
 Notes:
 - **`ram_cache_reserve_gb`:** a model is kept only while free RAM exceeds its size plus this reserve. `"always"` skips the check; `"never"` caches nothing. It must be a number >= 0, or the scan stops at startup. Under memory pressure the cache releases the model needed farthest in the future first (see [How Multi-Pass Works](#how-multi-pass-works)).
@@ -2060,7 +2061,7 @@ Event-driven plugin system for reacting to scoring events. Plugins can be Python
 
 ### Writing a Plugin
 
-Place a `.py` file in the `plugins/` directory. Define functions named after the events you want to handle:
+Place a `.py` file in the `plugins/` directory, or in the folder named by the `FACET_PLUGINS_DIR` environment variable. Define functions named after the events you want to handle:
 
 ```python
 def on_score_complete(data: dict) -> None:

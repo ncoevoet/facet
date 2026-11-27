@@ -4,6 +4,23 @@ All notable changes to Facet are documented in this file.
 
 ## [Unreleased]
 
+### Added
+
+- **A macOS app for Apple silicon.** `macos/build-app.sh` builds `Facet.app` and a disk image: a menu-bar app that bundles its own Python and, the first time it opens, walks through setup in a window — it installs Facet's packages from a hash-pinned lock (about 450 MB), asks for photo folders and checks the GPU. It then keeps the gallery running on this Mac only, opens it in the browser, and adds folders or scans them all from the menu bar. The gallery answers only the browser the app opened and the app itself: the app opens it once with a per-install key that only your account can read, which the viewer (`FACET_ACCESS_KEY`) trades for a cookie, so other accounts on the Mac and web pages that rebind a domain to `127.0.0.1` are refused. Everything it writes lives under `~/Library` (environment, database, config, models, logs), except the face models InsightFace keeps in `~/.insightface`, and never inside the signed app. The new `FACET_PLUGINS_DIR` environment variable moves the plugins folder, as `FACET_MODELS_DIR` moves the models. Each published GitHub Release gets the disk image attached by the new `macos-app.yml` workflow. See [docs/INSTALLATION.md](docs/INSTALLATION.md#macos-app).
+- **The macOS app updates itself.** Once a day it asks GitHub for the latest release and offers it in the menu, and **Check for Updates…** asks right away. It installs the release's disk image only after checking it against the release's `SHA256SUMS`, the bundle ID, the version and the signature, then reopens; any failed check keeps the installed app. `defaults write io.github.ncoevoet.facet AutomaticUpdateChecks -bool false` turns the daily check off.
+
+### Changed
+
+- **The scan dialog is easier to read.** Folders are listed by name with their full path below, the scan says how many photos it holds before the first is saved, the technical log keeps its newest line in view without blank lines or a sideways scrollbar, and while a scan runs the close button reads **Run in background**, since closing never stopped it. While a library scan runs, the photos it adds to the library fill a small panel above the steps, newest first.
+- **Scans skip Apple Photos libraries.** `scanning.skip_directories` now also lists `*.photoslibrary` by default, so picking `~/Pictures` no longer scans the originals and derivatives inside `Photos Library.photoslibrary` as duplicates of photos kept elsewhere. A list in your `scoring_config.json` still replaces the default.
+
+### Fixed
+
+- **The scan dialog's technical log stops filling with progress-bar fragments.** A scan, recompute or other job started from the viewer drew a terminal progress bar into the log the dialog shows, so every redraw (`Multi-pass processing: 0%| | 0/22 ...`) and the blank padding that cleared it landed there as a line of its own. Jobs the viewer starts no longer draw the bar; the dialog's own progress comes from the structured events it already read.
+- **The scan log stops telling you to run pip for MediaPipe.** Without the optional MediaPipe package, every scan logged a warning ending in a `pip install` command, which an install like the macOS app can't follow. A missing package is now one plain note pointing to the face docs; a MediaPipe that is installed but fails to load still warns.
+- **An empty gallery follows a scan that is already running.** Opening the gallery on an empty library while a scan runs — the first scan, or one started from another tab or the macOS app's menu bar — used to show "No photos found" until a manual reload. It now opens the scan's progress dialog, and the grid fills in when the scan finishes.
+- **SAMP-Net, U2-Net-P and the PIAA prior stop depending on the working directory.** Their default paths (`pretrained_models/samp_net.pth`, `pretrained_models/u2netp.pth`, `piaa_prior.models_dir`) were read against wherever `facet.py` or `viewer.py` was started, so a run from another folder downloaded SAMP-Net and U2-Net-P again there. A configured path starting with `pretrained_models/` now means Facet's models folder, like every other auto-downloaded weight. The new `FACET_MODELS_DIR` environment variable moves that folder, for an install whose own folder is read-only.
+
 ## [1.31.0] "Huangpu" — 2026-11-25
 
 ### Added
