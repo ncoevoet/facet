@@ -10,7 +10,6 @@ keeps working. Without the variable (a terminal, Docker, a NAS) nothing changes.
 """
 
 import hmac
-from functools import reduce
 from html import escape
 from urllib.parse import urlencode
 
@@ -41,8 +40,10 @@ def _language(accept_language: str) -> str:
 
 
 def _text(lang: str) -> str:
-    return reduce(lambda node, part: node.get(part, {}) if isinstance(node, dict) else {},
-                  REFUSAL_PATH, _load_translations(lang)) or ''
+    node: object = _load_translations(lang)
+    for part in REFUSAL_PATH:
+        node = node.get(part) if isinstance(node, dict) else None
+    return node if isinstance(node, str) else ''
 
 
 def _refusal_text(accept_language: str) -> tuple[str, str]:

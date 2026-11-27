@@ -752,6 +752,7 @@ def create_app() -> FastAPI:
     # An install upgraded without re-running `pip install -r requirements.txt` has no
     # `mcp` package: leave the feature off instead of failing to start the viewer.
     from api.config import set_mcp_available
+    agent_paths: tuple[str, ...] = ()
     try:
         from api.agent.bridge import TabRegistry
         from api.agent.server import MCP_PATH, mount_agent
@@ -761,7 +762,6 @@ def create_app() -> FastAPI:
         logger.warning("Agent (MCP) endpoint unavailable: %s; run `pip install -r requirements.txt`", ex)
         set_mcp_available(False)
         app.state.mcp_session_manager = None
-        agent_paths = ()
     else:
         set_mcp_available(True)
         app.state.tab_registry = TabRegistry()
