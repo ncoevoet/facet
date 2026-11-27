@@ -178,7 +178,7 @@ Facet.app ist eine Menüleisten-App für Macs mit Apple Silicon ab macOS 15. Sie
 beim ersten Öffnen ein und hält die Galerie danach im Hintergrund in Betrieb.
 
 **Die App beschaffen.** GitHub-Releases nach 1.31.0 enthalten das Disk-Image
-`Facet-<version>-<commit>.dmg` unter ihren Assets, mit seiner Prüfsumme in `SHA256SUMS`. Um es selbst zu bauen, verwenden Sie
+`Facet-<version>-<commit>.dmg` unter ihren Assets, mit seiner Prüfsumme in `SHA256SUMS`. `gh attestation verify Facet-<version>-<commit>.dmg --repo ncoevoet/facet` prüft, dass der Release-Workflow dieses Repositorys es gebaut hat. Um es selbst zu bauen, verwenden Sie
 `macos/build-app.sh`; es braucht die Xcode Command Line Tools (`xcode-select --install`) und einen
 gebauten Client (`cd client && npm ci && npm run build`, mit Node.js 24). Es verpackt den eingecheckten
 Stand und schreibt `macos/out/Facet-<version>-<commit>.dmg`.

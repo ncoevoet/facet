@@ -62,7 +62,8 @@ jobs:
           "$resources/python/bin/python3" -I "$resources/app/macos/facet_mac.py" setup | tail -3
           "$resources/python/bin/python3" -I "$resources/app/macos/facet_mac.py" ready
           "$FACET_HOME/venv/bin/python" -m pytest -q -p no:cacheprovider tests/test_macos_helper.py
-          hdiutil detach "$mount"
+          # Spotlight or a test process can hold the volume a moment longer ("Resource busy").
+          hdiutil detach "$mount" || { sleep 5; hdiutil detach -force "$mount"; }
       - uses: actions/upload-artifact@v7
         with:
           name: facet-macos-app
@@ -79,18 +80,27 @@ jobs:
     timeout-minutes: 10
     permissions:
       contents: write
+      # Provenance for the image, signed here rather than in the build job, which runs npm.
+      id-token: write
+      attestations: write
     steps:
       - uses: actions/download-artifact@v8
         with:
           name: facet-macos-app
           path: dmg
+      - name: Attest the disk image
+        # The image is signed ad hoc, which proves nothing about who built it, and a token that can
+        # replace the image can replace SHA256SUMS too. The attestation ties the image to this
+        # workflow: `gh attestation verify <dmg> --repo ncoevoet/facet`.
+        uses: actions/attest-build-provenance@v4
+        with:
+          subject-path: dmg/*.dmg
       - name: Upload
         env:
           GH_TOKEN: ${{ github.token }}
           REPO: ${{ github.repository }}
           TAG: ${{ github.event.release.tag_name || github.ref_name }}
-        # The image is signed ad hoc, which proves nothing about who built it; the checksum lets
-        # a download be compared with what this run uploaded.
+        # The checksum lets a download be compared with what this run uploaded.
         run: |
           (cd dmg && sha256sum *.dmg > SHA256SUMS)
           gh release upload "$TAG" dmg/*.dmg dmg/SHA256SUMS --clobber --repo "$REPO"

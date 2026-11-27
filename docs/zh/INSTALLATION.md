@@ -170,7 +170,7 @@ Facet.app 是一款菜单栏应用，适用于运行 macOS 15 或更高版本的
 Facet 的安装设置，之后让照片库在后台持续运行。
 
 **获取应用。** 1.31.0 之后的 GitHub Releases 会在附件中提供磁盘映像
-`Facet-<version>-<commit>.dmg`，其校验和在 `SHA256SUMS` 中。要自行构建，请使用
+`Facet-<version>-<commit>.dmg`，其校验和在 `SHA256SUMS` 中。`gh attestation verify Facet-<version>-<commit>.dmg --repo ncoevoet/facet` 可验证它由本仓库的发布工作流构建。要自行构建，请使用
 `macos/build-app.sh`，它需要 Xcode Command Line Tools（`xcode-select --install`）和
 已构建的前端（`cd client && npm ci && npm run build`，需 Node.js 24）。它会打包当前提交中的文件，
 并写出 `macos/out/Facet-<version>-<commit>.dmg`。

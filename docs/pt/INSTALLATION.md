@@ -174,7 +174,7 @@ O Facet.app é um app da barra de menus para Macs com Apple Silicon no macOS 15 
 configura o Facet na primeira vez que é aberto e depois mantém a galeria rodando em segundo plano.
 
 **Obtendo o app.** Os GitHub Releases posteriores à 1.31.0 trazem a imagem de disco,
-`Facet-<version>-<commit>.dmg`, entre os seus assets, com o checksum em `SHA256SUMS`. Para gerar uma
+`Facet-<version>-<commit>.dmg`, entre os seus assets, com o checksum em `SHA256SUMS`. `gh attestation verify Facet-<version>-<commit>.dmg --repo ncoevoet/facet` confirma que foi gerada pelo workflow de publicação deste repositório. Para gerar uma
 você mesmo, use `macos/build-app.sh`, que precisa das Xcode Command Line Tools (`xcode-select --install`)
 e da galeria já compilada (`cd client && npm ci && npm run build`, com Node.js 24). Ele empacota os
 arquivos do commit atual e grava `macos/out/Facet-<version>-<commit>.dmg`.
