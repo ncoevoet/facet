@@ -4334,7 +4334,10 @@
       "show_logs": "Mostrar registos",
       "copy_diagnostics": "Copiar diagnóstico",
       "restart": "Reiniciar o Facet",
-      "quit": "Sair do Facet"
+      "quit": "Sair do Facet",
+      "check_updates": "Procurar atualizações…",
+      "install_update": "Atualizar para o Facet {version}…",
+      "updating": "Atualizando…"
     },
     "status": {
       "stopped": "O Facet está parado",
@@ -4364,6 +4367,21 @@
       "quit": "Sair",
       "move_title": "Mova o Facet para Aplicações",
       "move_body": "O macOS está a executar o Facet a partir de uma cópia temporária só de leitura. Saia, arraste o Facet para a pasta Aplicações e abra-o a partir daí."
+    },
+    "update": {
+      "available_title": "O Facet {version} está disponível",
+      "available_body": "Você tem a {current}. O Facet fecha, instala a atualização e abre de novo. Sua biblioteca, configurações e modelos continuam.",
+      "install": "Instalar e reabrir",
+      "later": "Mais tarde",
+      "open_page": "Abrir a página da versão",
+      "not_writable": "O Facet não consegue se substituir nesta pasta. Baixe a nova versão na página da versão e arraste-a sobre esta.",
+      "up_to_date_title": "O Facet está atualizado",
+      "up_to_date_body": "{current} é a versão mais recente.",
+      "check_failed": "O Facet não conseguiu procurar atualizações: {reason}",
+      "install_failed": "O Facet não conseguiu instalar a atualização: {reason}. A versão instalada não mudou.",
+      "no_download": "a versão não tem a imagem de disco do Facet com o checksum",
+      "bad_checksum": "o download não confere com o checksum",
+      "bad_app": "o app baixado não é um Facet {version} válido"
     }
   }
 }

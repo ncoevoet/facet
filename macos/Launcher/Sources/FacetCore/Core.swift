@@ -153,3 +153,34 @@ public enum Ports {
         return bound == 0
     }
 }
+
+/// The updater's decisions about a GitHub release, kept here so core-checks can run them.
+public enum Updates {
+    /// `v1.32.0` -> `1.32.0`: release tags carry a `v`, the bundle version does not.
+    public static func version(fromTag tag: String) -> String {
+        tag.hasPrefix("v") ? String(tag.dropFirst()) : tag
+    }
+
+    /// Numeric, part by part: as strings, `1.10.0` would sort before `1.9.0`.
+    public static func isNewer(_ candidate: String, than current: String) -> Bool {
+        let new = candidate.split(separator: ".").map { Int($0) ?? 0 }
+        let old = current.split(separator: ".").map { Int($0) ?? 0 }
+        for index in 0..<max(new.count, old.count) {
+            let a = index < new.count ? new[index] : 0
+            let b = index < old.count ? old[index] : 0
+            if a != b { return a > b }
+        }
+        return false
+    }
+
+    /// The hash `sha256sum` listed for `file` in a SHA256SUMS text, lowercased; nil when absent.
+    public static func checksum(for file: String, in sums: String) -> String? {
+        for line in sums.split(whereSeparator: \.isNewline) {
+            let parts = line.split(separator: " ", maxSplits: 1)
+            guard parts.count == 2 else { continue }
+            // `hash  name` in text mode, `hash *name` in binary mode.
+            if parts[1].drop(while: { $0 == " " || $0 == "*" }) == file { return parts[0].lowercased() }
+        }
+        return nil
+    }
+}

@@ -4334,7 +4334,10 @@
       "show_logs": "Show Logs",
       "copy_diagnostics": "Copy Diagnostics",
       "restart": "Restart Facet",
-      "quit": "Quit Facet"
+      "quit": "Quit Facet",
+      "check_updates": "Check for Updates…",
+      "install_update": "Update to Facet {version}…",
+      "updating": "Updating…"
     },
     "status": {
       "stopped": "Facet is stopped",
@@ -4364,6 +4367,21 @@
       "quit": "Quit",
       "move_title": "Move Facet to Applications",
       "move_body": "macOS is running Facet from a temporary, read-only copy. Quit, drag Facet into the Applications folder, then open it from there."
+    },
+    "update": {
+      "available_title": "Facet {version} is available",
+      "available_body": "You have {current}. Facet quits, installs the update and opens again. Your library, settings and models stay.",
+      "install": "Install and Relaunch",
+      "later": "Later",
+      "open_page": "Open Release Page",
+      "not_writable": "Facet can't replace itself in this folder. Download the new version from the release page and drag it over this one.",
+      "up_to_date_title": "Facet is up to date",
+      "up_to_date_body": "{current} is the newest version.",
+      "check_failed": "Facet could not check for updates: {reason}",
+      "install_failed": "Facet could not install the update: {reason}. The installed version is unchanged.",
+      "no_download": "the release has no Facet disk image and checksum",
+      "bad_checksum": "the download does not match its checksum",
+      "bad_app": "the downloaded app is not a valid Facet {version}"
     }
   }
 }

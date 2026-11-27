@@ -41,7 +41,7 @@ extension InstallLocation {
 
     /// Opens `app` once this process has exited. Opening it while this copy still runs races
     /// the single-instance check: the new copy quits, and macOS reports the launch as failed.
-    private static func openAfterExit(_ app: URL) {
+    static func openAfterExit(_ app: URL) {
         let waiter = Process()
         waiter.executableURL = URL(fileURLWithPath: "/bin/sh")
         waiter.arguments = ["-c", "while kill -0 \"$1\" 2>/dev/null; do sleep 0.2; done; exec /usr/bin/open \"$2\"",

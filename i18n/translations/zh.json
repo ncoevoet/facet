@@ -4334,7 +4334,10 @@
       "show_logs": "显示日志",
       "copy_diagnostics": "复制诊断信息",
       "restart": "重新启动 Facet",
-      "quit": "退出 Facet"
+      "quit": "退出 Facet",
+      "check_updates": "检查更新…",
+      "install_update": "更新到 Facet {version}…",
+      "updating": "正在更新…"
     },
     "status": {
       "stopped": "Facet 已停止",
@@ -4364,6 +4367,21 @@
       "quit": "退出",
       "move_title": "将 Facet 移到“应用程序”",
       "move_body": "macOS 正在从临时的只读副本运行 Facet。请退出，将 Facet 拖到“应用程序”文件夹，然后从那里打开。"
+    },
+    "update": {
+      "available_title": "Facet {version} 已发布",
+      "available_body": "你当前使用的是 {current}。Facet 会退出、安装更新并重新打开。照片库、设置和模型都会保留。",
+      "install": "安装并重新打开",
+      "later": "稍后",
+      "open_page": "打开发布页面",
+      "not_writable": "Facet 无法在此文件夹中替换自身。请从发布页面下载新版本，并拖到当前版本上覆盖。",
+      "up_to_date_title": "Facet 已是最新版本",
+      "up_to_date_body": "{current} 是最新版本。",
+      "check_failed": "Facet 无法检查更新：{reason}",
+      "install_failed": "Facet 无法安装更新：{reason}。已安装的版本没有变化。",
+      "no_download": "该发布不包含带校验和的 Facet 磁盘映像",
+      "bad_checksum": "下载的文件与其校验和不符",
+      "bad_app": "下载的应用不是有效的 Facet {version}"
     }
   }
 }

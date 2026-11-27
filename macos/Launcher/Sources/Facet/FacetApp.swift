@@ -41,6 +41,15 @@ struct MenuContent: View {
             Button(L10n.t("menu.show_logs")) { NSWorkspace.shared.open(logs) }
         }
         Button(L10n.t("menu.copy_diagnostics")) { Task { await model.copyDiagnostics() } }
+        if delegate.updater.installing {
+            Button(L10n.t("menu.updating")) {}.disabled(true)
+        } else if let release = delegate.updater.available {
+            Button(L10n.t("menu.install_update", ["version": release.version])) {
+                Task { await delegate.updater.offer(release) }
+            }
+        } else {
+            Button(L10n.t("menu.check_updates")) { Task { await delegate.updater.checkNow() } }
+        }
         if case .failed = model.server {
             Button(L10n.t("menu.restart")) { Task { await model.restartServer() } }
         }
@@ -53,6 +62,7 @@ struct MenuContent: View {
 @MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate {
     let model = AppModel()
+    lazy var updater = Updater(model: model)
     private var onboardingWindow: NSWindow?
     private var quitting = false
 
@@ -67,6 +77,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             NSApp.terminate(nil)
             return
         }
+        updater.start()
         Task {
             await model.loadSpec()
             // Onboarding closed before it finished still leaves a usable environment: keep it.

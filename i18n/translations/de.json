@@ -4334,7 +4334,10 @@
       "show_logs": "Protokolle anzeigen",
       "copy_diagnostics": "Diagnose kopieren",
       "restart": "Facet neu starten",
-      "quit": "Facet beenden"
+      "quit": "Facet beenden",
+      "check_updates": "Nach Updates suchen…",
+      "install_update": "Auf Facet {version} aktualisieren…",
+      "updating": "Wird aktualisiert…"
     },
     "status": {
       "stopped": "Facet ist gestoppt",
@@ -4364,6 +4367,21 @@
       "quit": "Beenden",
       "move_title": "Facet in „Programme“ bewegen",
       "move_body": "macOS führt Facet aus einer temporären, schreibgeschützten Kopie aus. Beenden Sie Facet, ziehen Sie es in den Ordner „Programme“ und öffnen Sie es dort."
+    },
+    "update": {
+      "available_title": "Facet {version} ist verfügbar",
+      "available_body": "Sie haben {current}. Facet wird beendet, installiert das Update und öffnet sich wieder. Ihre Bibliothek, Einstellungen und Modelle bleiben erhalten.",
+      "install": "Installieren und neu starten",
+      "later": "Später",
+      "open_page": "Release-Seite öffnen",
+      "not_writable": "Facet kann sich in diesem Ordner nicht selbst ersetzen. Laden Sie die neue Version von der Release-Seite und ziehen Sie sie über diese.",
+      "up_to_date_title": "Facet ist aktuell",
+      "up_to_date_body": "{current} ist die neueste Version.",
+      "check_failed": "Facet konnte nicht nach Updates suchen: {reason}",
+      "install_failed": "Facet konnte das Update nicht installieren: {reason}. Die installierte Version bleibt unverändert.",
+      "no_download": "das Release enthält kein Facet-Disk-Image mit Prüfsumme",
+      "bad_checksum": "der Download passt nicht zu seiner Prüfsumme",
+      "bad_app": "die geladene App ist kein gültiges Facet {version}"
     }
   }
 }

@@ -35,6 +35,14 @@ check(Supervision.isAppPython("/Users/me/.Trash/Facet 2.app/Contents/Resources/p
       "an old copy in the Trash is still the app")
 check(!Supervision.isAppPython("/opt/homebrew/bin/python3.12"), "another Python is not the app")
 
+check(Updates.version(fromTag: "v1.32.0") == "1.32.0" && Updates.version(fromTag: "1.32.0") == "1.32.0", "tag version")
+check(Updates.isNewer("1.10.0", than: "1.9.0"), "versions compare as numbers")
+check(!Updates.isNewer("1.31", than: "1.31.0") && !Updates.isNewer("1.30.9", than: "1.31.0"), "same or older is no update")
+let sums = "abc123  Facet-1.32.0-1a2b3c4d5.dmg\nDEF456 *other.dmg\n"
+check(Updates.checksum(for: "Facet-1.32.0-1a2b3c4d5.dmg", in: sums) == "abc123", "SHA256SUMS text line")
+check(Updates.checksum(for: "other.dmg", in: sums) == "def456", "SHA256SUMS binary line, lowercased")
+check(Updates.checksum(for: "Facet.dmg", in: sums) == nil, "a file missing from SHA256SUMS has no hash")
+
 // A port held by a listener must not be offered.
 let held = socket(AF_INET, SOCK_STREAM, 0)
 var address = sockaddr_in()
