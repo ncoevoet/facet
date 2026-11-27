@@ -35,8 +35,8 @@ una libreria fotografica locale, poi serve una galleria per sfogliarla. Inizia d
 | Problema | Risposta |
 |-------|--------|
 | Quale profilo dovrei usare? | [Installazione › Quale profilo si adatta al mio hardware?](INSTALLATION.md#quale-profilo-si-adatta-al-mio-hardware) |
+| Usare Facet su un Mac senza terminale | L'[app macOS](INSTALLATION.md#app-macos) configura Facet e lo tiene nella barra dei menu |
 | "externally-managed-environment" all'installazione | Usa un ambiente virtuale (o Docker) — vedi [Installazione](INSTALLATION.md) |
 | Elaborazione lenta | Verifica il profilo. `--single-pass` può aiutare sui profili `legacy`/`8gb` con molta VRAM; `12gb`/`16gb`/`24gb` eseguono sempre il multi-pass (tranne in modalità commerciale) |
 | Il rilevamento dei volti non usa la GPU | Esegui `python facet.py --doctor` (sezione ONNX Runtime), poi installa `onnxruntime-gpu` al posto di `onnxruntime`, mai accanto — vedi [Installazione](INSTALLATION.md#onnx-runtime-per-il-rilevamento-dei-volti) |
 | exiftool mancante | Opzionale — vedi [Installazione › exiftool](INSTALLATION.md#exiftool) |
-| Usare Facet su un Mac senza terminale | L'[app macOS](INSTALLATION.md#app-macos) configura Facet e lo tiene nella barra dei menu |

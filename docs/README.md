@@ -35,6 +35,7 @@ photo library, then serves a gallery to browse it. Start with
 | Issue | Answer |
 |-------|--------|
 | Which profile should I use? | [Installation › Which profile fits my hardware?](INSTALLATION.md#which-profile-fits-my-hardware) |
+| Mac without a terminal | The [macOS app](INSTALLATION.md#macos-app) sets Facet up and keeps it in the menu bar |
 | "externally-managed-environment" on install | Use a virtual environment (or Docker) — see [Installation](INSTALLATION.md) |
 | Slow processing | Check the profile. `--single-pass` can help on the `legacy`/`8gb` profiles with plenty of VRAM; `12gb`/`16gb`/`24gb` always run multi-pass (except in commercial mode) |
 | Face detection not using the GPU | Run `python facet.py --doctor` (ONNX Runtime section), then install `onnxruntime-gpu` in place of `onnxruntime`, never beside it — see [Installation](INSTALLATION.md#onnx-runtime-for-face-detection) |

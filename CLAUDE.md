@@ -429,10 +429,11 @@ only what reading those two will NOT tell you.
   both `promote` and `excluded`; a partial body 422s rather than silently clearing one.
 - **Every writer of `scoring_config.json` shares `api.config.CONFIG_WRITE_LOCK`** — priorities,
   weights, contexts, panorama thresholds, the share-secret eviction and the plaintext-password
-  upgrade. They rewrite different parts of one file, and two locks lost whole updates. The one
-  writer outside the viewer process is the macOS app's `facet_mac.py add-folder`, which cannot
-  take that in-process lock; the app restarts the viewer right after it, or, when a scan is
-  running, once that scan finishes. Every viewer writer re-reads the file under the lock, so only
+  upgrade. They rewrite different parts of one file, and two locks lost whole updates. A writer
+  outside the viewer process cannot take that in-process lock: the CLI tools (`database.py`,
+  `calibrate.py`, the weight optimizer) and the macOS app's `facet_mac.py add-folder`. The app
+  restarts the viewer right after an add-folder, or, when a scan is running, once that scan
+  finishes. Every viewer writer re-reads the file under the lock, so only
   a viewer save made in the same instant as the add-folder write can be lost.
 - **Under the macOS app, `api/access_key.py` gates every route but `/mcp`.** With `FACET_ACCESS_KEY`
   set it is the outermost middleware, so a new route, WebSocket or static mount is refused unless the
