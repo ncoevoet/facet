@@ -191,7 +191,9 @@ final class Updater {
             }
             try? fm.removeItem(at: folder)
             InstallLocation.openAfterExit(app)
-            NSApp.terminate(nil)
+            // Not from inside this main-actor task: terminate waits for the quit handler's reply,
+            // itself a main-actor task, which could never run while this one holds the actor.
+            RunLoop.main.perform { NSApp.terminate(nil) }
         } catch {
             if let work { try? fm.removeItem(at: work) }
             AppModel.showError(L10n.t("update.install_failed", ["reason": error.localizedDescription]))
