@@ -33,6 +33,8 @@ final class AppModel {
     static let stopGrace: TimeInterval = 8
     static let healthTimeout: TimeInterval = 120
     static let scanPollSeconds: UInt64 = 5
+    /// Between scans the menu only needs to notice one started from the browser.
+    static let idlePollSeconds: UInt64 = 30
     static let onboardedKey = "onboardingCompleted"
     static let portKey = "lastPort"
     static let serverPIDKey = "lastServerPID"
@@ -366,6 +368,7 @@ final class AppModel {
         if http.statusCode == 200 {
             scan.running = true
             setScanning(true)
+            watchScans()    // poll now, not at the end of an idle wait
             return nil
         }
         // FastAPI sends a string, or for a validation error a list of {msg} objects.
@@ -404,7 +407,8 @@ final class AppModel {
                         return
                     }
                 }
-                try? await Task.sleep(nanoseconds: Self.scanPollSeconds * 1_000_000_000)
+                let seconds = self.scan.running ? Self.scanPollSeconds : Self.idlePollSeconds
+                try? await Task.sleep(nanoseconds: seconds * 1_000_000_000)
             }
         }
     }
