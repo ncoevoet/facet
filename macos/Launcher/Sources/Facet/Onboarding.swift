@@ -66,7 +66,6 @@ struct OnboardingView: View {
         HStack {
             if step != .welcome {
                 Button(L10n.t("onboarding.back")) { move(-1) }
-                    .keyboardShortcut(.cancelAction)
             }
             Spacer()
             if step == .ready {

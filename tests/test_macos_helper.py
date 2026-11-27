@@ -158,7 +158,7 @@ def test_serve_runs_the_viewer_in_a_process_group_of_its_own(tmp_path, group_lea
     result = subprocess.run([sys.executable, '-I', str(HELPER), 'serve', '5999'],
                             env={'FACET_HOME': str(home), 'PATH': '/usr/bin:/bin'},
                             capture_output=True, text=True, timeout=30,
-                            process_group=0 if group_leader else None)
+                            start_new_session=group_leader)
     assert result.returncode == 0, result.stderr
     pid, pgid = result.stdout.split()
     assert pid == pgid
